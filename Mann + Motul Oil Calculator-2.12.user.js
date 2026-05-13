@@ -2942,7 +2942,6 @@
                 border:1px solid #E67E00;
                 font-weight:600;
                 box-shadow:0 0 6px rgba(230,126,0,.3);
-                animation:zm-shimmer 4s linear infinite}
         `;
         document.head.appendChild(s);
     }
