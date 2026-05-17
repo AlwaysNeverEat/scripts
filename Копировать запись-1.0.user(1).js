@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Копировать запись
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Добавляет кнопку копирования записи на страницу редактирования
 // @match        *://*/admin/record/*
 // @grant        GM_setClipboard
