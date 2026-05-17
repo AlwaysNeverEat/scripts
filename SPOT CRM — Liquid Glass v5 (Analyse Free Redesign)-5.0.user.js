@@ -6,6 +6,8 @@
 // @match        *://*/analyse/free*
 // @grant        none
 // @run-at       document-end
+// @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/SPOT%20CRM%20%E2%80%94%20Liquid%20Glass%20v5%20(Analyse%20Free%20Redesign)-5.0.user.js
+// @downloadURL  https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/SPOT%20CRM%20%E2%80%94%20Liquid%20Glass%20v5%20(Analyse%20Free%20Redesign)-5.0.user.js
 // ==/UserScript==
 
 (function($) {

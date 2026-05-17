@@ -6,6 +6,8 @@
 // @match        *://*/admin/record*
 // @run-at       document-idle
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/CRM%20%E2%80%94%20%D0%9A%D0%B0%D1%80%D1%82%D0%B0%20%D0%BC%D0%B5%D1%82%D1%80%D0%BE%20%D0%A1%D0%9F%D0%B1%20(%D0%B7%D0%B0%D0%BF%D0%B8%D1%81%D0%B8%20%D0%BF%D0%BE%20%D1%81%D1%82%D0%B0%D0%BD%D1%86%D0%B8%D1%8F%D0%BC)%20v8-8.2.0.user.js
+// @downloadURL  https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/CRM%20%E2%80%94%20%D0%9A%D0%B0%D1%80%D1%82%D0%B0%20%D0%BC%D0%B5%D1%82%D1%80%D0%BE%20%D0%A1%D0%9F%D0%B1%20(%D0%B7%D0%B0%D0%BF%D0%B8%D1%81%D0%B8%20%D0%BF%D0%BE%20%D1%81%D1%82%D0%B0%D0%BD%D1%86%D0%B8%D1%8F%D0%BC)%20v8-8.2.0.user.js
 // ==/UserScript==
 
 (function () {

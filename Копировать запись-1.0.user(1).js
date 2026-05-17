@@ -5,6 +5,8 @@
 // @description  Добавляет кнопку копирования записи на страницу редактирования
 // @match        *://*/admin/record/*
 // @grant        GM_setClipboard
+// @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/%D0%9A%D0%BE%D0%BF%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B7%D0%B0%D0%BF%D0%B8%D1%81%D1%8C-1.0.user(1).js
+// @downloadURL  https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/%D0%9A%D0%BE%D0%BF%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B7%D0%B0%D0%BF%D0%B8%D1%81%D1%8C-1.0.user(1).js
 // ==/UserScript==
 
 (function () {

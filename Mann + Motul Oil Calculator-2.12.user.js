@@ -13,6 +13,8 @@
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @run-at       document-idle
+// @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/Mann%20%2B%20Motul%20Oil%20Calculator-2.12.user.js
+// @downloadURL  https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/Mann%20%2B%20Motul%20Oil%20Calculator-2.12.user.js
 // ==/UserScript==
 
 (function () {

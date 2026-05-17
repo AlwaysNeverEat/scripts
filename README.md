@@ -2,13 +2,13 @@
 
 Scripts for working with SPOT CRM and filter supplier sites. All run via Tampermonkey.
 
-## Auto-updates
+## Installation & updates
 
-Install `_script_updater.user.js` once — it keeps all other scripts up to date automatically.
+Install `_script_updater.user.js` once by opening its raw GitHub URL in your browser while Tampermonkey is active. After that, all scripts update themselves automatically:
 
-- Checks the private GitHub repo once per day in the background
-- Opens an install tab for each script that has a newer `@version`
-- Manual trigger available via the Tampermonkey extension menu → **Проверить обновления скриптов сейчас**
+- Each script has `@updateURL` and `@downloadURL` pointing to its raw GitHub URL — Tampermonkey's built-in update check handles version bumps
+- `_script_updater.user.js` additionally polls the GitHub API once per day and opens install tabs for any script with a newer `@version`
+- Manual trigger: Tampermonkey extension menu → **Проверить обновления скриптов сейчас**
 
 ---
 
