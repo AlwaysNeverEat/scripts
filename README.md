@@ -2,6 +2,14 @@
 
 Scripts for working with SPOT CRM and filter supplier sites. All run via Tampermonkey.
 
+## Auto-updates
+
+Install `_script_updater.user.js` once — it keeps all other scripts up to date automatically.
+
+- Checks the private GitHub repo once per day in the background
+- Opens an install tab for each script that has a newer `@version`
+- Manual trigger available via the Tampermonkey extension menu → **Проверить обновления скриптов сейчас**
+
 ---
 
 ## SPOT CRM — Liquid Glass v5

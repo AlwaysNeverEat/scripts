@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.12
+// @version      2.13
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -921,6 +921,7 @@
             const r = { ...a };
             r.volume = r.volumeTotal || r.volumeService || r.volumePlain || r.volume || 0;
             r.volumeType = r.volumeTotal ? 'total' : (r.volumeService ? 'service' : 'plain');
+            r.approvals = r.motulProducts || [];
             return r;
         };
         if (data.automatic && !data.automatic.isDct)
@@ -1152,9 +1153,9 @@
                     ? `<div class="zm-bath-msg">🛁 послан в баню!</div>`
                     : calc.html}
                 <button class="zm-app-btn" data-app="${agg.key}">
-                    ${showApp ? '▾' : '▸'} допуска машины (${(agg.approvals||[]).length})
+                    ${showApp ? '▾' : '▸'} ${agg.group === 'engine' ? 'допуска машины' : 'продукты Motul'} (${(agg.approvals||[]).length})
                 </button>
-                ${showApp ? `<div class="zm-app-list">${(agg.approvals||[]).map(x=>`<span class="zm-app-tag">${x}</span>`).join('') || '<i>допуски не определены</i>'}</div>` : ''}
+                ${showApp ? `<div class="zm-app-list">${(agg.approvals||[]).map(x=>`<span class="zm-app-tag">${x}</span>`).join('') || '<i>не определены</i>'}</div>` : ''}
             </div>`;
         }).join('');
 
