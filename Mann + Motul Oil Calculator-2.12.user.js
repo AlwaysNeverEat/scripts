@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.13
+// @version      2.14
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -293,8 +293,162 @@
                       {b:'ROLF', n:'Professional CVTF Multi',          price:1750, v:'CVT'} ],
         dct:        [ {b:'ZIC',  n:'DCT FE (для роботов с мокр. сц.)', price:1650, v:'DCT'},
                       {b:'ROLF', n:'Professional DCT',                 price:1850, v:'DCT'} ],
-        atf:        [ {b:'ZIC',  n:'ATF',           price:1300, v:'ATF'},
-                      {b:'ROLF', n:'ATF',           price:1550, v:'ATF'} ],
+        atf: {
+            zic: {
+                b:'ZIC', n:'ATF Multi', price:1300, v:'ATF', _type:'multi',
+                a:[
+                    'Aisin Warner AW-1',
+                    'DSIH 6p805 (Geely, Ssangyoung, Mahindra)',
+                    'Ford Mercon LV',
+                    'GM Dexron VI',
+                    'Honda DW-1',
+                    'Hyundai/KIA ATF SP-IV',
+                    'Hyundai/KIA ATF SPH-IV',
+                    'Hyundai/KIA ATF SP-IV RR',
+                    'Hyundai/KIA ATF SP-IV M1',
+                    'Hyundai/KIA NWS-9638',
+                    'Mazda ATF-FZ',
+                    'Mitsubishi ATF-J3',
+                    'Mitsubishi ATF-PA',
+                    'Mitsubishi SP-IV',
+                    'Nissan Matic Fluid S',
+                    'Nissan Matic Fluid W',
+                    'Toyota WS',
+                    'JWS 3324',
+                    'Audi/VW G 055 540',
+                    'Audi/VW G 055 005',
+                    'Audi/VW G 055 162',
+                    'BMW 83 22 0 142 516',
+                    'MB 236.12',
+                    'MB 236.14',
+                    'MB 236.15',
+                    'MB 236.41',
+                    'Volvo 6 speed MY 2011-2013 (P/N 31256774)',
+                    'Volvo 6 speed MY 2011-2013 (P/N 31256775)',
+                    'ZF 6 Speed (S671 090 255)',
+                ],
+            },
+            rolfDexron6: {
+                b:'ROLF', n:'ATF Dexron VI', price:1550, v:'ATF', _type:'dexron6',
+                a:[
+                    'BMW 83 22 0 142 516',
+                    'BMW 83 22 0 163 514',
+                    'BMW 83 22 0 397 114',
+                    'BMW 83 22 2 152 426',
+                    'BMW 83 22 2 289 720',
+                    'BMW 83 22 2 305 396',
+                    'BMW 83 22 2 305 397',
+                    'BMW ATF 2',
+                    'BMW ATF 3+',
+                    'BMW ATF 6',
+                    'Ford Mercon LV',
+                    'GM AW-1',
+                    'GM DEXRON VI',
+                    'Honda DW-1',
+                    'Hyundai / Kia ATF SPH-IV',
+                    'Hyundai / Kia ATF SP-IV',
+                    'Hyundai / Kia NWS-9638',
+                    'Jaguar Fluid 8432',
+                    'Jaguar LR023288',
+                    'Land Rover LR0022460',
+                    'Land Rover TYK500050',
+                    'Mazda FZ',
+                    'MB 236.12',
+                    'MB 236.14',
+                    'MB 236.15',
+                    'MB 236.41',
+                    'Mitsubishi ATF-J3',
+                    'Nissan Matic S',
+                    'Saab AW-1',
+                    'Toyota WS',
+                    'VW G 052 533',
+                    'VW G 055 005',
+                    'VW G 055 162',
+                    'VW G 055 540',
+                    'VW G 060 162',
+                ],
+            },
+            rolfMulti: {
+                b:'ROLF', n:'Professional ATF Multi', price:1550, v:'ATF', _type:'multi',
+                a:[
+                    'Allison C-4',
+                    'BMW 81 22 9 400 272',
+                    'BMW 81 22 9 400 275',
+                    'BMW 81 22 9 407 858',
+                    'BMW 81 22 9 407 859',
+                    'BMW 83 22 0 024 249',
+                    'BMW 83 22 0 024 359',
+                    'BMW 83 22 0 026 922',
+                    'BMW 83 22 0 402 413',
+                    'BMW 83 22 0 403 248',
+                    'BMW 83 22 7 542 290',
+                    'BMW 83 22 9 407 765',
+                    'BMW 83 22 9 407 807',
+                    'Chrysler / Dodge / Jeep ATF+4',
+                    'Chrysler / Dodge / Jeep SP-III',
+                    'DTFR 13C180',
+                    'DTFR 38B100',
+                    'Ford WSS-M2C922-A1',
+                    'GM DEXRON II',
+                    'GM DEXRON IID',
+                    'GM DEXRON IIE',
+                    'GM DEXRON IIIG',
+                    'GM DEXRON IIIH',
+                    'GM Type A Suffix A',
+                    'Honda Z-1',
+                    'Hyundai / Kia ATF Red-1K',
+                    'Hyundai / Kia Genuine ATF',
+                    'Hyundai / Kia SP-II',
+                    'Hyundai / Kia SP-III',
+                    'Isuzu ATF II',
+                    'Isuzu ATF III',
+                    'Isuzu Genuine ATF',
+                    'Jaguar JLM 20238',
+                    'Jaguar JLM 20292',
+                    'Jaguar JLM 21044',
+                    'Jaguar K17',
+                    'Jaguar LT 71141',
+                    'Land Rover ETL-7045E',
+                    'MAN 339 A',
+                    'Mazda F-1',
+                    'Mazda JWS 3317',
+                    'Mazda M-V',
+                    'Mazda T-IV',
+                    'MB 236.10',
+                    'MB 236.11',
+                    'MB 236.3',
+                    'MB 236.5',
+                    'MB 236.6',
+                    'MB 236.7',
+                    'MB 236.8',
+                    'MB 236.9',
+                    'MB 236.91',
+                    'Mitsubishi ATF-J2',
+                    'Mitsubishi SP-II',
+                    'Mitsubishi SP-III',
+                    'Nissan 402',
+                    'Nissan Matic D',
+                    'Nissan Matic J',
+                    'Nissan Matic K',
+                    'Nissan Matic W',
+                    'Renault Matic D2',
+                    'Saab 3309 (T-IV)',
+                    'Ssang Yong DSIH 5M-66',
+                    'Subaru HP',
+                    'Suzuki 3314',
+                    'Suzuki 3317',
+                    'Toyota D-II',
+                    'Toyota T-III',
+                    'Toyota T-IV',
+                    'VW G 052 025',
+                    'VW G 052 055',
+                    'VW G 052 162',
+                    'VW G 052 990',
+                    'VW G 055 025',
+                    'VW G US 000 162',
+                ],
+            },
+        },
     };}
 
     // ══════════════════════════════════════════════════════════════════
@@ -352,6 +506,142 @@
             else       others.push(a);
         }
         return { matched, others };
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //              ATF — извлечение и сравнение спецификаций
+    // ══════════════════════════════════════════════════════════════════
+    // Извлекает «категории спецификаций» из любого ATF-текста: и из имени
+    // продукта Motul ("MOTUL ATF VI", "MOTUL DEXRON III"…), и из допуска
+    // нашего масла ("GM DEXRON VI", "Toyota WS", "MB 236.14", "BMW 83 22…").
+    function extractAtfSpecs(text) {
+        const t = ' ' + (text || '').toUpperCase()
+            .replace(/[._/,;:()\-]+/g, ' ')
+            .replace(/\s+/g, ' ') + ' ';
+        const out = new Set();
+
+        // GM Dexron / ATF VI / 6
+        if (/\b(?:DEXRON|DEX|ATF)\s*(?:VI|6)\b/.test(t)) out.add('DEXRONVI');
+        if (/\bDEXRON\s*(?:III|3)[A-Z]?\b/.test(t)) out.add('DEXRONIII');
+        if (/\bDEXRON\s*(?:II|2)[A-Z]?\b/.test(t) && !/\bDEXRON\s*III\b/.test(t)) out.add('DEXRONII');
+
+        // Ford
+        if (/\bMERCON\s*LV\b/.test(t)) out.add('MERCONLV');
+        if (/\bMERCON\s*V\b/.test(t) && !/MERCON\s*LV/.test(t)) out.add('MERCONV');
+        if (/\bWSS\s*M2C922\b/.test(t)) out.add('WSSM2C922');
+
+        // Hyundai/Kia
+        if (/\bSPH\s*(?:IV|4)\b/.test(t)) out.add('SPHIV');
+        if (/\bSP\s*(?:IV|4)\b/.test(t)) out.add('SPIV');
+        if (/\bSP\s*(?:III|3)\b/.test(t)) out.add('SPIII');
+        if (/\bSP\s*(?:II|2)\b/.test(t) && !/\bSP\s*III\b/.test(t)) out.add('SPII');
+        if (/\bRED\s*1K\b/.test(t)) out.add('REDIK');
+        if (/\bNWS\s*9638\b/.test(t)) out.add('NWS9638');
+
+        // Toyota
+        if (/\bTOYOTA\s*WS\b|\bATF\s*WS\b|(?:^|\s)WS\s/.test(t)) out.add('TOYOTAWS');
+        if (/\bT\s*(?:IV|4)\b|\bTYPE\s*(?:IV|4)\b/.test(t)) out.add('TYPEIV');
+        if (/\bT\s*(?:III|3)\b|\bTYPE\s*(?:III|3)\b/.test(t)) out.add('TYPEIII');
+        if (/\bD\s*(?:II|2)\b|\bTYPE\s*(?:II|2)\b/.test(t)) out.add('TYPEII');
+
+        // Mitsubishi
+        if (/\bATF\s*J3\b/.test(t)) out.add('ATFJ3');
+        if (/\bATF\s*J2\b/.test(t)) out.add('ATFJ2');
+        if (/\bATF\s*PA\b/.test(t)) out.add('ATFPA');
+
+        // Mazda
+        if (/\bATF\s*FZ\b|\bMAZDA\s*FZ\b/.test(t)) out.add('MAZDAFZ');
+        if (/\bMAZDA\s*M\s*V\b|\bM\s*V\b/.test(t)) out.add('MAZDAMV');
+
+        // Honda
+        if (/\bDW\s*1\b/.test(t)) out.add('HONDADW1');
+        if (/\bHONDA\s*Z\s*1\b|\bZ\s*1\b/.test(t)) out.add('HONDAZ1');
+
+        // Chrysler/Mopar
+        if (/\bATF\s*\+?\s*4\b/.test(t)) out.add('ATFP4');
+
+        // Aisin
+        if (/\bAW\s*1\b/.test(t)) out.add('AW1');
+
+        // Mercedes
+        const mbMatches = t.match(/\bMB\s*236\s*(\d+)\b/g);
+        if (mbMatches) for (const m of mbMatches) out.add(m.replace(/\s+/g, ''));
+
+        // VW G-numbers (G 052 / 055 / 060 …)
+        const vwMatches = t.match(/\bG\s*0\s*\d{2}\s*\d{3}\b/g);
+        if (vwMatches) for (const m of vwMatches) out.add('VW' + m.replace(/\s+/g, ''));
+
+        // BMW длинные парт-номера (5 групп цифр)
+        const bmwMatches = t.match(/\b\d{2,3}\s+\d{2,3}\s+\d{1,3}\s+\d{2,4}\s+\d{2,4}\b/g);
+        if (bmwMatches) for (const m of bmwMatches) out.add('BMW' + m.replace(/\s+/g, ''));
+
+        // JWS 33xx
+        const jwsMatches = t.match(/\bJWS\s*33(09|17|24)\b/g);
+        if (jwsMatches) for (const m of jwsMatches) out.add('JWS33' + m.match(/\d{2}$/)[0]);
+
+        // Nissan Matic A/D/J/K/S/W
+        const maticMatches = t.match(/\bMATIC(?:\s+FLUID)?\s+([ADJKSW])\b/g);
+        if (maticMatches) for (const m of maticMatches) out.add('MATIC' + m.match(/[ADJKSW]\b/)[0]);
+
+        return out;
+    }
+
+    function carAtfSpecSet(motulProducts) {
+        const set = new Set();
+        for (const p of (motulProducts || [])) {
+            for (const tok of extractAtfSpecs(p)) set.add(tok);
+        }
+        return set;
+    }
+
+    function oilAtfMatches(oil, carSet) {
+        if (!carSet || !carSet.size) return [];
+        const matches = [];
+        for (const a of (oil.a || [])) {
+            for (const tok of extractAtfSpecs(a)) {
+                if (carSet.has(tok)) { matches.push(a); break; }
+            }
+        }
+        return matches;
+    }
+
+    // Главный подборщик ATF.
+    // motulProducts — список названий, что советует Motul для коробки.
+    // Возвращает { oil1, oil2, noMatch, wantsDexron6, debug }.
+    function pickAtfOils(motulProducts, atfDefs) {
+        const zic       = atfDefs.zic;
+        const rolfDex   = atfDefs.rolfDexron6;
+        const rolfMulti = atfDefs.rolfMulti;
+
+        const motulText = (motulProducts || []).join(' | ').toUpperCase();
+        const wantsDexron6 = /\b(?:DEXRON|DEX|ATF)\s*(?:VI|6)\b/.test(motulText);
+
+        const carSet = carAtfSpecSet(motulProducts);
+        const zicHits      = oilAtfMatches(zic,       carSet);
+        const rolfDexHits  = oilAtfMatches(rolfDex,   carSet);
+        const rolfMultiHits = oilAtfMatches(rolfMulti, carSet);
+
+        // Выбор ROLF: приоритет — Dexron 6, если коробка просит Dexron VI
+        // и наш Dexron VI реально имеет матч; иначе — Multi (если есть матч);
+        // иначе — Dexron VI (если есть матч); иначе — то, что попросил Motul.
+        let rolf;
+        if (wantsDexron6 && rolfDexHits.length) rolf = rolfDex;
+        else if (rolfMultiHits.length)         rolf = rolfMulti;
+        else if (rolfDexHits.length)           rolf = rolfDex;
+        else                                   rolf = wantsDexron6 ? rolfDex : rolfMulti;
+
+        const anyHit = zicHits.length + rolfDexHits.length + rolfMultiHits.length;
+        // Варн только если у Motul реально что-то было, но ни одно наше масло
+        // не покрыло ни одной спецификации.
+        const noMatch = (motulProducts || []).length > 0 && carSet.size > 0 && anyHit === 0;
+
+        return {
+            oil1: zic,
+            oil2: rolf,
+            noMatch,
+            wantsDexron6,
+            debug: { zicHits, rolfDexHits, rolfMultiHits, carSet: [...carSet] },
+        };
     }
 
     function escapeHtml(s) {
@@ -1543,8 +1833,10 @@
                 oil1 = defaults.cvt[0];
                 oil2 = defaults.cvt[1];
             } else {
-                oil1 = defaults.atf[0];
-                oil2 = defaults.atf[1];
+                const picked = pickAtfOils(agg.approvals || [], defaults.atf);
+                oil1 = picked.oil1;
+                oil2 = picked.oil2;
+                agg.atfWarn = picked.noMatch;
             }
         } else {
             const isCvtGear = agg.rawText && /CVT/i.test(agg.rawText);
@@ -1647,10 +1939,16 @@
             ? new Set((spotOilForAdds.oil.ad || []).map(a => normalizeAdditive(a)))
             : new Set();
 
+        const atfWarnBox = (agg.group === 'auto' && !isCvt && agg.atfWarn) ? `
+            <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a0000;border:1px solid #e53935;border-radius:6px;margin-top:6px;color:#ff8a80">
+                ⚠ Ни ZIC, ни ROLF не покрывают спецификации этой коробки — перевести клиента на мастера
+            </div>` : '';
+
         const html = `
             ${volEditHtml}
             <div class="zm-formula">📐 ${formula}</div>
             ${flushBox}
+            ${atfWarnBox}
             ${costs.map((c, i) => {
                 const canPick = agg.group === 'engine' && i === 0 && !c.oil.isSpot &&
                                 !isFixedSingle &&
@@ -2054,6 +2352,9 @@
             }
             const extraTxt = extras.length ? ' + ' + extras.join(' + ') : '';
             lines.push(`${typeTxt} (${calc.vCalc}л / ${pct})${extraTxt}`);
+            if (!isCvt && agg.atfWarn) {
+                lines.push('⚠ подходящих масел в наличии нет — перевести на мастера');
+            }
             calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
         } else {
             const vService = (parseFloat(agg.volume||0) + parseFloat(agg.filterVolume||0)).toFixed(1);
