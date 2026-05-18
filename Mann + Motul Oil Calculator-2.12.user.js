@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.14
+// @version      2.15
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -22,6 +22,13 @@
 
     // Глобальное состояние калькулятора (объявлено вверху чтобы Firefox не ругался на TDZ)
     let calcState = null;
+
+    // Защита от плавающей точки JS: 4.4 + 0.4 → 4.800000000000001 → 4.8
+    // Литры считаем максимум с 3 знаками после запятой, этого с запасом хватает.
+    const roundL = (x) => {
+        const n = Number(x);
+        return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : 0;
+    };
 
     const HOST = location.hostname;
     if (HOST.includes('motul.lubricantadvisor.com')) { initMotul(); return; }
@@ -1759,23 +1766,23 @@
         const defaults = getDefaults();
         const isCvt = agg.group === 'auto' && agg.isCvt;
 
-        const v0 = parseFloat(agg.volume || 0);
-        const vFilter = parseFloat(agg.filterVolume || 0);
-        let vService = v0 + vFilter;
+        const v0 = roundL(parseFloat(agg.volume || 0));
+        const vFilter = roundL(parseFloat(agg.filterVolume || 0));
+        let vService = roundL(v0 + vFilter);
         let overrideUsed = false;
 
-        const override = parseFloat(calcState.volumeOverride[agg.key]);
+        const override = roundL(parseFloat(calcState.volumeOverride[agg.key]));
         if (isFinite(override) && override > 0) {
             vService = override;
             overrideUsed = true;
         } else if (agg.group === 'auto' && vService === 0 && calcState.atpVolumeManual) {
-            vService = calcState.atpVolumeManual;
+            vService = roundL(calcState.atpVolumeManual);
             overrideUsed = true;
         }
 
         const v0Display = v0 || 0;
         const vFilterDisplay = vFilter || 0;
-        const motulVol = v0Display + vFilterDisplay;
+        const motulVol = roundL(v0Display + vFilterDisplay);
         const currentVol = overrideUsed ? vService : (motulVol || '');
         const volEditHtml = `
             <div class="zm-vol-edit">
@@ -1800,14 +1807,14 @@
             }
             if (calcState.atpType === 'full') {
                 const mult = 1.5;
-                const vRaw = vService * mult;
+                const vRaw = roundL(vService * mult);
                 vCalc = Math.max(12, Math.ceil(vRaw));
                 formula = `${vService}×${mult}=${vRaw.toFixed(2)}л → ${vCalc}л (мин 12)`;
                 volumeStr = `полн: ${vCalc}л`;
             } else {
                 const mult = isCvt ? 0.8 : 0.6;
                 const minVol = 4;
-                const vRaw = vService * mult;
+                const vRaw = roundL(vService * mult);
                 vCalc = Math.max(minVol, Math.round(vRaw * 10) / 10);
                 formula = `${vService}×${mult}=${vRaw.toFixed(2)}л → ${vCalc}л (мин ${minVol})`;
                 volumeStr = `част: ${vCalc}л`;
@@ -2287,9 +2294,9 @@
         const is0w20 = (mileage === '0w20');
 
         if (agg.group === 'engine') {
-            const v0 = parseFloat(agg.volume || 0);
-            const vFilter = parseFloat(agg.filterVolume || 0);
-            const vService = (v0 + vFilter);
+            const v0 = roundL(parseFloat(agg.volume || 0));
+            const vFilter = roundL(parseFloat(agg.filterVolume || 0));
+            const vService = roundL(v0 + vFilter);
             lines.push(`двс (${vService || calc.vCalc}л)`);
 
             const f = calcState.filters;
@@ -2340,7 +2347,7 @@
             const isPartial = calcState.atpType === 'partial';
             const typeTxt = isPartial ? 'част' : 'полн';
             const pct = !isPartial ? '150%' : (isCvt ? '80%' : '60%');
-            const vService = (parseFloat(agg.volume||0) + parseFloat(agg.filterVolume||0)) || calcState.volumeOverride[agg.key] || calcState.atpVolumeManual || 0;
+            const vService = roundL(parseFloat(agg.volume||0) + parseFloat(agg.filterVolume||0)) || roundL(calcState.volumeOverride[agg.key]) || roundL(calcState.atpVolumeManual) || 0;
             const label = isCvt ? 'вариатор' : 'акпп';
             lines.push(`${label} (серв ${vService}л)`);
 
