@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CRM — Карта метро СПб (записи по станциям) v8
 // @namespace    https://local.crm.metro
-// @version      8.2.0
+// @version      8.2.1
 // @description  Карта метро Студии Лебедева. HTML-кнопки. Слайдер размера. Несколько записей на одно время. ZMS Smart Delete. Часы 09:00–21:00 (последний слот 20:30).
 // @match        *://*/admin/record*
 // @run-at       document-idle
@@ -33,7 +33,7 @@
         { match: 'Охтинская',          short: 'Охтинская/Мур.', station: 'Девяткино',             line: 1, box: '##34', layout: '1 бокс / 1 яма',                  height: '2.5 м' },
         { match: 'Мурино',             short: 'Охтинская/Мур.', station: 'Девяткино',             line: 1, box: '##34', layout: '1 бокс / 1 яма',                  height: '2.5 м' },
         { match: 'Кубинская 82',       short: 'Кубинская 82',   station: 'Ленинский пр.',         line: 1, box: '##15', layout: '1 бокс / 1 подъёмник',            height: '2.6 м' },
-        { match: 'Казакова 29',        short: 'Казакова 29',    station: 'Пр. Ветеранов',         line: 1, box: '##28', layout: '2 бокса / 1 подъёмник',           height: '3 м / 2.6 м' },
+        { match: 'Казакова 29',        short: 'Казакова 29',    station: 'Пр. Ветеранов',         line: 1, box: '##28', layout: '2 бокса / 1 подъёмник',           height: '2.6 м' },
         { match: 'Маршала Жукова 21',  short: 'Жукова 21',      station: 'Автово',                line: 1, box: '##05', layout: '1 бокс / 1 подъёмник',            height: '2.5 м' },
         { match: 'Жукова 21',          short: 'Жукова 21',      station: 'Автово',                line: 1, box: '##05', layout: '1 бокс / 1 подъёмник',            height: '2.5 м' },
 
