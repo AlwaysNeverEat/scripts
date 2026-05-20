@@ -28,7 +28,7 @@
     // ── Cars DB integration ────────────────────────────────────────────
     // Set API_BASE to your deployed backend URL (no trailing slash).
     // Set DB_API_KEY to the same value as API_KEY in backend/.env
-    const API_BASE = 'http://192.168.0.106:3001';
+    const API_BASE = 'https://scripts-a8w2.onrender.com';
     const DB_API_KEY = 'spot-local-dev-key';
 
     // ── Глобальное состояние калькулятора ─────────────────────────────
