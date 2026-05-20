@@ -38,12 +38,16 @@ async function upsertSearchFields(carRow) {
 }
 
 // ── POST /api/cars ────────────────────────────────────────────────────────────
+// Upsert: conflict on (brand, model, engine_code, engine_volume, year_from).
+// Returns { ...car, created: true } on insert, { ...car, created: false } on update.
 
 router.post('/', async (req, res) => {
   const {
     brand, model, generation, engine_code, engine_volume,
     year_from, year_to, kw, bhp, fuel_type, motul_name, engine_name,
-    fluid_capacities, filter_part_numbers, created_by,
+    fluid_capacities, filter_part_numbers,
+    car_approvals, recommended_oils,
+    created_by,
   } = req.body;
 
   if (!brand || !model) return res.status(400).json({ error: 'brand and model are required' });
@@ -51,6 +55,11 @@ router.post('/', async (req, res) => {
 
   const filterErr = validateFilters(filter_part_numbers);
   if (filterErr) return res.status(400).json({ error: filterErr });
+
+  if (car_approvals !== undefined && !Array.isArray(car_approvals))
+    return res.status(400).json({ error: 'car_approvals must be an array' });
+  if (recommended_oils !== undefined && !Array.isArray(recommended_oils))
+    return res.status(400).json({ error: 'recommended_oils must be an array' });
 
   try {
     const { nameNormalized, nameCyrillic, nameTranslit, svSql } =
@@ -60,24 +69,48 @@ router.post('/', async (req, res) => {
       `INSERT INTO cars (
          brand, model, generation, engine_code, engine_volume,
          year_from, year_to, kw, bhp, fuel_type, motul_name, engine_name,
-         fluid_capacities, filter_part_numbers,
+         fluid_capacities, filter_part_numbers, car_approvals, recommended_oils,
          name_normalized, name_cyrillic, name_translit, search_vector,
          created_by
        ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-         $15,$16,$17,${svSql},$18
-       ) RETURNING *`,
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+         $17,$18,$19,${svSql},$20
+       )
+       ON CONFLICT (lower(brand), lower(model), lower(coalesce(engine_code,'')), coalesce(engine_volume,0), year_from)
+       DO UPDATE SET
+         generation          = EXCLUDED.generation,
+         year_to             = EXCLUDED.year_to,
+         kw                  = EXCLUDED.kw,
+         bhp                 = EXCLUDED.bhp,
+         fuel_type           = EXCLUDED.fuel_type,
+         motul_name          = EXCLUDED.motul_name,
+         engine_name         = EXCLUDED.engine_name,
+         fluid_capacities    = EXCLUDED.fluid_capacities,
+         filter_part_numbers = EXCLUDED.filter_part_numbers,
+         car_approvals       = EXCLUDED.car_approvals,
+         recommended_oils    = EXCLUDED.recommended_oils,
+         name_normalized     = EXCLUDED.name_normalized,
+         name_cyrillic       = EXCLUDED.name_cyrillic,
+         name_translit       = EXCLUDED.name_translit,
+         search_vector       = EXCLUDED.search_vector,
+         updated_at          = now()
+       RETURNING *, (xmax = 0) AS inserted`,
       [
         brand, model, generation ?? null, engine_code ?? null, engine_volume ?? null,
         year_from, year_to ?? null, kw ?? null, bhp ?? null,
         fuel_type ?? null, motul_name ?? null, engine_name ?? null,
-        JSON.stringify(fluid_capacities ?? {}), JSON.stringify(filter_part_numbers),
+        JSON.stringify(fluid_capacities ?? {}),
+        JSON.stringify(filter_part_numbers),
+        JSON.stringify(car_approvals ?? []),
+        JSON.stringify(recommended_oils ?? []),
         nameNormalized, nameCyrillic, nameTranslit,
         created_by ?? null,
       ],
     );
 
-    res.status(201).json(result.rows[0]);
+    const row = result.rows[0];
+    const created = row.inserted === true || row.inserted === 't';
+    res.status(created ? 201 : 200).json({ ...row, created });
   } catch (err) {
     console.error('POST /api/cars', err);
     res.status(500).json({ error: err.message });
@@ -235,7 +268,7 @@ router.patch('/:id', async (req, res) => {
   const allowed = [
     'brand','model','generation','engine_code','engine_volume',
     'year_from','year_to','kw','bhp','fuel_type','motul_name','engine_name',
-    'fluid_capacities','filter_part_numbers',
+    'fluid_capacities','filter_part_numbers','car_approvals','recommended_oils',
   ];
 
   const updates = Object.fromEntries(
