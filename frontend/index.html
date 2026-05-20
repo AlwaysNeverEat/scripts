@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Калькулятор замены масла</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛢</text></svg>"/>
+  <link rel="stylesheet" href="/src/style.css"/>
+</head>
+<body>
+  <div id="app">
+    <!-- Search page -->
+    <div id="page-search">
+      <header class="site-header">
+        <span class="logo">🛢</span>
+        <h1>Калькулятор замены масла</h1>
+        <p class="subtitle">Найди машину — получи готовый отчёт для Битрикса</p>
+      </header>
+      <div class="search-wrap">
+        <input id="search-input" type="search" placeholder="Например: KIA Rio 1.6 2017 или киа рио…" autocomplete="off" spellcheck="false"/>
+        <div id="search-results" class="search-results"></div>
+      </div>
+    </div>
+
+    <!-- Calculator page (hidden until car selected) -->
+    <div id="page-calc" class="hidden">
+      <div class="calc-topbar">
+        <button id="btn-back" class="btn btn-sec">← Назад</button>
+        <div id="calc-car-title" class="calc-car-title"></div>
+      </div>
+      <div class="calc-layout">
+        <div class="calc-main" id="calc-main"></div>
+        <div class="report-panel">
+          <div class="report-head">
+            <span>📋 Итог для Битрикса</span>
+            <button class="btn btn-sec" id="btn-copy">⧉ Копировать</button>
+          </div>
+          <pre id="report-output" class="report-output">— выберите агрегаты —</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

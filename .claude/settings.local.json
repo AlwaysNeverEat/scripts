@@ -3,7 +3,18 @@
     "allow": [
       "PowerShell(New-Item *)",
       "Bash(python3 *)",
-      "PowerShell(Get-ChildItem -Path \"D:\\\\gitworkspace\\\\scripts\" -Recurse -Force | ForEach-Object { $_.FullName })"
+      "PowerShell(Get-ChildItem -Path \"D:\\\\gitworkspace\\\\scripts\" -Recurse -Force | ForEach-Object { $_.FullName })",
+      "Bash(npm --version)",
+      "PowerShell(docker compose version *)",
+      "PowerShell(psql *)",
+      "Bash(npm install *)",
+      "Bash(grep -i \"\\\\.env$\")",
+      "Bash(git check-ignore *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "PowerShell(Set-Location \"D:\\\\gitworkspace\\\\scripts\\\\backend\"; Start-Process -FilePath \"powershell\" -ArgumentList \"-NoProfile\", \"-Command\", \"cd 'D:\\\\gitworkspace\\\\scripts\\\\backend'; npm run dev 2>&1 | Tee-Object -FilePath 'D:\\\\gitworkspace\\\\scripts\\\\backend\\\\dev.log'\" -WindowStyle Hidden; Start-Sleep -Seconds 4; Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\backend\\\\dev.log\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3001/health\" -Method GET | ConvertTo-Json)",
+      "PowerShell(Start-Process -FilePath \"powershell\" -ArgumentList \"-NoProfile\", \"-Command\", \"cd 'D:\\\\gitworkspace\\\\scripts\\\\frontend'; npm run dev 2>&1 | Tee-Object -FilePath 'D:\\\\gitworkspace\\\\scripts\\\\frontend\\\\dev.log'\" -WindowStyle Hidden; Start-Sleep -Seconds 5; Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\frontend\\\\dev.log\" -ErrorAction SilentlyContinue)"
     ]
   }
 }

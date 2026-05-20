@@ -1,147 +1,184 @@
-# Tampermonkey Scripts
+# Tampermonkey Scripts + Oil Calculator Cars DB
 
-Scripts for working with SPOT CRM and filter supplier sites. All run via Tampermonkey.
+## Userscripts (root)
 
-## Installation & updates
-
-Install `_script_updater.user.js` once by opening its raw GitHub URL in your browser while Tampermonkey is active. After that, all scripts update themselves automatically:
-
-- Each script has `@updateURL` and `@downloadURL` pointing to its raw GitHub URL — Tampermonkey's built-in update check handles version bumps
-- `_script_updater.user.js` additionally polls the GitHub API once per day and opens install tabs for any script with a newer `@version`
-- Manual trigger: Tampermonkey extension menu → **Проверить обновления скриптов сейчас**
+| File | Purpose |
+|------|---------|
+| `Mann + Motul Oil Calculator-*.user.js` | Legacy version (kept for reference) |
+| `userscript/calculator.user.js` | **Current version** (v3.0) — with Cars DB integration |
+| Others | CRM helpers, price lookup scripts |
 
 ---
 
-## SPOT CRM — Liquid Glass v5
+# Cars DB Ecosystem
 
-**Site:** `*/analyse/free*`
+Three components sharing a PostgreSQL database of car specs (capacities, filter part numbers):
 
-Full redesign of the stock availability page (`/analyse/free`). Replaces the default CRM layout with a custom shell.
-
-**Features:**
-- Sidebar navigation built from the existing CRM menu (preserves links and active states)
-- Sticky topbar with page title and station badge
-- Collapsible filter panel with station count display
-- Table wrapped in a styled card with row count
-- Animated particle canvas — dots drift and react to cursor movement
-- Dark / light theme toggle, preference saved to `localStorage`
-- Hidden scrollbars, custom input/button/select styles throughout
-- Smooth row entrance animations
-
-**Why:** The default CRM page is visually outdated and dense. This makes the analyse/free section easier to scan and use daily.
+| Component | Path | Purpose |
+|-----------|------|---------|
+| Userscript | `/userscript/` | Tampermonkey — Save to DB + auto-match banner |
+| Backend | `/backend/` | Node.js + Express REST API |
+| Frontend | `/frontend/` | Standalone search + full calculator site |
+| Shared | `/shared/` | Pure JS modules used by frontend |
+| DB | `/db/migrations/` | PostgreSQL schema + migrations |
 
 ---
 
-## SPOT: Поиск цен по артикулам
+## Quick start (Docker)
 
-**Site:** `*/analyse/free*`
+```bash
+docker compose up --build
 
-A floating panel that lets you paste any number of part numbers and find their prices in the CRM stock table.
+# Frontend → http://localhost:5173
+# Backend  → http://localhost:3001
+# Postgres → localhost:5432
+```
 
-**Features:**
-- Accepts multiple SKUs (one per line, any quantity)
-- Auto-detects filter type from product name (вф / мф / сф / тф) — no manual classification needed
-- Groups results by SKU and filter type, sorts: air → oil → cabin → fuel
-- Marks the cheapest option per group with a "best price" badge
-- Pre-selects the best price checkbox in the selection modal
-- Station dropdown mirrors the current CRM filter selection
-- Copies selected results to clipboard in one click
-- Panel collapses to a header, state saved in `sessionStorage`
-
-**Why:** Manually searching through the table for each SKU one by one wastes time. This handles bulk lookup and price comparison in one pass.
+The Postgres container runs `db/migrations/001_init.sql` on first boot.
 
 ---
 
-## ZMS CRM — Продлить запись + Умное удаление
+## Backend setup (manual)
 
-**Site:** `https://zamena-masla-spot.ru/admin/record*`
+```bash
+cd backend
+cp .env.example .env          # fill DATABASE_URL, API_KEY, CORS_ORIGINS
+npm install
+npm run dev
+```
 
-Two separate features injected into the record edit/list pages.
-
-**Extend button** (edit/create pages):
-- Adds an "⏱ Продлить" button next to Save
-- Calls the CRM scheduling API to find consecutive free slots after the current one
-- Shows a dropdown to pick how many 30-minute slots to add (up to end of day at 20:30)
-- Saves the original record, then creates extension slots in sequence
-- Extension slots use a placeholder phone number; no SMS is sent to the client
-
-**Smart delete** (record list page):
-- Intercepts delete actions on unusually long records (those with many slots)
-- Shows a confirmation dialog before deletion to prevent accidental removal
-
-**Why:** Extending a booking normally requires creating new records manually one by one. This does it in a single click with free-slot detection via the existing API.
+| Env var | Description |
+|---------|-------------|
+| `DATABASE_URL` | PostgreSQL URI |
+| `API_KEY` | Shared secret — must match `x-api-key` in all clients |
+| `CORS_ORIGINS` | Comma-separated allowed origins |
+| `PORT` | Default `3001` |
 
 ---
 
-## Копировать запись
+## Frontend setup (manual)
 
-**Site:** `*/admin/record/*`
+```bash
+cd frontend
+cp .env.example .env          # set VITE_API_KEY; leave VITE_API_BASE empty for local dev
+npm install
+npm run dev                   # http://localhost:5173
+npm run build                 # → dist/
+```
 
-Adds a copy button to the record edit form.
-
-**Features:**
-- Reads date, time, and station name from the form selects
-- Copies a formatted string: `DD.MM.YYYY HH:MM Station Name (Сергей)`
-- Button shows "✅ Скопировано!" for 2 seconds after copy
-
-**Why:** Quick way to grab booking info for pasting into a chat or note without retyping.
-
----
-
-## CRM — Карта метро СПб (записи по станциям)
-
-**Site:** `*/admin/record*`
-
-An interactive St. Petersburg metro map overlaid on the CRM record pages, showing bookings grouped by station.
-
-**Features:**
-- Full metro map built with HTML buttons (Lebedev Studio style)
-- Station size slider
-- Multiple bookings per time slot displayed on the same station
-- Smart delete integration (ZMS Smart Delete)
-- Working hours displayed as 09:00–21:00, last slot at 20:30
-
-**Why:** The default CRM record list doesn't give a geographic view of where bookings are. The map makes it immediately obvious which stations are busy and which have capacity.
+In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 
 ---
 
-## Mann + Motul Oil Calculator
+## Userscript setup
 
-**Sites:** `mann-filter.com`, `lynxauto.info`, `motul.lubricantadvisor.com`, `rolfoil.ru`, `podbor.upec.pro`, `podbor.ravenol.ru`
+1. Install [Tampermonkey](https://www.tampermonkey.net/).
+2. Create a new script from `userscript/calculator.user.js`.
+3. Edit the two constants at the top:
+   ```js
+   const API_BASE   = 'https://your-backend.railway.app';
+   const DB_API_KEY = 'your-api-key';
+   ```
+4. Add your backend hostname to the `@connect` directives.
 
-A cross-site oil change calculator that tracks filter and oil selection across multiple supplier sites and produces a final service report.
+**Auto-match:** On any supported page, the script calls `GET /api/cars/match`. A green banner appears if the car is in the DB. Accepting skips the Motul lookup.
 
-**Features:**
-- Runs on all relevant supplier sites, each with its own adapter (`initMann`, `initMotul`, `initRolf`)
-- Maintains shared state across tabs via `GM_setValue` / `GM_getValue`
-- Built-in oil database: Liqui Moly, ROLF, and others with viscosity, price, and approvals (API, ACEA, OEM specs)
-- Matches car manufacturer requirements to available oils
-- Generates a complete oil change report: filters selected (air / oil / cabin), oil chosen, total cost
+**Save to DB:** Click "📥 В базу данных" → fill the modal → requires all three filter part numbers (or mark absent).
 
-**Why:** Selecting the right oil requires cross-referencing manufacturer approvals across multiple sites. This keeps everything in one flow without switching tabs manually.
+**Refresh from Mann:** Click "↻ обновить из Mann" to re-run the live lookup and update the DB record.
 
 ---
 
-## "Скопировать 3 артикула" — GoodWill / LYNXauto / MANN-FILTER
+## Deploy — Supabase + Railway + Vercel
 
-Three separate scripts for three supplier catalogs. Each does the same job adapted for the site's HTML structure.
+### 1. Supabase (Postgres)
+- Create project → SQL Editor → paste `db/migrations/001_init.sql` → Run.
+- Copy **Settings → Database → Connection string (URI)**.
 
-**Sites:**
-- `goodfil.com` — GoodWill catalog
-- `lynxauto.info` — LYNXauto catalog
-- `mann-filter.com/*/catalog*` — MANN-FILTER catalog
+### 2. Railway (Backend)
+- New project → Deploy from GitHub → Root directory: `backend`.
+- Env vars: `DATABASE_URL`, `API_KEY` (random string), `CORS_ORIGINS` (Vercel URL).
+- Note the public URL.
 
-**Features:**
-- Floating "📋 Скопировать 3 артикула" button fixed to bottom-right
-- Scans visible product cards/rows and classifies each as air / oil / cabin filter
-- Copies exactly three SKUs (one per type) to clipboard, newline-separated
-- Per-card copy buttons added inline next to each SKU
-- Alerts if any filter type is missing from the results
-- MutationObserver keeps buttons alive after dynamic content loads (Vue/React pages)
+### 3. Vercel (Frontend)
+- New project → Root directory: `frontend`.
+- Env vars: `VITE_API_BASE` (Railway URL), `VITE_API_KEY`.
 
-**Type detection per site:**
-- **GoodWill** — by SKU prefix pattern: `OG` = oil, `AG ... CF/CFC` = cabin, `AG ...` = air
-- **LYNXauto** — by `span.list_showtable-name2` text content
-- **MANN-FILTER** — by card title text; prioritizes `CU` over `CUK` for cabin; skips `FP` prefixed SKUs and outdated items (no start date in date range)
+### 4. Update userscript constants with Railway URL + API_KEY.
 
-**Why:** When looking up filters for a car, you need all three types. Copying them one by one from the catalog is slow. These scripts grab all three in one click, ready to paste into the CRM or a spreadsheet.
+---
+
+## Self-host via Cloudflare Tunnel
+
+```bash
+# Run locally
+docker compose up -d
+
+# Install cloudflared, then:
+cloudflared tunnel login
+cloudflared tunnel create carsdb
+
+# ~/.cloudflared/config.yml:
+# tunnel: <id>
+# credentials-file: ...
+# ingress:
+#   - hostname: api.yourdomain.com
+#     service: http://localhost:3001
+#   - hostname: cars.yourdomain.com
+#     service: http://localhost:5173
+#   - service: http_status:404
+
+cloudflared tunnel run carsdb
+```
+
+---
+
+## API reference
+
+All endpoints require `x-api-key: <API_KEY>` header.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET`   | `/health` | Liveness (no auth) |
+| `POST`  | `/api/cars` | Create car record |
+| `GET`   | `/api/cars/match?engine_code=&brand=&model=&year=&volume=` | Best match |
+| `GET`   | `/api/cars/search?q=` | Free-text search (top 20) |
+| `GET`   | `/api/cars/:id` | Full record |
+| `GET`   | `/api/cars?page=&limit=` | Paginated list |
+| `PATCH` | `/api/cars/:id` | Edit record |
+
+### filter_part_numbers shape
+
+```json
+{
+  "vf": { "part": "W7023",  "absent": false },
+  "mf": { "part": "C2695",  "absent": false },
+  "sf": { "part": null,      "absent": true  }
+}
+```
+
+Every key must be present. `absent: true` OR non-empty `part`. Otherwise → HTTP 400.
+
+---
+
+## Repo structure
+
+```
+scripts/
+├── userscript/calculator.user.js  ← Tampermonkey v3.0
+├── backend/
+│   ├── src/{index,db/client,routes/cars,search/translit}.js
+│   ├── Dockerfile
+│   └── package.json
+├── frontend/
+│   ├── src/{main,calculator,style.css}
+│   ├── index.html / Dockerfile / nginx.conf
+│   └── package.json
+├── shared/
+│   ├── oils.js        ← shop oil data + Motul approvals
+│   ├── calculator.js  ← oil picking, cost calc
+│   └── report.js      ← buildReport() — identical output everywhere
+├── db/migrations/001_init.sql
+├── docker-compose.yml
+└── README.md
+```
