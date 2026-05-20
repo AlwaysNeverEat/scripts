@@ -1,15 +1,9 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Frontend calculator UI.
-// Reads car data from a DB record, renders the same oil-selection / mileage /
-// service UI as the userscript, and produces an identical Bitrix report via
-// the shared buildReport() function.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { getShopOils, getDefaults } from '../../shared/oils.js';
 import {
     roundL, getAggregates, shouldDefaultToPartial,
     filtersTotal, anyFilterEnabled, calcForAggregate,
     pickAtfOils, totalAggLabel, totalOilLabel, computeTotalSum,
+    splitOilApprovals, matchOilToReglament,
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
 
@@ -18,11 +12,7 @@ import { buildReport } from '../../shared/report.js';
 export function initCalculator(dbRecord, onBack) {
     const car = dbRecordToCar(dbRecord);
     const data = dbRecordToData(dbRecord);
-
-    // carApprovals: for the frontend we don't have a live Rolf lookup.
-    // Engine oil spec matching is disabled (ignoreApprovals defaults to false
-    // but there are no stored approvals). The user can enable ignoreApprovals.
-    const carApprovals = [];
+    const carApprovals = Array.isArray(dbRecord.car_approvals) ? dbRecord.car_approvals : [];
 
     const defaultPartial = shouldDefaultToPartial(car, data);
 
@@ -43,7 +33,7 @@ export function initCalculator(dbRecord, onBack) {
         showWithSump: false,
         flush: 'none',
         filters: dbFiltersFromRecord(dbRecord),
-        filtersRaw: '',
+        showFiltersInput: false,
         totals: [],
         data,
         car,
@@ -51,16 +41,13 @@ export function initCalculator(dbRecord, onBack) {
 
     if (data.engine) calcState.selected.add('engine');
 
-    // Set car title
     const titleParts = [car.makeShort, car.modelShort, car.engineName || car.volume || '',
                         car.yearFrom ? String(car.yearFrom) : ''].filter(Boolean);
     document.getElementById('calc-car-title').textContent = titleParts.join(' ');
 
-    // Render calculator controls
     const main = document.getElementById('calc-main');
     renderCalcControls(main, car, data, calcState, carApprovals);
 
-    // Copy button
     const copyBtn = document.getElementById('btn-copy');
     copyBtn.onclick = () => {
         const text = document.getElementById('report-output').textContent;
@@ -77,10 +64,7 @@ export function initCalculator(dbRecord, onBack) {
         updateReport(calcState, data, car, carApprovals);
     }
 
-    // Initial report
     updateReport(calcState, data, car, carApprovals);
-
-    // Expose rerender for event handlers
     window.__zmRerender = rerender;
 }
 
@@ -105,7 +89,7 @@ function renderCalcControls(container, car, data, calcState, carApprovals) {
 }
 
 function renderControls(calcState) {
-    const chip = (val, label, extra = '') =>
+    const chip = (val, label) =>
         `<button class="chip${calcState.mileage === val ? ' active' : ''}" data-mileage="${val}">${label}</button>`;
     const flushChip = (val, label) =>
         `<button class="chip flush${calcState.flush === val ? ' active' : ''}" data-flush="${val}">${label}</button>`;
@@ -143,40 +127,69 @@ function renderControls(calcState) {
 
 function renderFiltersSection(calcState) {
     const f = calcState.filters;
-    const hasAny = (f.vf.name && f.vf.name !== '[нет]') || (f.mf.name && f.mf.name !== '[нет]') || (f.sf.name && f.sf.name !== '[нет]');
-    const open = calcState.showFiltersInput || hasAny;
+    const hasAny = (f.vf.name && f.vf.name !== '[нет]') ||
+                   (f.mf.name && f.mf.name !== '[нет]') ||
+                   (f.sf.name && f.sf.name !== '[нет]');
 
-    if (!open) {
+    if (!hasAny && !calcState.showFiltersInput) {
         return `<div class="filters-section"><button class="btn-add-filters" id="btn-add-filters">➕ Добавить фильтры ДВС</button></div>`;
     }
 
-    const filterRow = (key, abbr, label, workOpts) => {
-        const fd = f[key];
-        const partNum = fd.name === '[нет]' ? '' : (fd.name || '');
-        const workSel = workOpts ? `
-            <select data-filter-work="${key}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px">
-                ${workOpts.map(o => `<option value="${o.v}" ${fd.work === o.v ? 'selected' : ''}>${o.l}</option>`).join('')}
-            </select>` : '';
+    if (calcState.showFiltersInput) {
+        const filterRow = (key, abbr, label, workOpts) => {
+            const fd = f[key];
+            const partNum = fd.name === '[нет]' ? '' : (fd.name || '');
+            const workSel = workOpts ? `
+                <select data-filter-work="${key}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px">
+                    ${workOpts.map(o => `<option value="${o.v}" ${fd.work === o.v ? 'selected' : ''}>${o.l}</option>`).join('')}
+                </select>` : '';
+            return `
+                <div class="filter-row">
+                    <label title="${label}">${abbr}</label>
+                    <input type="text" data-filter-part="${key}" placeholder="артикул" value="${esc(partNum)}" style="flex:1"/>
+                    <input type="number" data-filter-price="${key}" placeholder="₽" value="${fd.price || ''}" min="0" style="width:70px"/>
+                    ${workSel}
+                    <label class="chk-label" style="white-space:nowrap">
+                        <input type="checkbox" data-filter-on="${key}" ${fd.enabled ? 'checked' : ''}/>
+                        вкл
+                    </label>
+                </div>
+            `;
+        };
         return `
-            <div class="filter-row">
-                <label title="${label}">${abbr}</label>
-                <input type="text" data-filter-part="${key}" placeholder="артикул" value="${esc(partNum)}" style="flex:1"/>
-                <input type="number" data-filter-price="${key}" placeholder="₽" value="${fd.price || ''}" min="0" style="width:70px"/>
-                ${workSel}
-                <label class="chk-label" style="white-space:nowrap">
-                    <input type="checkbox" data-filter-on="${key}" ${fd.enabled ? 'checked' : ''}/>
-                    вкл
-                </label>
+            <div class="filters-section ctrl-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <span style="font-size:12px;font-weight:bold;color:#a0b0c0">🔧 Фильтры ДВС</span>
+                    <button class="btn btn-sec" id="btn-filters-done" style="font-size:11px;padding:3px 10px">✓ готово</button>
+                </div>
+                ${filterRow('vf', 'вф', 'Масляный фильтр', [{v:350,l:'защёлки 350₽'},{v:600,l:'болты 600₽'},{v:1200,l:'разбор 1200₽'}])}
+                ${filterRow('mf', 'мф', 'Воздушный фильтр', null)}
+                ${filterRow('sf', 'сф', 'Салонный фильтр', [{v:550,l:'бардачок 550₽'},{v:800,l:'под педалью 800₽'}])}
             </div>
         `;
+    }
+
+    // Display mode — copyable badges
+    const badgeRow = (key, abbr, label) => {
+        const fd = f[key];
+        if (!fd.name || fd.name === '[нет]') return '';
+        const badge = `<span class="filter-badge" data-copy="${esc(fd.name)}" title="нажми чтобы скопировать">${esc(fd.name)}</span>`;
+        const priceStr = fd.price ? ` ${fd.price}₽` : '';
+        const enabledStyle = fd.enabled ? '' : ' style="opacity:0.45"';
+        return `<div class="filter-badge-row"${enabledStyle}>
+            <span class="filter-badge-lbl">${abbr}</span>${badge}${priceStr ? `<span style="font-size:11px;color:var(--sub)">${priceStr}</span>` : ''}
+        </div>`;
     };
+
+    const rows = [badgeRow('vf','вф','масляный'), badgeRow('mf','мф','воздушный'), badgeRow('sf','сф','салонный')].filter(Boolean).join('');
 
     return `
         <div class="filters-section ctrl-section">
-            <div style="font-size:12px;font-weight:bold;margin-bottom:8px;color:#a0b0c0">🔧 Фильтры ДВС</div>
-            ${filterRow('vf', 'вф', 'Масляный фильтр', [{v:350,l:'защёлки 350₽'},{v:600,l:'болты 600₽'},{v:1200,l:'разбор 1200₽'}])}
-            ${filterRow('mf', 'мф', 'Воздушный фильтр', null)}
-            ${filterRow('sf', 'сф', 'Салонный фильтр', [{v:550,l:'бардачок 550₽'},{v:800,l:'под педалью 800₽'}])}
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="font-size:12px;font-weight:bold;color:#a0b0c0">🔧 Фильтры ДВС</span>
+                <button class="btn btn-sec" id="btn-filters-edit" style="font-size:11px;padding:3px 10px">✏ изменить</button>
+            </div>
+            ${rows}
         </div>
     `;
 }
@@ -210,6 +223,16 @@ function renderAggCard(agg, calcState, carApprovals) {
         }
     }
 
+    const showApp = calcState.showApprovals.has(agg.key);
+    const appCount = agg.group === 'engine' ? carApprovals.length : (agg.approvals || []).length;
+    const appLabel = agg.group === 'engine' ? 'Допуска машины' : 'Продукты Motul';
+    const appBlock = sel && !calc.isHighGear && !calc.needsVolume && appCount > 0 ? `
+        <button class="app-btn" data-app-toggle="${agg.key}">
+            ${showApp ? '▾' : '▸'} ${appLabel} (${appCount})
+        </button>
+        ${showApp ? renderApprovalsBlock(agg, carApprovals) : ''}
+    ` : '';
+
     return `
         <div class="agg-card">
             <div class="agg-header">
@@ -217,7 +240,17 @@ function renderAggCard(agg, calcState, carApprovals) {
                 <span class="agg-title">${agg.label}</span>
                 ${calc.volumeStr ? `<span style="font-size:12px;color:var(--sub);margin-left:auto">${calc.volumeStr}</span>` : ''}
             </div>
-            ${sel ? `<div class="agg-body">${body}</div>` : ''}
+            ${sel ? `<div class="agg-body">${body}</div>${appBlock}` : ''}
+        </div>
+    `;
+}
+
+function renderApprovalsBlock(agg, carApprovals) {
+    const list = agg.group === 'engine' ? carApprovals : (agg.approvals || []);
+    if (!list.length) return '';
+    return `
+        <div class="approvals-block">
+            ${list.map(a => `<span class="appr-tag">${esc(a)}</span>`).join(' ')}
         </div>
     `;
 }
@@ -225,13 +258,15 @@ function renderAggCard(agg, calcState, carApprovals) {
 function renderAggBody(agg, calc, calcState, carApprovals) {
     const parts = [];
 
-    // Volume edit
+    // Volume + reset
+    const defaultVol = roundL(parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0));
     parts.push(`
         <div class="agg-volume">
             <span class="ctrl-lbl">Объём:</span>
             <input type="number" step="0.1" min="0" class="vol-input"
                 data-vol-key="${agg.key}" value="${calcState.volumeOverride[agg.key] || ''}"
-                placeholder="${roundL(parseFloat(agg.volume||0) + parseFloat(agg.filterVolume||0)) || '?'}"/>
+                placeholder="${defaultVol || '?'}"/>
+            ${calcState.volumeOverride[agg.key] ? `<button class="btn-reset-vol" data-vol-reset="${agg.key}" title="сбросить">↺</button>` : ''}
             <span class="vol-formula">${calc.formula}</span>
         </div>
     `);
@@ -258,47 +293,67 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
         }
     }
 
+    // Engine: flush formula box
+    if (agg.group === 'engine' && calcState.flush !== 'none') {
+        const vCalc = calc.vCalc || 0;
+        let flushLine = '';
+        if (calcState.flush === '5min') {
+            flushLine = `5-минутная промывка: +1180₽`;
+        } else if (calcState.flush === 'full') {
+            const litres = +(vCalc * 0.9).toFixed(1);
+            const cost = Math.round(litres * 300) + 550;
+            flushLine = `Полная промывка: ${litres}л × 300₽ + 550₽ = ${cost}₽`;
+        }
+        if (flushLine) parts.push(`<div class="flush-formula">${flushLine}</div>`);
+    }
+
     // Oil options
     if (calc.costs && calc.costs.length) {
-        const oilOverrideKey = calcState.oilOverride?.[agg.key + '_mid'];
         const mileage = calcState.mileage;
-        const showAll = calcState.ignoreApprovals || mileage === '0w20';
-
-        // For 200k+ only show the first option
         const displayedCosts = mileage === '>=200' ? calc.costs.slice(0, 1) : calc.costs;
 
         parts.push(displayedCosts.map((c, i) => {
-            const isSelected = oilOverrideKey
-                ? (c.oil.b + '_' + c.oil.n) === oilOverrideKey
-                : i === 0;
-            const approvalBadges = (c.oil.a || []).slice(0, 6).map(a =>
-                `<span class="appr-hit">${esc(a)}</span>`).join(' ');
+            const { matched, others } = splitOilApprovals(c.oil.a || [], carApprovals);
+            const regMatches = agg.group === 'engine' ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
+            const regMark = regMatches.length ? `<span class="reg-mark" title="${esc(regMatches.map(m => m.tag + (m.desc ? ': ' + m.desc : '')).join(', '))}">⭐</span>` : '';
+            const matchedBadges = matched.map(a => `<span class="appr-hit">${esc(a)}</span>`).join(' ');
+            const otherBadges = others.map(a => `<span class="appr-other">${esc(a)}</span>`).join(' ');
+            const showOilAppr = calcState.expandedOilApp.has(agg.key + '_' + i);
+            const oilApprHtml = (matched.length || others.length) ? `
+                <div style="margin-top:3px">
+                    ${matchedBadges}${matchedBadges && otherBadges ? ' ' : ''}${showOilAppr ? otherBadges : (others.length ? `<span class="appr-more" data-oil-appr="${agg.key}_${i}">+${others.length} ещё</span>` : '')}
+                </div>
+            ` : '';
 
             return `
-                <div class="oil-option${isSelected ? ' selected' : ''}" data-oil-pick="${agg.key}" data-oil-idx="${i}">
-                    <div class="oil-name">${esc(c.oil.b)} ${esc(c.oil.n)}</div>
-                    <div class="oil-price">${c.oil.price}₽/л · ${esc(c.oil.v)}</div>
-                    <div class="oil-total">= ${c.total}₽</div>
-                    ${approvalBadges ? `<div class="oil-approvals">${approvalBadges}</div>` : ''}
+                <div class="oil-option${i === 0 ? ' selected' : ''}" data-oil-pick="${agg.key}" data-oil-idx="${i}">
+                    <div class="oil-name">${regMark}${esc(c.oil.b)} ${esc(c.oil.n)} <span style="font-size:11px;color:var(--sub)">${esc(c.oil.v)}</span></div>
+                    <div class="oil-price">${c.oil.price}₽/л · итого <b>${c.total}₽</b></div>
+                    ${oilApprHtml}
                 </div>
             `;
         }).join(''));
 
-        // Override picker: show all candidates if more than 2 options available
+        // Oil picker for engine oils
         const allCandidates = agg.allCandidates || [];
-        if (allCandidates.length > 2 && agg.group === 'engine' && showAll) {
-            parts.push(`
-                <details style="margin-top:6px">
-                    <summary style="font-size:11px;color:var(--sub);cursor:pointer">Другие варианты (${allCandidates.length})</summary>
-                    <div style="margin-top:6px">
-                        ${allCandidates.map((oil, i) => `
-                            <div class="oil-option" data-oil-override="${agg.key}" data-oil-override-idx="${i}" style="font-size:12px">
-                                ${esc(oil.b)} ${esc(oil.n)} — ${oil.price}₽/л
-                            </div>
-                        `).join('')}
+        const isPickerOpen = calcState.showOilPicker === agg.key;
+        if (agg.group === 'engine' && allCandidates.length > 1) {
+            if (isPickerOpen) {
+                parts.push(`
+                    <div class="oil-picker">
+                        <div class="oil-picker-head">Выбери масло (${allCandidates.length} подходящих):</div>
+                        ${allCandidates.map((oil, i) => {
+                            const isCur = calc.costs[0] && (calc.costs[0].oil.b + '_' + calc.costs[0].oil.n) === (oil.b + '_' + oil.n);
+                            const regOpt = matchOilToReglament(oil, calcState.car?.makeShort);
+                            const rMark = regOpt.length ? '⭐ ' : '';
+                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)} — ${oil.price}₽/л</button>`;
+                        }).join('')}
+                        <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
                     </div>
-                </details>
-            `);
+                `);
+            } else {
+                parts.push(`<button class="btn-pick-oil" data-picker-open="${agg.key}">🔄 выбрать масло (${allCandidates.length})</button>`);
+            }
         }
     }
 
@@ -391,24 +446,13 @@ function bindEvents(container, car, data, calcState, carApprovals) {
     const sumpChk = container.querySelector('#chk-sump');
     if (sumpChk) sumpChk.onchange = () => { calcState.showWithSump = sumpChk.checked; rerender(); };
 
-    // Aggregate checkboxes
-    container.querySelectorAll('[data-agg-key]').forEach(chk => {
-        chk.onchange = () => {
-            if (chk.checked) calcState.selected.add(chk.dataset.aggKey);
-            else calcState.selected.delete(chk.dataset.aggKey);
-            rerender();
-        };
-    });
-
-    // Volume overrides
-    container.querySelectorAll('[data-vol-key]').forEach(inp => {
-        inp.oninput = () => {
-            const v = parseFloat(inp.value);
-            if (isFinite(v) && v > 0) calcState.volumeOverride[inp.dataset.volKey] = v;
-            else delete calcState.volumeOverride[inp.dataset.volKey];
-            rerender();
-        };
-    });
+    // Filters
+    const addFiltBtn = container.querySelector('#btn-add-filters');
+    if (addFiltBtn) addFiltBtn.onclick = () => { calcState.showFiltersInput = true; rerender(); };
+    const editFiltBtn = container.querySelector('#btn-filters-edit');
+    if (editFiltBtn) editFiltBtn.onclick = () => { calcState.showFiltersInput = true; rerender(); };
+    const doneFiltBtn = container.querySelector('#btn-filters-done');
+    if (doneFiltBtn) doneFiltBtn.onclick = () => { calcState.showFiltersInput = false; rerender(); };
 
     // Filter part / price / work / toggle
     container.querySelectorAll('[data-filter-part]').forEach(inp => {
@@ -436,9 +480,58 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         };
     });
 
-    // Add filters button
-    const addFiltBtn = container.querySelector('#btn-add-filters');
-    if (addFiltBtn) addFiltBtn.onclick = () => { calcState.showFiltersInput = true; rerender(); };
+    // Filter badge copy-on-click
+    container.querySelectorAll('[data-copy]').forEach(badge => {
+        badge.onclick = () => {
+            navigator.clipboard.writeText(badge.dataset.copy).then(() => {
+                const orig = badge.textContent;
+                badge.textContent = '✓';
+                setTimeout(() => { badge.textContent = orig; }, 900);
+            });
+        };
+    });
+
+    // Aggregate checkboxes
+    container.querySelectorAll('[data-agg-key]').forEach(chk => {
+        chk.onchange = () => {
+            if (chk.checked) calcState.selected.add(chk.dataset.aggKey);
+            else calcState.selected.delete(chk.dataset.aggKey);
+            rerender();
+        };
+    });
+
+    // Volume overrides
+    container.querySelectorAll('[data-vol-key]').forEach(inp => {
+        inp.oninput = () => {
+            const v = parseFloat(inp.value);
+            if (isFinite(v) && v > 0) calcState.volumeOverride[inp.dataset.volKey] = v;
+            else delete calcState.volumeOverride[inp.dataset.volKey];
+            rerender();
+        };
+    });
+    container.querySelectorAll('[data-vol-reset]').forEach(btn => {
+        btn.onclick = () => { delete calcState.volumeOverride[btn.dataset.volReset]; rerender(); };
+    });
+
+    // Approvals toggle (per-agg)
+    container.querySelectorAll('[data-app-toggle]').forEach(btn => {
+        btn.onclick = () => {
+            const key = btn.dataset.appToggle;
+            if (calcState.showApprovals.has(key)) calcState.showApprovals.delete(key);
+            else calcState.showApprovals.add(key);
+            rerender();
+        };
+    });
+
+    // Oil approval expand ("+ N ещё")
+    container.querySelectorAll('[data-oil-appr]').forEach(btn => {
+        btn.onclick = () => {
+            const k = btn.dataset.oilAppr;
+            if (calcState.expandedOilApp.has(k)) calcState.expandedOilApp.delete(k);
+            else calcState.expandedOilApp.add(k);
+            rerender();
+        };
+    });
 
     // АКПП type
     container.querySelectorAll('[data-atp]').forEach(b => {
@@ -448,7 +541,28 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         chk.onchange = () => { calcState[chk.dataset.atpFlag] = chk.checked; rerender(); };
     });
 
-    // Oil selection
+    // Oil picker open/close/pick
+    container.querySelectorAll('[data-picker-open]').forEach(btn => {
+        btn.onclick = () => { calcState.showOilPicker = btn.dataset.pickerOpen; rerender(); };
+    });
+    container.querySelectorAll('[data-picker-close]').forEach(btn => {
+        btn.onclick = () => { calcState.showOilPicker = null; rerender(); };
+    });
+    container.querySelectorAll('[data-picker-pick]').forEach(btn => {
+        btn.onclick = () => {
+            const key = btn.dataset.pickerPick;
+            const idx = parseInt(btn.dataset.pickerIdx);
+            const agg = getAggregates(data).find(a => a.key === key);
+            if (!agg) return;
+            calcForAggregate(agg, calcState, carApprovals); // populates allCandidates
+            const oil = (agg.allCandidates || [])[idx];
+            if (oil) calcState.oilOverride[key + '_mid'] = oil.b + '_' + oil.n;
+            calcState.showOilPicker = null;
+            rerender();
+        };
+    });
+
+    // Oil option click (select oil1 vs oil2)
     container.querySelectorAll('[data-oil-pick]').forEach(el => {
         el.onclick = () => {
             const key = el.dataset.oilPick;
@@ -457,17 +571,6 @@ function bindEvents(container, car, data, calcState, carApprovals) {
             if (!agg) return;
             const calc = calcForAggregate(agg, calcState, carApprovals);
             const oil = calc.costs[idx]?.oil;
-            if (oil) calcState.oilOverride[key + '_mid'] = oil.b + '_' + oil.n;
-            rerender();
-        };
-    });
-    container.querySelectorAll('[data-oil-override]').forEach(el => {
-        el.onclick = () => {
-            const key = el.dataset.oilOverride;
-            const idx = parseInt(el.dataset.oilOverrideIdx);
-            const agg = getAggregates(data).find(a => a.key === key);
-            if (!agg) return;
-            const oil = (agg.allCandidates || [])[idx];
             if (oil) calcState.oilOverride[key + '_mid'] = oil.b + '_' + oil.n;
             rerender();
         };

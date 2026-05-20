@@ -1035,8 +1035,9 @@
 
             try {
                 const resp = await dbRequest('POST', '/api/cars', body);
-                if (resp.status === 201) {
-                    btn.textContent = '✓ Сохранено!';
+                if (resp.status === 201 || resp.status === 200) {
+                    const action = resp.data?.created ? 'добавлена в БД' : 'обновлена в БД';
+                    btn.textContent = `✓ Машина ${action}!`;
                     btn.style.background = '#4caf50';
                     setTimeout(() => overlay.remove(), 1500);
                 } else {
@@ -1091,7 +1092,30 @@
                 engine_name:   car.engineName || null,
                 fluid_capacities: buildFluidCapacities(data),
                 filter_part_numbers: fpn,
+                car_approvals: GM_getValue('rolf_approvals_' + car.cacheKey, null) || [],
+                recommended_oils: buildRecommendedOilsSnapshot(),
             };
+        }
+
+        function buildRecommendedOilsSnapshot() {
+            if (!calcState || !calcState.data) return [];
+            const aggs = getAggregates(calcState.data);
+            const result = [];
+            for (const agg of aggs) {
+                if (!calcState.selected.has(agg.key)) continue;
+                const calc = calcForAggregate(agg);
+                if (calc.isHighGear) continue;
+                const { mid, spot } = calc;
+                if (!mid) continue;
+                const entry = {
+                    key: agg.key,
+                    oil1: mid ? { b: mid.b, n: mid.n, price: mid.price, v: mid.v, a: mid.a || [] } : null,
+                    oil2: spot ? { b: spot.b, n: spot.n, price: spot.price, v: spot.v, a: spot.a || [] } : null,
+                    allCandidates: (agg.allCandidates || []).map(o => ({ b: o.b, n: o.n, price: o.price, v: o.v, a: o.a || [] })),
+                };
+                result.push(entry);
+            }
+            return result;
         }
 
         function buildFluidCapacities(data) {

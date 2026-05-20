@@ -14,7 +14,15 @@
       "Bash(curl -s http://localhost:3001/health)",
       "PowerShell(Set-Location \"D:\\\\gitworkspace\\\\scripts\\\\backend\"; Start-Process -FilePath \"powershell\" -ArgumentList \"-NoProfile\", \"-Command\", \"cd 'D:\\\\gitworkspace\\\\scripts\\\\backend'; npm run dev 2>&1 | Tee-Object -FilePath 'D:\\\\gitworkspace\\\\scripts\\\\backend\\\\dev.log'\" -WindowStyle Hidden; Start-Sleep -Seconds 4; Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\backend\\\\dev.log\" -ErrorAction SilentlyContinue)",
       "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3001/health\" -Method GET | ConvertTo-Json)",
-      "PowerShell(Start-Process -FilePath \"powershell\" -ArgumentList \"-NoProfile\", \"-Command\", \"cd 'D:\\\\gitworkspace\\\\scripts\\\\frontend'; npm run dev 2>&1 | Tee-Object -FilePath 'D:\\\\gitworkspace\\\\scripts\\\\frontend\\\\dev.log'\" -WindowStyle Hidden; Start-Sleep -Seconds 5; Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\frontend\\\\dev.log\" -ErrorAction SilentlyContinue)"
+      "PowerShell(Start-Process -FilePath \"powershell\" -ArgumentList \"-NoProfile\", \"-Command\", \"cd 'D:\\\\gitworkspace\\\\scripts\\\\frontend'; npm run dev 2>&1 | Tee-Object -FilePath 'D:\\\\gitworkspace\\\\scripts\\\\frontend\\\\dev.log'\" -WindowStyle Hidden; Start-Sleep -Seconds 5; Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\frontend\\\\dev.log\" -ErrorAction SilentlyContinue)",
+      "PowerShell($env_content = Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\backend\\\\.env\" | Where-Object { $_ -match \"^DATABASE_URL=\" }; $db_url = \\($env_content -split \"=\", 2\\)[1]; Write-Output \"DB URL found: $\\($db_url.Substring\\(0, 40\\)\\)...\")",
+      "PowerShell($env_content = Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\backend\\\\.env\" | Where-Object { $_ -match \"^DATABASE_URL=\" }; $db_url = \\($env_content -split \"=\", 2\\)[1].Trim\\(\\); $env:PGPASSWORD = \"\"; $result = & psql $db_url -f \"D:\\\\gitworkspace\\\\scripts\\\\db\\\\migrations\\\\002_add_approvals.sql\" 2>&1; Write-Output $result)",
+      "PowerShell($env:DATABASE_URL = \\(Get-Content \"D:\\\\gitworkspace\\\\scripts\\\\backend\\\\.env\" | Where-Object { $_ -match \"^DATABASE_URL=\" } | ForEach-Object { \\($_ -split \"=\", 2\\)[1].Trim\\(\\) }\\); Set-Location \"D:\\\\gitworkspace\\\\scripts\\\\backend\"; node run_migration.mjs 2>&1)",
+      "PowerShell(Start-Sleep -Seconds 2; Invoke-RestMethod -Uri \"http://localhost:3001/health\" -Method GET | ConvertTo-Json)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npx vite *)"
     ]
   }
 }
