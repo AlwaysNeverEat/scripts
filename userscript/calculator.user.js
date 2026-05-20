@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      3.0
+// @version      3.1
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF + Cars DB
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -1308,7 +1308,7 @@
                     ${motulOk || usingDb ? `<button class="zm-btn zm-btn-pri" id="zm-expand">📊 Развернуть</button>` : ''}
                     ${motulOk && !usingDb ? `<button class="zm-btn zm-btn-sec" id="zm-refresh" title="Переискать на Motul">↻ переискать Motul</button>` : ''}
                     ${usingDb ? `<button class="zm-btn zm-btn-sec" id="zm-refresh-from-mann">↻ обновить из Mann</button>` : ''}
-                    ${(motulOk || usingDb) ? `<button class="zm-btn" style="background:#1a3d1a;border:1px solid #2a5d2a;color:#81c784;font-size:11px" id="zm-save-to-db">📥 В базу данных</button>` : ''}
+                    <button class="zm-btn" style="background:#1a3d1a;border:1px solid #2a5d2a;color:#81c784;font-size:11px" id="zm-save-to-db">📥 В базу данных</button>
                 </div>
             `;
         }
