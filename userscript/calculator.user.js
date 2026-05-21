@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      3.2
+// @version      3.3
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF + Cars DB
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -126,7 +126,7 @@
         { b:'Motul', n:'5W-30 SAVE-NERGY', price:1900, v:'5W-30',
           a:['FIAT 9.55535-G1','FORD WSS M2C 913D','JAGUAR STJLR 03.5003','ACEA A5/B5','API SL'],
           ad:['трение','тепловые нагрузки','износ','топливо','масло-угар'] },
-        { b:'Motul', n:'5W-40 6100 SYN-CLEAN', price:1900, v:'5W-40',
+        { b:'Motul', n:'5W-40 6100 SYN-CLEAN', price:1950, v:'5W-40',
           a:['FORD WSS M2C 917A','GM DEXOS2','MB 229.51','RN 0710','RN 0700','VW 505 00','VW 505 01','ACEA C3','API SN'],
           ad:['трение','тепловые нагрузки','износ','топливо','масло-угар'] },
         // Idemitsu / Zepro
