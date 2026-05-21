@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      3.3
+// @version      3.4
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF + Cars DB
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -2331,9 +2331,9 @@
             }
             if (calcState.flush === 'full') {
                 const litres = +(vol * 0.9).toFixed(1);
-                const oilCost = Math.round(litres * 300);
+                const oilCost = Math.round(litres * 350);
                 const cost = oilCost + 550;
-                return { cost, breakdown: `${litres}л × 300 + 550 (услуга)`, label: 'полная промывка' };
+                return { cost, breakdown: `${litres}л × 350 + 550 (услуга)`, label: 'полная промывка' };
             }
             return null;
         };
@@ -2397,11 +2397,11 @@
                     `;
                 } else if (calcState.flush === 'full') {
                     const litres = +(vCalc * 0.9).toFixed(1);
-                    const oilCost = Math.round(litres * 300);
+                    const oilCost = Math.round(litres * 350);
                     flushBox = `
                         <div class="zm-flush-box">
                             🧪 <b>Полная промывка</b>:
-                            <span class="zm-flush-formula">${vCalc}л × 0.9 = ${litres}л × 300₽/л = ${oilCost}₽ + 550₽ (услуга)</span>
+                            <span class="zm-flush-formula">${vCalc}л × 0.9 = ${litres}л × 350₽/л = ${oilCost}₽ + 550₽ (услуга)</span>
                             = <b class="zm-flush-total">${flushInfo.cost}₽</b>
                         </div>
                     `;
@@ -2786,9 +2786,9 @@
                 lines.push(`промывка двс (5-минутка) - 1180₽ (630 + 550 услуга)`);
             } else if (calcState.flush === 'full') {
                 const litres = +(calc.vCalc * 0.9).toFixed(1);
-                const oilCost = Math.round(litres * 300);
+                const oilCost = Math.round(litres * 350);
                 const cost = oilCost + 550;
-                lines.push(`промывка двс (полная) - ${cost}₽ (${litres}л × 300₽ + 550 услуга)`);
+                lines.push(`промывка двс (полная) - ${cost}₽ (${litres}л × 350₽ + 550 услуга)`);
             }
 
             if (lines.length > 1) lines.push('');
