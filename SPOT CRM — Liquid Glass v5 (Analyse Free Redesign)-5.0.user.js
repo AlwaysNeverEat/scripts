@@ -1,9 +1,12 @@
 // ==UserScript==
 // @name         SPOT CRM — Liquid Glass v5 (Analyse Free Redesign)
 // @namespace    http://tampermonkey.net/
-// @version      5.0
-// @description  Полный редизайн /analyse/free — liquid glass + интерактивные частицы + выдвижные панели
+// @version      5.1
+// @description  Liquid glass редизайн SPOT CRM — analyse/free, dial_clients, клиенты и чеки услуги
 // @match        *://*/analyse/free*
+// @match        *://*/dial_clients*
+// @match        *://*/clients/*
+// @match        *://*/sale/*
 // @grant        none
 // @run-at       document-end
 // @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/SPOT%20CRM%20%E2%80%94%20Liquid%20Glass%20v5%20(Analyse%20Free%20Redesign)-5.0.user.js
@@ -12,6 +15,19 @@
 
 (function($) {
 'use strict';
+
+/* ─────────────────────────────────────────────
+   PAGE DETECTION
+───────────────────────────────────────────── */
+var pageType = (function() {
+    var p = (location.pathname || '').replace(/\/+$/, '/');
+    if (p.indexOf('/analyse/free') === 0)   return 'analyse';
+    if (p.indexOf('/dial_clients') === 0)   return 'dial_clients';
+    if (/^\/clients\/\d+/.test(p))          return 'client_sales';
+    if (/^\/sale\/\d+/.test(p))             return 'sale';
+    return 'unknown';
+})();
+document.documentElement.setAttribute('data-zm-page', pageType);
 
 /* ─────────────────────────────────────────────
    ШРИФТ
@@ -187,9 +203,13 @@ body.zm-theme-light {
     body > .page > .content > .main-container > .table_wrapper > form > input[type="hidden"]:not(.update_all_items) {
         display: none !important;
     }
-    /* Скрываем "Описание раздела" + "Сохранить" в левой панели */
-    .left-container > h3,
-    .left-container > form[action="/edit"] {
+    /* Скрываем "Описание раздела" + "Сохранить" / sms-форму везде, но h3 — только на /analyse */
+    .left-container > form[action="/edit"],
+    .left-container > form.sms-send-form,
+    .left-container > h3[style*="margin-bottom"] {
+        display: none !important;
+    }
+    html[data-zm-page="analyse"] .left-container > h3 {
         display: none !important;
     }
 
@@ -713,12 +733,13 @@ body.zm-theme-light {
     }
 
     /* Сама таблица */
-    table#free {
+    .zm-table-wrap table.table {
         width: 100% !important;
         border-collapse: collapse !important;
         font-size: 13px !important;
     }
-    table#free thead td, table#free thead th {
+    .zm-table-wrap table.table thead td,
+    .zm-table-wrap table.table thead th {
         background: rgba(40, 52, 88, 0.20) !important;
         color: var(--acc) !important;
         font-size: 11px !important;
@@ -730,12 +751,12 @@ body.zm-theme-light {
         text-align: center !important;
         white-space: nowrap !important;
     }
-    table#free thead td a {
+    .zm-table-wrap table.table thead td a {
         color: var(--acc) !important;
         text-decoration: none !important;
         transition: color .2s !important;
     }
-    table#free thead td a:hover { color: var(--txt-hi) !important; }
+    .zm-table-wrap table.table thead td a:hover { color: var(--txt-hi) !important; }
 
     .count-header {
         background: var(--acc-soft) !important;
@@ -743,26 +764,26 @@ body.zm-theme-light {
         font-weight: 700 !important;
     }
 
-    table#free .table__row {
+    .zm-table-wrap table.table .table__row {
         border-bottom: 1px solid var(--gl-bord) !important;
         transition: all .2s cubic-bezier(.4,0,.2,1) !important;
         animation: zmRowIn .3s ease both !important;
         background: transparent !important;
         opacity: 1 !important;
     }
-    table#free .table__row:nth-child(odd),
-    table#free .table__row:nth-child(even) {
+    .zm-table-wrap table.table .table__row:nth-child(odd),
+    .zm-table-wrap table.table .table__row:nth-child(even) {
         background: transparent !important;
         opacity: 1 !important;
     }
-    table#free .table__row:nth-child(even) {
-        background: rgba(150, 180, 240, 0.018) !important;
+    .zm-table-wrap table.table .table__row:nth-child(even) {
+        background: rgba(150, 180, 240, 0.025) !important;
     }
-    table#free .table__row > .table__cell {
+    .zm-table-wrap table.table .table__row > .table__cell {
         opacity: 1 !important;
         color: var(--txt-hi) !important;
     }
-    table#free .table__row:hover {
+    .zm-table-wrap table.table .table__row:hover {
         background: var(--acc-soft) !important;
         box-shadow: inset 3px 0 0 var(--acc) !important;
     }
@@ -782,31 +803,175 @@ body.zm-theme-light {
     table .table__row:nth-child(14) { animation-delay:.56s !important }
     table .table__row:nth-child(15) { animation-delay:.60s !important }
 
-    table#free .table__cell {
+    .zm-table-wrap table.table .table__cell {
         padding: 12px 14px !important;
         color: var(--txt-hi) !important;
         vertical-align: middle !important;
         text-align: center !important;
     }
-    .table__cell.name {
+
+    /* ═════════════════════════════════════════
+       ЯЧЕЙКИ — РАЗЛИЧИМОСТЬ ПО ТИПУ ДАННЫХ
+       (универсально для всех таблиц SPOT)
+    ═════════════════════════════════════════ */
+
+    /* Названия / ссылки на продажу/клиента */
+    .zm-table-wrap .table__cell.name,
+    .zm-table-wrap .table__cell.sale_name,
+    .zm-table-wrap .table__cell.client_name {
         text-align: left !important;
         font-weight: 500 !important;
-        max-width: 320px !important;
+        max-width: 360px !important;
+        color: var(--txt-hi) !important;
     }
-    .table__cell.price, .table__cell.total_sum {
+
+    /* Деньги — главный акцент */
+    .zm-table-wrap .table__cell.price,
+    .zm-table-wrap .table__cell.sum,
+    .zm-table-wrap .table__cell.total_sum,
+    .zm-table-wrap .table__cell.total_sale_sum {
         font-weight: 700 !important;
         color: var(--acc) !important;
         text-align: right !important;
         font-variant-numeric: tabular-nums !important;
         font-family: 'JetBrains Mono', monospace !important;
         font-size: 13px !important;
+        white-space: nowrap !important;
     }
-    .table__cell small {
+
+    /* Сумма скидки — приглушённая */
+    .zm-table-wrap .table__cell.discount_sum {
+        color: var(--bad) !important;
+        font-weight: 600 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-variant-numeric: tabular-nums !important;
+        text-align: right !important;
+        white-space: nowrap !important;
+    }
+
+    /* Процент скидки */
+    .zm-table-wrap .table__cell.percent {
+        color: var(--warn) !important;
+        font-weight: 700 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-variant-numeric: tabular-nums !important;
+    }
+
+    /* Количество */
+    .zm-table-wrap .table__cell.count {
+        font-weight: 700 !important;
+        color: var(--txt-hi) !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-variant-numeric: tabular-nums !important;
+        font-size: 13px !important;
+    }
+
+    /* Бонусы — фиолетовый */
+    .zm-table-wrap .table__cell.paid_bonus,
+    .zm-table-wrap .table__cell.received_bonus {
+        color: var(--pur) !important;
+        font-weight: 600 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-variant-numeric: tabular-nums !important;
+        white-space: nowrap !important;
+    }
+
+    /* Пробег — зелёный */
+    .zm-table-wrap .table__cell.mileage {
+        color: var(--ok) !important;
+        font-weight: 600 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-variant-numeric: tabular-nums !important;
+    }
+    .zm-table-wrap .table__cell.mileage:not(:empty)::after {
+        content: ' км';
+        opacity: 0.6;
+        font-size: 10px;
+        margin-left: 2px;
+    }
+
+    /* Гос. номер авто */
+    .zm-table-wrap .table__cell.vehicle_number {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.05em !important;
+        color: var(--acc-hi) !important;
+        text-transform: uppercase !important;
+        white-space: nowrap !important;
+    }
+
+    /* ID — приглушённый */
+    .zm-table-wrap .table__cell.id {
+        font-family: 'JetBrains Mono', monospace !important;
+        color: var(--txt-lo) !important;
+        font-size: 11px !important;
+        font-weight: 500 !important;
+    }
+
+    /* Телефон */
+    .zm-table-wrap .table__cell.client_phone {
+        font-family: 'JetBrains Mono', monospace !important;
+        color: var(--txt-mid) !important;
+        letter-spacing: 0.02em !important;
+        white-space: nowrap !important;
+    }
+
+    /* Даты */
+    .zm-table-wrap .table__cell.date_create,
+    .zm-table-wrap .table__cell.closed_at {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 11px !important;
+        color: var(--txt-mid) !important;
+        white-space: nowrap !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Магазин/станция — приглушённый */
+    .zm-table-wrap .table__cell.station_name {
+        color: var(--txt-mid) !important;
+        font-size: 12px !important;
+    }
+
+    /* Продавец/мастер */
+    .zm-table-wrap .table__cell.seller {
+        color: var(--txt-mid) !important;
+        font-size: 12px !important;
+        text-align: left !important;
+    }
+
+    /* Тип оплаты — иконка по центру */
+    .zm-table-wrap .table__cell.type_payment img {
+        display: inline-block !important;
+        max-width: 22px !important;
+        max-height: 22px !important;
+        opacity: 0.9 !important;
+    }
+
+    /* Комментарии — мягкий, курсивом */
+    .zm-table-wrap .table__cell.comment,
+    .zm-table-wrap .table__cell.call_center_comment,
+    .zm-table-wrap .table__cell.security_service_comment {
+        color: var(--txt-mid) !important;
+        font-size: 12px !important;
+        font-style: italic !important;
+        max-width: 220px !important;
+        text-align: left !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Маленький суффикс копеек */
+    .zm-table-wrap .table__cell small {
         font-size: 9px !important;
         color: var(--txt-lo) !important;
         vertical-align: super !important;
+        margin-left: 1px !important;
     }
     .tableNHeader { background: transparent !important; }
+
+    /* Тонкий разделитель между группами столбцов в чеке */
+    .zm-table-wrap table#sales_items .table__cell.total_sum {
+        border-left: 1px solid var(--gl-bord) !important;
+    }
 
     /* ── ИНПУТЫ ─────────────────────────────── */
     input[type="text"],
@@ -975,10 +1140,60 @@ body.zm-theme-light {
 }
 
 /* IE 10+ */
-html, body, .zm-sidebar, .zm-panel-body, table#free {
+html, body, .zm-sidebar, .zm-panel-body, .zm-table-wrap table.table {
     -ms-overflow-style: none !important;
     scrollbar-width: none !important;
 }
+
+    /* ── КНОПКА КОПИРОВАНИЯ АРТИКУЛА ────────── */
+    .zm-art-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        margin-left: 10px !important;
+        padding: 3px 8px !important;
+        background: var(--acc-soft) !important;
+        color: var(--acc) !important;
+        border: 1px solid var(--gl-bord-hi) !important;
+        border-radius: var(--r-sm) !important;
+        font-size: 11px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-weight: 700 !important;
+        cursor: pointer !important;
+        transition: all .2s cubic-bezier(.4,0,.2,1) !important;
+        box-shadow: none !important;
+        text-transform: none !important;
+        letter-spacing: 0 !important;
+        line-height: 1.2 !important;
+        vertical-align: middle !important;
+        white-space: nowrap !important;
+    }
+    .zm-art-btn::before { display: none !important; content: none !important; }
+    .zm-art-btn svg {
+        width: 12px !important;
+        height: 12px !important;
+        flex-shrink: 0 !important;
+    }
+    .zm-art-btn:hover {
+        background: var(--acc) !important;
+        color: var(--bg-deep) !important;
+        border-color: var(--acc) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 10px var(--acc-glow) !important;
+        filter: none !important;
+    }
+    .zm-art-btn.is-copied {
+        background: var(--ok) !important;
+        color: var(--bg-deep) !important;
+        border-color: var(--ok) !important;
+        transform: none !important;
+    }
+    .zm-art-btn.is-copied .zm-art-btn-icon { display: none !important; }
+    .zm-art-btn.is-copied::after {
+        content: '✓ скопировано';
+        margin-left: 2px;
+    }
+    .zm-art-btn.is-copied .zm-art-btn-code { display: none !important; }
 
     /* ── СПОЙЛЕР (Описание раздела) ───────── */
     .spoiler {
@@ -1042,7 +1257,8 @@ function initParticles() {
     canvas.id = 'zm-particles';
     document.body.appendChild(canvas);
 
-    var ctx = canvas.getContext('2d');
+    var ctx = canvas.getContext && canvas.getContext('2d');
+    if (!ctx) return; // canvas недоступен — пропускаем фон, не ломаем остальной shell
     var w, h;
     var mouse = { x: -9999, y: -9999 };
     var particles = [];
@@ -1089,83 +1305,129 @@ function initParticles() {
         if (col.startsWith('#')) {
             rgb = hexToRgb(col);
         } else {
-            // Парсим rgb() строку на всякий случай
             var m = col.match(/\d+/g);
             rgb = m ? { r: +m[0], g: +m[1], b: +m[2] } : { r: 125, g: 211, b: 252 };
         }
         var rgbStr = rgb.r + ',' + rgb.g + ',' + rgb.b;
 
-        // Обновляем и рисуем точки
-        for (var i = 0; i < particles.length; i++) {
+        // На светлой теме треугольники тёмные, на тёмной — белые
+        var isLight = document.body.classList.contains('zm-theme-light');
+        var triRgb = isLight ? '15, 23, 42' : '255, 255, 255';
+
+        var N = particles.length;
+        var MAX2 = MAX_LINK_DIST * MAX_LINK_DIST;
+
+        // 1) Двигаем все частицы
+        for (var i = 0; i < N; i++) {
             var p = particles[i];
-
-            // Притяжение к мыши
-            var dx = mouse.x - p.x;
-            var dy = mouse.y - p.y;
-            var dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < MOUSE_RADIUS && dist > 0) {
-                var pull = (MOUSE_RADIUS - dist) / MOUSE_RADIUS * 0.2;
-                p.vx += (dx/dist) * pull * 0.005;
-                p.vy += (dy/dist) * pull * 0.005;
+            var dxm = mouse.x - p.x, dym = mouse.y - p.y;
+            var dm = Math.sqrt(dxm*dxm + dym*dym);
+            if (dm < MOUSE_RADIUS && dm > 0) {
+                var pull = (MOUSE_RADIUS - dm) / MOUSE_RADIUS * 0.2;
+                p.vx += (dxm/dm) * pull * 0.005;
+                p.vy += (dym/dm) * pull * 0.005;
             }
-
-            // Затухание
             p.vx *= 0.985;
             p.vy *= 0.985;
-
-            // Минимальная скорость дрейфа
             if (Math.abs(p.vx) < 0.05) p.vx += (Math.random() - 0.5) * 0.05;
             if (Math.abs(p.vy) < 0.05) p.vy += (Math.random() - 0.5) * 0.05;
-
-            // Позиция
             p.x += p.vx;
             p.y += p.vy;
-
-            // Отскок от границ
             if (p.x < 0) { p.x = 0; p.vx *= -1; }
             if (p.x > w) { p.x = w; p.vx *= -1; }
             if (p.y < 0) { p.y = 0; p.vy *= -1; }
             if (p.y > h) { p.y = h; p.vy *= -1; }
-
-            // Точка
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(' + rgbStr + ',0.9)';
-            ctx.fill();
         }
 
-        // Линии между близкими точками
-        for (var i = 0; i < particles.length; i++) {
-            for (var j = i + 1; j < particles.length; j++) {
-                var p1 = particles[i];
-                var p2 = particles[j];
-                var dx = p1.x - p2.x;
-                var dy = p1.y - p2.y;
-                var d = Math.sqrt(dx*dx + dy*dy);
-                if (d < MAX_LINK_DIST) {
-                    var alpha = (1 - d / MAX_LINK_DIST) * 0.45;
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.strokeStyle = 'rgba(' + rgbStr + ',' + alpha + ')';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
+        // 2) Строим список соседей (для быстрого детекта треугольников)
+        var nbrs = new Array(N);
+        for (var i = 0; i < N; i++) nbrs[i] = [];
+        for (var i = 0; i < N; i++) {
+            for (var j = i + 1; j < N; j++) {
+                var p1 = particles[i], p2 = particles[j];
+                var dx = p1.x - p2.x, dy = p1.y - p2.y;
+                var d2 = dx*dx + dy*dy;
+                if (d2 < MAX2) {
+                    var d = Math.sqrt(d2);
+                    nbrs[i].push({ idx: j, d: d });
+                    nbrs[j].push({ idx: i, d: d });
                 }
             }
+        }
 
-            // Линия от точки к курсору
+        function distBetween(a, b) {
+            var arr = nbrs[a];
+            for (var k = 0; k < arr.length; k++) if (arr[k].idx === b) return arr[k].d;
+            return -1;
+        }
+
+        // 3) ТРЕУГОЛЬНИКИ — рисуем под линиями.
+        //    Чем больше треугольник, тем менее закрашен (квадратичный спад).
+        for (var i = 0; i < N; i++) {
+            var nb = nbrs[i];
+            for (var a = 0; a < nb.length; a++) {
+                var j = nb[a].idx;
+                if (j <= i) continue;
+                for (var b = a + 1; b < nb.length; b++) {
+                    var k = nb[b].idx;
+                    if (k <= i) continue;
+                    var djk = distBetween(j, k);
+                    if (djk < 0) continue;
+                    var maxSide = nb[a].d;
+                    if (nb[b].d > maxSide) maxSide = nb[b].d;
+                    if (djk > maxSide)     maxSide = djk;
+                    var size = maxSide / MAX_LINK_DIST;            // 0..1
+                    var alpha = (1 - size) * (1 - size) * 0.18;     // меньше → плотнее
+                    if (alpha < 0.004) continue;
+                    var pi = particles[i], pj = particles[j], pk = particles[k];
+                    ctx.beginPath();
+                    ctx.moveTo(pi.x, pi.y);
+                    ctx.lineTo(pj.x, pj.y);
+                    ctx.lineTo(pk.x, pk.y);
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(' + triRgb + ',' + alpha + ')';
+                    ctx.fill();
+                }
+            }
+        }
+
+        // 4) Линии между соседями
+        for (var i = 0; i < N; i++) {
+            var nb = nbrs[i];
+            for (var a = 0; a < nb.length; a++) {
+                var j = nb[a].idx;
+                if (j <= i) continue;
+                var d = nb[a].d;
+                var alpha = (1 - d / MAX_LINK_DIST) * 0.45;
+                ctx.beginPath();
+                ctx.moveTo(particles[i].x, particles[i].y);
+                ctx.lineTo(particles[j].x, particles[j].y);
+                ctx.strokeStyle = 'rgba(' + rgbStr + ',' + alpha + ')';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+            // Линия к курсору
             var dx = particles[i].x - mouse.x;
             var dy = particles[i].y - mouse.y;
             var d = Math.sqrt(dx*dx + dy*dy);
             if (d < MOUSE_RADIUS) {
-                var alpha = (1 - d / MOUSE_RADIUS) * 0.7;
+                var alpha2 = (1 - d / MOUSE_RADIUS) * 0.7;
                 ctx.beginPath();
                 ctx.moveTo(particles[i].x, particles[i].y);
                 ctx.lineTo(mouse.x, mouse.y);
-                ctx.strokeStyle = 'rgba(' + rgbStr + ',' + alpha + ')';
+                ctx.strokeStyle = 'rgba(' + rgbStr + ',' + alpha2 + ')';
                 ctx.lineWidth = 1.2;
                 ctx.stroke();
             }
+        }
+
+        // 5) Сами точки — поверх всего
+        for (var i = 0; i < N; i++) {
+            var p = particles[i];
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(' + rgbStr + ',0.9)';
+            ctx.fill();
         }
 
         requestAnimationFrame(loop);
@@ -1191,9 +1453,15 @@ function buildShell() {
     var userName = $('.name_info').text().trim() || 'Пользователь';
     var userStation = $('.address').clone().children('img').remove().end().text().trim() || '';
     var userAvatar = $('.profile_picture img').attr('src') || '';
-    var pageTitle = $('.page_header h1').text().trim() || 'Наличие товара';
+    var fallbackTitleMap = {
+        analyse:       'Наличие товара',
+        dial_clients:  'Обзвон клиентов',
+        client_sales:  'Продажи клиента',
+        sale:          'Продажа',
+    };
+    var pageTitle = $('.page_header h1').text().trim() || fallbackTitleMap[pageType] || 'SPOT CRM';
 
-    // Извлекаем название станции отдельно (если оно есть в title)
+    // Извлекаем название станции из заголовка (если есть)
     var stationOnly = '';
     var titleMain = pageTitle;
     var m = pageTitle.match(/^(Наличие\s+товара)\s+(.+)$/i);
@@ -1377,67 +1645,148 @@ function buildShell() {
 /* ─────────────────────────────────────────────
    ПЕРЕНОС ОРИГИНАЛЬНОЙ ТАБЛИЦЫ И ФИЛЬТРОВ В НАШ SHELL
 ───────────────────────────────────────────── */
+function makePanel(icon, title, meta, $contents, isOpen) {
+    if (!$contents || !$contents.length) return null;
+    var $panel = $(
+        '<section class="zm-panel">' +
+            '<div class="zm-panel-header">' +
+                '<div class="zm-panel-icon">' + icon + '</div>' +
+                '<div class="zm-panel-title">' + title + '</div>' +
+                (meta ? '<div class="zm-panel-meta">' + meta + '</div>' : '') +
+                '<div class="zm-panel-chev">▾</div>' +
+            '</div>' +
+            '<div class="zm-panel-body"></div>' +
+        '</section>'
+    );
+    $panel.find('.zm-panel-body').append($contents);
+    if (isOpen) $panel.addClass('is-open');
+    $panel.find('.zm-panel-header').on('click', function() {
+        $panel.toggleClass('is-open');
+    });
+    return $panel;
+}
+
+function makeTableBlock(title, $tableForm, rowSelector) {
+    var $wrap = $('<div class="zm-table-wrap"></div>');
+    var $hdr = $('<div class="zm-table-header"></div>');
+    $hdr.append('<div class="zm-table-header-title">' + title + '</div>');
+    var rowCount = $tableForm.find(rowSelector || 'tbody tr.table__row, > tr.table__row, .table tr.table__row').length;
+    if (rowCount) $hdr.append('<div class="zm-table-header-count">' + rowCount + ' позиций</div>');
+    $wrap.append($hdr);
+    $wrap.append($tableForm);
+    return $wrap;
+}
+
 function moveContent() {
-    // Фильтра — выдвижная панель
-    var $filtersPanel = $('#zm-panel-filters');
-    if ($filtersPanel.length && !$filtersPanel.find('.zm-panel').length) {
+    var $filtersHost = $('#zm-panel-filters');
+    var $tableHost   = $('#zm-table-host');
+    if (!$filtersHost.length || !$tableHost.length) return;
+    if ($tableHost.children().length) return; // уже переносили
+
+    if (pageType === 'analyse') {
+        // === НАЛИЧИЕ ТОВАРА ===
         var $form = $('body > .page .left-container > form.form').first();
         var stationsCount = $form.find('option[selected]').length;
+        var $panel = makePanel('⚙', 'Фильтры',
+            stationsCount ? stationsCount + ' станций' : 'станции',
+            $form, false);
+        if ($panel) $filtersHost.append($panel);
 
-        var $panel = $(
-            '<section class="zm-panel">' +
-                '<div class="zm-panel-header">' +
-                    '<div class="zm-panel-icon">⚙</div>' +
-                    '<div class="zm-panel-title">Фильтры</div>' +
-                    '<div class="zm-panel-meta">' + (stationsCount ? stationsCount + ' станций' : 'станции') + '</div>' +
-                    '<div class="zm-panel-chev">▾</div>' +
-                '</div>' +
-                '<div class="zm-panel-body"></div>' +
-            '</section>'
-        );
-
-        $panel.find('.zm-panel-body').append($form);
-        $filtersPanel.append($panel);
-
-        $panel.find('.zm-panel-header').on('click', function() {
-            $panel.toggleClass('is-open');
-        });
-    }
-
-    // Таблица + блок описания
-    var $tableHost = $('#zm-table-host');
-    if ($tableHost.length && !$tableHost.children().length) {
-        var $wrap = $('<div class="zm-table-wrap"></div>');
-        var $hdr = $('<div class="zm-table-header"></div>');
-        $hdr.append('<div class="zm-table-header-title">Остатки на складе</div>');
-
-        var rowCount = $('table#free tbody tr.table__row').length;
-        if (rowCount) $hdr.append('<div class="zm-table-header-count">' + rowCount + ' позиций</div>');
-
-        $wrap.append($hdr);
-
-        // Описание (spoiler)
-        var $spoiler = $('body > .page .spoiler');
-        if ($spoiler.length) {
-            // Не стали переносить, скрыто — но если хочется, можно показать
-        }
-
-        // Сама таблица
         var $tableBlock = $('body > .page form.form__extended-table.free');
+        if (!$tableBlock.length) $tableBlock = $('table#free').closest('.table_wrapper');
         if ($tableBlock.length) {
-            $wrap.append($tableBlock);
-        } else {
-            // На всякий случай, вытаскиваем просто таблицу
-            var $t = $('table#free').closest('.table_wrapper');
-            if ($t.length) $wrap.append($t);
+            $tableHost.append(makeTableBlock('Остатки на складе', $tableBlock));
         }
-        $tableHost.append($wrap);
+
+    } else if (pageType === 'dial_clients') {
+        // === ОБЗВОН КЛИЕНТОВ — фильтр по дате + поиск клиента ===
+        // Поисковая форма иногда обёрнута в <div>, поэтому ищем по descendant
+        var $allForms = $('body > .page .left-container form.form');
+        var $filterForm = $allForms.filter(function() {
+            return $(this).find('.datepicker-here, input[name="date"]').length > 0
+                && $(this).find('input[name="phone"], input[name="vehicleNumber"]').length === 0;
+        }).first();
+        if (!$filterForm.length) $filterForm = $allForms.eq(0);
+        var $searchForm = $allForms.filter(function() {
+            return $(this).find('input[name="phone"], input[name="vehicleNumber"]').length > 0;
+        }).first();
+
+        if ($filterForm.length) {
+            var $p1 = makePanel('⚙', 'Фильтры', null, $filterForm, true);
+            if ($p1) $filtersHost.append($p1);
+        }
+        if ($searchForm.length) {
+            var $p2 = makePanel('🔍', 'Поиск клиента', 'телефон / номер авто', $searchForm, true);
+            if ($p2) $filtersHost.append($p2);
+        }
+
+        var $tbl = $('body > .page form.form__extended-table.dial_clients');
+        if (!$tbl.length) $tbl = $('table#dial_clients').closest('.table_wrapper');
+        if ($tbl.length) {
+            $tableHost.append(makeTableBlock('Список продаж', $tbl));
+        }
+
+    } else if (pageType === 'client_sales') {
+        // === ПРОДАЖИ КЛИЕНТА — поиск + блок информации ===
+        var $searchForm = $('body > .page .left-container > form').filter(function() {
+            return $(this).find('input[name="q"]').length > 0;
+        }).first();
+        if ($searchForm.length) {
+            var $p = makePanel('🔍', 'Поиск', null, $searchForm, true);
+            if ($p) $filtersHost.append($p);
+        }
+
+        // Информация о клиенте — всё что осталось в .left-container (кроме форм /edit, sms и дубля заголовка "Поиск")
+        var $info = $('<div class="zm-client-info"></div>');
+        $('body > .page .left-container').children().each(function() {
+            var $el = $(this);
+            if ($el.is('form[action="/edit"], form.sms-send-form, script, style')) return;
+            if ($el.is('h3') && /^\s*поиск\s*$/i.test($el.text())) return;
+            $info.append($el);
+        });
+        if ($info.children().length) {
+            var $pi = makePanel('ℹ', 'Информация о клиенте', null, $info, true);
+            if ($pi) $filtersHost.append($pi);
+        }
+
+        var $tbl2 = $('body > .page form.form__extended-table.clients');
+        if (!$tbl2.length) $tbl2 = $('table#clients').closest('.table_wrapper');
+        if ($tbl2.length) {
+            $tableHost.append(makeTableBlock('Чеки клиента', $tbl2));
+        }
+
+    } else if (pageType === 'sale') {
+        // === ЧЕК УСЛУГИ — слева вся инфа о продаже/клиенте ===
+        var $info2 = $('<div class="zm-sale-info"></div>');
+        $('body > .page .left-container').children().each(function() {
+            var $el = $(this);
+            if ($el.is('form[action="/edit"], form.sms-send-form, script, style')) return;
+            $info2.append($el);
+        });
+        if ($info2.children().length) {
+            var $pi2 = makePanel('ℹ', 'Информация о продаже', null, $info2, true);
+            if ($pi2) $filtersHost.append($pi2);
+        }
+
+        var $tbl3 = $('body > .page form.form__extended-table.sales_items');
+        if (!$tbl3.length) $tbl3 = $('table#sales_items').closest('.table_wrapper');
+        if ($tbl3.length) {
+            $tableHost.append(makeTableBlock('Состав чека', $tbl3));
+        }
+
+    } else {
+        // Fallback: подхватим любую таблицу .table в body > .page
+        var $tblF = $('body > .page form.form__extended-table').first();
+        if (!$tblF.length) $tblF = $('body > .page table.table').first().closest('.table_wrapper');
+        if ($tblF.length) {
+            $tableHost.append(makeTableBlock('Таблица', $tblF));
+        }
     }
 }
 
 
 /* ─────────────────────────────────────────────
-   КНОПКА ПОИСКА
+   КНОПКА ПОИСКА (для /analyse/free)
 ───────────────────────────────────────────── */
 function addSearchButton() {
     var $input = $('#field__withCatalogItems');
@@ -1457,6 +1806,106 @@ function addSearchButton() {
     $btn.on('click', function(e) {
         e.preventDefault();
         $input.closest('form').submit();
+    });
+}
+
+
+/* ─────────────────────────────────────────────
+   КНОПКА КОПИРОВАНИЯ АРТИКУЛА ФИЛЬТРА (для /sale/*)
+   В строках типа "NSIN0017868866 Масляный фильтр LYNX LC-171 LYNXauto"
+   копируем артикул производителя — LC-171.
+───────────────────────────────────────────── */
+function extractFilterArticle(text) {
+    if (!text) return null;
+    var lower = text.toLowerCase();
+
+    // Должно быть упоминание "фильтр" любого типа
+    var idx = lower.indexOf('фильтр');
+    if (idx === -1) return null;
+
+    // Подстрока после слова "фильтр" — без подзвезды русских букв
+    var after = text.substring(idx + 'фильтр'.length).trim();
+    if (!after) return null;
+    // Обрезаем по разделителям
+    after = after.split(/[,.;|]/)[0].trim();
+
+    var tokens = after.split(/\s+/);
+
+    // 1) LYNX/LIQUI MOLY / MD-... / OC-... / LC-... — буквы-дефис-цифры
+    for (var i = 0; i < tokens.length; i++) {
+        if (/^[A-Za-z]{1,4}-\d+[A-Za-z\d-]*$/.test(tokens[i])) return tokens[i];
+    }
+    // 2) MANN-style: "C 22 117", "CU 26 016", "WK 853/4", "AG 234 CF" — буквы + пробел + цифры
+    var m2 = after.match(/\b([A-Z]{1,3}K?\s?\d{1,4}(?:[\s\/\-]\d{1,4}){0,2}(?:\s*[A-Za-z]{1,3})?)\b/);
+    if (m2) {
+        var sku = m2[1].trim().replace(/\s+/g, ' ');
+        if (sku.replace(/\s/g, '').length >= 3) return sku;
+    }
+    // 3) Любой токен с дефисом и цифрой
+    for (var i = 0; i < tokens.length; i++) {
+        if (/-/.test(tokens[i]) && /\d/.test(tokens[i])) return tokens[i];
+    }
+    // 4) Любой токен с буквой и цифрой
+    for (var i = 0; i < tokens.length; i++) {
+        if (/[A-Za-z]/.test(tokens[i]) && /\d/.test(tokens[i])) return tokens[i];
+    }
+    return null;
+}
+
+function buildCopyBtn(article) {
+    var $btn = $(
+        '<button type="button" class="zm-art-btn" title="Скопировать артикул">' +
+            '<span class="zm-art-btn-icon">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                    '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>' +
+                    '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>' +
+                '</svg>' +
+            '</span>' +
+            '<span class="zm-art-btn-code"></span>' +
+        '</button>'
+    );
+    $btn.find('.zm-art-btn-code').text(article);
+    $btn.on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var ok = false;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(article);
+                ok = true;
+            }
+        } catch (err) { ok = false; }
+        if (!ok) {
+            var ta = document.createElement('textarea');
+            ta.value = article;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch(e) {}
+            document.body.removeChild(ta);
+        }
+        $btn.addClass('is-copied');
+        setTimeout(function() { $btn.removeClass('is-copied'); }, 1100);
+    });
+    return $btn;
+}
+
+function addFilterArticleButtons() {
+    if (pageType !== 'sale') return;
+    $('.zm-table-wrap table#sales_items tbody tr.table__row').each(function() {
+        var $row = $(this);
+        var $name = $row.find('td.table__cell.name').first();
+        if (!$name.length) return;
+        if ($name.find('.zm-art-btn').length) return;
+        // Только полный текст строки названия, без подкладок
+        var text = $name.contents().filter(function() {
+            return this.nodeType === 3; // текстовые узлы
+        }).text().trim();
+        if (!text) text = $name.text().trim();
+        var article = extractFilterArticle(text);
+        if (!article) return;
+        $name.append(buildCopyBtn(article));
     });
 }
 
@@ -1490,14 +1939,17 @@ function init() {
     buildShell();
     moveContent();
     addSearchButton();
+    addFilterArticleButtons();
     initThemeToggle();
 
     setTimeout(function() {
         moveContent();
         addSearchButton();
+        addFilterArticleButtons();
     }, 400);
+    setTimeout(addFilterArticleButtons, 1200);
 
-    console.log('[SPOT CRM] ✨ Liquid Glass v5 — analyse/free redesigned');
+    console.log('[SPOT CRM] ✨ Liquid Glass v5.1 — multi-page support (' + pageType + ')');
 }
 
 if (document.readyState === 'loading') {
