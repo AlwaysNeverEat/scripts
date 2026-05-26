@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM — Liquid Glass v5 (Analyse Free Redesign)
 // @namespace    http://tampermonkey.net/
-// @version      5.2
+// @version      5.3
 // @description  Полный редизайн /analyse/free — liquid glass + интерактивные частицы + выдвижные панели
 // @match        *://*/analyse/free*
 // @grant        none
@@ -495,9 +495,12 @@ body.zm-theme-light {
         position: fixed !important;
         inset: 0 !important;
         z-index: 9999 !important;
-        display: flex !important;
+        display: none;
         align-items: center !important;
         justify-content: center !important;
+    }
+    #zm-logout-modal.zm-modal-visible {
+        display: flex !important;
     }
     .zm-modal-overlay {
         position: absolute !important;
@@ -586,14 +589,14 @@ body.zm-theme-light {
         filter: none !important;
     }
     .zm-modal-btn-secondary {
-        background: var(--gl-2) !important;
-        color: var(--txt-mid) !important;
-        border: 1px solid var(--gl-bord) !important;
+        background: rgba(252, 165, 165, 0.10) !important;
+        color: var(--bad) !important;
+        border: 1px solid rgba(252, 165, 165, 0.25) !important;
     }
     .zm-modal-btn-secondary:hover {
-        background: var(--gl-3) !important;
-        color: var(--txt-hi) !important;
-        border-color: var(--gl-bord-hi) !important;
+        background: rgba(252, 165, 165, 0.20) !important;
+        color: var(--bad) !important;
+        border-color: rgba(252, 165, 165, 0.45) !important;
         transform: none !important;
         filter: none !important;
         box-shadow: none !important;
@@ -1462,7 +1465,7 @@ function buildShell() {
     // ── ДИАЛОГ ВЫХОДА ──
     if (!$('#zm-logout-modal').length) {
         $('body').append(
-            '<div id="zm-logout-modal" style="display:none;">' +
+            '<div id="zm-logout-modal">' +
                 '<div class="zm-modal-overlay"></div>' +
                 '<div class="zm-modal-box">' +
                     '<div class="zm-modal-icon">' +
@@ -1479,12 +1482,12 @@ function buildShell() {
         );
 
         $(document).on('click', '#zm-logout-modal .zm-modal-close, #zm-logout-modal .zm-modal-overlay', function() {
-            $('#zm-logout-modal').fadeOut(200);
+            $('#zm-logout-modal').removeClass('zm-modal-visible');
         });
     }
 
     $uc.find('.zm-user-logout').on('click', function() {
-        $('#zm-logout-modal').fadeIn(200);
+        $('#zm-logout-modal').addClass('zm-modal-visible');
     });
 
     $app.append($sb);
