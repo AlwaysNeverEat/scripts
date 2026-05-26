@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM — Liquid Glass v5 (Analyse Free Redesign)
 // @namespace    http://tampermonkey.net/
-// @version      5.3
+// @version      5.4
 // @description  Полный редизайн /analyse/free — liquid glass + интерактивные частицы + выдвижные панели
 // @match        *://*/analyse/free*
 // @grant        none
@@ -990,7 +990,7 @@ body.zm-theme-light {
 
     /* ── КНОПКИ ─────────────────────────────── */
     /* Базовые стили для всех кнопок CRM */
-    input[type="submit"], input[type="button"], button:not(.zm-theme-toggle):not(.zm-user-logout):not(.zm-nav-group-head):not(.zm-nav-item):not(.zm-panel-header):not(.spoiler button) {
+    input[type="submit"], input[type="button"], button:not(.zm-theme-toggle):not(.zm-user-logout):not(.zm-nav-group-head):not(.zm-nav-item):not(.zm-panel-header):not(.spoiler button):not(.zm-modal-close) {
         background: linear-gradient(135deg, var(--acc) 0%, var(--acc-hi) 100%) !important;
         color: var(--bg-deep) !important;
         border: none !important;
@@ -1019,7 +1019,7 @@ body.zm-theme-light {
     input[type="submit"]:hover::before, .submit-filter:hover::before, .zm-search-btn:hover::before {
         left: 100%;
     }
-    input[type="submit"]:hover, input[type="button"]:hover, button:not(.zm-theme-toggle):not(.zm-user-logout):not(.zm-nav-group-head):not(.zm-nav-item):not(.zm-panel-header):not(.spoiler button):hover {
+    input[type="submit"]:hover, input[type="button"]:hover, button:not(.zm-theme-toggle):not(.zm-user-logout):not(.zm-nav-group-head):not(.zm-nav-item):not(.zm-panel-header):not(.spoiler button):not(.zm-modal-close):hover {
         transform: translateY(-2px) !important;
         box-shadow: 0 8px 24px var(--acc-glow), 0 0 0 1px rgba(125, 211, 252, 0.3) !important;
         filter: brightness(1.05) !important;
@@ -1439,6 +1439,15 @@ function buildShell() {
                 .toggleClass('is-active', item.active);
             $a.append('<span class="zm-nav-item-icon">' + svgIcons[iconKey] + '</span>');
             $a.append('<span class="zm-nav-item-label">' + item.text + '</span>');
+
+            // Если это ссылка выхода — перехватываем и показываем диалог
+            if ((item.href || '').indexOf('/logout') !== -1 || (item.text || '').toLowerCase().indexOf('выход') !== -1) {
+                $a.on('click', function(e) {
+                    e.preventDefault();
+                    $('#zm-logout-modal').addClass('zm-modal-visible');
+                });
+            }
+
             $nav.append($a);
         }
     });
