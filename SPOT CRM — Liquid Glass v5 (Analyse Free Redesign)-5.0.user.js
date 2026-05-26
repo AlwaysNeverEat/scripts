@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM — Liquid Glass v5 (Analyse Free Redesign)
 // @namespace    http://tampermonkey.net/
-// @version      5.0
+// @version      5.2
 // @description  Полный редизайн /analyse/free — liquid glass + интерактивные частицы + выдвижные панели
 // @match        *://*/analyse/free*
 // @grant        none
@@ -489,6 +489,121 @@ body.zm-theme-light {
         filter: none !important;
     }
     .zm-user-logout:hover::before { display: none !important; }
+
+    /* ── ДИАЛОГ ВЫХОДА ──────────────────── */
+    #zm-logout-modal {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 9999 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    .zm-modal-overlay {
+        position: absolute !important;
+        inset: 0 !important;
+        background: rgba(0, 0, 0, 0.55) !important;
+        backdrop-filter: blur(4px) !important;
+        -webkit-backdrop-filter: blur(4px) !important;
+    }
+    .zm-modal-box {
+        position: relative !important;
+        z-index: 1 !important;
+        background: var(--gl-fill-3) !important;
+        border: 1px solid var(--gl-bord-hi) !important;
+        border-radius: var(--r-xl) !important;
+        box-shadow:
+            inset 0 1px 0 var(--gl-inner),
+            0 24px 60px rgba(0, 0, 0, 0.45) !important;
+        padding: 32px 28px 24px !important;
+        width: 100% !important;
+        max-width: 400px !important;
+        margin: 0 16px !important;
+        animation: zmFadeU .25s cubic-bezier(.4,0,.2,1) both !important;
+        text-align: center !important;
+    }
+    .zm-modal-icon {
+        width: 52px !important;
+        height: 52px !important;
+        border-radius: 50% !important;
+        background: rgba(252, 165, 165, 0.12) !important;
+        border: 1px solid rgba(252, 165, 165, 0.25) !important;
+        display: grid !important;
+        place-items: center !important;
+        margin: 0 auto 18px !important;
+        color: var(--bad) !important;
+    }
+    .zm-modal-icon svg {
+        width: 24px !important;
+        height: 24px !important;
+        stroke: currentColor !important;
+        fill: none !important;
+    }
+    .zm-modal-title {
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        color: var(--txt-hi) !important;
+        margin-bottom: 12px !important;
+        letter-spacing: -0.01em !important;
+    }
+    .zm-modal-text {
+        font-size: 13px !important;
+        color: var(--txt-mid) !important;
+        line-height: 1.6 !important;
+        margin-bottom: 24px !important;
+    }
+    .zm-modal-actions {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+    .zm-modal-btn {
+        display: block !important;
+        width: 100% !important;
+        padding: 11px 20px !important;
+        border-radius: var(--r-md) !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        border: none !important;
+        text-decoration: none !important;
+        text-align: center !important;
+        transition: all .2s !important;
+        font-family: inherit !important;
+        box-shadow: none !important;
+        text-transform: none !important;
+    }
+    .zm-modal-btn::before { display: none !important; content: none !important; }
+    .zm-modal-btn-primary {
+        background: var(--acc) !important;
+        color: #0a0e1a !important;
+    }
+    .zm-modal-btn-primary:hover {
+        background: var(--acc-hi) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 14px var(--acc-glow) !important;
+        color: #0a0e1a !important;
+        filter: none !important;
+    }
+    .zm-modal-btn-secondary {
+        background: var(--gl-2) !important;
+        color: var(--txt-mid) !important;
+        border: 1px solid var(--gl-bord) !important;
+    }
+    .zm-modal-btn-secondary:hover {
+        background: var(--gl-3) !important;
+        color: var(--txt-hi) !important;
+        border-color: var(--gl-bord-hi) !important;
+        transform: none !important;
+        filter: none !important;
+        box-shadow: none !important;
+    }
+    body.zm-theme-light .zm-modal-btn-primary {
+        color: #ffffff !important;
+    }
+    body.zm-theme-light .zm-modal-btn-primary:hover {
+        color: #ffffff !important;
+    }
 
     /* ── MAIN ─────────────────────────────── */
     .zm-main {
@@ -1343,8 +1458,33 @@ function buildShell() {
         '</button>'
     );
     $sb.append($uc);
+
+    // ── ДИАЛОГ ВЫХОДА ──
+    if (!$('#zm-logout-modal').length) {
+        $('body').append(
+            '<div id="zm-logout-modal" style="display:none;">' +
+                '<div class="zm-modal-overlay"></div>' +
+                '<div class="zm-modal-box">' +
+                    '<div class="zm-modal-icon">' +
+                        '<svg viewBox="0 0 24 24" fill="none"><path d="M18 8l4 4-4 4M22 12H10M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                    '</div>' +
+                    '<div class="zm-modal-title">Выход из CRM</div>' +
+                    '<div class="zm-modal-text">К сожалению, с включёнными скриптами выход из CRM не засчитывается. Из-за этого выход можно сделать только через основную страницу.</div>' +
+                    '<div class="zm-modal-actions">' +
+                        '<a href="https://crm.zamena-masla-spot.ru/" class="zm-modal-btn zm-modal-btn-primary">Перейти на основную страницу</a>' +
+                        '<button class="zm-modal-btn zm-modal-btn-secondary zm-modal-close">Закрыть</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>'
+        );
+
+        $(document).on('click', '#zm-logout-modal .zm-modal-close, #zm-logout-modal .zm-modal-overlay', function() {
+            $('#zm-logout-modal').fadeOut(200);
+        });
+    }
+
     $uc.find('.zm-user-logout').on('click', function() {
-        window.location = '/logout';
+        $('#zm-logout-modal').fadeIn(200);
     });
 
     $app.append($sb);
