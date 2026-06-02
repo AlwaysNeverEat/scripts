@@ -10,26 +10,8 @@
 // @downloadURL  https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/ZMS%20CRM%20%E2%80%94%20%D0%9F%D1%80%D0%BE%D0%B4%D0%BB%D0%B8%D1%82%D1%8C%20%D0%B7%D0%B0%D0%BF%D0%B8%D1%81%D1%8C%20%2B%20%D0%A3%D0%BC%D0%BD%D0%BE%D0%B5%20%D1%83%D0%B4%D0%B0%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5-1.0.user(1).js
 // ==/UserScript==
 
-/**
-
-- КАК УСТАНОВИТЬ:
-- 1. Установите расширение Tampermonkey в браузер
-- 1. Нажмите «Создать новый скрипт»
-- 1. Вставьте весь этот код, сохраните (Ctrl+S)
-- 1. Перезагрузите CRM
--
-- ВАЖНО: Если при продлении появляется ошибка создания слотов —
-- замените ‘/admin/record/update’ на ‘/admin/record/create’
-- в функции createExtensionSlot() ниже.
-  */
-
 (function () {
 'use strict';
-
-
-// ─────────────────────────────────────────
-// УТИЛИТЫ
-// ─────────────────────────────────────────
 
 /** Прибавляет минуты к строке времени "HH:MM" */
 function addMinutes(timeStr, mins) {
