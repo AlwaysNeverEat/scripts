@@ -401,7 +401,9 @@
                     <span class="sr-lbl" style="margin:0">Цена/л:</span>
                     <input type="number" class="sr-inp" id="sr-oil-p" value="${p}" min="0" step="1" style="width:60px"/>
                     ${state.engineOilPriceOvr !== null ? `<button class="sr-btn" id="sr-oil-p-rst" style="font-size:10px">↺</button>` : ''}
-                    <span class="sr-lbl" style="margin:0">× ${vol}л = <b style="color:#c8d8f0">${C(p*vol)}₽</b></span>
+                    <span class="sr-lbl" style="margin:0">×</span>
+                    <input type="number" class="sr-inp" id="sr-eng-vol" value="${vol}" min="0" step="0.1" style="width:52px"/>
+                    <span class="sr-lbl" style="margin:0">л = <b style="color:#c8d8f0">${C(p*vol)}₽</b></span>
                 </div>
             </div>`;
         }
@@ -556,6 +558,11 @@
             refreshTotal();
         });
         q('sr-oil-p-rst', el => el.onclick = () => { state.engineOilPriceOvr = null; render(); });
+        q('sr-eng-vol', el => el.oninput = () => {
+            const v = parseFloat(el.value);
+            if (isFinite(v) && v >= 0) state.engineVolume = v;
+            refreshTotal();
+        });
 
         // Non-engine oil
         q('sr-ne-sel', el => el.onchange = () => { state.neOilIdx = +el.value; render(); });
