@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.19
+// @version      2.20
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -1225,7 +1225,7 @@
         };
         if (data.automatic && !data.automatic.isDct)
             out.push({ key:'automatic', label: data.automatic.isCvt ? 'Вариатор (CVT)' : 'АКПП', group:'auto', ...pickTotal(data.automatic) });
-        if (data.manual)     out.push({ key:'manual',    label:'МКПП',                       group:'gear',   ...pickTotal(data.manual) });
+        if (data.manual)     out.push({ key:'manual',    label: data.manual.isSemiAuto ? 'Робот/АМТ (расчёт как МКПП)' : 'МКПП', group:'gear',   ...pickTotal(data.manual) });
         if (data.transfer)   out.push({ key:'transfer',  label:'Раздаточная коробка',         group:'gear',   ...pickTotal(data.transfer) });
         if (data.diffFront)  out.push({ key:'diffFront', label:'Дифференциал (перед)',        group:'gear',   ...pickTotal(data.diffFront) });
         if (data.diffRear)   out.push({ key:'diffRear',  label:'Дифференциал (зад)',          group:'gear',   ...pickTotal(data.diffRear) });
@@ -2401,6 +2401,10 @@
 
     function detectKppType(title) {
         const t = (title || '').toLowerCase();
+        // ВАЖНО: "полуавтоматическая" содержит подстроку "автомат", поэтому
+        // проверяем её ПЕРВОЙ — иначе робот (AMT) ошибочно уходит в АКПП.
+        // Полуавтомат = одинарное сцепление, считается как МКПП (75W-90).
+        if (/полуавтомат/.test(t)) return { isManual: true, isSemiAuto: true };
         if (/вариатор|cvt/.test(t)) return { isCvt: true };
         if (/роботизированн|dct|dsg|двойн[а-я]+\s*сцеплен/.test(t)) return { isDct: true };
         if (/автомат|планет/.test(t)) return { isAuto: true };
@@ -2449,7 +2453,7 @@
                 if (t.isCvt) { data.isCvt = true; out.automatic = data; }
                 else if (t.isDct) { data.isDct = true; out.automatic = data; }
                 else if (t.isAuto) { out.automatic = data; }
-                else if (t.isManual) { out.manual = data; }
+                else if (t.isManual) { if (t.isSemiAuto) data.isSemiAuto = true; out.manual = data; }
                 else { out.automatic = data; }
             } else if (/раздаточн/i.test(titleRaw)) {
                 if (!out.transfer) out.transfer = data;
@@ -2973,6 +2977,12 @@
             } else if (/задн.*(мост|дифференциал)|дифференциал.*задн/i.test(titleText)) {
                 out.diffRear = data;
             } else if (/механическая/i.test(titleText)) {
+                out.manual = data;
+            } else if (/полуавтомат/i.test(titleText)) {
+                // Полуавтомат (AMT/робот с одним сцеплением) — считаем как МКПП
+                // на 75W-90. Проверка ОБЯЗАТЕЛЬНО до /автомат/, т.к.
+                // "полуавтоматическая" содержит "автомат".
+                data.isSemiAuto = true;
                 out.manual = data;
             } else if (/вариатор|CVT/i.test(titleText)) {
                 out.automatic = data;
