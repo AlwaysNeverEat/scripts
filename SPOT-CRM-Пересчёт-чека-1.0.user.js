@@ -1,9 +1,11 @@
 // ==UserScript==
 // @name         SPOT CRM: Пересчёт чека
 // @namespace    zamena-masla-spot.ru
-// @version      1.2
+// @version      1.4
 // @description  Пересчёт стоимости услуги по чеку /sale/{id} по актуальным ценам
 // @match        *://crm.zamena-masla-spot.ru/sale/*
+// @match        *://crm.zamena-masla-spot.ru/for-sale/*
+// @match        *://crm.zamena-masla-spot.ru/foreign_sale/*
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
 // @run-at       document-idle
