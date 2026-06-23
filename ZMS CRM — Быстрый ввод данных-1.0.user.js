@@ -62,18 +62,23 @@
 
         function rebuild() {
             // ---- Имя ----
-            const parts = [];
             const client = state.clientName.trim();
-            if (client) parts.push(client);
-
             const svcParts = [];
             order.forEach(k => {
                 const p = namePart(k);
                 if (p) svcParts.push(p);
             });
-            parts.push(...svcParts);
 
-            let nameStr = parts.join(' + ');
+            let nameStr;
+            if (client && svcParts.length) {
+                // После имени плюса нет: "Имя двс + акпп полный"
+                nameStr = client + ' ' + svcParts[0];
+                if (svcParts.length > 1) nameStr += ' + ' + svcParts.slice(1).join(' + ');
+            } else if (client) {
+                nameStr = client;
+            } else {
+                nameStr = svcParts.join(' + ');
+            }
 
             const suffix = [];
             if (state.warranty)   suffix.push('гарантия');
