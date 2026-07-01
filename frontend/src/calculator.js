@@ -9,10 +9,15 @@ import { buildReport } from '../../shared/report.js';
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-export function initCalculator(dbRecord, onBack) {
+export function initCalculator(dbRecord) {
     const car = dbRecordToCar(dbRecord);
     const data = dbRecordToData(dbRecord);
     const carApprovals = Array.isArray(dbRecord.car_approvals) ? dbRecord.car_approvals : [];
+
+    // Ручные правки списка масел, сохранённые для этой машины («Нашли ошибку?»)
+    const ov = dbRecord.oil_overrides || {};
+    const excludeOils = new Set(Array.isArray(ov.exclude) ? ov.exclude : []);
+    const pinnedOverride = (ov.pin && typeof ov.pin === 'object') ? { ...ov.pin } : {};
 
     const defaultPartial = shouldDefaultToPartial(car, data);
 
@@ -27,7 +32,8 @@ export function initCalculator(dbRecord, onBack) {
         selected: new Set(),
         showApprovals: new Set(),
         expandedOilApp: new Set(),
-        oilOverride: {},
+        oilOverride: pinnedOverride,
+        excludeOils,
         showOilPicker: null,
         ignoreApprovals: false,
         showWithSump: false,

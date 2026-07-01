@@ -437,3 +437,107 @@ h1     { font-size: clamp(20px, 4vw, 28px); font-weight: 700; }
 
 /* ── Reglament star ─────────────────────────────────────────────── */
 .reg-mark { font-size: 12px; margin-right: 3px; cursor: help; }
+
+/* ── Шапка страницы машины ─────────────────────────────────────── */
+.head-card {
+  max-width: 1100px;
+  margin: 16px auto 0;
+  padding: 20px 24px;
+  background: linear-gradient(160deg, var(--bg2), var(--bg3));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.head-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.head-title { font-size: clamp(20px, 3.4vw, 28px); font-weight: 800; }
+.head-gen   { font-size: 0.6em; color: var(--sub); font-weight: 600; }
+.head-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.head-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.head-chip .mono, .mono { font-family: monospace; }
+.head-flags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.head-flag {
+  background: #2a1d00;
+  border: 1px solid var(--accent);
+  color: #ffb74d;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.head-flag-warn {
+  background: #2a0000;
+  border-color: #e53935;
+  color: #ff8a80;
+}
+.head-notes {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #d0d4e4;
+  white-space: pre-wrap;
+}
+.head-rec { margin-top: 12px; font-size: 12px; }
+.head-rec summary { cursor: pointer; color: var(--sub); }
+.head-rec-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.head-rec-note { color: var(--sub); font-size: 11px; margin-top: 6px; font-style: italic; }
+
+/* ── Режим правки ──────────────────────────────────────────────── */
+.head-card-edit { border-color: var(--accent); }
+.edit-sec-h {
+  font-size: 11px;
+  font-weight: bold;
+  color: #a0b0c0;
+  margin: 16px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px 12px;
+}
+.edit-field { display: flex; flex-direction: column; gap: 3px; }
+.edit-field span { font-size: 10px; color: var(--sub); }
+.edit-field input, .edit-filter-row input[type="text"], .edit-filter-row input[type="number"],
+.head-card-edit textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  width: 100%;
+}
+.edit-field input:focus, .head-card-edit textarea:focus { outline: none; border-color: var(--accent); }
+.edit-filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.edit-filter-row input[type="text"] { flex: 1; width: auto; }
+.edit-lbl { font-size: 12px; color: #bdc1d1; min-width: 110px; }
+.edit-flag { display: block; margin-bottom: 5px; }
+.edit-oils-note { font-size: 11px; color: var(--sub); margin-bottom: 8px; }
+.edit-oils-visc { margin-bottom: 10px; }
+.edit-oils-visc-h { font-size: 12px; font-weight: bold; color: var(--accent); margin-bottom: 4px; }
+.edit-oil { display: block; margin-bottom: 3px; font-size: 12px; }
+.edit-error {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #2a0000;
+  border: 1px solid #e53935;
+  border-radius: 6px;
+  color: #ff8a80;
+  font-size: 13px;
+}

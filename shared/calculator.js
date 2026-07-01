@@ -310,6 +310,13 @@ export function anyFilterEnabled(calcState) {
 export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const mileage = calcState.mileage;
 
+    // Масла, исключённые из предложений вручную (oil_overrides со страницы машины)
+    const excluded = calcState.excludeOils instanceof Set
+        ? calcState.excludeOils
+        : new Set(calcState.excludeOils || []);
+    const notExcluded = (o) => !excluded.has(o.b + '_' + o.n);
+    shopOils = excluded.size ? shopOils.filter(o => o.isSpot || notExcluded(o)) : shopOils;
+
     if (mileage === '>=200') {
         const oils10w40 = shopOils.filter(o => o.v === '10W-40' && !o.isSpot);
         const oil = oils10w40[0] || { b:'Mobil', n:'Ultra 10W-40', price:1350, v:'10W-40', a:['API SN'], ad:[] };
