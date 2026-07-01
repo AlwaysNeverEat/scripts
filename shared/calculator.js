@@ -221,7 +221,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
 
     if (mileage === '>=200') {
         const oils10w40 = shopOils.filter(o => o.v === '10W-40' && !o.isSpot);
-        const oil = oils10w40[0] || { b:'Mobil', n:'Ultra 10W-40', price:1150, v:'10W-40', a:['API SN'], ad:[] };
+        const oil = oils10w40[0] || { b:'Mobil', n:'Ultra 10W-40', price:1350, v:'10W-40', a:['API SN'], ad:[] };
         agg.approvals = []; agg.allCandidates = oils10w40; agg.topCandidates = [oil];
         return { mid: oil, spot: null };
     }

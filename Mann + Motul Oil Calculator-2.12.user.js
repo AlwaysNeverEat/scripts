@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.20
+// @version      2.21
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -79,13 +79,13 @@
         { b:'Mobil', n:'Super 3000 FE 5W-30', price:1800, v:'5W-30',
           a:['API CF','API SJ','API SL','API SM','API SN','API SN Plus','API SP','ACEA A5/B5','FORD WSS-M2C913-C','FORD WSS-M2C913-D','JAGUAR STJLR'],
           ad:['без саж.ф.','всесезонное','антикоррозия','отложения','топливо','любой режим езды'] },
-        { b:'Mobil', n:'Super 3000 5W-40', price:1800, v:'5W-40',
+        { b:'Mobil', n:'Super 3000 5W-40', price:1950, v:'5W-40',
           a:['FIAT 9.55535-G2','FIAT 9.55535-M2','API CF','ACEA A3/B3','ACEA A3/B4','API SL','API SM','API SN'],
           ad:['любой стиль езды','всесезонное'] },
-        { b:'Mobil', n:'Ultra 10W-40', price:1200, v:'10W-40',
+        { b:'Mobil', n:'Ultra 10W-40', price:1350, v:'10W-40',
           a:['API SN','API SL','ACEA A3/B3','API SN Plus','MB 229.1','API SJ','API SM'],
           ad:['шлам','нагар','коррозия','пуск в мороз','топливо','масло-угар'] },
-        { b:'Mobil', n:'ESP 5W-30', price:2350, v:'5W-30',
+        { b:'Mobil', n:'ESP 5W-30', price:2300, v:'5W-30',
           a:['ACEA C3','GM DEXOS2','MB 229.31','MB 229.51','MB 229.52','PSA B71 2290','PSA B71 2297','API CF','API SJ','API SL','API SM','API SN'],
           ad:['малозольное','износ','отложения','экстремальные температуры','топливо','масло-угар'] },
         // ZIC
@@ -102,20 +102,20 @@
         { b:'GM', n:'5W-30 Dexos II', price:1600, v:'5W-30',
           a:['ACEA A3/B3','GM LL-B-025','VW 505 01','VW 502 00','VW 505 00','MB 229.51','LL 04','GM DEXOS2'],
           ad:['низкая зольность','износ','топливо','очистка'] },
-        { b:'Shell', n:'5W-30 Ultra AM-L Kia/Hyundai', price:1800, v:'5W-30',
+        { b:'Shell', n:'5W-30 Ultra AM-L Kia/Hyundai', price:1950, v:'5W-30',
           a:['LL 04','MB 229.51','API SN','API CF','ACEA C3'],
           ad:['топливо','масло-угар','пуск в мороз','сажа','низкозольное'] },
         { b:'Castrol', n:'5W-30 EDGE LL', price:1950, v:'5W-30',
           a:['MB 229.51','MB 229.31','VW 507 00','VW 504 00','PORSCHE C30','ACEA C3'],
           ad:['всесезонное','отложения','любой стиль вождения'] },
         // Motul (в твоём магазине)
-        { b:'Motul', n:'5W-30 8100 X-Clean+', price:2250, v:'5W-30',
+        { b:'Motul', n:'5W-30 8100 X-Clean+', price:2450, v:'5W-30',
           a:['LL 04','MB 229.51','PORSCHE C30','VW 504 00','VW 507 00','ACEA C3','API SM','API CF'],
           ad:['снижает трение','износ','моющие присадки','нагар','сажа','топливо'] },
-        { b:'Motul', n:'5W-30 SAVE-NERGY', price:1900, v:'5W-30',
+        { b:'Motul', n:'5W-30 SAVE-NERGY', price:2100, v:'5W-30',
           a:['FIAT 9.55535-G1','FORD WSS M2C 913D','JAGUAR STJLR 03.5003','ACEA A5/B5','API SL'],
           ad:['трение','тепловые нагрузки','износ','топливо','масло-угар'] },
-        { b:'Motul', n:'5W-40 6100 SYN-CLEAN', price:1950, v:'5W-40',
+        { b:'Motul', n:'5W-40 6100 SYN-CLEAN', price:2100, v:'5W-40',
           a:['FORD WSS M2C 917A','GM DEXOS2','MB 229.51','RN 0710','RN 0700','VW 505 00','VW 505 01','ACEA C3','API SN'],
           ad:['трение','тепловые нагрузки','износ','топливо','масло-угар'] },
         // Idemitsu / Zepro
@@ -126,16 +126,16 @@
           a:['API SP','ACEA C3'],
           ad:['отложения','сажа','топливо','масло-угар'] },
         // SPOT (наш бренд - всегда доступен) — присадки фиксированные из файла
-        { b:'SPOT', n:'OPTIMAL 5W-30', price:1300, v:'5W-30',
+        { b:'SPOT', n:'OPTIMAL 5W-30', price:1450, v:'5W-30',
           a:['ACEA A3/B4','API SN','API CF','VW 502 00','VW 505 00','MB 226.5','MB 229.3','RN 0700','RN 0710','GM LL-B-025','PORSCHE A40','LL 01'],
           ad:['топливо','низкотемпературное','износ','антикоррозия'], isSpot:true, tier:'optimal' },
-        { b:'SPOT', n:'OPTIMAL 5W-40', price:1300, v:'5W-40',
+        { b:'SPOT', n:'OPTIMAL 5W-40', price:1450, v:'5W-40',
           a:['ACEA A3/B4','API SL','VW 502 00','VW 505 00','MB 229.3','RN 0700','RN 0710','АВТОВАЗ'],
           ad:['топливо','низкотемпературное','износ','антикоррозия'], isSpot:true, tier:'optimal' },
-        { b:'SPOT', n:'PROFESSIONAL 5W-30', price:1600, v:'5W-30',
+        { b:'SPOT', n:'PROFESSIONAL 5W-30', price:1700, v:'5W-30',
           a:['ACEA C3','API SN','API CF','FORD WSS-M2C 913-A','FORD WSS-M2C 913-B','FORD WSS-M2C 913-C','RN 0700','ILSAC GF-5'],
           ad:['топливо','низкотемпературное','износ','антикоррозия'], isSpot:true, tier:'pro' },
-        { b:'SPOT', n:'PROFESSIONAL 5W-40', price:1600, v:'5W-40',
+        { b:'SPOT', n:'PROFESSIONAL 5W-40', price:1700, v:'5W-40',
           a:['GM DEXOS2','MB 229.51','MB 229.31','MB 226.5','RN 0700','RN 0710','VW 505 00','VW 505 01','LL 04','PORSCHE A40','FORD WSS-M2C-917-A'],
           ad:['топливо','низкотемпературное','износ','антикоррозия'], isSpot:true, tier:'pro' },
     ];}
@@ -297,11 +297,11 @@
 
     function getDefaults() { return {
         gear75W90:  [ {b:'ZIC',  n:'GFT 75W-90',          price:1380, v:'75W-90'},
-                      {b:'ROLF', n:'Professional 75W-90', price:1850, v:'75W-90'} ],
+                      {b:'ROLF', n:'Professional 75W-90', price:1950, v:'75W-90'} ],
         cvt:        [ {b:'ZIC',  n:'CVT Multi HP',                     price:1650, v:'CVT'},
                       {b:'ROLF', n:'Professional CVTF Multi',          price:1850, v:'CVT'} ],
-        dct:        [ {b:'ZIC',  n:'DCT FE (для роботов с мокр. сц.)', price:1650, v:'DCT'},
-                      {b:'ROLF', n:'Professional DCT',                 price:1850, v:'DCT'} ],
+        dct:        [ {b:'ZIC',  n:'DCT FE (для роботов с мокр. сц.)', price:1600, v:'DCT'},
+                      {b:'ROLF', n:'Professional DCT',                 price:2000, v:'DCT'} ],
         atf: {
             zic: {
                 b:'ZIC', n:'ATF Multi', price:1400, v:'ATF', _type:'multi',
@@ -2086,7 +2086,7 @@
 
         if (mileage === '>=200') {
             const oils10w40 = shopOils.filter(o => o.v === '10W-40' && !o.isSpot);
-            const oil = oils10w40[0] || { b:'Mobil', n:'Ultra 10W-40', price:1200, v:'10W-40', a:['API SN'], ad:[] };
+            const oil = oils10w40[0] || { b:'Mobil', n:'Ultra 10W-40', price:1350, v:'10W-40', a:['API SN'], ad:[] };
             agg.approvals = [];
             agg.allCandidates = oils10w40;
             agg.topCandidates = [oil];
