@@ -39,8 +39,8 @@ export function formatAggText(agg, calc, calcState) {
             lines.push(`промывка двс (5-минутка) - 1180₽ (630 + 550 услуга)`);
         } else if (calcState.flush === 'full') {
             const litres  = +(calc.vCalc * 0.9).toFixed(1);
-            const oilCost = Math.round(litres * 300);
-            lines.push(`промывка двс (полная) - ${oilCost + 550}₽ (${litres}л × 300₽ + 550 услуга)`);
+            const oilCost = Math.round(litres * 350);
+            lines.push(`промывка двс (полная) - ${oilCost + 550}₽ (${litres}л × 350₽ + 550 услуга)`);
         }
 
         if (lines.length > 1) lines.push('');

@@ -301,8 +301,8 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             flushLine = `5-минутная промывка: +1180₽`;
         } else if (calcState.flush === 'full') {
             const litres = +(vCalc * 0.9).toFixed(1);
-            const cost = Math.round(litres * 300) + 550;
-            flushLine = `Полная промывка: ${litres}л × 300₽ + 550₽ = ${cost}₽`;
+            const cost = Math.round(litres * 350) + 550;
+            flushLine = `Полная промывка: ${litres}л × 350₽ + 550₽ = ${cost}₽`;
         }
         if (flushLine) parts.push(`<div class="flush-formula">${flushLine}</div>`);
     }

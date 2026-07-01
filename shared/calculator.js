@@ -174,7 +174,7 @@ export function getAggregates(data) {
     };
     if (data.automatic && !data.automatic.isDct)
         out.push({ key:'automatic', label: data.automatic.isCvt ? 'Вариатор (CVT)' : 'АКПП', group:'auto', ...pickTotal(data.automatic) });
-    if (data.manual)    out.push({ key:'manual',    label:'МКПП',                   group:'gear', ...pickTotal(data.manual) });
+    if (data.manual)    out.push({ key:'manual',    label: data.manual.isSemiAuto ? 'Робот/АМТ (расчёт как МКПП)' : 'МКПП', group:'gear', ...pickTotal(data.manual) });
     if (data.transfer)  out.push({ key:'transfer',  label:'Раздаточная коробка',     group:'gear', ...pickTotal(data.transfer) });
     if (data.diffFront) out.push({ key:'diffFront', label:'Дифференциал (перед)',    group:'gear', ...pickTotal(data.diffFront) });
     if (data.diffRear)  out.push({ key:'diffRear',  label:'Дифференциал (зад)',      group:'gear', ...pickTotal(data.diffRear) });
@@ -352,17 +352,22 @@ export function calcForAggregate(agg, calcState, carApprovals) {
 
     const v0 = roundL(parseFloat(agg.volume || 0));
     const vFilter = roundL(parseFloat(agg.filterVolume || 0));
-    let vService = roundL(v0 + vFilter);
+    const motulVol = roundL(v0 + vFilter);
+    let vService = motulVol;
+    let overrideUsed = false;
 
     const override = roundL(parseFloat((calcState.volumeOverride || {})[agg.key]));
     if (isFinite(override) && override > 0) {
         vService = override;
+        overrideUsed = true;
     } else if (agg.group === 'auto' && vService === 0 && calcState.atpVolumeManual) {
         vService = roundL(calcState.atpVolumeManual);
+        overrideUsed = true;
     }
 
     if (agg.group === 'auto' && vService === 0) {
-        return { needsVolume: true, costs: [], vCalc: 0, formula: '', volumeStr: '—' };
+        return { needsVolume: true, costs: [], vCalc: 0, formula: '', volumeStr: '—',
+                 vService, motulVol, overrideUsed };
     }
 
     let vCalc, formula, volumeStr;
@@ -413,41 +418,56 @@ export function calcForAggregate(agg, calcState, carApprovals) {
 
     // Cost calculation
     const calcFlushCost = (vol) => {
-        if (calcState.flush === '5min') return { cost: 1180, label: '5-минутка' };
+        if (calcState.flush === '5min') {
+            return { cost: 1180, breakdown: '630 (промыв.масло) + 550 (услуга)', label: '5-минутка' };
+        }
         if (calcState.flush === 'full') {
-            const litres = +(vol * 0.9).toFixed(1);
-            return { cost: Math.round(litres * 300) + 550, label: 'полная промывка' };
+            const litres  = +(vol * 0.9).toFixed(1);
+            const oilCost = Math.round(litres * 350);
+            return { cost: oilCost + 550, breakdown: `${litres}л × 350 + 550 (услуга)`, label: 'полная промывка' };
         }
         return null;
     };
+    const flush = calcFlushCost(vCalc);
 
     const costs = [oil1, oil2].filter(Boolean).map(oil => {
         const price = oil.price;
-        let total;
+        let total, breakdown;
         if (agg.group === 'engine') {
             const fTotal    = filtersTotal(calcState);
-            const flush     = calcFlushCost(vCalc);
             const flushAdd  = flush ? flush.cost : 0;
             total = price * vCalc + fTotal + flushAdd;
+            const parts = [`${price} × ${vCalc}`];
+            if (fTotal > 0) parts.push(`${fTotal} (фильтра)`);
+            if (flush) parts.push(`${flush.cost} (${flush.label})`);
+            breakdown = parts.join(' + ');
         } else if (agg.group === 'auto') {
             const isPartial = calcState.atpType === 'partial';
             const baseLabor = 550 + (isPartial ? 1210 : 0);
+            const laborParts = ['550'];
+            if (isPartial) laborParts.push('1210');
             if (isCvt) {
                 const fltC = calcState.cvtFilterCoarse ? 1700 : 0;
                 const fltF = calcState.cvtFilterFine   ? 3350 : 0;
                 total = price * vCalc + baseLabor + fltC + fltF;
+                const fltParts = [];
+                if (fltC) fltParts.push('1700 грубый');
+                if (fltF) fltParts.push('3350 тонкий');
+                breakdown = `${price} × ${vCalc} + ${laborParts.join(' + ')}${fltParts.length ? ' + ' + fltParts.join(' + ') : ''}`;
             } else {
                 const flt = calcState.atpFilter ? 1700 : 0;
                 total = price * vCalc + baseLabor + flt;
+                breakdown = `${price} × ${vCalc} + ${laborParts.join(' + ')}${flt ? ' + 1700 (фильтр)' : ''}`;
             }
         } else {
             const labor = 1900 + 550;
             total = price * vCalc + labor;
+            breakdown = `${price} × ${vCalc} + 1900 + 550`;
         }
-        return { oil, total: Math.round(total) };
+        return { oil, total: Math.round(total), breakdown };
     });
 
-    return { costs, vCalc, formula, volumeStr };
+    return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
 }
 
 // ── Totals ────────────────────────────────────────────────────────────────────
