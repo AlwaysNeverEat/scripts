@@ -1,26 +1,45 @@
 # Tampermonkey Scripts + Oil Calculator Cars DB
 
-## Userscripts (root)
+Экосистема калькулятора масел: юзерскрипты для сайтов подбора + общая база
+рассчитанных машин (backend + сайт).
 
-| File | Purpose |
-|------|---------|
-| `Mann + Motul Oil Calculator-*.user.js` | Legacy version (kept for reference) |
-| `userscript/calculator.user.js` | **Current version** (v3.0) — with Cars DB integration |
-| Others | CRM helpers, price lookup scripts |
+## Состояние репозитория
 
----
+| Компонент | Путь | Статус |
+|-----------|------|--------|
+| **Калькулятор масел** (юзерскрипт) | `Mann + Motul Oil Calculator-2.12.user.js` | Рабочий, v2.21. Пока НЕ интегрирован с базой (интеграция — в работе) |
+| Пересчёт чека SPOT CRM | `SPOT-CRM-Пересчёт-чека-1.0.user.js` | Рабочий |
+| Прочие CRM-хелперы | `*.user.js` / `*.user(N).js` в корне | Рабочие, самостоятельные |
+| Backend (REST API) | `backend/` | Рабочий: Node.js + Express + PostgreSQL |
+| Сайт (поиск + страница машины) | `frontend/` | Рабочий: Vite + vanilla JS |
+| Общая логика | `shared/` | Каталог масел, подбор, отчёт — единый источник |
+| Схема БД | `db/migrations/` | PostgreSQL, миграции по порядку |
 
-# Cars DB Ecosystem
+## Целевая архитектура
 
-Three components sharing a PostgreSQL database of car specs (capacities, filter part numbers):
+**`shared/` — единственный источник правды** для каталога масел (`oils.js`,
+включая прайс), логики подбора (`calculator.js`) и текстового отчёта
+(`report.js`).
 
-| Component | Path | Purpose |
-|-----------|------|---------|
-| Userscript | `/userscript/` | Tampermonkey — Save to DB + auto-match banner |
-| Backend | `/backend/` | Node.js + Express REST API |
-| Frontend | `/frontend/` | Standalone search + full calculator site |
-| Shared | `/shared/` | Pure JS modules used by frontend |
-| DB | `/db/migrations/` | PostgreSQL schema + migrations |
+Корневые `.user.js` калькуляторов — **собираемые артефакты**: они генерируются
+из `shared/` + site-specific кода и не должны редактироваться руками
+(кроме периода, пока сборка не внедрена). Обновление прайса делается один раз
+в `shared/oils.js`.
+
+> Историческая справка: логика в `shared/` была извлечена из юзерскрипта для
+> сайта, но юзерскрипт продолжал жить со своей встроенной копией — из-за этого
+> прайс приходилось обновлять в нескольких файлах. Сборка из `shared/`
+> устраняет это.
+
+## Дорожная карта
+
+1. ~~Уборка репозитория~~ (этот коммит)
+2. Сборка юзерскрипта из `shared/` (единый прайс + GitHub Action)
+3. Фикс подбора по допускам (иерархия MB 229.x и т.п., показ всех подходящих масел)
+4. Кнопка «📤 Отправить отчёт» в калькуляторе → база (+ сервис-флаги: «АКПП полную не делаем» и т.п.)
+5. Страница машины на сайте: шапка, агрегаты, «игнорировать допуска», режим «Нашли ошибку?»
+6. Улучшение поиска (префиксы, опечатки, русский ввод)
+7. Юзерскрипт-нотификатор для коллег: «✓ эта машина уже рассчитана» → ссылка на сайт
 
 ---
 
@@ -34,7 +53,7 @@ docker compose up --build
 # Postgres → localhost:5432
 ```
 
-The Postgres container runs `db/migrations/001_init.sql` on first boot.
+Postgres-контейнер прогоняет миграции из `db/migrations/` при первом старте.
 
 ---
 
@@ -72,27 +91,19 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 
 ## Userscript setup
 
-1. Install [Tampermonkey](https://www.tampermonkey.net/).
-2. Create a new script from `userscript/calculator.user.js`.
-3. Edit the two constants at the top:
-   ```js
-   const API_BASE   = 'https://your-backend.railway.app';
-   const DB_API_KEY = 'your-api-key';
-   ```
-4. Add your backend hostname to the `@connect` directives.
+1. Установить [Tampermonkey](https://www.tampermonkey.net/).
+2. Установить `Mann + Motul Oil Calculator-2.12.user.js` (raw-ссылка из этого
+   репозитория — автообновление работает через `@updateURL`).
 
-**Auto-match:** On any supported page, the script calls `GET /api/cars/match`. A green banner appears if the car is in the DB. Accepting skips the Motul lookup.
-
-**Save to DB:** Click "📥 В базу данных" → fill the modal → requires all three filter part numbers (or mark absent).
-
-**Refresh from Mann:** Click "↻ обновить из Mann" to re-run the live lookup and update the DB record.
+Интеграция калькулятора с базой (отправка отчёта, авто-проверка «машина уже
+рассчитана») — в работе, см. дорожную карту.
 
 ---
 
 ## Deploy — Supabase + Railway + Vercel
 
 ### 1. Supabase (Postgres)
-- Create project → SQL Editor → paste `db/migrations/001_init.sql` → Run.
+- Create project → SQL Editor → прогнать по порядку все файлы из `db/migrations/` → Run.
 - Copy **Settings → Database → Connection string (URI)**.
 
 ### 2. Railway (Backend)
@@ -103,8 +114,6 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 ### 3. Vercel (Frontend)
 - New project → Root directory: `frontend`.
 - Env vars: `VITE_API_BASE` (Railway URL), `VITE_API_KEY`.
-
-### 4. Update userscript constants with Railway URL + API_KEY.
 
 ---
 
@@ -140,7 +149,7 @@ All endpoints require `x-api-key: <API_KEY>` header.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET`   | `/health` | Liveness (no auth) |
-| `POST`  | `/api/cars` | Create car record |
+| `POST`  | `/api/cars` | Create/upsert car record |
 | `GET`   | `/api/cars/match?engine_code=&brand=&model=&year=&volume=` | Best match |
 | `GET`   | `/api/cars/search?q=` | Free-text search (top 20) |
 | `GET`   | `/api/cars/:id` | Full record |
@@ -165,7 +174,9 @@ Every key must be present. `absent: true` OR non-empty `part`. Otherwise → HTT
 
 ```
 scripts/
-├── userscript/calculator.user.js  ← Tampermonkey v3.0
+├── Mann + Motul Oil Calculator-2.12.user.js  ← калькулятор (будет собираться из shared/)
+├── SPOT-CRM-Пересчёт-чека-1.0.user.js        ← пересчёт чека (будет собираться из shared/)
+├── <прочие CRM-хелперы>.user.js
 ├── backend/
 │   ├── src/{index,db/client,routes/cars,search/translit}.js
 │   ├── Dockerfile
@@ -175,10 +186,10 @@ scripts/
 │   ├── index.html / Dockerfile / nginx.conf
 │   └── package.json
 ├── shared/
-│   ├── oils.js        ← shop oil data + Motul approvals
-│   ├── calculator.js  ← oil picking, cost calc
-│   └── report.js      ← buildReport() — identical output everywhere
-├── db/migrations/001_init.sql
+│   ├── oils.js        ← каталог масел + прайс (ЕДИНСТВЕННОЕ место правки цен)
+│   ├── calculator.js  ← подбор масел, расчёт стоимости
+│   └── report.js      ← buildReport() — одинаковый отчёт везде
+├── db/migrations/*.sql
 ├── docker-compose.yml
 └── README.md
 ```
