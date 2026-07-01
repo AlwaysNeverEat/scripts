@@ -35,6 +35,11 @@ const TARGETS = [
         header: 'userscript/src/spot-crm-recalc/header.txt',
         out:    'SPOT-CRM-Пересчёт-чека-1.0.user.js',
     },
+    {
+        entry:  'userscript/src/notifier/app.js',
+        header: 'userscript/src/notifier/header.txt',
+        out:    'SPOT DB Notifier-1.0.user.js',
+    },
 ];
 
 for (const t of TARGETS) {
