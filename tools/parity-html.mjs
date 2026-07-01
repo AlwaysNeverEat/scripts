@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Проверка HTML-паритета: calcForAggregate из оригинального юзерскрипта (git)
-// против нового glue-варианта из userscript/src/app.js.
+// против нового glue-варианта из userscript/src/oil-calculator/app.js.
 // Сравниваем поле .html на тех же фикстурах, что и текстовый паритет.
 
 import { execFileSync } from 'node:child_process';
@@ -16,7 +16,7 @@ const US_PATH = 'Mann + Motul Oil Calculator-2.12.user.js';
 
 const origSrc = execFileSync('git', ['show', `${BASELINE_COMMIT}:${US_PATH}`],
     { cwd: ROOT, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
-const appSrc = fs.readFileSync(path.join(ROOT, 'userscript/src/app.js'), 'utf8');
+const appSrc = fs.readFileSync(path.join(ROOT, 'userscript/src/oil-calculator/app.js'), 'utf8');
 
 function extractFunction(src, name) {
     const marker = `function ${name}(`;

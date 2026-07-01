@@ -13,15 +13,15 @@ import {
     anyFilterEnabled as sharedAnyFilterEnabled,
     pickEngineOils as sharedPickEngineOils,
     calcForAggregate as sharedCalcForAggregate,
-} from '../../shared/calculator.js';
+} from '../../../shared/calculator.js';
 import {
     getShopOils, getMotulOils, getDefaults, getReglament, getReglamentForBrand,
-} from '../../shared/oils.js';
+} from '../../../shared/oils.js';
 import {
     buildReport,
     formatAggText as sharedFormatAggText,
     buildTotalsLines as sharedBuildTotalsLines,
-} from '../../shared/report.js';
+} from '../../../shared/report.js';
 
 // ── Адаптеры: сохраняют старые сигнатуры, замыкаясь на calcState/GM_getValue ──
 

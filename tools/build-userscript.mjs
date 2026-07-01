@@ -26,9 +26,14 @@ try {
 
 const TARGETS = [
     {
-        entry:  'userscript/src/app.js',
-        header: 'userscript/src/header.txt',
+        entry:  'userscript/src/oil-calculator/app.js',
+        header: 'userscript/src/oil-calculator/header.txt',
         out:    'Mann + Motul Oil Calculator-2.12.user.js',
+    },
+    {
+        entry:  'userscript/src/spot-crm-recalc/app.js',
+        header: 'userscript/src/spot-crm-recalc/header.txt',
+        out:    'SPOT-CRM-Пересчёт-чека-1.0.user.js',
     },
 ];
 
