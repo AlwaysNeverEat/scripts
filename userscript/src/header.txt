@@ -1,0 +1,18 @@
+// ==UserScript==
+// @name         Mann + Motul Oil Calculator
+// @namespace    zamena-masla-spot.ru
+// @version      2.22
+// @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
+// @match        https://www.mann-filter.com/*
+// @match        https://lynxauto.info/*
+// @match        https://motul.lubricantadvisor.com/*
+// @match        https://rolfoil.ru/podbor/*
+// @match        https://podbor.upec.pro/*
+// @match        https://podbor.ravenol.ru/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
+// @run-at       document-idle
+// @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/Mann%20%2B%20Motul%20Oil%20Calculator-2.12.user.js
+// @downloadURL  https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/Mann%20%2B%20Motul%20Oil%20Calculator-2.12.user.js
+// ==/UserScript==
