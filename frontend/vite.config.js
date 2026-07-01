@@ -6,6 +6,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: '.',
+    // относительные пути ассетов — сайт работает и с корня, и с подпапки
+    // (GitHub Pages отдаёт его с https://<user>.github.io/<repo>/)
+    base: './',
     build: {
       outDir: 'dist',
       emptyOutDir: true,

@@ -1,0 +1,59 @@
+name: Deploy site to GitHub Pages
+
+# Собирает frontend и публикует на GitHub Pages.
+# Перед первым запуском:
+#   1. Settings → Pages → Source: «GitHub Actions»
+#   2. Settings → Secrets and variables → Actions → добавить:
+#      - variable VITE_API_BASE  (URL backend'а на Render, без слэша в конце)
+#      - secret   VITE_API_KEY   (тот же API_KEY, что на Render)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'shared/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
