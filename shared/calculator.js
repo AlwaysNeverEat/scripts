@@ -49,17 +49,108 @@ export function anyMatch(oilApprovals, carApprovals) {
     return false;
 }
 
+// ── Иерархия допусков ────────────────────────────────────────────────────────
+// Старший допуск покрывает требования младшего: масло с MB 229.5 можно лить
+// туда, где требуется MB 229.3. Иерархия ОДНОнаправленная: масло только с
+// MB 229.3 НЕ подходит машине, требующей MB 229.5.
+// Таблица консервативная и явная — расширять по одному правилу.
+
+const APPROVAL_SUPERSEDES_RULES = [
+    // Mercedes-Benz
+    ['MB 229.52', ['MB 229.51', 'MB 229.31']],
+    ['MB 229.51', ['MB 229.31']],
+    ['MB 229.31', ['MB 229.3']],
+    ['MB 229.5',  ['MB 229.3', 'MB 229.1']],
+    ['MB 229.3',  ['MB 229.1']],
+    // VW
+    ['VW 504 00', ['VW 502 00']],
+    ['VW 507 00', ['VW 505 01', 'VW 505 00']],
+    // BMW Longlife
+    ['LL 04', ['LL 01']],
+    ['LL 01', ['LL 98']],
+    // Renault
+    ['RN 0710', ['RN 0700']],
+];
+
+// token → Map(покрытый token → исходная пара допусков для подписи в UI)
+let _supersedesMap = null;
+function supersedesMap() {
+    if (_supersedesMap) return _supersedesMap;
+    const m = new Map();
+    const add = (sup, sub, label) => {
+        if (!m.has(sup)) m.set(sup, new Map());
+        if (!m.get(sup).has(sub)) m.get(sup).set(sub, label);
+    };
+    for (const [sup, subs] of APPROVAL_SUPERSEDES_RULES) {
+        for (const sub of subs) {
+            for (const supTok of tokenSet([sup])) {
+                for (const subTok of tokenSet([sub])) {
+                    add(supTok, subTok, { via: sup, covers: sub });
+                }
+            }
+        }
+    }
+    // транзитивное замыкание: 229.52 ⊃ 229.51 ⊃ 229.31 ⊃ 229.3
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const [sup, subs] of m) {
+            for (const [sub, label] of subs) {
+                const deeper = m.get(sub);
+                if (!deeper) continue;
+                for (const [sub2, label2] of deeper) {
+                    if (sup === sub2 || subs.has(sub2)) continue;
+                    add(sup, sub2, { via: label.via, covers: label2.covers });
+                    changed = true;
+                }
+            }
+        }
+    }
+    _supersedesMap = m;
+    return m;
+}
+
+// Все токены, которые покрывают токены масла через иерархию.
+// Возвращает Map(покрытый token → { via, covers }) — только НОВЫЕ токены,
+// которых нет в самих oilTokens.
+export function expandCoveredTokens(oilTokens) {
+    const m = supersedesMap();
+    const out = new Map();
+    for (const t of oilTokens) {
+        const covered = m.get(t);
+        if (!covered) continue;
+        for (const [sub, label] of covered) {
+            if (!oilTokens.has(sub) && !out.has(sub)) out.set(sub, label);
+        }
+    }
+    return out;
+}
+
 export function splitOilApprovals(oilApprovals, carApprovals) {
     const oilArr = oilApprovals || [];
-    const carTok = tokenSet(carApprovals || []);
-    const matched = [], others = [];
+    const carArr = carApprovals || [];
+    const carTok = tokenSet(carArr);
+    // токен машины → исходная строка допуска (для подписи «покрывает …»)
+    const carTokToStr = new Map();
+    for (const a of carArr) {
+        for (const t of tokenSet([a])) if (!carTokToStr.has(t)) carTokToStr.set(t, a);
+    }
+    const matched = [], others = [], hier = [];
     for (const a of oilArr) {
         const tk = tokenSet([a]);
         let isHit = false;
         for (const t of tk) { if (carTok.has(t)) { isHit = true; break; } }
-        if (isHit) matched.push(a); else others.push(a);
+        if (isHit) { matched.push(a); continue; }
+        // не прямое совпадение — вдруг покрывает требуемый допуск по иерархии
+        const covered = expandCoveredTokens(tk);
+        let hierHit = null;
+        for (const [sub] of covered) {
+            if (carTok.has(sub)) { hierHit = carTokToStr.get(sub) || sub; break; }
+        }
+        if (hierHit) hier.push({ approval: a, covers: hierHit });
+        else others.push(a);
     }
-    return { matched, others };
+    return { matched, others, hier };
 }
 
 export function matchOilToReglament(oil, brand) {
@@ -297,8 +388,19 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
 
     const rated = candidates.map(oil => {
         const oilTokens = tokenSet(oil.a); let score = 0;
+        const direct = [], hier = [];
         if (!calcState.ignoreApprovals) {
-            for (const carTok of effectiveCarTokens) if (oilTokens.has(carTok)) score += 10;
+            // прямое совпадение допуска — вес 10
+            for (const carTok of effectiveCarTokens) {
+                if (oilTokens.has(carTok)) { score += 10; direct.push(carTok); }
+            }
+            // покрытие через иерархию (MB 229.5 ⊃ 229.3 и т.п.) — вес 7
+            const covered = expandCoveredTokens(oilTokens);
+            for (const carTok of effectiveCarTokens) {
+                if (oilTokens.has(carTok)) continue;
+                const label = covered.get(carTok);
+                if (label) { score += 7; hier.push({ covers: carTok, via: label.via }); }
+            }
             if (hasFord && [...oilTokens].some(t => /FORDWSS|WSSM2C/.test(t))) score += 5;
             if (hasMB   && [...oilTokens].some(t => /^MB\d/.test(t))) score += 3;
             if (hasVW   && [...oilTokens].some(t => /^VW\d|^VW50/.test(t))) score += 3;
@@ -306,7 +408,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
             if (hasRN   && [...oilTokens].some(t => /^RN\d/.test(t))) score += 3;
             if (hasGM   && [...oilTokens].some(t => /^GM\d|DEXOS/.test(t))) score += 3;
         }
-        return { oil, score };
+        return { oil, score, direct, hier };
     });
 
     rated.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
@@ -334,6 +436,8 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     agg.requiredClass = requiredClass;
     agg.allCandidates = rated.map(r => r.oil);
     agg.topCandidates = topMatches.map(r => r.oil);
+    // полный рейтинг с деталями совпадений — для пикера масел в UI
+    agg.ranked = rated.map(r => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier }));
     return { mid, spot };
 }
 

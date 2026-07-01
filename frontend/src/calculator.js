@@ -313,15 +313,18 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
         const displayedCosts = mileage === '>=200' ? calc.costs.slice(0, 1) : calc.costs;
 
         parts.push(displayedCosts.map((c, i) => {
-            const { matched, others } = splitOilApprovals(c.oil.a || [], carApprovals);
+            const { matched, others, hier } = splitOilApprovals(c.oil.a || [], carApprovals);
             const regMatches = agg.group === 'engine' ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
             const regMark = regMatches.length ? `<span class="reg-mark" title="${esc(regMatches.map(m => m.tag + (m.desc ? ': ' + m.desc : '')).join(', '))}">⭐</span>` : '';
             const matchedBadges = matched.map(a => `<span class="appr-hit">${esc(a)}</span>`).join(' ');
+            const hierBadges = (hier || []).map(h =>
+                `<span class="appr-hier" title="${esc(h.approval)} покрывает требуемый ${esc(h.covers)} (старший допуск)">${esc(h.approval)} ⊃ ${esc(h.covers)}</span>`).join(' ');
+            const headBadges = [matchedBadges, hierBadges].filter(Boolean).join(' ');
             const otherBadges = others.map(a => `<span class="appr-other">${esc(a)}</span>`).join(' ');
             const showOilAppr = calcState.expandedOilApp.has(agg.key + '_' + i);
-            const oilApprHtml = (matched.length || others.length) ? `
+            const oilApprHtml = (matched.length || (hier || []).length || others.length) ? `
                 <div style="margin-top:3px">
-                    ${matchedBadges}${matchedBadges && otherBadges ? ' ' : ''}${showOilAppr ? otherBadges : (others.length ? `<span class="appr-more" data-oil-appr="${agg.key}_${i}">+${others.length} ещё</span>` : '')}
+                    ${headBadges}${headBadges && otherBadges ? ' ' : ''}${showOilAppr ? otherBadges : (others.length ? `<span class="appr-more" data-oil-appr="${agg.key}_${i}">+${others.length} ещё</span>` : '')}
                 </div>
             ` : '';
 
@@ -346,7 +349,14 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                             const isCur = calc.costs[0] && (calc.costs[0].oil.b + '_' + calc.costs[0].oil.n) === (oil.b + '_' + oil.n);
                             const regOpt = matchOilToReglament(oil, calcState.car?.makeShort);
                             const rMark = regOpt.length ? '⭐ ' : '';
-                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)} — ${oil.price}₽/л</button>`;
+                            const rk = (agg.ranked || []).find(r => r.oil === oil);
+                            let hits = '';
+                            if (rk && (rk.direct.length || rk.hier.length)) {
+                                const tip = [...rk.direct.map(t => 'совпал: ' + t),
+                                             ...rk.hier.map(h => h.via + ' покрывает ' + h.covers)].join('; ');
+                                hits = ` <span class="oil-pick-hits" title="${esc(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
+                            }
+                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
                         }).join('')}
                         <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
                     </div>

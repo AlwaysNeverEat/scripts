@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "build:userscript": "node tools/build-userscript.mjs",
+    "test:unit": "node --test shared/*.test.js",
     "test:parity": "node tools/parity-userscript.mjs && node tools/parity-html.mjs",
-    "test": "npm run test:parity"
+    "test": "npm run test:unit && npm run test:parity"
   },
   "devDependencies": {
     "esbuild": "^0.24.2"

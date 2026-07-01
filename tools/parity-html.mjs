@@ -2,6 +2,11 @@
 // Проверка HTML-паритета: calcForAggregate из оригинального юзерскрипта (git)
 // против нового glue-варианта из userscript/src/oil-calculator/app.js.
 // Сравниваем поле .html на тех же фикстурах, что и текстовый паритет.
+//
+// ВАЖНО: тест проверяет корректность ПЕРЕНОСА, а не новые фичи UI.
+// Фикстуры сознательно не открывают пикер масел (после рефакторинга он
+// получил ✓-метки) и не задевают иерархию допусков — это покрыто
+// shared/calculator.test.js.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -88,11 +93,11 @@ function makeState(over = {}) {
 }
 
 const CASES = [
-    { name: 'двс MB229.3 + фильтры + полная промывка + картер + пикер открыт',
+    { name: 'двс MB229.3 + фильтры + полная промывка + картер',
       car: { makeShort:'MERCEDES', modelShort:'C 180', cacheKey:'k1', fuelType:'01', engineCode:'M271' },
       agg: () => ({ key:'engine', label:'ДВС (двигатель)', group:'engine', volume:5.5, filterVolume:0.3 }),
       approvals: ['MB 229.3','MB 229.5'],
-      state: makeState({ flush:'full', showWithSump:true, showOilPicker:'engine',
+      state: makeState({ flush:'full', showWithSump:true,
           filters:{ vf:{name:'W712',price:750,enabled:true,work:350}, mf:{name:'C27',price:1100,enabled:true}, sf:{name:'CUK',price:1400,enabled:true,work:550} } }) },
     { name: 'двс 5-минутка + переопределение объёма',
       car: { makeShort:'VW', modelShort:'TIGUAN', cacheKey:'k2', fuelType:'05', engineCode:'CFFB' },

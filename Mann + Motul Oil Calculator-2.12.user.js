@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.53
+// @version      2.22.54
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -422,10 +422,78 @@
     }
     return s;
   }
+  var APPROVAL_SUPERSEDES_RULES = [
+    // Mercedes-Benz
+    ["MB 229.52", ["MB 229.51", "MB 229.31"]],
+    ["MB 229.51", ["MB 229.31"]],
+    ["MB 229.31", ["MB 229.3"]],
+    ["MB 229.5", ["MB 229.3", "MB 229.1"]],
+    ["MB 229.3", ["MB 229.1"]],
+    // VW
+    ["VW 504 00", ["VW 502 00"]],
+    ["VW 507 00", ["VW 505 01", "VW 505 00"]],
+    // BMW Longlife
+    ["LL 04", ["LL 01"]],
+    ["LL 01", ["LL 98"]],
+    // Renault
+    ["RN 0710", ["RN 0700"]]
+  ];
+  var _supersedesMap = null;
+  function supersedesMap() {
+    if (_supersedesMap) return _supersedesMap;
+    const m = /* @__PURE__ */ new Map();
+    const add = (sup, sub, label) => {
+      if (!m.has(sup)) m.set(sup, /* @__PURE__ */ new Map());
+      if (!m.get(sup).has(sub)) m.get(sup).set(sub, label);
+    };
+    for (const [sup, subs] of APPROVAL_SUPERSEDES_RULES) {
+      for (const sub of subs) {
+        for (const supTok of tokenSet([sup])) {
+          for (const subTok of tokenSet([sub])) {
+            add(supTok, subTok, { via: sup, covers: sub });
+          }
+        }
+      }
+    }
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [sup, subs] of m) {
+        for (const [sub, label] of subs) {
+          const deeper = m.get(sub);
+          if (!deeper) continue;
+          for (const [sub2, label2] of deeper) {
+            if (sup === sub2 || subs.has(sub2)) continue;
+            add(sup, sub2, { via: label.via, covers: label2.covers });
+            changed = true;
+          }
+        }
+      }
+    }
+    _supersedesMap = m;
+    return m;
+  }
+  function expandCoveredTokens(oilTokens) {
+    const m = supersedesMap();
+    const out = /* @__PURE__ */ new Map();
+    for (const t of oilTokens) {
+      const covered = m.get(t);
+      if (!covered) continue;
+      for (const [sub, label] of covered) {
+        if (!oilTokens.has(sub) && !out.has(sub)) out.set(sub, label);
+      }
+    }
+    return out;
+  }
   function splitOilApprovals(oilApprovals, carApprovals) {
     const oilArr = oilApprovals || [];
-    const carTok = tokenSet(carApprovals || []);
-    const matched = [], others = [];
+    const carArr = carApprovals || [];
+    const carTok = tokenSet(carArr);
+    const carTokToStr = /* @__PURE__ */ new Map();
+    for (const a of carArr) {
+      for (const t of tokenSet([a])) if (!carTokToStr.has(t)) carTokToStr.set(t, a);
+    }
+    const matched = [], others = [], hier = [];
     for (const a of oilArr) {
       const tk = tokenSet([a]);
       let isHit = false;
@@ -435,10 +503,22 @@
           break;
         }
       }
-      if (isHit) matched.push(a);
+      if (isHit) {
+        matched.push(a);
+        continue;
+      }
+      const covered = expandCoveredTokens(tk);
+      let hierHit = null;
+      for (const [sub] of covered) {
+        if (carTok.has(sub)) {
+          hierHit = carTokToStr.get(sub) || sub;
+          break;
+        }
+      }
+      if (hierHit) hier.push({ approval: a, covers: hierHit });
       else others.push(a);
     }
-    return { matched, others };
+    return { matched, others, hier };
   }
   function matchOilToReglament(oil, brand) {
     const reg = getReglamentForBrand(brand);
@@ -658,8 +738,23 @@
     const rated = candidates.map((oil) => {
       const oilTokens = tokenSet(oil.a);
       let score = 0;
+      const direct = [], hier = [];
       if (!calcState2.ignoreApprovals) {
-        for (const carTok of effectiveCarTokens) if (oilTokens.has(carTok)) score += 10;
+        for (const carTok of effectiveCarTokens) {
+          if (oilTokens.has(carTok)) {
+            score += 10;
+            direct.push(carTok);
+          }
+        }
+        const covered = expandCoveredTokens(oilTokens);
+        for (const carTok of effectiveCarTokens) {
+          if (oilTokens.has(carTok)) continue;
+          const label = covered.get(carTok);
+          if (label) {
+            score += 7;
+            hier.push({ covers: carTok, via: label.via });
+          }
+        }
         if (hasFord && [...oilTokens].some((t) => /FORDWSS|WSSM2C/.test(t))) score += 5;
         if (hasMB && [...oilTokens].some((t) => /^MB\d/.test(t))) score += 3;
         if (hasVW && [...oilTokens].some((t) => /^VW\d|^VW50/.test(t))) score += 3;
@@ -667,7 +762,7 @@
         if (hasRN && [...oilTokens].some((t) => /^RN\d/.test(t))) score += 3;
         if (hasGM && [...oilTokens].some((t) => /^GM\d|DEXOS/.test(t))) score += 3;
       }
-      return { oil, score };
+      return { oil, score, direct, hier };
     });
     rated.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
     const maxScore = rated[0] ? rated[0].score : 0;
@@ -692,6 +787,7 @@
     agg.requiredClass = requiredClass;
     agg.allCandidates = rated.map((r) => r.oil);
     agg.topCandidates = topMatches.map((r) => r.oil);
+    agg.ranked = rated.map((r) => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier }));
     return { mid, spot };
   }
   function calcForAggregate(agg, calcState2, carApprovals) {
@@ -1077,8 +1173,17 @@
       const isCurrent = costs[0] && costs[0].oil.b + "_" + costs[0].oil.n === o.b + "_" + o.n;
       const regOpt = matchOilToReglament(o, calcState.car?.makeShort);
       const regMark = regOpt.length ? '<span class="zm-reg-mark" title="по регламенту">⭐</span>' : "";
+      const rk = (agg.ranked || []).find((r) => r.oil === o);
+      let hitsMark = "";
+      if (rk && (rk.direct.length || rk.hier.length)) {
+        const tip = [
+          ...rk.direct.map((t) => "совпал: " + t),
+          ...rk.hier.map((h) => h.via + " покрывает " + h.covers)
+        ].join("; ");
+        hitsMark = `<span class="zm-oil-opt-hits" title="${escapeHtmlSafe(tip)}">✓${rk.direct.length ? " " + rk.direct.length : ""}${rk.hier.length ? " ⊃" + rk.hier.length : ""}</span>`;
+      }
       return `<button class="zm-oil-opt ${isCurrent ? "zm-oil-opt-act" : ""} ${regOpt.length ? "zm-oil-opt-reg" : ""}" data-opt="${o.b}_${o.n}">
-                        <span class="zm-oil-opt-name">${regMark} ${o.b} ${o.n}</span>
+                        <span class="zm-oil-opt-name">${regMark} ${o.b} ${o.n}${hitsMark}</span>
                         <span class="zm-oil-opt-price">${o.price}₽/л</span>
                     </button>`;
     }).join("")}
@@ -2031,10 +2136,11 @@
     const oilKey = agg.key + "_" + idx + "_" + oil.b + "_" + oil.n;
     const isExpanded = calcState.expandedOilApp.has(oilKey);
     const carApprovals = agg.approvals || [];
-    const { matched, others } = splitOilApprovals(oil.a || [], carApprovals);
+    const { matched, others, hier } = splitOilApprovals(oil.a || [], carApprovals);
     const hasCarApprovals = carApprovals.length > 0 && !calcState.ignoreApprovals;
-    const matchedHtml = hasCarApprovals && matched.length ? `<div class="zm-oil-app-matched">
+    const matchedHtml = hasCarApprovals && (matched.length || hier.length) ? `<div class="zm-oil-app-matched">
                 ${matched.map((a) => `<span class="zm-oil-app-pill zm-oil-app-match" title="Совпадает с допуском машины">${escapeHtml(a)}</span>`).join("")}
+                ${hier.map((h) => `<span class="zm-oil-app-pill zm-oil-app-hier" title="${escapeHtmlSafe(h.approval)} покрывает требуемый ${escapeHtmlSafe(h.covers)} (старший допуск)">${escapeHtml(h.approval)} ⊃ ${escapeHtml(h.covers)}</span>`).join("")}
                </div>` : "";
     const btnLabel = hasCarApprovals ? `допуска +${others.length}` : `допуска (${(oil.a || []).length})`;
     const appBtn = `<button class="zm-oil-app-btn ${isExpanded ? "zm-oil-app-btn-open" : ""}" data-oilapp="${escapeHtmlSafe(oilKey)}">${isExpanded ? "▾" : "▸"} ${btnLabel}</button>`;
@@ -2803,6 +2909,16 @@
                 0%   {background-position:0% 50%}
                 100% {background-position:300% 50%}
             }
+            /* Допуск, покрывающий требуемый через иерархию (MB 229.5 ⊃ 229.3) */
+            .zm-oil-app-pill.zm-oil-app-hier{
+                background:linear-gradient(120deg,#0d47a1,#1565c0,#1e88e5,#42a5f5,#1e88e5,#1565c0,#0d47a1);
+                background-size:300% 100%;
+                color:#fff;
+                border:1px solid #42a5f5;
+                font-weight:700;
+                box-shadow:0 0 8px rgba(66,165,245,.35);
+                animation:zm-shimmer 3s linear infinite}
+            .zm-oil-opt-hits{font-size:9px;color:#66bb6a;margin-left:4px;white-space:nowrap}
             .zm-oil-app-btn{background:transparent;border:1px dashed #3a3d5e;color:#7986cb;
                 font-size:10px;cursor:pointer;padding:3px 10px;border-radius:10px;
                 margin-top:2px;display:inline-block;line-height:1.4}

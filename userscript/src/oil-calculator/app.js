@@ -162,8 +162,17 @@ function calcForAggregate(agg) {
                     const isCurrent = (costs[0] && (costs[0].oil.b + '_' + costs[0].oil.n) === (o.b + '_' + o.n));
                     const regOpt = matchOilToReglament(o, calcState.car?.makeShort);
                     const regMark = regOpt.length ? '<span class="zm-reg-mark" title="по регламенту">⭐</span>' : '';
+                    const rk = (agg.ranked || []).find(r => r.oil === o);
+                    let hitsMark = '';
+                    if (rk && (rk.direct.length || rk.hier.length)) {
+                        const tip = [
+                            ...rk.direct.map(t => 'совпал: ' + t),
+                            ...rk.hier.map(h => h.via + ' покрывает ' + h.covers),
+                        ].join('; ');
+                        hitsMark = `<span class="zm-oil-opt-hits" title="${escapeHtmlSafe(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
+                    }
                     return `<button class="zm-oil-opt ${isCurrent?'zm-oil-opt-act':''} ${regOpt.length?'zm-oil-opt-reg':''}" data-opt="${o.b}_${o.n}">
-                        <span class="zm-oil-opt-name">${regMark} ${o.b} ${o.n}</span>
+                        <span class="zm-oil-opt-name">${regMark} ${o.b} ${o.n}${hitsMark}</span>
                         <span class="zm-oil-opt-price">${o.price}₽/л</span>
                     </button>`;
                 }).join('')}
@@ -1196,15 +1205,16 @@ function calcForAggregate(agg) {
         const isExpanded = calcState.expandedOilApp.has(oilKey);
         const carApprovals = agg.approvals || [];
 
-        // Разбить допуска масла на matched / others (относительно машины)
-        const { matched, others } = splitOilApprovals(oil.a || [], carApprovals);
+        // Разбить допуска масла на matched / hier / others (относительно машины)
+        const { matched, others, hier } = splitOilApprovals(oil.a || [], carApprovals);
 
         // Если допусков машины ещё нет ИЛИ режим "игнор" — matched пустой, всё в others
         const hasCarApprovals = carApprovals.length > 0 && !calcState.ignoreApprovals;
 
-        const matchedHtml = (hasCarApprovals && matched.length)
+        const matchedHtml = (hasCarApprovals && (matched.length || hier.length))
             ? `<div class="zm-oil-app-matched">
                 ${matched.map(a => `<span class="zm-oil-app-pill zm-oil-app-match" title="Совпадает с допуском машины">${escapeHtml(a)}</span>`).join('')}
+                ${hier.map(h => `<span class="zm-oil-app-pill zm-oil-app-hier" title="${escapeHtmlSafe(h.approval)} покрывает требуемый ${escapeHtmlSafe(h.covers)} (старший допуск)">${escapeHtml(h.approval)} ⊃ ${escapeHtml(h.covers)}</span>`).join('')}
                </div>`
             : '';
 
@@ -2140,6 +2150,16 @@ function calcForAggregate(agg) {
                 0%   {background-position:0% 50%}
                 100% {background-position:300% 50%}
             }
+            /* Допуск, покрывающий требуемый через иерархию (MB 229.5 ⊃ 229.3) */
+            .zm-oil-app-pill.zm-oil-app-hier{
+                background:linear-gradient(120deg,#0d47a1,#1565c0,#1e88e5,#42a5f5,#1e88e5,#1565c0,#0d47a1);
+                background-size:300% 100%;
+                color:#fff;
+                border:1px solid #42a5f5;
+                font-weight:700;
+                box-shadow:0 0 8px rgba(66,165,245,.35);
+                animation:zm-shimmer 3s linear infinite}
+            .zm-oil-opt-hits{font-size:9px;color:#66bb6a;margin-left:4px;white-space:nowrap}
             .zm-oil-app-btn{background:transparent;border:1px dashed #3a3d5e;color:#7986cb;
                 font-size:10px;cursor:pointer;padding:3px 10px;border-radius:10px;
                 margin-top:2px;display:inline-block;line-height:1.4}
