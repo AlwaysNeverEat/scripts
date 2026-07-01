@@ -191,46 +191,72 @@ router.get('/search', async (req, res) => {
 
   try {
     const variants = expandQuery(q);
-    const baseVariant = variants[0];
 
     // Extract numeric tokens (year, volume) from the query
     const nums = q.match(/\b(\d{4}|\d\.\d)\b/g) || [];
     const yearNum = nums.find(n => n.length === 4 && parseInt(n) > 1960) || null;
     const volNum  = nums.find(n => n.includes('.')) || null;
 
-    // Build combined similarity expression over all variants
-    const simExprs = variants.map((_, i) => `similarity(name_normalized, $${i + 1})`);
-    const maxSim = `GREATEST(${simExprs.join(', ')})`;
+    // Combined trigram similarity over all variants:
+    //  - similarity() по всей строке — «полные» запросы
+    //  - word_similarity() — короткие/неполные запросы и опечатки
+    //    («фокус» против «ford focus 1.6 2017» даёт высокий word_similarity)
+    const simExprs  = variants.map((_, i) => `similarity(name_normalized, $${i + 1})`);
+    const wsimExprs = variants.map((_, i) => `word_similarity($${i + 1}, name_normalized)`);
+    const maxSim  = `GREATEST(${simExprs.join(', ')})`;
+    const maxWsim = `GREATEST(${wsimExprs.join(', ')})`;
     const params = [...variants];
 
-    // tsvector query: join all variant words with |
-    const tsWords = [...new Set(variants.flatMap(v => v.split(/\s+/)).filter(w => w.length > 1))];
-    const tsQuery = tsWords.map(w => w.replace(/'/g, "''")).join(' | ');
-    params.push(tsQuery);
+    // Префиксный tsquery: внутри варианта слова через & (все должны найтись),
+    // варианты через | . «фор фок» → (фор:* & фок:*) | (for:* & fok:*) …
+    const sanitizeWord = (w) => w.replace(/[^a-zа-яё0-9.]/gi, '');
+    const tsQuery = [...new Set(variants.map(v =>
+      v.split(/\s+/).map(sanitizeWord).filter(w => w.length > 1)
+        .map(w => `${w}:*`).join(' & '),
+    ).filter(Boolean))].join(' | ');
+    params.push(tsQuery || 'zzz_none:*');
     const tsIdx = params.length;
+
+    // Модельный бонус: каждое слово запроса сравнивается с моделью отдельно.
+    // Различает «фокс» → FOCUS от других машин того же бренда (бренд «ford»
+    // есть у всех и глушит триграммный сигнал по полной строке).
+    const queryWords = [...new Set(variants.flatMap(v => v.split(/\s+/)))]
+      .filter(w => w.length >= 3 && !/^\d/.test(w))
+      .slice(0, 12);
+    let modelSim = '0';
+    if (queryWords.length) {
+      const exprs = queryWords.map(w => {
+        params.push(w);
+        return `similarity(lower(model), $${params.length})`;
+      });
+      modelSim = `GREATEST(${exprs.join(', ')})`;
+    }
 
     // Year / volume boost
     let yearBoost = '0';
     if (yearNum) {
       params.push(parseInt(yearNum));
-      yearBoost = `CASE WHEN ${params.length} BETWEEN year_from AND COALESCE(year_to, 9999) THEN 0.3 ELSE 0 END`;
+      yearBoost = `CASE WHEN $${params.length} BETWEEN year_from AND COALESCE(year_to, 9999) THEN 0.3 ELSE 0 END`;
     }
     let volBoost = '0';
     if (volNum) {
       params.push(parseFloat(volNum));
-      volBoost = `CASE WHEN ABS(engine_volume - ${params.length}) < 0.15 THEN 0.2 ELSE 0 END`;
+      volBoost = `CASE WHEN ABS(engine_volume - $${params.length}) < 0.15 THEN 0.2 ELSE 0 END`;
     }
 
     const sql = `
       SELECT *,
-        (${maxSim} * 0.6
-         + COALESCE(ts_rank(search_vector, to_tsquery('simple', $${tsIdx})), 0) * 0.4
+        (${maxSim} * 0.3
+         + ${maxWsim} * 0.3
+         + ${modelSim} * 0.25
+         + COALESCE(ts_rank(search_vector, to_tsquery('simple', $${tsIdx})), 0) * 0.25
          + ${yearBoost} + ${volBoost}
         ) AS score
       FROM cars
       WHERE
-        ${simExprs.map((_, i) => `name_normalized % $${i + 1}`).join(' OR ')}
-        OR search_vector @@ to_tsquery('simple', $${tsIdx})
+        search_vector @@ to_tsquery('simple', $${tsIdx})
+        OR ${simExprs.map((_, i) => `name_normalized % $${i + 1}`).join(' OR ')}
+        OR ${maxWsim} >= 0.35
         OR name_normalized ILIKE '%' || $1 || '%'
       ORDER BY score DESC
       LIMIT 20

@@ -85,6 +85,14 @@ npm run dev
 | `CORS_ORIGINS` | Comma-separated allowed origins |
 | `PORT` | Default `3001` |
 
+Тестовые данные и проверка поиска:
+
+```bash
+DATABASE_URL=... node scripts/seed.js          # 17 тестовых машин
+API_BASE=http://localhost:3001 API_KEY=... node scripts/search-check.mjs
+# 17 фикстур «запрос → ожидаемый top-1»: русский ввод, префиксы, опечатки
+```
+
 ---
 
 ## Frontend setup (manual)
