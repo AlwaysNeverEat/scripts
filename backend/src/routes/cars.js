@@ -47,6 +47,7 @@ router.post('/', async (req, res) => {
     year_from, year_to, kw, bhp, fuel_type, motul_name, engine_name,
     fluid_capacities, filter_part_numbers,
     car_approvals, recommended_oils,
+    service_flags, notes, oil_overrides,
     created_by,
   } = req.body;
 
@@ -60,6 +61,12 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'car_approvals must be an array' });
   if (recommended_oils !== undefined && !Array.isArray(recommended_oils))
     return res.status(400).json({ error: 'recommended_oils must be an array' });
+  if (service_flags !== undefined && (typeof service_flags !== 'object' || Array.isArray(service_flags) || service_flags === null))
+    return res.status(400).json({ error: 'service_flags must be an object' });
+  if (oil_overrides !== undefined && (typeof oil_overrides !== 'object' || Array.isArray(oil_overrides) || oil_overrides === null))
+    return res.status(400).json({ error: 'oil_overrides must be an object' });
+  if (notes !== undefined && notes !== null && typeof notes !== 'string')
+    return res.status(400).json({ error: 'notes must be a string' });
 
   try {
     const { nameNormalized, nameCyrillic, nameTranslit, svSql } =
@@ -70,11 +77,12 @@ router.post('/', async (req, res) => {
          brand, model, generation, engine_code, engine_volume,
          year_from, year_to, kw, bhp, fuel_type, motul_name, engine_name,
          fluid_capacities, filter_part_numbers, car_approvals, recommended_oils,
+         service_flags, notes, oil_overrides,
          name_normalized, name_cyrillic, name_translit, search_vector,
          created_by
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-         $17,$18,$19,${svSql},$20
+         $17,$18,$19,$20,$21,$22,${svSql},$23
        )
        ON CONFLICT (lower(brand), lower(model), lower(coalesce(engine_code,'')), coalesce(engine_volume,0), year_from)
        DO UPDATE SET
@@ -89,6 +97,9 @@ router.post('/', async (req, res) => {
          filter_part_numbers = EXCLUDED.filter_part_numbers,
          car_approvals       = EXCLUDED.car_approvals,
          recommended_oils    = EXCLUDED.recommended_oils,
+         service_flags       = EXCLUDED.service_flags,
+         notes               = EXCLUDED.notes,
+         oil_overrides       = EXCLUDED.oil_overrides,
          name_normalized     = EXCLUDED.name_normalized,
          name_cyrillic       = EXCLUDED.name_cyrillic,
          name_translit       = EXCLUDED.name_translit,
@@ -103,6 +114,9 @@ router.post('/', async (req, res) => {
         JSON.stringify(filter_part_numbers),
         JSON.stringify(car_approvals ?? []),
         JSON.stringify(recommended_oils ?? []),
+        JSON.stringify(service_flags ?? {}),
+        notes ?? null,
+        JSON.stringify(oil_overrides ?? {}),
         nameNormalized, nameCyrillic, nameTranslit,
         created_by ?? null,
       ],
@@ -269,6 +283,7 @@ router.patch('/:id', async (req, res) => {
     'brand','model','generation','engine_code','engine_volume',
     'year_from','year_to','kw','bhp','fuel_type','motul_name','engine_name',
     'fluid_capacities','filter_part_numbers','car_approvals','recommended_oils',
+    'service_flags','notes','oil_overrides',
   ];
 
   const updates = Object.fromEntries(
@@ -296,7 +311,7 @@ router.patch('/:id', async (req, res) => {
     const params = [];
 
     for (const [k, v] of Object.entries(updates)) {
-      params.push(typeof v === 'object' ? JSON.stringify(v) : v);
+      params.push(v !== null && typeof v === 'object' ? JSON.stringify(v) : v);
       setClauses.push(`${k} = $${params.length}`);
     }
 

@@ -22,6 +22,14 @@ import {
     formatAggText as sharedFormatAggText,
     buildTotalsLines as sharedBuildTotalsLines,
 } from '../../../shared/report.js';
+import { SERVICE_FLAGS } from '../../../shared/serviceFlags.js';
+
+// ── База рассчитанных машин ───────────────────────────────────────────────────
+// Адрес backend и ключ. Для продакшена: поменять значения и добавить хост
+// в @connect в header.txt (см. README).
+const DB_API_BASE = 'http://localhost:3001';
+const DB_API_KEY  = 'local-dev-key';
+const DB_SITE_URL = 'http://localhost:5173';
 
 // ── Адаптеры: сохраняют старые сигнатуры, замыкаясь на calcState/GM_getValue ──
 
@@ -46,6 +54,232 @@ function rerenderResult() {
     const el = document.getElementById('zm-result');
     if (!el) return;
     el.textContent = buildReport(calcState.car, calcState.data, calcState, currentCarApprovals());
+}
+
+// ══════════════════════════════════════════════════════════════════
+//          ОТПРАВКА ОТЧЁТА В БАЗУ РАССЧИТАННЫХ МАШИН
+// ══════════════════════════════════════════════════════════════════
+
+function dbRequest(method, path, body) {
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method,
+            url: DB_API_BASE + path,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': DB_API_KEY,
+            },
+            data: body ? JSON.stringify(body) : undefined,
+            timeout: 15000,
+            onload: (resp) => {
+                let json = null;
+                try { json = JSON.parse(resp.responseText); } catch {}
+                if (resp.status >= 200 && resp.status < 300) resolve(json);
+                else reject(new Error((json && json.error) || ('HTTP ' + resp.status)));
+            },
+            onerror:   () => reject(new Error('сеть недоступна (' + DB_API_BASE + ')')),
+            ontimeout: () => reject(new Error('таймаут запроса')),
+        });
+    });
+}
+
+// Снапшот рекомендаций для recommended_oils (справка «что советовали при сохранении»)
+function snapshotRecommendedOils() {
+    const engineAgg = getAggregates(calcState.data).find(a => a.group === 'engine');
+    if (!engineAgg) return [];
+    const picks = pickEngineOils(engineAgg, getShopOils());
+    const strip = (o) => o ? { b: o.b, n: o.n, price: o.price, v: o.v } : null;
+    return [
+        ...(engineAgg.topCandidates || []).map(strip),
+        ...(picks.spot ? [strip(picks.spot)] : []),
+    ].filter(Boolean);
+}
+
+function openDbModal(car) {
+    const old = document.getElementById('zm-db-modal');
+    if (old) old.remove();
+
+    const aggs = getAggregates(calcState.data);
+    const approvals = currentCarApprovals();
+    const f = calcState.filters || {};
+
+    const idField = (key, label, value, hint) => `
+        <label class="zm-db-field">
+            <span>${label}</span>
+            <input type="text" data-db-field="${key}" value="${escapeHtmlSafe(value == null ? '' : String(value))}" placeholder="${hint || ''}"/>
+        </label>`;
+
+    const aggRow = (agg) => {
+        const vol = roundL(parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)) ||
+                    roundL((calcState.volumeOverride || {})[agg.key]) || '';
+        const products = (agg.motulProducts || agg.approvals || []).slice(0, 6)
+            .map(p => `<span class="zm-db-chip">${escapeHtml(p)}</span>`).join('');
+        return `
+            <div class="zm-db-agg-row">
+                <span class="zm-db-agg-lbl">${escapeHtml(agg.label)}</span>
+                <input type="number" step="0.1" min="0" data-db-vol="${agg.key}" value="${vol}" placeholder="?"/>
+                <span class="zm-db-agg-l">л</span>
+                <div class="zm-db-agg-products">${products}</div>
+            </div>`;
+    };
+
+    const filterRow = (key, label) => {
+        const fd = f[key] || {};
+        const absent = fd.name === '[нет]';
+        const part = absent ? '' : (fd.name || '');
+        return `
+            <div class="zm-db-filter-row">
+                <span class="zm-db-agg-lbl">${label}</span>
+                <input type="text" data-db-filter="${key}" value="${escapeHtmlSafe(part)}" placeholder="артикул" ${absent ? 'disabled' : ''}/>
+                <label class="zm-db-chk"><input type="checkbox" data-db-filter-absent="${key}" ${absent ? 'checked' : ''}/> отсутствует</label>
+            </div>`;
+    };
+
+    const flagRows = Object.entries(SERVICE_FLAGS).map(([key, def]) => `
+        <label class="zm-db-chk zm-db-flag"><input type="checkbox" data-db-flag="${key}"/> ${escapeHtml(def.label)}</label>
+    `).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'zm-db-modal';
+    modal.innerHTML = `
+        <div class="zm-db-backdrop"></div>
+        <div class="zm-db-win">
+            <div class="zm-db-head">
+                <span>📤 Отправить отчёт в базу машин</span>
+                <button class="zm-btn zm-btn-sec" id="zm-db-close">✕</button>
+            </div>
+            <div class="zm-db-body">
+                <div class="zm-db-note">Проверь данные перед отправкой — они попадут на сайт для всех.</div>
+
+                <div class="zm-db-sec-h">Машина</div>
+                <div class="zm-db-grid">
+                    ${idField('brand',        'Марка *',   car.makeShort)}
+                    ${idField('model',        'Модель *',  car.modelShort)}
+                    ${idField('engine_name',  'Двигатель', car.engineName)}
+                    ${idField('engine_code',  'Код двиг.', car.engineCode)}
+                    ${idField('engine_volume','Объём, л',  car.volume)}
+                    ${idField('year_from',    'Год с *',   car.yearFrom)}
+                    ${idField('kw',           'кВт',       car.kw)}
+                    ${idField('bhp',          'л.с.',      car.bhp)}
+                </div>
+
+                <div class="zm-db-sec-h">Объёмы жидкостей (Motul)</div>
+                ${aggs.length ? aggs.map(aggRow).join('') : '<div class="zm-db-note">нет данных — сначала найди машину на Motul</div>'}
+
+                <div class="zm-db-sec-h">Допуски масла (ROLF) — по одному в строке</div>
+                <textarea id="zm-db-approvals" rows="3" placeholder="MB 229.5&#10;VW 502 00">${escapeHtml(approvals.join('\n'))}</textarea>
+
+                <div class="zm-db-sec-h">Фильтры ДВС</div>
+                ${filterRow('vf', 'вф (масляный)')}
+                ${filterRow('mf', 'мф (воздушный)')}
+                ${filterRow('sf', 'сф (салонный)')}
+
+                <div class="zm-db-sec-h">Особенности обслуживания</div>
+                ${flagRows}
+
+                <div class="zm-db-sec-h">Заметка (необязательно)</div>
+                <textarea id="zm-db-notes" rows="2" placeholder="например: сливная пробка под квадрат 8мм"></textarea>
+
+                <div id="zm-db-error" class="zm-db-error" style="display:none"></div>
+            </div>
+            <div class="zm-db-foot">
+                <button class="zm-btn zm-btn-sec" id="zm-db-cancel">Отмена</button>
+                <button class="zm-btn zm-btn-pri" id="zm-db-submit">📤 Отправить</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('.zm-db-backdrop').onclick = close;
+    document.getElementById('zm-db-close').onclick = close;
+    document.getElementById('zm-db-cancel').onclick = close;
+
+    modal.querySelectorAll('[data-db-filter-absent]').forEach(chk => {
+        chk.onchange = () => {
+            const inp = modal.querySelector(`[data-db-filter="${chk.dataset.dbFilterAbsent}"]`);
+            inp.disabled = chk.checked;
+            if (chk.checked) inp.value = '';
+        };
+    });
+
+    document.getElementById('zm-db-submit').onclick = async () => {
+        const btn = document.getElementById('zm-db-submit');
+        const errBox = document.getElementById('zm-db-error');
+        const field = (k) => modal.querySelector(`[data-db-field="${k}"]`);
+        const val = (k) => (field(k) ? field(k).value.trim() : '');
+
+        // fluid_capacities: копия данных Motul с правками объёмов из формы
+        const fluid = JSON.parse(JSON.stringify(calcState.data || {}));
+        delete fluid.motulName;
+        for (const agg of aggs) {
+            const inp = modal.querySelector(`[data-db-vol="${agg.key}"]`);
+            const v = inp ? parseFloat(inp.value) : NaN;
+            if (!isFinite(v) || v <= 0 || !fluid[agg.key]) continue;
+            if (agg.key === 'engine') fluid.engine.volumeService = v;
+            else fluid[agg.key].volumeTotal = v;
+        }
+
+        const filters = {};
+        for (const key of ['vf', 'mf', 'sf']) {
+            const absent = modal.querySelector(`[data-db-filter-absent="${key}"]`).checked;
+            const part = modal.querySelector(`[data-db-filter="${key}"]`).value.trim();
+            filters[key] = absent ? { part: null, absent: true } : { part, absent: false };
+        }
+
+        const flags = {};
+        modal.querySelectorAll('[data-db-flag]').forEach(chk => {
+            if (chk.checked) flags[chk.dataset.dbFlag] = true;
+        });
+
+        const payload = {
+            brand: val('brand'), model: val('model'),
+            engine_name: val('engine_name') || null,
+            engine_code: val('engine_code') || null,
+            engine_volume: parseFloat(val('engine_volume')) || null,
+            year_from: parseInt(val('year_from')) || null,
+            kw: parseInt(val('kw')) || null,
+            bhp: parseInt(val('bhp')) || null,
+            fuel_type: car.fuelType || null,
+            motul_name: (calcState.data && calcState.data.motulName) || null,
+            fluid_capacities: fluid,
+            filter_part_numbers: filters,
+            car_approvals: document.getElementById('zm-db-approvals').value
+                .split(/\r?\n/).map(s => s.trim()).filter(Boolean),
+            recommended_oils: snapshotRecommendedOils(),
+            service_flags: flags,
+            notes: document.getElementById('zm-db-notes').value.trim() || null,
+            created_by: 'userscript',
+        };
+
+        errBox.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = '⏳ отправка…';
+        try {
+            const resp = await dbRequest('POST', '/api/cars', payload);
+            close();
+            showDbToast(resp);
+        } catch (e) {
+            errBox.textContent = '⚠ ' + e.message;
+            errBox.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = '📤 Отправить';
+        }
+    };
+}
+
+function showDbToast(resp) {
+    const old = document.getElementById('zm-db-toast');
+    if (old) old.remove();
+    const t = document.createElement('div');
+    t.id = 'zm-db-toast';
+    const carUrl = `${DB_SITE_URL}/#/car/${resp.id}`;
+    t.innerHTML = `
+        <div class="zm-db-toast-t">✓ ${resp.created ? 'Машина добавлена в базу' : 'Машина обновлена в базе'}</div>
+        <a href="${escapeHtmlSafe(carUrl)}" target="_blank" class="zm-db-toast-link">Открыть страницу машины ↗</a>
+    `;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 12000);
 }
 
 // Математика — в shared/, здесь только HTML-обвязка виджета.
@@ -668,7 +902,10 @@ function calcForAggregate(agg) {
             <div class="zm-result-wrap">
                 <div class="zm-result-head">
                     <span>📋 Итог для копирования</span>
-                    <button class="zm-btn zm-btn-sec" id="zm-copy">⧉ копировать</button>
+                    <span style="display:flex;gap:6px">
+                        <button class="zm-btn zm-btn-sec" id="zm-copy">⧉ копировать</button>
+                        <button class="zm-btn zm-btn-pri" id="zm-db-send" title="Сохранить машину в общую базу рассчитанных">📤 Отправить отчёт</button>
+                    </span>
                 </div>
                 <pre id="zm-result" class="zm-result"></pre>
             </div>
@@ -715,6 +952,9 @@ function calcForAggregate(agg) {
                 setTimeout(() => { btn.textContent = orig; }, 1500);
             });
         };
+
+        const dbSendBtn = document.getElementById('zm-db-send');
+        if (dbSendBtn) dbSendBtn.onclick = () => openDbModal(car);
 
         rerenderFilters();
         rerenderAggs();
@@ -2160,6 +2400,49 @@ function calcForAggregate(agg) {
                 box-shadow:0 0 8px rgba(66,165,245,.35);
                 animation:zm-shimmer 3s linear infinite}
             .zm-oil-opt-hits{font-size:9px;color:#66bb6a;margin-left:4px;white-space:nowrap}
+
+            /* ── Модалка «Отправить отчёт в базу» ── */
+            #zm-db-modal{position:fixed;inset:0;z-index:2147483646;font:13px Arial}
+            .zm-db-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+            .zm-db-win{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+                width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;
+                background:#0f1117;color:#e8eaf6;border:1px solid #E67E00;border-radius:12px;
+                box-shadow:0 12px 48px rgba(0,0,0,.6)}
+            .zm-db-head{display:flex;justify-content:space-between;align-items:center;
+                padding:12px 16px;border-bottom:1px solid #2a2d3e;color:#E67E00;font-weight:bold}
+            .zm-db-body{padding:12px 16px;overflow-y:auto}
+            .zm-db-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;
+                border-top:1px solid #2a2d3e}
+            .zm-db-note{font-size:11px;color:#7986cb;margin-bottom:8px}
+            .zm-db-sec-h{font-size:11px;font-weight:bold;color:#a0b0c0;margin:12px 0 6px;
+                text-transform:uppercase;letter-spacing:.5px}
+            .zm-db-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+            .zm-db-field{display:flex;flex-direction:column;gap:2px}
+            .zm-db-field span{font-size:10px;color:#7986cb}
+            .zm-db-field input,.zm-db-agg-row input,.zm-db-filter-row input[type=text],
+            #zm-db-modal textarea{background:#1a1d2e;border:1px solid #2a2d3e;color:#e8eaf6;
+                border-radius:6px;padding:6px 8px;font:12px Arial;width:100%;box-sizing:border-box}
+            .zm-db-field input:focus,#zm-db-modal textarea:focus{outline:none;border-color:#E67E00}
+            .zm-db-agg-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+            .zm-db-agg-lbl{font-size:11px;color:#bdc1d1;min-width:130px}
+            .zm-db-agg-row input{width:70px !important}
+            .zm-db-agg-l{font-size:11px;color:#7986cb}
+            .zm-db-agg-products{display:flex;flex-wrap:wrap;gap:3px;flex:1}
+            .zm-db-chip{font-size:9px;padding:1px 6px;border-radius:8px;background:#1e2040;
+                color:#9aa0b0;border:1px solid #2a2d3e;font-family:monospace}
+            .zm-db-filter-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+            .zm-db-filter-row input[type=text]{flex:1;width:auto}
+            .zm-db-chk{display:flex;align-items:center;gap:6px;font-size:12px;color:#bdc1d1;
+                cursor:pointer;white-space:nowrap}
+            .zm-db-flag{margin-bottom:4px}
+            .zm-db-error{margin-top:10px;padding:8px 10px;font-size:12px;background:#2a0000;
+                border:1px solid #e53935;border-radius:6px;color:#ff8a80}
+            #zm-db-toast{position:fixed;bottom:18px;right:18px;z-index:2147483647;
+                background:#0f1117;border:1px solid #43a047;border-radius:10px;
+                padding:12px 16px;color:#e8eaf6;font:13px Arial;
+                box-shadow:0 8px 32px rgba(0,0,0,.55)}
+            .zm-db-toast-t{font-weight:bold;color:#66bb6a;margin-bottom:4px}
+            .zm-db-toast-link{color:#E67E00;font-size:12px}
             .zm-oil-app-btn{background:transparent;border:1px dashed #3a3d5e;color:#7986cb;
                 font-size:10px;cursor:pointer;padding:3px 10px;border-radius:10px;
                 margin-top:2px;display:inline-block;line-height:1.4}
