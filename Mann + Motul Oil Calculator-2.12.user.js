@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.58
+// @version      2.22.63
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -13,6 +13,7 @@
 // @grant        GM_getValue
 // @grant        GM_deleteValue
 // @grant        GM_xmlhttpRequest
+// @connect      cars-db-backend.onrender.com
 // @connect      localhost
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/Mann%20%2B%20Motul%20Oil%20Calculator-2.12.user.js
@@ -1189,9 +1190,9 @@
   }
 
   // userscript/src/oil-calculator/app.js
-  var DB_API_BASE = "http://localhost:3001";
-  var DB_API_KEY = "local-dev-key";
-  var DB_SITE_URL = "http://localhost:5173";
+  var DB_API_BASE = "https://cars-db-backend.onrender.com";
+  var DB_API_KEY = "a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574";
+  var DB_SITE_URL = "https://alwaysnevereat.github.io/scripts";
   function currentCarApprovals() {
     const car = calcState && calcState.car;
     if (!car) return [];

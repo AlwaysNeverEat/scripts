@@ -28,9 +28,9 @@ import { parseMannUrl } from '../parsers.js';
 // ── База рассчитанных машин ───────────────────────────────────────────────────
 // Адрес backend и ключ. Для продакшена: поменять значения и добавить хост
 // в @connect в header.txt (см. README).
-const DB_API_BASE = 'http://localhost:3001';
-const DB_API_KEY  = 'local-dev-key';
-const DB_SITE_URL = 'http://localhost:5173';
+const DB_API_BASE = 'https://cars-db-backend.onrender.com';
+const DB_API_KEY  = 'a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574';
+const DB_SITE_URL = 'https://alwaysnevereat.github.io/scripts';
 
 // ── Адаптеры: сохраняют старые сигнатуры, замыкаясь на calcState/GM_getValue ──
 

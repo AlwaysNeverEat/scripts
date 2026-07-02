@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.0.58
+// @version      1.0.63
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
 // @grant        GM_xmlhttpRequest
+// @connect      cars-db-backend.onrender.com
 // @connect      localhost
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/SPOT%20DB%20Notifier-1.0.user.js
@@ -119,9 +120,9 @@
   }
 
   // userscript/src/notifier/app.js
-  var API_BASE = "http://localhost:3001";
-  var API_KEY = "local-dev-key";
-  var SITE_URL = "http://localhost:5173";
+  var API_BASE = "https://cars-db-backend.onrender.com";
+  var API_KEY = "a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574";
+  var SITE_URL = "https://alwaysnevereat.github.io/scripts";
   var CHECK_INTERVAL_MS = 1500;
   var checked = /* @__PURE__ */ new Map();
   function apiMatch(car) {
