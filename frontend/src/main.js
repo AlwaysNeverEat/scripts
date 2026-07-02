@@ -109,4 +109,15 @@ function esc(s) {
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+// Строка под поиском: «База содержит N автомобилей …»
+async function loadStats() {
+    const el = document.getElementById('search-stats');
+    if (!el) return;
+    try {
+        const { total } = await apiFetch('/api/cars?limit=1');
+        el.textContent = `База содержит ${total} автомобилей · Поиск понимает русский ввод и опечатки`;
+    } catch { /* без статистики страшного нет */ }
+}
+
 renderRoute();
+loadStats();

@@ -12,13 +12,19 @@
     <!-- Search page -->
     <div id="page-search">
       <header class="site-header">
-        <span class="logo">🛢</span>
+        <div class="brand">
+          <span class="brand-icon">🛢</span>
+          <span class="brand-name">OilBase</span>
+        </div>
         <h1>Калькулятор замены масла</h1>
         <p class="subtitle">Найди машину — получи готовый отчёт для Битрикса</p>
       </header>
       <div class="search-wrap">
-        <input id="search-input" type="search" placeholder="Например: KIA Rio 1.6 2017 или киа рио…" autocomplete="off" spellcheck="false"/>
+        <div class="search-box">
+          <input id="search-input" type="search" placeholder="Например: KIA Rio 1.6 2017 или киа рио…" autocomplete="off" spellcheck="false"/>
+        </div>
         <div id="search-results" class="search-results"></div>
+        <div class="search-stats" id="search-stats"></div>
       </div>
     </div>
 

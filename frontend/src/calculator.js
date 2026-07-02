@@ -102,25 +102,26 @@ function renderControls(calcState) {
 
     return `
         <div class="ctrl-section">
-            <div class="ctrl-row">
-                <span class="ctrl-lbl">Пробег:</span>
+            <div class="sec-title">Настройки расчёта</div>
+            <div class="ctrl-lbl" style="margin-bottom:6px">Пробег</div>
+            <div class="seg">
                 ${chip('<100',   'до 100т')}
                 ${chip('>=100',  '100т+')}
                 ${chip('>=200',  '200т+')}
                 ${chip('0w20',   '0W-20')}
             </div>
-            <div class="ctrl-row" style="margin-top:8px">
+            <div class="ctrl-row" style="margin:14px 0">
                 <label class="chk-label">
                     <input type="checkbox" id="chk-ignore-approvals" ${calcState.ignoreApprovals ? 'checked' : ''}/>
-                    <span style="color:#ff9800">🔓 Игнорировать допуска</span>
+                    <span>🔓 Игнорировать допуска</span>
                 </label>
                 <label class="chk-label">
                     <input type="checkbox" id="chk-sump" ${calcState.showWithSump ? 'checked' : ''}/>
-                    <span style="color:#81c784">🪣 С картером (+550₽)</span>
+                    <span>🛡 С картером (+550₽)</span>
                 </label>
             </div>
-            <div class="ctrl-row" style="margin-top:8px">
-                <span class="ctrl-lbl">🧪 Промывка ДВС:</span>
+            <div class="ctrl-lbl" style="margin-bottom:6px">Промывка ДВС</div>
+            <div class="seg">
                 ${flushChip('none', 'без промывки')}
                 ${flushChip('5min', '5-минутка')}
                 ${flushChip('full', 'полная')}
@@ -164,8 +165,8 @@ function renderFiltersSection(calcState) {
         };
         return `
             <div class="filters-section ctrl-section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                    <span style="font-size:12px;font-weight:bold;color:#a0b0c0">🔧 Фильтры ДВС</span>
+                <div class="sec-title">
+                    <span>Фильтры ДВС</span>
                     <button class="btn btn-sec" id="btn-filters-done" style="font-size:11px;padding:3px 10px">✓ готово</button>
                 </div>
                 ${filterRow('vf', 'вф', 'Масляный фильтр', [{v:350,l:'защёлки 350₽'},{v:600,l:'болты 600₽'},{v:1200,l:'разбор 1200₽'}])}
@@ -191,8 +192,8 @@ function renderFiltersSection(calcState) {
 
     return `
         <div class="filters-section ctrl-section">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <span style="font-size:12px;font-weight:bold;color:#a0b0c0">🔧 Фильтры ДВС</span>
+            <div class="sec-title">
+                <span>Фильтры ДВС</span>
                 <button class="btn btn-sec" id="btn-filters-edit" style="font-size:11px;padding:3px 10px">✏ изменить</button>
             </div>
             ${rows}
@@ -336,8 +337,8 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
 
             return `
                 <div class="oil-option${i === 0 ? ' selected' : ''}" data-oil-pick="${agg.key}" data-oil-idx="${i}">
-                    <div class="oil-name">${regMark}${esc(c.oil.b)} ${esc(c.oil.n)} <span style="font-size:11px;color:var(--sub)">${esc(c.oil.v)}</span></div>
-                    <div class="oil-price">${c.oil.price}₽/л · итого <b>${c.total}₽</b></div>
+                    <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
+                    <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b></div>
                     ${oilApprHtml}
                 </div>
             `;
@@ -428,6 +429,7 @@ function renderTotals(data, calcState, carApprovals) {
 
     return `
         <div class="totals-section">
+            <div class="sec-title"><span>Итого</span></div>
             ${blocksHtml}
             <button class="btn-add-filters" id="btn-add-total">+ Добавить строку итого</button>
         </div>
