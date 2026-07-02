@@ -11,9 +11,9 @@
 import { parseMannUrl } from '../parsers.js';
 
 // Настройки (для продакшена поменять и добавить хост в @connect в header.txt)
-const API_BASE = 'http://localhost:3001';
-const API_KEY  = 'local-dev-key';
-const SITE_URL = 'http://localhost:5173';
+const API_BASE = 'https://cars-db-backend.onrender.com';
+const API_KEY  = 'a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574';
+const SITE_URL = 'https://alwaysnevereat.github.io/scripts';
 
 const CHECK_INTERVAL_MS = 1500;   // опрос смены URL (SPA-навигация Mann)
 
