@@ -49,17 +49,108 @@ export function anyMatch(oilApprovals, carApprovals) {
     return false;
 }
 
+// ── Иерархия допусков ────────────────────────────────────────────────────────
+// Старший допуск покрывает требования младшего: масло с MB 229.5 можно лить
+// туда, где требуется MB 229.3. Иерархия ОДНОнаправленная: масло только с
+// MB 229.3 НЕ подходит машине, требующей MB 229.5.
+// Таблица консервативная и явная — расширять по одному правилу.
+
+const APPROVAL_SUPERSEDES_RULES = [
+    // Mercedes-Benz
+    ['MB 229.52', ['MB 229.51', 'MB 229.31']],
+    ['MB 229.51', ['MB 229.31']],
+    ['MB 229.31', ['MB 229.3']],
+    ['MB 229.5',  ['MB 229.3', 'MB 229.1']],
+    ['MB 229.3',  ['MB 229.1']],
+    // VW
+    ['VW 504 00', ['VW 502 00']],
+    ['VW 507 00', ['VW 505 01', 'VW 505 00']],
+    // BMW Longlife
+    ['LL 04', ['LL 01']],
+    ['LL 01', ['LL 98']],
+    // Renault
+    ['RN 0710', ['RN 0700']],
+];
+
+// token → Map(покрытый token → исходная пара допусков для подписи в UI)
+let _supersedesMap = null;
+function supersedesMap() {
+    if (_supersedesMap) return _supersedesMap;
+    const m = new Map();
+    const add = (sup, sub, label) => {
+        if (!m.has(sup)) m.set(sup, new Map());
+        if (!m.get(sup).has(sub)) m.get(sup).set(sub, label);
+    };
+    for (const [sup, subs] of APPROVAL_SUPERSEDES_RULES) {
+        for (const sub of subs) {
+            for (const supTok of tokenSet([sup])) {
+                for (const subTok of tokenSet([sub])) {
+                    add(supTok, subTok, { via: sup, covers: sub });
+                }
+            }
+        }
+    }
+    // транзитивное замыкание: 229.52 ⊃ 229.51 ⊃ 229.31 ⊃ 229.3
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const [sup, subs] of m) {
+            for (const [sub, label] of subs) {
+                const deeper = m.get(sub);
+                if (!deeper) continue;
+                for (const [sub2, label2] of deeper) {
+                    if (sup === sub2 || subs.has(sub2)) continue;
+                    add(sup, sub2, { via: label.via, covers: label2.covers });
+                    changed = true;
+                }
+            }
+        }
+    }
+    _supersedesMap = m;
+    return m;
+}
+
+// Все токены, которые покрывают токены масла через иерархию.
+// Возвращает Map(покрытый token → { via, covers }) — только НОВЫЕ токены,
+// которых нет в самих oilTokens.
+export function expandCoveredTokens(oilTokens) {
+    const m = supersedesMap();
+    const out = new Map();
+    for (const t of oilTokens) {
+        const covered = m.get(t);
+        if (!covered) continue;
+        for (const [sub, label] of covered) {
+            if (!oilTokens.has(sub) && !out.has(sub)) out.set(sub, label);
+        }
+    }
+    return out;
+}
+
 export function splitOilApprovals(oilApprovals, carApprovals) {
     const oilArr = oilApprovals || [];
-    const carTok = tokenSet(carApprovals || []);
-    const matched = [], others = [];
+    const carArr = carApprovals || [];
+    const carTok = tokenSet(carArr);
+    // токен машины → исходная строка допуска (для подписи «покрывает …»)
+    const carTokToStr = new Map();
+    for (const a of carArr) {
+        for (const t of tokenSet([a])) if (!carTokToStr.has(t)) carTokToStr.set(t, a);
+    }
+    const matched = [], others = [], hier = [];
     for (const a of oilArr) {
         const tk = tokenSet([a]);
         let isHit = false;
         for (const t of tk) { if (carTok.has(t)) { isHit = true; break; } }
-        if (isHit) matched.push(a); else others.push(a);
+        if (isHit) { matched.push(a); continue; }
+        // не прямое совпадение — вдруг покрывает требуемый допуск по иерархии
+        const covered = expandCoveredTokens(tk);
+        let hierHit = null;
+        for (const [sub] of covered) {
+            if (carTok.has(sub)) { hierHit = carTokToStr.get(sub) || sub; break; }
+        }
+        if (hierHit) hier.push({ approval: a, covers: hierHit });
+        else others.push(a);
     }
-    return { matched, others };
+    return { matched, others, hier };
 }
 
 export function matchOilToReglament(oil, brand) {
@@ -174,7 +265,7 @@ export function getAggregates(data) {
     };
     if (data.automatic && !data.automatic.isDct)
         out.push({ key:'automatic', label: data.automatic.isCvt ? 'Вариатор (CVT)' : 'АКПП', group:'auto', ...pickTotal(data.automatic) });
-    if (data.manual)    out.push({ key:'manual',    label:'МКПП',                   group:'gear', ...pickTotal(data.manual) });
+    if (data.manual)    out.push({ key:'manual',    label: data.manual.isSemiAuto ? 'Робот/АМТ (расчёт как МКПП)' : 'МКПП', group:'gear', ...pickTotal(data.manual) });
     if (data.transfer)  out.push({ key:'transfer',  label:'Раздаточная коробка',     group:'gear', ...pickTotal(data.transfer) });
     if (data.diffFront) out.push({ key:'diffFront', label:'Дифференциал (перед)',    group:'gear', ...pickTotal(data.diffFront) });
     if (data.diffRear)  out.push({ key:'diffRear',  label:'Дифференциал (зад)',      group:'gear', ...pickTotal(data.diffRear) });
@@ -218,6 +309,13 @@ export function anyFilterEnabled(calcState) {
 
 export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const mileage = calcState.mileage;
+
+    // Масла, исключённые из предложений вручную (oil_overrides со страницы машины)
+    const excluded = calcState.excludeOils instanceof Set
+        ? calcState.excludeOils
+        : new Set(calcState.excludeOils || []);
+    const notExcluded = (o) => !excluded.has(o.b + '_' + o.n);
+    shopOils = excluded.size ? shopOils.filter(o => o.isSpot || notExcluded(o)) : shopOils;
 
     if (mileage === '>=200') {
         const oils10w40 = shopOils.filter(o => o.v === '10W-40' && !o.isSpot);
@@ -297,8 +395,19 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
 
     const rated = candidates.map(oil => {
         const oilTokens = tokenSet(oil.a); let score = 0;
+        const direct = [], hier = [];
         if (!calcState.ignoreApprovals) {
-            for (const carTok of effectiveCarTokens) if (oilTokens.has(carTok)) score += 10;
+            // прямое совпадение допуска — вес 10
+            for (const carTok of effectiveCarTokens) {
+                if (oilTokens.has(carTok)) { score += 10; direct.push(carTok); }
+            }
+            // покрытие через иерархию (MB 229.5 ⊃ 229.3 и т.п.) — вес 7
+            const covered = expandCoveredTokens(oilTokens);
+            for (const carTok of effectiveCarTokens) {
+                if (oilTokens.has(carTok)) continue;
+                const label = covered.get(carTok);
+                if (label) { score += 7; hier.push({ covers: carTok, via: label.via }); }
+            }
             if (hasFord && [...oilTokens].some(t => /FORDWSS|WSSM2C/.test(t))) score += 5;
             if (hasMB   && [...oilTokens].some(t => /^MB\d/.test(t))) score += 3;
             if (hasVW   && [...oilTokens].some(t => /^VW\d|^VW50/.test(t))) score += 3;
@@ -306,7 +415,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
             if (hasRN   && [...oilTokens].some(t => /^RN\d/.test(t))) score += 3;
             if (hasGM   && [...oilTokens].some(t => /^GM\d|DEXOS/.test(t))) score += 3;
         }
-        return { oil, score };
+        return { oil, score, direct, hier };
     });
 
     rated.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
@@ -334,6 +443,8 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     agg.requiredClass = requiredClass;
     agg.allCandidates = rated.map(r => r.oil);
     agg.topCandidates = topMatches.map(r => r.oil);
+    // полный рейтинг с деталями совпадений — для пикера масел в UI
+    agg.ranked = rated.map(r => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier }));
     return { mid, spot };
 }
 
@@ -352,17 +463,22 @@ export function calcForAggregate(agg, calcState, carApprovals) {
 
     const v0 = roundL(parseFloat(agg.volume || 0));
     const vFilter = roundL(parseFloat(agg.filterVolume || 0));
-    let vService = roundL(v0 + vFilter);
+    const motulVol = roundL(v0 + vFilter);
+    let vService = motulVol;
+    let overrideUsed = false;
 
     const override = roundL(parseFloat((calcState.volumeOverride || {})[agg.key]));
     if (isFinite(override) && override > 0) {
         vService = override;
+        overrideUsed = true;
     } else if (agg.group === 'auto' && vService === 0 && calcState.atpVolumeManual) {
         vService = roundL(calcState.atpVolumeManual);
+        overrideUsed = true;
     }
 
     if (agg.group === 'auto' && vService === 0) {
-        return { needsVolume: true, costs: [], vCalc: 0, formula: '', volumeStr: '—' };
+        return { needsVolume: true, costs: [], vCalc: 0, formula: '', volumeStr: '—',
+                 vService, motulVol, overrideUsed };
     }
 
     let vCalc, formula, volumeStr;
@@ -413,41 +529,56 @@ export function calcForAggregate(agg, calcState, carApprovals) {
 
     // Cost calculation
     const calcFlushCost = (vol) => {
-        if (calcState.flush === '5min') return { cost: 1180, label: '5-минутка' };
+        if (calcState.flush === '5min') {
+            return { cost: 1180, breakdown: '630 (промыв.масло) + 550 (услуга)', label: '5-минутка' };
+        }
         if (calcState.flush === 'full') {
-            const litres = +(vol * 0.9).toFixed(1);
-            return { cost: Math.round(litres * 300) + 550, label: 'полная промывка' };
+            const litres  = +(vol * 0.9).toFixed(1);
+            const oilCost = Math.round(litres * 350);
+            return { cost: oilCost + 550, breakdown: `${litres}л × 350 + 550 (услуга)`, label: 'полная промывка' };
         }
         return null;
     };
+    const flush = calcFlushCost(vCalc);
 
     const costs = [oil1, oil2].filter(Boolean).map(oil => {
         const price = oil.price;
-        let total;
+        let total, breakdown;
         if (agg.group === 'engine') {
             const fTotal    = filtersTotal(calcState);
-            const flush     = calcFlushCost(vCalc);
             const flushAdd  = flush ? flush.cost : 0;
             total = price * vCalc + fTotal + flushAdd;
+            const parts = [`${price} × ${vCalc}`];
+            if (fTotal > 0) parts.push(`${fTotal} (фильтра)`);
+            if (flush) parts.push(`${flush.cost} (${flush.label})`);
+            breakdown = parts.join(' + ');
         } else if (agg.group === 'auto') {
             const isPartial = calcState.atpType === 'partial';
             const baseLabor = 550 + (isPartial ? 1210 : 0);
+            const laborParts = ['550'];
+            if (isPartial) laborParts.push('1210');
             if (isCvt) {
                 const fltC = calcState.cvtFilterCoarse ? 1700 : 0;
                 const fltF = calcState.cvtFilterFine   ? 3350 : 0;
                 total = price * vCalc + baseLabor + fltC + fltF;
+                const fltParts = [];
+                if (fltC) fltParts.push('1700 грубый');
+                if (fltF) fltParts.push('3350 тонкий');
+                breakdown = `${price} × ${vCalc} + ${laborParts.join(' + ')}${fltParts.length ? ' + ' + fltParts.join(' + ') : ''}`;
             } else {
                 const flt = calcState.atpFilter ? 1700 : 0;
                 total = price * vCalc + baseLabor + flt;
+                breakdown = `${price} × ${vCalc} + ${laborParts.join(' + ')}${flt ? ' + 1700 (фильтр)' : ''}`;
             }
         } else {
             const labor = 1900 + 550;
             total = price * vCalc + labor;
+            breakdown = `${price} × ${vCalc} + 1900 + 550`;
         }
-        return { oil, total: Math.round(total) };
+        return { oil, total: Math.round(total), breakdown };
     });
 
-    return { costs, vCalc, formula, volumeStr };
+    return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
 }
 
 // ── Totals ────────────────────────────────────────────────────────────────────

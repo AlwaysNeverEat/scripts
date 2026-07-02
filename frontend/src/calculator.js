@@ -9,10 +9,15 @@ import { buildReport } from '../../shared/report.js';
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-export function initCalculator(dbRecord, onBack) {
+export function initCalculator(dbRecord) {
     const car = dbRecordToCar(dbRecord);
     const data = dbRecordToData(dbRecord);
     const carApprovals = Array.isArray(dbRecord.car_approvals) ? dbRecord.car_approvals : [];
+
+    // Ручные правки списка масел, сохранённые для этой машины («Нашли ошибку?»)
+    const ov = dbRecord.oil_overrides || {};
+    const excludeOils = new Set(Array.isArray(ov.exclude) ? ov.exclude : []);
+    const pinnedOverride = (ov.pin && typeof ov.pin === 'object') ? { ...ov.pin } : {};
 
     const defaultPartial = shouldDefaultToPartial(car, data);
 
@@ -27,7 +32,8 @@ export function initCalculator(dbRecord, onBack) {
         selected: new Set(),
         showApprovals: new Set(),
         expandedOilApp: new Set(),
-        oilOverride: {},
+        oilOverride: pinnedOverride,
+        excludeOils,
         showOilPicker: null,
         ignoreApprovals: false,
         showWithSump: false,
@@ -96,25 +102,26 @@ function renderControls(calcState) {
 
     return `
         <div class="ctrl-section">
-            <div class="ctrl-row">
-                <span class="ctrl-lbl">Пробег:</span>
+            <div class="sec-title">Настройки расчёта</div>
+            <div class="ctrl-lbl" style="margin-bottom:6px">Пробег</div>
+            <div class="seg">
                 ${chip('<100',   'до 100т')}
                 ${chip('>=100',  '100т+')}
                 ${chip('>=200',  '200т+')}
                 ${chip('0w20',   '0W-20')}
             </div>
-            <div class="ctrl-row" style="margin-top:8px">
+            <div class="ctrl-row" style="margin:14px 0">
                 <label class="chk-label">
                     <input type="checkbox" id="chk-ignore-approvals" ${calcState.ignoreApprovals ? 'checked' : ''}/>
-                    <span style="color:#ff9800">🔓 Игнорировать допуска</span>
+                    <span>🔓 Игнорировать допуска</span>
                 </label>
                 <label class="chk-label">
                     <input type="checkbox" id="chk-sump" ${calcState.showWithSump ? 'checked' : ''}/>
-                    <span style="color:#81c784">🪣 С картером (+550₽)</span>
+                    <span>🛡 С картером (+550₽)</span>
                 </label>
             </div>
-            <div class="ctrl-row" style="margin-top:8px">
-                <span class="ctrl-lbl">🧪 Промывка ДВС:</span>
+            <div class="ctrl-lbl" style="margin-bottom:6px">Промывка ДВС</div>
+            <div class="seg">
                 ${flushChip('none', 'без промывки')}
                 ${flushChip('5min', '5-минутка')}
                 ${flushChip('full', 'полная')}
@@ -158,8 +165,8 @@ function renderFiltersSection(calcState) {
         };
         return `
             <div class="filters-section ctrl-section">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                    <span style="font-size:12px;font-weight:bold;color:#a0b0c0">🔧 Фильтры ДВС</span>
+                <div class="sec-title">
+                    <span>Фильтры ДВС</span>
                     <button class="btn btn-sec" id="btn-filters-done" style="font-size:11px;padding:3px 10px">✓ готово</button>
                 </div>
                 ${filterRow('vf', 'вф', 'Масляный фильтр', [{v:350,l:'защёлки 350₽'},{v:600,l:'болты 600₽'},{v:1200,l:'разбор 1200₽'}])}
@@ -185,8 +192,8 @@ function renderFiltersSection(calcState) {
 
     return `
         <div class="filters-section ctrl-section">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <span style="font-size:12px;font-weight:bold;color:#a0b0c0">🔧 Фильтры ДВС</span>
+            <div class="sec-title">
+                <span>Фильтры ДВС</span>
                 <button class="btn btn-sec" id="btn-filters-edit" style="font-size:11px;padding:3px 10px">✏ изменить</button>
             </div>
             ${rows}
@@ -301,8 +308,8 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             flushLine = `5-минутная промывка: +1180₽`;
         } else if (calcState.flush === 'full') {
             const litres = +(vCalc * 0.9).toFixed(1);
-            const cost = Math.round(litres * 300) + 550;
-            flushLine = `Полная промывка: ${litres}л × 300₽ + 550₽ = ${cost}₽`;
+            const cost = Math.round(litres * 350) + 550;
+            flushLine = `Полная промывка: ${litres}л × 350₽ + 550₽ = ${cost}₽`;
         }
         if (flushLine) parts.push(`<div class="flush-formula">${flushLine}</div>`);
     }
@@ -313,22 +320,25 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
         const displayedCosts = mileage === '>=200' ? calc.costs.slice(0, 1) : calc.costs;
 
         parts.push(displayedCosts.map((c, i) => {
-            const { matched, others } = splitOilApprovals(c.oil.a || [], carApprovals);
+            const { matched, others, hier } = splitOilApprovals(c.oil.a || [], carApprovals);
             const regMatches = agg.group === 'engine' ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
             const regMark = regMatches.length ? `<span class="reg-mark" title="${esc(regMatches.map(m => m.tag + (m.desc ? ': ' + m.desc : '')).join(', '))}">⭐</span>` : '';
             const matchedBadges = matched.map(a => `<span class="appr-hit">${esc(a)}</span>`).join(' ');
+            const hierBadges = (hier || []).map(h =>
+                `<span class="appr-hier" title="${esc(h.approval)} покрывает требуемый ${esc(h.covers)} (старший допуск)">${esc(h.approval)} ⊃ ${esc(h.covers)}</span>`).join(' ');
+            const headBadges = [matchedBadges, hierBadges].filter(Boolean).join(' ');
             const otherBadges = others.map(a => `<span class="appr-other">${esc(a)}</span>`).join(' ');
             const showOilAppr = calcState.expandedOilApp.has(agg.key + '_' + i);
-            const oilApprHtml = (matched.length || others.length) ? `
+            const oilApprHtml = (matched.length || (hier || []).length || others.length) ? `
                 <div style="margin-top:3px">
-                    ${matchedBadges}${matchedBadges && otherBadges ? ' ' : ''}${showOilAppr ? otherBadges : (others.length ? `<span class="appr-more" data-oil-appr="${agg.key}_${i}">+${others.length} ещё</span>` : '')}
+                    ${headBadges}${headBadges && otherBadges ? ' ' : ''}${showOilAppr ? otherBadges : (others.length ? `<span class="appr-more" data-oil-appr="${agg.key}_${i}">+${others.length} ещё</span>` : '')}
                 </div>
             ` : '';
 
             return `
                 <div class="oil-option${i === 0 ? ' selected' : ''}" data-oil-pick="${agg.key}" data-oil-idx="${i}">
-                    <div class="oil-name">${regMark}${esc(c.oil.b)} ${esc(c.oil.n)} <span style="font-size:11px;color:var(--sub)">${esc(c.oil.v)}</span></div>
-                    <div class="oil-price">${c.oil.price}₽/л · итого <b>${c.total}₽</b></div>
+                    <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
+                    <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b></div>
                     ${oilApprHtml}
                 </div>
             `;
@@ -346,7 +356,14 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                             const isCur = calc.costs[0] && (calc.costs[0].oil.b + '_' + calc.costs[0].oil.n) === (oil.b + '_' + oil.n);
                             const regOpt = matchOilToReglament(oil, calcState.car?.makeShort);
                             const rMark = regOpt.length ? '⭐ ' : '';
-                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)} — ${oil.price}₽/л</button>`;
+                            const rk = (agg.ranked || []).find(r => r.oil === oil);
+                            let hits = '';
+                            if (rk && (rk.direct.length || rk.hier.length)) {
+                                const tip = [...rk.direct.map(t => 'совпал: ' + t),
+                                             ...rk.hier.map(h => h.via + ' покрывает ' + h.covers)].join('; ');
+                                hits = ` <span class="oil-pick-hits" title="${esc(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
+                            }
+                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
                         }).join('')}
                         <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
                     </div>
@@ -412,6 +429,7 @@ function renderTotals(data, calcState, carApprovals) {
 
     return `
         <div class="totals-section">
+            <div class="sec-title"><span>Итого</span></div>
             ${blocksHtml}
             <button class="btn-add-filters" id="btn-add-total">+ Добавить строку итого</button>
         </div>

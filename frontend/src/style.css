@@ -1,67 +1,117 @@
-/* ── Reset & base ───────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────
+   Стили по макету из Фигмы (design/figma-prompt.md → Figma Make).
+   Токены цветов — oklch из экспорта макета.
+   ───────────────────────────────────────────────────────────────── */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #0f1117;
-  --bg2:     #1a1d2e;
-  --bg3:     #1e2135;
-  --border:  #2a2d3e;
-  --accent:  #E67E00;
-  --green:   #4caf50;
-  --text:    #e8eaf6;
-  --sub:     #9096b0;
-  --chip-act:#E67E00;
-  --radius:  8px;
+  --bg:       oklch(0.11 0.022 252);
+  --card:     oklch(0.14 0.022 252);
+  --bg2:      oklch(0.18 0.025 252);
+  --bg3:      oklch(0.20 0.03 252);
+  --border:   oklch(0.25 0.025 252 / 0.6);
+  --accent:   oklch(0.76 0.18 83);
+  --accent-dim: oklch(0.76 0.18 83 / 0.15);
+  --accent-fg: oklch(0.12 0.02 252);
+  --text:     oklch(0.91 0.01 252);
+  --sub:      oklch(0.55 0.015 252);
+  --green:    oklch(0.72 0.17 148);
+  --green-dim: oklch(0.72 0.17 148 / 0.14);
+  --blue:     oklch(0.72 0.12 250);
+  --blue-dim: oklch(0.72 0.12 250 / 0.14);
+  --red:      oklch(0.62 0.2 25);
+  --red-dim:  oklch(0.52 0.2 25 / 0.16);
+  --radius:   10px;
+  --chip-act: var(--accent);
 }
 
 html, body { height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 Arial, sans-serif;
+  font: 14px/1.5 Inter, "Segoe UI", Arial, sans-serif;
   min-height: 100vh;
 }
 
-/* ── Search page ────────────────────────────────────────────────── */
-.site-header {
-  text-align: center;
-  padding: 48px 20px 32px;
+.mono, .head-chip .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+
+/* ── Секционные заголовки (капсом, как в макете) ────────────────── */
+.sec-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
-.logo  { font-size: 48px; display: block; margin-bottom: 8px; }
-h1     { font-size: clamp(20px, 4vw, 28px); font-weight: 700; }
-.subtitle { color: var(--sub); margin-top: 6px; font-size: 14px; }
+
+/* ── Страница поиска ────────────────────────────────────────────── */
+.site-header { text-align: center; padding: 20vh 20px 28px; }
+.brand {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-bottom: 18px;
+}
+.brand-icon {
+  width: 40px; height: 40px; border-radius: 12px;
+  background: linear-gradient(145deg, oklch(0.8 0.18 75), oklch(0.68 0.19 55));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 0 24px oklch(0.76 0.18 83 / 0.45);
+}
+.brand-name { font-size: 17px; font-weight: 700; }
+h1 { font-size: clamp(20px, 4vw, 26px); font-weight: 700; }
+.subtitle { color: var(--sub); margin-top: 6px; font-size: 13px; }
 
 .search-wrap {
-  max-width: 620px;
+  max-width: 600px;
   margin: 0 auto;
   padding: 0 16px 40px;
   position: relative;
 }
-
+.search-box { position: relative; }
+.search-box::before {
+  content: '';
+  position: absolute; left: 16px; top: 50%;
+  width: 14px; height: 14px; transform: translateY(-50%);
+  border: 2px solid var(--sub); border-radius: 50%;
+  box-shadow: 5px 8px 0 -5px var(--sub);
+  pointer-events: none;
+}
 #search-input {
   width: 100%;
-  padding: 14px 18px;
-  font-size: 16px;
-  background: var(--bg2);
-  border: 2px solid var(--border);
+  padding: 14px 18px 14px 42px;
+  font-size: 15px;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--text);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color .15s, box-shadow .15s;
 }
-#search-input:focus { border-color: var(--accent); }
+#search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px oklch(0.76 0.18 83 / 0.18);
+}
+.search-stats {
+  text-align: center; color: var(--sub); font-size: 11px; margin-top: 14px;
+}
 
 .search-results {
   position: absolute;
   left: 16px; right: 16px;
-  top: calc(100% - 12px);
-  background: var(--bg2);
+  top: calc(100% - 46px);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 0 0 12px 12px;
+  border-radius: 12px;
   max-height: 420px;
   overflow-y: auto;
   z-index: 100;
-  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  box-shadow: 0 16px 48px oklch(0 0 0 / 0.5);
 }
 .search-results:empty { display: none; }
 
@@ -69,368 +119,506 @@ h1     { font-size: clamp(20px, 4vw, 28px); font-weight: 700; }
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background .1s;
 }
 .car-card:last-child { border-bottom: none; }
 .car-card:hover { background: var(--bg3); }
-.car-card-title  { font-weight: bold; font-size: 14px; }
+.car-card-title  { font-weight: 600; font-size: 14px; }
 .car-card-sub    { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.search-empty { padding: 20px; text-align: center; color: var(--sub); font-size: 13px; }
 
-.search-empty {
-  padding: 20px;
-  text-align: center;
-  color: var(--sub);
+/* ── Кнопки ─────────────────────────────────────────────────────── */
+.btn {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 14px;
   font-size: 13px;
+  cursor: pointer;
+  transition: border-color .1s, background .1s;
 }
+.btn:hover { border-color: var(--accent); }
+.btn-sec {}
+.btn-pri {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.btn-pri:hover { background: oklch(0.7 0.18 78); }
 
-/* ── Calculator page ────────────────────────────────────────────── */
+/* ── Страница машины ────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
 .calc-topbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg2);
+  background: var(--card);
   position: sticky;
   top: 0;
   z-index: 10;
 }
-.calc-car-title { font-weight: bold; font-size: 14px; }
+.calc-car-title {
+  font-weight: 600; font-size: 13px;
+  flex: 1; text-align: center; color: var(--sub);
+}
+.calc-topbar::after { content: ''; width: 92px; } /* балансирует кнопку слева */
+#btn-back { white-space: nowrap; }
 
 .calc-layout {
   display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 0;
-  min-height: calc(100vh - 53px);
+  grid-template-columns: minmax(0, 760px) 360px;
+  gap: 20px;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 16px 40px;
+  align-items: start;
 }
-
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .calc-layout { grid-template-columns: 1fr; }
-  .report-panel { border-left: none; border-top: 1px solid var(--border); }
 }
+.calc-main { min-width: 0; padding: 0; }
 
-.calc-main {
-  padding: 16px;
-  overflow-y: auto;
-}
-
-/* ── Controls ──────────────────────────────────────────────────── */
-.ctrl-section {
-  background: var(--bg2);
-  border-radius: var(--radius);
-  padding: 12px 14px;
-  margin-bottom: 12px;
-}
-.ctrl-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-}
-.ctrl-row:first-child { margin-top: 0; }
-.ctrl-lbl { font-size: 12px; color: var(--sub); flex-shrink: 0; }
-
-.chip {
-  background: var(--bg3);
+/* ── Шапка машины ───────────────────────────────────────────────── */
+.head-card {
+  max-width: 1160px;
+  margin: 20px auto 20px;
+  padding: 20px 24px;
+  background: var(--card);
   border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  border-radius: 14px;
 }
-.chip:hover { border-color: var(--accent); }
-.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
-.chip.flush  { background: #2a1a08; border-color: #8b4e00; color: #ffb74d; }
-.chip.flush.active { background: #8b4e00; }
-
-.chk-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  cursor: pointer;
+@media (min-width: 901px) {
+  #car-head { padding: 0 16px; }
 }
-
-/* ── Filters ───────────────────────────────────────────────────── */
-.filters-section { margin-bottom: 12px; }
-.btn-add-filters {
-  background: none;
-  border: 1px dashed var(--border);
-  color: var(--sub);
-  border-radius: var(--radius);
-  padding: 8px 14px;
-  cursor: pointer;
-  font-size: 12px;
-  width: 100%;
-  text-align: left;
+.head-title-row {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px; flex-wrap: wrap;
 }
-.btn-add-filters:hover { border-color: var(--accent); color: var(--accent); }
-
-.filter-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.filter-row label { font-size: 12px; color: var(--sub); width: 32px; flex-shrink: 0; }
-.filter-row input[type="text"],
-.filter-row input[type="number"] {
+.head-title { font-size: clamp(19px, 3vw, 24px); font-weight: 700; }
+.head-gen   { font-size: 0.6em; color: var(--sub); font-weight: 500; }
+.head-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.head-chip {
   background: var(--bg2);
   border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 5px 8px;
-  font-size: 12px;
-  outline: none;
-}
-.filter-row input[type="text"] { flex: 1; }
-.filter-row input[type="number"] { width: 80px; }
-.filter-row input:focus { border-color: var(--accent); }
-.filter-toggle { display: flex; align-items: center; gap: 4px; font-size: 11px; cursor: pointer; }
-.filter-price-req { color: #f44336; font-size: 10px; margin-left: 2px; }
-
-/* ── Aggregate card ────────────────────────────────────────────── */
-.agg-card {
-  background: var(--bg2);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  margin-bottom: 10px;
-  overflow: hidden;
-}
-.agg-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--bg3);
-  cursor: pointer;
-}
-.agg-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
-.agg-title { font-weight: bold; font-size: 13px; }
-.agg-body  { padding: 12px 14px; }
-.agg-volume { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--sub); }
-.vol-input { width: 70px; }
-.vol-formula { font-size: 11px; color: var(--sub); margin-left: 4px; }
-
-.oil-option {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  transition: border-color 0.1s;
-}
-.oil-option:hover, .oil-option.selected { border-color: var(--accent); }
-.oil-option.selected { background: #1a1200; }
-.oil-name  { font-size: 13px; font-weight: bold; }
-.oil-price { font-size: 12px; color: #ffb74d; }
-.oil-total { font-size: 13px; font-weight: bold; color: var(--green); margin-top: 2px; }
-.oil-approvals { font-size: 10px; color: var(--sub); margin-top: 3px; }
-.appr-hit  { color: #81c784; }
-
-.warn-box {
-  background: #2a1d00;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 12px;
-  color: #ff9800;
-  margin-top: 6px;
-}
-
-/* АКПП controls */
-.atp-ctrl { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-
-/* ── Totals ─────────────────────────────────────────────────────── */
-.totals-section { margin-top: 12px; }
-.total-block {
-  background: var(--bg2);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  padding: 12px 14px;
-  margin-bottom: 8px;
-}
-.total-block-h {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-weight: bold;
-  font-size: 13px;
-}
-.total-row-h { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
-.total-opt   { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 3px; cursor: pointer; }
-
-/* ── Report panel ───────────────────────────────────────────────── */
-.report-panel {
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  position: sticky;
-  top: 53px;
-  height: calc(100vh - 53px);
-  overflow: hidden;
-}
-.report-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-.report-output {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 14px;
-  font: 12px/1.6 'Courier New', monospace;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* ── Buttons ────────────────────────────────────────────────────── */
-.btn {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.btn:hover { background: #282b40; }
-.btn-sec { background: var(--bg2); }
-.btn-pri { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
-.btn-pri:hover { background: #c86800; }
-
-/* ── Filter badges (display mode) ──────────────────────────────── */
-.filter-badge-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 5px;
-  font-size: 12px;
-}
-.filter-badge-lbl { color: var(--sub); width: 60px; flex-shrink: 0; }
-.filter-badge {
-  background: var(--bg3);
-  border: 1px solid var(--accent);
-  color: var(--accent);
   border-radius: 6px;
   padding: 3px 10px;
   font-size: 12px;
-  cursor: pointer;
-  font-family: 'Courier New', monospace;
-  transition: background 0.1s;
+  white-space: nowrap;
 }
-.filter-badge:hover { background: #1a1000; }
-
-/* ── Approvals block ────────────────────────────────────────────── */
-.app-btn {
-  display: block;
-  width: 100%;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--border);
-  color: var(--sub);
-  font-size: 11px;
-  padding: 6px 14px;
-  text-align: left;
-  cursor: pointer;
-}
-.app-btn:hover { color: var(--text); background: var(--bg3); }
-
-.approvals-block {
-  padding: 8px 14px 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  border-top: 1px solid var(--border);
-}
-.appr-tag {
-  background: #1e2533;
-  border: 1px solid #3a4060;
-  color: #a0b8d8;
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-size: 10px;
-}
-.appr-other { color: var(--sub); font-size: 10px; }
-.appr-more  { color: var(--accent); font-size: 10px; cursor: pointer; text-decoration: underline; }
-
-/* ── Flush formula ──────────────────────────────────────────────── */
-.flush-formula {
-  background: #2a1a08;
-  border: 1px solid #8b4e00;
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 11px;
-  color: #ffb74d;
-  margin-bottom: 8px;
-}
-
-/* ── Oil picker ─────────────────────────────────────────────────── */
-.btn-pick-oil {
-  display: block;
-  width: 100%;
-  background: none;
-  border: 1px dashed var(--border);
-  color: var(--sub);
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 11px;
-  cursor: pointer;
-  text-align: left;
-  margin-top: 4px;
-}
-.btn-pick-oil:hover { border-color: var(--accent); color: var(--accent); }
-
-.oil-picker {
-  background: var(--bg3);
+.head-flags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.head-flag {
+  background: var(--accent-dim);
   border: 1px solid var(--accent);
-  border-radius: 6px;
-  padding: 8px;
-  margin-top: 4px;
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
 }
-.oil-picker-head { font-size: 11px; color: var(--sub); margin-bottom: 6px; }
-.oil-pick-opt {
-  display: block;
+.head-flag-warn { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+.head-notes {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--bg2);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+.head-rec { margin-top: 12px; font-size: 12px; }
+.head-rec summary { cursor: pointer; color: var(--sub); }
+.head-rec-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.head-rec-note { color: var(--sub); font-size: 11px; margin-top: 6px; font-style: italic; }
+
+/* ── Секции калькулятора ────────────────────────────────────────── */
+.ctrl-section, .filters-section, .totals-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.ctrl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ctrl-lbl { font-size: 12px; color: var(--sub); }
+
+/* Сегмент-контрол (пробег, промывка) */
+.seg {
+  display: flex;
   width: 100%;
-  background: var(--bg);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.seg .chip { flex: 1; border-radius: 0; border: none; margin: 0; }
+.chip {
+  background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 5px;
-  padding: 5px 8px;
-  font-size: 12px;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
   cursor: pointer;
-  text-align: left;
-  margin-bottom: 3px;
-  transition: border-color 0.1s;
+  transition: background .12s, color .12s;
 }
-.oil-pick-opt:hover { border-color: var(--accent); }
-.oil-pick-opt.cur { border-color: var(--accent); background: #1a1200; }
+.chip:hover { background: var(--bg3); }
+.chip.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 700;
+}
 
-/* ── Volume reset ───────────────────────────────────────────────── */
-.btn-reset-vol {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--sub);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
+/* Тумблеры-переключатели */
+.chk-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; cursor: pointer; user-select: none;
+}
+.chk-label input[type="checkbox"] {
+  appearance: none;
+  width: 34px; height: 19px;
+  border-radius: 19px;
+  background: oklch(0.28 0.02 252);
+  position: relative;
   cursor: pointer;
+  transition: background .15s;
+  flex: none;
+}
+.chk-label input[type="checkbox"]::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: left .15s;
+}
+.chk-label input[type="checkbox"]:checked { background: var(--accent); }
+.chk-label input[type="checkbox"]:checked::after { left: 17px; background: var(--accent-fg); }
+
+/* Обычные чекбоксы (агрегаты, тоталы, формы) — квадратные */
+.agg-check, .total-opt input[type="radio"],
+.edit-flag input, .edit-oil input,
+input[data-edit-filter-absent], input[data-filter-on] {
+  appearance: none;
+  width: 16px; height: 16px;
+  border: 1.5px solid var(--sub);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  flex: none;
+  vertical-align: -3px;
+}
+.total-opt input[type="radio"] { border-radius: 50%; }
+.agg-check:checked, .edit-flag input:checked, .edit-oil input:checked,
+input[data-edit-filter-absent]:checked, input[data-filter-on]:checked,
+.total-opt input[type="radio"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.agg-check:checked::after, .edit-flag input:checked::after, .edit-oil input:checked::after,
+input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::after {
+  content: '✓';
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--accent-fg);
+}
+.total-opt input[type="radio"]:checked::after {
+  content: '';
+  position: absolute; inset: 3.5px;
+  border-radius: 50%;
+  background: var(--accent-fg);
+}
+
+/* ── Фильтры ДВС ────────────────────────────────────────────────── */
+.filter-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.filter-row label:first-child {
+  font-size: 12px; color: var(--sub); min-width: 22px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+.filter-row input[type="text"], .filter-row input[type="number"],
+.filter-row select {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.filter-row input[type="text"] { font-family: "JetBrains Mono", Consolas, monospace; }
+.filter-row input:focus, .filter-row select:focus { outline: none; border-color: var(--accent); }
+
+.filter-badge-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.filter-badge-lbl {
+  font-size: 12px; color: var(--sub); min-width: 22px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+.filter-badge {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  cursor: pointer;
+  color: var(--accent);
+}
+.filter-badge:hover { border-color: var(--accent); }
+.btn-add-filters {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--sub);
+  border-radius: 10px;
+  padding: 10px;
+  width: 100%;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-add-filters:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Карточки агрегатов ─────────────────────────────────────────── */
+.agg-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.agg-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 18px;
+  background: var(--bg2);
+  cursor: default;
+}
+.agg-title { font-weight: 700; font-size: 14px; }
+.agg-body { padding: 14px 18px 6px; }
+
+.agg-volume { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.vol-input {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  width: 76px;
+  font-size: 13px;
+}
+.vol-input:focus { outline: none; border-color: var(--accent); }
+.vol-formula { font-size: 11px; color: var(--sub); }
+.btn-reset-vol {
+  background: none; border: 1px solid var(--border); color: var(--sub);
+  border-radius: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer;
 }
 .btn-reset-vol:hover { color: var(--accent); border-color: var(--accent); }
 
-/* ── Reglament star ─────────────────────────────────────────────── */
-.reg-mark { font-size: 12px; margin-right: 3px; cursor: help; }
+.warn-box {
+  background: var(--red-dim);
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--red);
+  margin: 6px 0 10px;
+}
+.flush-formula { font-size: 12px; color: var(--accent); margin-bottom: 10px; }
+
+.atp-ctrl { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.atp-ctrl .chip { border-radius: 8px; padding: 6px 12px; font-size: 12px; }
+
+/* Варианты масел */
+.oil-option {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color .1s;
+}
+.oil-option:hover { border-color: oklch(0.4 0.03 252); }
+.oil-option.selected { border-color: var(--accent); }
+.oil-name  { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.visc-pill {
+  font-size: 10px; font-weight: 600;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 6px; color: var(--sub);
+}
+.spot-pill {
+  font-size: 10px; font-weight: 800; letter-spacing: .5px;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: 5px; padding: 1px 7px;
+}
+.oil-price { font-size: 12.5px; color: var(--accent); margin-top: 5px; }
+.oil-price b { color: var(--text); font-size: 13px; }
+
+/* Бэйджи допусков */
+.appr-hit, .appr-hier, .appr-other, .appr-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  border-radius: 5px;
+  padding: 2px 7px;
+  margin: 2px 2px 0 0;
+  line-height: 1.5;
+}
+.appr-hit  { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
+.appr-hier { background: var(--blue-dim);  border: 1px solid var(--blue);  color: var(--blue); }
+.appr-other, .appr-tag { background: var(--bg3); border: 1px solid var(--border); color: var(--sub); }
+.appr-more {
+  font-size: 11px; color: var(--sub); cursor: pointer; text-decoration: underline dotted;
+}
+.appr-more:hover { color: var(--accent); }
+.reg-mark { font-size: 12px; cursor: help; }
+
+.app-btn {
+  background: transparent; border: none;
+  color: var(--sub); font-size: 12px; cursor: pointer;
+  padding: 10px 18px; display: block; width: 100%; text-align: left;
+  border-top: 1px solid var(--border);
+}
+.app-btn:hover { color: var(--accent); }
+.approvals-block { padding: 0 18px 12px; }
+
+/* Пикер масла */
+.btn-pick-oil {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--sub);
+  border-radius: 8px;
+  padding: 8px;
+  width: 100%;
+  font-size: 12px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.btn-pick-oil:hover { border-color: var(--accent); color: var(--accent); }
+.oil-picker {
+  background: var(--bg2);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.oil-picker-head { font-size: 12px; color: var(--sub); margin-bottom: 8px; }
+.oil-pick-opt {
+  display: block; width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 4px;
+}
+.oil-pick-opt:hover { border-color: var(--accent); }
+.oil-pick-opt.cur { border-color: var(--accent); background: var(--accent-dim); }
+.oil-pick-hits { color: var(--green); font-size: 10.5px; }
+
+/* ── Итого ──────────────────────────────────────────────────────── */
+.total-block {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.total-block-h {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+.total-block-h b { color: var(--accent); font-size: 16px; }
+.total-row-h { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px; }
+.total-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; cursor: pointer; margin: 0 14px 6px 0;
+}
+
+/* ── Правая панель отчёта ───────────────────────────────────────── */
+.report-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  position: sticky;
+  top: 66px;
+}
+@media (max-width: 900px) {
+  .report-panel { position: static; }
+}
+.report-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+.report-head span {
+  font-size: 11px; font-weight: 600; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--sub);
+}
+.report-output {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  font: 12px/1.7 "JetBrains Mono", Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  min-height: 120px;
+}
+
+/* ── Режим редактирования ───────────────────────────────────────── */
+.head-card-edit { border-color: var(--accent); }
+.edit-sec-h {
+  font-size: 11px; font-weight: 600; color: var(--sub);
+  margin: 18px 0 8px; text-transform: uppercase; letter-spacing: 1.2px;
+}
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px 12px;
+}
+.edit-field { display: flex; flex-direction: column; gap: 3px; }
+.edit-field span { font-size: 10px; color: var(--sub); }
+.edit-field input, .edit-filter-row input[type="text"], .edit-filter-row input[type="number"],
+.head-card-edit textarea {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  width: 100%;
+  font-family: inherit;
+}
+.edit-field input:focus, .head-card-edit textarea:focus,
+.edit-filter-row input:focus { outline: none; border-color: var(--accent); }
+.edit-filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.edit-filter-row input[type="text"] { flex: 1; width: auto; font-family: "JetBrains Mono", Consolas, monospace; }
+.edit-lbl { font-size: 12px; color: var(--sub); min-width: 110px; }
+.edit-flag { display: flex; margin-bottom: 6px; }
+.edit-oils-note { font-size: 11px; color: var(--sub); margin-bottom: 8px; }
+.edit-oils-visc { margin-bottom: 10px; }
+.edit-oils-visc-h { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.edit-oil { display: flex; margin-bottom: 4px; font-size: 12.5px; }
+.edit-error {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--red-dim);
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  color: var(--red);
+  font-size: 13px;
+}
+
+/* ── Скроллбары ─────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }

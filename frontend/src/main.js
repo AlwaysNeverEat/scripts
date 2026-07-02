@@ -1,4 +1,4 @@
-import { initCalculator } from './calculator.js';
+import { initCarPage } from './carPage.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -6,18 +6,51 @@ import { initCalculator } from './calculator.js';
 const API_BASE = (typeof __API_BASE__ !== 'undefined' && __API_BASE__) ? __API_BASE__ : '';
 const API_KEY  = (typeof __API_KEY__  !== 'undefined' && __API_KEY__)  ? __API_KEY__  : '';
 
-async function apiFetch(path) {
-    const headers = API_KEY ? { 'x-api-key': API_KEY } : {};
-    const res = await fetch(API_BASE + path, { headers });
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    return res.json();
+export async function apiFetch(path, { method = 'GET', body } = {}) {
+    const headers = {};
+    if (API_KEY) headers['x-api-key'] = API_KEY;
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const res = await fetch(API_BASE + path, {
+        method, headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((json && json.error) || `API ${res.status}`);
+    return json;
 }
+
+// ── Hash routing ──────────────────────────────────────────────────────────────
+//   #/            — поиск
+//   #/car/:id     — страница машины (прямая ссылка переживает F5)
+
+const pageSearch = document.getElementById('page-search');
+const pageCalc   = document.getElementById('page-calc');
+
+async function renderRoute() {
+    const m = location.hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
+    if (m) {
+        pageSearch.classList.add('hidden');
+        pageCalc.classList.remove('hidden');
+        try {
+            const record = await apiFetch('/api/cars/' + m[1]);
+            initCarPage(record, { apiFetch, onChanged: () => renderRoute() });
+        } catch (e) {
+            document.getElementById('car-head').innerHTML =
+                `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
+            document.getElementById('calc-main').innerHTML = '';
+        }
+    } else {
+        pageCalc.classList.add('hidden');
+        pageSearch.classList.remove('hidden');
+        searchInput.focus();
+    }
+}
+
+window.addEventListener('hashchange', renderRoute);
 
 // ── Search ────────────────────────────────────────────────────────────────────
 const searchInput   = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
-const pageSearch    = document.getElementById('page-search');
-const pageCalc      = document.getElementById('page-calc');
 
 let searchTimer = null;
 
@@ -54,40 +87,37 @@ function renderResults(cars) {
                 ${car.kw ? ' · ' + car.kw + 'кВт' : ''}
                 ${car.bhp ? ' / ' + car.bhp + 'л.с.' : ''}
                 ${car.year_from ? ' · ' + car.year_from + (car.year_to ? '–' + car.year_to : '+') : ''}
-                ${car.fuel_type ? ' · ' + esc(car.fuel_type) : ''}
             </div>
         </div>
     `).join('');
 
     searchResults.querySelectorAll('.car-card').forEach(card => {
-        card.onclick = () => openCar(card.dataset.id);
+        card.onclick = () => {
+            searchResults.innerHTML = '';
+            searchInput.value = '';
+            location.hash = '#/car/' + card.dataset.id;
+        };
     });
 }
 
-async function openCar(id) {
-    try {
-        const car = await apiFetch('/api/cars/' + id);
-        searchResults.innerHTML = '';
-        searchInput.value = '';
-        pageSearch.classList.add('hidden');
-        pageCalc.classList.remove('hidden');
-        initCalculator(car, () => {
-            pageCalc.classList.add('hidden');
-            pageSearch.classList.remove('hidden');
-        });
-    } catch (e) {
-        alert('Не удалось загрузить данные: ' + e.message);
-    }
-}
-
 // ── Back button ───────────────────────────────────────────────────────────────
-document.getElementById('btn-back').onclick = () => {
-    pageCalc.classList.add('hidden');
-    pageSearch.classList.remove('hidden');
-};
+document.getElementById('btn-back').onclick = () => { location.hash = '#/'; };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+
+// Строка под поиском: «База содержит N автомобилей …»
+async function loadStats() {
+    const el = document.getElementById('search-stats');
+    if (!el) return;
+    try {
+        const { total } = await apiFetch('/api/cars?limit=1');
+        el.textContent = `База содержит ${total} автомобилей · Поиск понимает русский ввод и опечатки`;
+    } catch { /* без статистики страшного нет */ }
+}
+
+renderRoute();
+loadStats();

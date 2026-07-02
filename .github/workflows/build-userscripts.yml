@@ -1,0 +1,48 @@
+name: Build userscripts
+
+# Правка прайса/логики в shared/ или glue-кода в userscript/src/
+# автоматически пересобирает корневые .user.js — Tampermonkey у установивших
+# подтянет обновление по @updateURL.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'shared/**'
+      - 'userscript/src/**'
+      - 'tools/build-userscript.mjs'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # нужен полный счётчик коммитов для номера версии
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Паритетные тесты
+        run: npm test
+
+      - name: Сборка артефактов
+        run: npm run build:userscript
+
+      - name: Коммит собранных .user.js
+        run: |
+          if git diff --quiet; then
+            echo "Артефакты не изменились"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- '*.user.js'
+          git commit -m "build: пересборка userscript из shared/ [skip ci]"
+          git push
