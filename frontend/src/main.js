@@ -1,4 +1,5 @@
 import { initCarPage } from './carPage.js';
+import { startSphere } from './sphere.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -109,15 +110,20 @@ function esc(s) {
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
-// Строка под поиском: «База содержит N автомобилей …»
-async function loadStats() {
-    const el = document.getElementById('search-stats');
-    if (!el) return;
+// Сфера из машин, которые уже есть в базе (до 50 случайных)
+async function loadSphere() {
+    const canvas = document.getElementById('sphere-canvas');
+    if (!canvas) return;
     try {
-        const { total } = await apiFetch('/api/cars?limit=1');
-        el.textContent = `База содержит ${total} автомобилей · Поиск понимает русский ввод и опечатки`;
-    } catch { /* без статистики страшного нет */ }
+        const cars = await apiFetch('/api/cars/random?limit=50');
+        if (!cars.length) return;
+        const nodes = cars.map(c => ({
+            id: c.id,
+            label: [c.brand, c.model, c.generation].filter(Boolean).join(' '),
+        }));
+        startSphere(canvas, nodes, id => { location.hash = '#/car/' + id; });
+    } catch { /* сфера — украшение, без неё страшного нет */ }
 }
 
 renderRoute();
-loadStats();
+loadSphere();
