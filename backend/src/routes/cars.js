@@ -270,6 +270,23 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// ── GET /api/cars/random?limit=50 ─────────────────────────────────────────────
+// Случайные машины для словесной сферы на странице поиска.
+
+router.get('/random', async (req, res) => {
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '50')));
+  try {
+    const r = await query(
+      'SELECT id, brand, model, generation FROM cars ORDER BY random() LIMIT $1',
+      [limit],
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('GET /api/cars/random', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/cars/:id ─────────────────────────────────────────────────────────
 
 router.get('/:id', async (req, res) => {
