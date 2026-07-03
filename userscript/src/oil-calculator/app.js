@@ -406,6 +406,9 @@ function calcForAggregate(agg) {
                         ].join('; ');
                         hitsMark = `<span class="zm-oil-opt-hits" title="${escapeHtmlSafe(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
                     }
+                    if (rk && rk.classMiss) {
+                        hitsMark += `<span class="zm-oil-opt-miss" title="У масла нет требуемого класса ACEA ${escapeHtmlSafe(rk.classMiss)} — предлагать с осторожностью">⚠ не ${escapeHtmlSafe(rk.classMiss)}</span>`;
+                    }
                     return `<button class="zm-oil-opt ${isCurrent?'zm-oil-opt-act':''} ${regOpt.length?'zm-oil-opt-reg':''}" data-opt="${o.b}_${o.n}">
                         <span class="zm-oil-opt-name">${regMark} ${o.b} ${o.n}${hitsMark}</span>
                         <span class="zm-oil-opt-price">${o.price}₽/л</span>
@@ -2294,6 +2297,7 @@ function calcForAggregate(agg) {
                 box-shadow:0 0 8px rgba(66,165,245,.35);
                 animation:zm-shimmer 3s linear infinite}
             .zm-oil-opt-hits{font-size:9px;color:#66bb6a;margin-left:4px;white-space:nowrap}
+            .zm-oil-opt-miss{font-size:9px;color:#ff8a80;margin-left:4px;white-space:nowrap}
 
             /* ── Модалка «Отправить отчёт в базу» ── */
             #zm-db-modal{position:fixed;inset:0;z-index:2147483646;font:13px Arial}

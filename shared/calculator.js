@@ -379,9 +379,10 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         else if (needA3B4) requiredClass = 'A3B4';
     }
 
-    let candidates = shopOils.filter(o => o.v === targetVisc && !o.isSpot);
+    const poolAll = shopOils.filter(o => o.v === targetVisc && !o.isSpot);
+    let candidates = poolAll;
     if (requiredClass) {
-        const filtered = candidates.filter(o => hasAceaClass(o, requiredClass));
+        const filtered = poolAll.filter(o => hasAceaClass(o, requiredClass));
         if (filtered.length) candidates = filtered;
     }
 
@@ -393,7 +394,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const hasRN    = [...effectiveCarTokens].some(t => /^RN\d|RN0700|RN0710/.test(t));
     const hasGM    = [...effectiveCarTokens].some(t => /^GM\d|DEXOS/.test(t));
 
-    const rated = candidates.map(oil => {
+    const rateOil = (oil) => {
         const oilTokens = tokenSet(oil.a); let score = 0;
         const direct = [], hier = [];
         if (!calcState.ignoreApprovals) {
@@ -416,8 +417,9 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
             if (hasGM   && [...oilTokens].some(t => /^GM\d|DEXOS/.test(t))) score += 3;
         }
         return { oil, score, direct, hier };
-    });
+    };
 
+    const rated = candidates.map(rateOil);
     rated.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
     const maxScore   = rated[0] ? rated[0].score : 0;
     const topMatches = rated.filter(r => r.score === maxScore);
@@ -438,13 +440,29 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         spot = spotCandidates.find(o => o.tier === (needPro ? 'pro' : 'optimal')) || spotCandidates[0];
     }
 
+    // Полный рейтинг по ВСЕЙ вязкости — для пикера. Требуемый класс ACEA не
+    // прячет масла: совпадение класса — бонус к рейтингу, несовпадение —
+    // пометка classMiss (UI показывает «⚠ не C3»), выбор за оператором.
+    // Основной выбор (mid, идёт в отчёт) по-прежнему только из масел
+    // требуемого класса — это защита от опасных рекомендаций (DPF и т.п.).
+    let ratedAll = rated;
+    if (candidates !== poolAll) {
+        ratedAll = poolAll.map(oil => {
+            const r = rateOil(oil);
+            if (hasAceaClass(oil, requiredClass)) r.score += 8;
+            else r.classMiss = requiredClass;
+            return r;
+        });
+        ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
+    }
+
     agg.approvals = approvals;
     agg.isDiesel = isDieselVehicle;
     agg.requiredClass = requiredClass;
-    agg.allCandidates = rated.map(r => r.oil);
+    agg.allCandidates = ratedAll.map(r => r.oil);
     agg.topCandidates = topMatches.map(r => r.oil);
     // полный рейтинг с деталями совпадений — для пикера масел в UI
-    agg.ranked = rated.map(r => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier }));
+    agg.ranked = ratedAll.map(r => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier, classMiss: r.classMiss || null }));
     return { mid, spot };
 }
 
