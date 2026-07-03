@@ -363,6 +363,9 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                                              ...rk.hier.map(h => h.via + ' покрывает ' + h.covers)].join('; ');
                                 hits = ` <span class="oil-pick-hits" title="${esc(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
                             }
+                            if (rk && rk.classMiss) {
+                                hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">⚠ не ${esc(rk.classMiss)}</span>`;
+                            }
                             return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
                         }).join('')}
                         <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>

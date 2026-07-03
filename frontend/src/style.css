@@ -521,6 +521,7 @@ input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::af
 .oil-pick-opt:hover { border-color: var(--accent); }
 .oil-pick-opt.cur { border-color: var(--accent); background: var(--accent-dim); }
 .oil-pick-hits { color: var(--green); font-size: 10.5px; }
+.oil-pick-miss { color: var(--red); font-size: 10.5px; }
 
 /* ── Итого ──────────────────────────────────────────────────────── */
 .total-block {

@@ -97,6 +97,35 @@ test('иерархия не ломает выбор при ignoreApprovals', () 
     assert.equal(scored.length, 0, 'при игноре допусков скоринг нулевой');
 });
 
+test('требуемый ACEA-класс не режет пикер до одного масла (LADA, A3/B4)', () => {
+    // Реальный кейс: у Лады в допусках ROLF есть ACEA A3/B4, и раньше пул
+    // кандидатов жёстко фильтровался до единственного Leichtlauf —
+    // кнопка «выбрать масло» исчезала, альтернатив не было вообще.
+    const state = makeState({ car: { makeShort: 'LADA', modelShort: 'X-RAY', fuelType: '01', engineCode: '21179' } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const approvals = ['API SL','API SN','ACEA A3/B4','АВТОВАЗ','MB 229.3','GM LL-A-025','GM LL-B-025','RN 0700','RN 0710'];
+    const { mid } = pickEngineOils(agg, getShopOils(), state, approvals);
+
+    // основной выбор (идёт в отчёт) не изменился — класс по-прежнему обязателен
+    assert.equal(mid.n, 'Leichtlauf HC 7 5W-30');
+    assert.equal(agg.requiredClass, 'A3B4');
+
+    // но пикер теперь видит всю вязкость, а не одно масло
+    assert.ok(agg.allCandidates.length >= 10,
+        `в пикере вся вязкость, получили ${agg.allCandidates.length}`);
+    const scored = agg.ranked.filter(r => r.score > 0);
+    assert.ok(scored.length >= 5, `подходящих с ненулевым рейтингом ≥5, получили ${scored.length}`);
+
+    // масла без требуемого класса помечены, а не спрятаны
+    const topTec = agg.ranked.find(r => r.oil.n === '5W-30 Top Tec');
+    assert.ok(topTec, 'Top Tec присутствует в списке');
+    assert.equal(topTec.classMiss, 'A3B4');
+    // совпавшее по классу масло — без пометки и в топе
+    const leicht = agg.ranked.find(r => r.oil.n === 'Leichtlauf HC 7 5W-30');
+    assert.equal(leicht.classMiss, null);
+    assert.equal(agg.ranked[0].oil.n, 'Leichtlauf HC 7 5W-30', 'класс-матч + прямые допуски держат его первым');
+});
+
 test('VW 507 00 покрывает 505 00/505 01; RN 0710 покрывает 0700; LL 04 ⊃ LL 01 ⊃ LL 98', () => {
     const vw = expandCoveredTokens(tokenSet(['VW 507 00']));
     assert.ok(vw.has('VW50500') && vw.has('VW50501'));

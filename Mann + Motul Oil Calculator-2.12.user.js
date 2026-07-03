@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.63
+// @version      2.22.64
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -729,9 +729,10 @@
       else if (needC1) requiredClass = "C1";
       else if (needA3B4) requiredClass = "A3B4";
     }
-    let candidates = shopOils.filter((o) => o.v === targetVisc && !o.isSpot);
+    const poolAll = shopOils.filter((o) => o.v === targetVisc && !o.isSpot);
+    let candidates = poolAll;
     if (requiredClass) {
-      const filtered = candidates.filter((o) => hasAceaClass(o, requiredClass));
+      const filtered = poolAll.filter((o) => hasAceaClass(o, requiredClass));
       if (filtered.length) candidates = filtered;
     }
     const carMake = (car.makeShort || "").toUpperCase();
@@ -741,7 +742,7 @@
     const hasBMW = [...effectiveCarTokens].some((t) => /^LL\d|LL01|LL04|LL98/.test(t));
     const hasRN = [...effectiveCarTokens].some((t) => /^RN\d|RN0700|RN0710/.test(t));
     const hasGM = [...effectiveCarTokens].some((t) => /^GM\d|DEXOS/.test(t));
-    const rated = candidates.map((oil) => {
+    const rateOil = (oil) => {
       const oilTokens = tokenSet(oil.a);
       let score = 0;
       const direct = [], hier = [];
@@ -769,7 +770,8 @@
         if (hasGM && [...oilTokens].some((t) => /^GM\d|DEXOS/.test(t))) score += 3;
       }
       return { oil, score, direct, hier };
-    });
+    };
+    const rated = candidates.map(rateOil);
     rated.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
     const maxScore = rated[0] ? rated[0].score : 0;
     const topMatches = rated.filter((r) => r.score === maxScore);
@@ -788,12 +790,22 @@
     if (!spot) {
       spot = spotCandidates.find((o) => o.tier === (needPro ? "pro" : "optimal")) || spotCandidates[0];
     }
+    let ratedAll = rated;
+    if (candidates !== poolAll) {
+      ratedAll = poolAll.map((oil) => {
+        const r = rateOil(oil);
+        if (hasAceaClass(oil, requiredClass)) r.score += 8;
+        else r.classMiss = requiredClass;
+        return r;
+      });
+      ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
+    }
     agg.approvals = approvals;
     agg.isDiesel = isDieselVehicle;
     agg.requiredClass = requiredClass;
-    agg.allCandidates = rated.map((r) => r.oil);
+    agg.allCandidates = ratedAll.map((r) => r.oil);
     agg.topCandidates = topMatches.map((r) => r.oil);
-    agg.ranked = rated.map((r) => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier }));
+    agg.ranked = ratedAll.map((r) => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier, classMiss: r.classMiss || null }));
     return { mid, spot };
   }
   function calcForAggregate(agg, calcState2, carApprovals) {
@@ -1509,6 +1521,9 @@
           ...rk.hier.map((h) => h.via + " покрывает " + h.covers)
         ].join("; ");
         hitsMark = `<span class="zm-oil-opt-hits" title="${escapeHtmlSafe(tip)}">✓${rk.direct.length ? " " + rk.direct.length : ""}${rk.hier.length ? " ⊃" + rk.hier.length : ""}</span>`;
+      }
+      if (rk && rk.classMiss) {
+        hitsMark += `<span class="zm-oil-opt-miss" title="У масла нет требуемого класса ACEA ${escapeHtmlSafe(rk.classMiss)} — предлагать с осторожностью">⚠ не ${escapeHtmlSafe(rk.classMiss)}</span>`;
       }
       return `<button class="zm-oil-opt ${isCurrent ? "zm-oil-opt-act" : ""} ${regOpt.length ? "zm-oil-opt-reg" : ""}" data-opt="${o.b}_${o.n}">
                         <span class="zm-oil-opt-name">${regMark} ${o.b} ${o.n}${hitsMark}</span>
@@ -3149,6 +3164,7 @@
                 box-shadow:0 0 8px rgba(66,165,245,.35);
                 animation:zm-shimmer 3s linear infinite}
             .zm-oil-opt-hits{font-size:9px;color:#66bb6a;margin-left:4px;white-space:nowrap}
+            .zm-oil-opt-miss{font-size:9px;color:#ff8a80;margin-left:4px;white-space:nowrap}
 
             /* ── Модалка «Отправить отчёт в базу» ── */
             #zm-db-modal{position:fixed;inset:0;z-index:2147483646;font:13px Arial}
