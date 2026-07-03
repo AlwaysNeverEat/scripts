@@ -30,11 +30,26 @@ html, body { height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 Inter, "Segoe UI", Arial, sans-serif;
+  /* Unbounded — дефолтный шрифт везде */
+  font: 14px/1.5 "Unbounded", Inter, "Segoe UI", Arial, sans-serif;
   min-height: 100vh;
 }
+input, button, select, textarea { font-family: inherit; }
 
 .mono, .head-chip .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+
+/* Fugaz One — допуски и математика. Кириллицу шрифт не поддерживает,
+   поэтому в стеке следом идёт Unbounded: русские глифы падают в него. */
+.font-fugaz,
+.head-chip, .appr-hit, .appr-hier, .appr-other, .appr-tag,
+.vol-formula, .flush-formula, .oil-price, .visc-pill,
+.total-block-h b, .oil-pick-hits {
+  font-family: "Fugaz One", "Unbounded", Inter, sans-serif;
+  font-weight: 400;
+}
+
+/* Notable — только названия масел (кириллица тоже падает в Unbounded) */
+.oil-name { font-family: "Notable", "Unbounded", Inter, sans-serif; }
 
 /* ── Секционные заголовки (капсом, как в макете) ────────────────── */
 .sec-title {
@@ -50,61 +65,80 @@ body {
   gap: 8px;
 }
 
-/* ── Страница поиска ────────────────────────────────────────────── */
-.site-header { text-align: center; padding: 20vh 20px 28px; }
-.brand {
-  display: inline-flex; align-items: center; gap: 10px;
-  margin-bottom: 18px;
+/* ── Страница поиска (сфера из машин + строка) ──────────────────── */
+#page-search {
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #07090d;
 }
-.brand-icon {
-  width: 40px; height: 40px; border-radius: 12px;
-  background: linear-gradient(145deg, oklch(0.8 0.18 75), oklch(0.68 0.19 55));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
-  box-shadow: 0 0 24px oklch(0.76 0.18 83 / 0.45);
+.sphere-glow {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(212,160,23,0.07) 0%, transparent 70%);
 }
-.brand-name { font-size: 17px; font-weight: 700; }
-h1 { font-size: clamp(20px, 4vw, 26px); font-weight: 700; }
-.subtitle { color: var(--sub); margin-top: 6px; font-size: 13px; }
-
+#sphere-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  cursor: crosshair;
+}
+.search-ui {
+  position: relative; z-index: 10;
+  height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 20px;
+  padding: 0 16px;
+  pointer-events: none; /* мышь проходит к сфере, кроме самих контролов */
+}
+.search-ui > * { pointer-events: auto; }
+.search-kicker {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(253,224,132,0.55);
+}
 .search-wrap {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 0 16px 40px;
+  width: 100%;
+  max-width: 560px;
   position: relative;
 }
 .search-box { position: relative; }
+/* Лупа как в фигме (lucide Search); z-index — иначе фон инпута красит поверх */
 .search-box::before {
   content: '';
-  position: absolute; left: 16px; top: 50%;
-  width: 14px; height: 14px; transform: translateY(-50%);
-  border: 2px solid var(--sub); border-radius: 50%;
-  box-shadow: 5px 8px 0 -5px var(--sub);
+  position: absolute; left: 20px; top: 50%;
+  width: 16px; height: 16px; transform: translateY(-50%);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4a017' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center/contain no-repeat;
+  opacity: 0.55;
   pointer-events: none;
+  z-index: 1;
 }
 #search-input {
   width: 100%;
-  padding: 14px 18px 14px 42px;
-  font-size: 15px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
+  padding: 14px 22px 14px 46px;
+  font-size: 14px;
+  background: rgba(10,14,20,0.82);
+  border: 1px solid rgba(212,160,23,0.25);
+  border-radius: 999px;
+  color: rgba(253,235,180,0.9);
   outline: none;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 0 0 1px rgba(212,160,23,0.08), 0 8px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
   transition: border-color .15s, box-shadow .15s;
 }
+#search-input::placeholder { color: rgba(107,114,128,0.6); }
 #search-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px oklch(0.76 0.18 83 / 0.18);
-}
-.search-stats {
-  text-align: center; color: var(--sub); font-size: 11px; margin-top: 14px;
+  box-shadow: 0 0 0 3px oklch(0.76 0.18 83 / 0.18), 0 8px 32px rgba(0,0,0,0.55);
 }
 
 .search-results {
   position: absolute;
-  left: 16px; right: 16px;
-  top: calc(100% - 46px);
+  left: 0; right: 0;
+  top: calc(100% + 8px);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -302,7 +336,7 @@ h1 { font-size: clamp(20px, 4vw, 26px); font-weight: 700; }
 /* Обычные чекбоксы (агрегаты, тоталы, формы) — квадратные */
 .agg-check, .total-opt input[type="radio"],
 .edit-flag input, .edit-oil input,
-input[data-edit-filter-absent], input[data-filter-on] {
+input[data-edit-filter-absent] {
   appearance: none;
   width: 16px; height: 16px;
   border: 1.5px solid var(--sub);
@@ -314,13 +348,13 @@ input[data-edit-filter-absent], input[data-filter-on] {
 }
 .total-opt input[type="radio"] { border-radius: 50%; }
 .agg-check:checked, .edit-flag input:checked, .edit-oil input:checked,
-input[data-edit-filter-absent]:checked, input[data-filter-on]:checked,
+input[data-edit-filter-absent]:checked,
 .total-opt input[type="radio"]:checked {
   background: var(--accent);
   border-color: var(--accent);
 }
 .agg-check:checked::after, .edit-flag input:checked::after, .edit-oil input:checked::after,
-input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::after {
+input[data-edit-filter-absent]:checked::after {
   content: '✓';
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
@@ -369,6 +403,55 @@ input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::af
   color: var(--accent);
 }
 .filter-badge:hover { border-color: var(--accent); }
+
+/* Артикулы в ряд — копирование по клику */
+.filters-articles {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px 18px; margin-bottom: 12px;
+}
+.filters-articles .filter-badge-row { display: inline-flex; margin-bottom: 0; gap: 6px; }
+
+/* Панель вставки стоимостей (формат юзерскрипта) */
+.filters-paste { margin-bottom: 12px; }
+.filters-paste textarea {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  resize: vertical;
+}
+.filters-paste textarea:focus { outline: none; border-color: var(--accent); }
+.filters-paste-btns { display: flex; gap: 8px; margin-top: 8px; }
+.filters-paste-btns .btn-pri { flex: 1; }
+.filters-paste-hint { font-size: 11px; color: var(--sub); margin-top: 6px; }
+.filters-paste-hint code {
+  background: var(--bg2); border-radius: 4px; padding: 1px 5px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+.filters-debug { font-size: 11px; color: var(--red); margin-top: 4px; }
+
+/* Строки со стоимостями: галочка + работа кликом */
+.filter-priced-row {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  transition: opacity .12s;
+}
+.filter-priced-off { opacity: 0.5; }
+.filter-work-row {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px; margin-top: 8px;
+}
+.filter-work-none { font-size: 11px; color: var(--sub); margin-top: 6px; }
+.chip-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+.btn-mini { font-size: 11px; padding: 3px 10px; }
+
 .btn-add-filters {
   background: transparent;
   border: 1px dashed var(--border);
@@ -442,10 +525,10 @@ input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::af
 }
 .oil-option:hover { border-color: oklch(0.4 0.03 252); }
 .oil-option.selected { border-color: var(--accent); }
-.oil-name  { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* Notable существует только в 400 — жирность не синтезируем */
+.oil-name  { font-size: 13.5px; font-weight: 400; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .visc-pill {
-  font-size: 10px; font-weight: 600;
-  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10px;
   background: var(--bg3); border: 1px solid var(--border);
   border-radius: 5px; padding: 1px 6px; color: var(--sub);
 }
@@ -461,7 +544,6 @@ input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::af
 .appr-hit, .appr-hier, .appr-other, .appr-tag {
   display: inline-block;
   font-size: 10.5px;
-  font-family: "JetBrains Mono", Consolas, monospace;
   border-radius: 5px;
   padding: 2px 7px;
   margin: 2px 2px 0 0;

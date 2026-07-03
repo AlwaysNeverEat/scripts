@@ -5,26 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Калькулятор замены масла</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛢</text></svg>"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Fugaz+One&family=Notable&family=Unbounded:wght@200..900&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/src/style.css"/>
 </head>
 <body>
   <div id="app">
     <!-- Search page -->
     <div id="page-search">
-      <header class="site-header">
-        <div class="brand">
-          <span class="brand-icon">🛢</span>
-          <span class="brand-name">OilBase</span>
+      <div class="sphere-glow"></div>
+      <canvas id="sphere-canvas"></canvas>
+      <div class="search-ui">
+        <p class="search-kicker">Car Search</p>
+        <div class="search-wrap">
+          <div class="search-box">
+            <input id="search-input" type="search" placeholder="Wake up, neo. . ." autocomplete="off" spellcheck="false"/>
+          </div>
+          <div id="search-results" class="search-results"></div>
         </div>
-        <h1>Калькулятор замены масла</h1>
-        <p class="subtitle">Найди машину — получи готовый отчёт для Битрикса</p>
-      </header>
-      <div class="search-wrap">
-        <div class="search-box">
-          <input id="search-input" type="search" placeholder="Например: KIA Rio 1.6 2017 или киа рио…" autocomplete="off" spellcheck="false"/>
-        </div>
-        <div id="search-results" class="search-results"></div>
-        <div class="search-stats" id="search-stats"></div>
       </div>
     </div>
 

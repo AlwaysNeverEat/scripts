@@ -39,11 +39,23 @@ export function initCalculator(dbRecord) {
         showWithSump: false,
         flush: 'none',
         filters: dbFiltersFromRecord(dbRecord),
+        articles: dbArticlesFromRecord(dbRecord),
+        carId: dbRecord.id,
         showFiltersInput: false,
         totals: [],
         data,
         car,
     };
+
+    // Стоимости фильтров, вставленные ранее — живут в localStorage, не в БД
+    const savedFilters = loadSavedFilters(dbRecord.id);
+    if (savedFilters) {
+        for (const k of ['vf', 'mf', 'sf']) {
+            if (savedFilters[k]) calcState.filters[k] = { ...calcState.filters[k], ...savedFilters[k] };
+        }
+    }
+    // Пока стоимости не вставлены — поле вставки открыто сразу
+    calcState.showFiltersInput = !anyFilterPriced(calcState.filters);
 
     if (data.engine) calcState.selected.add('engine');
 
@@ -134,71 +146,153 @@ function renderControls(calcState) {
 
 function renderFiltersSection(calcState) {
     const f = calcState.filters;
-    const hasAny = (f.vf.name && f.vf.name !== '[нет]') ||
-                   (f.mf.name && f.mf.name !== '[нет]') ||
-                   (f.sf.name && f.sf.name !== '[нет]');
+    const arts = calcState.articles || {};
+    const hasArticles = !!(arts.vf || arts.mf || arts.sf);
+    const hasPrices = anyFilterPriced(f);
 
-    if (!hasAny && !calcState.showFiltersInput) {
+    if (!hasArticles && !hasPrices && !calcState.showFiltersInput) {
         return `<div class="filters-section"><button class="btn-add-filters" id="btn-add-filters">➕ Добавить фильтры ДВС</button></div>`;
     }
 
-    if (calcState.showFiltersInput) {
-        const filterRow = (key, abbr, label, workOpts) => {
-            const fd = f[key];
-            const partNum = fd.name === '[нет]' ? '' : (fd.name || '');
-            const workSel = workOpts ? `
-                <select data-filter-work="${key}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 6px;font-size:11px">
-                    ${workOpts.map(o => `<option value="${o.v}" ${fd.work === o.v ? 'selected' : ''}>${o.l}</option>`).join('')}
-                </select>` : '';
-            return `
-                <div class="filter-row">
-                    <label title="${label}">${abbr}</label>
-                    <input type="text" data-filter-part="${key}" placeholder="артикул" value="${esc(partNum)}" style="flex:1"/>
-                    <input type="number" data-filter-price="${key}" placeholder="₽" value="${fd.price || ''}" min="0" style="width:70px"/>
-                    ${workSel}
-                    <label class="chk-label" style="white-space:nowrap">
-                        <input type="checkbox" data-filter-on="${key}" ${fd.enabled ? 'checked' : ''}/>
-                        вкл
-                    </label>
-                </div>
-            `;
-        };
-        return `
-            <div class="filters-section ctrl-section">
-                <div class="sec-title">
-                    <span>Фильтры ДВС</span>
-                    <button class="btn btn-sec" id="btn-filters-done" style="font-size:11px;padding:3px 10px">✓ готово</button>
-                </div>
-                ${filterRow('vf', 'вф', 'Масляный фильтр', [{v:350,l:'защёлки 350₽'},{v:600,l:'болты 600₽'},{v:1200,l:'разбор 1200₽'}])}
-                ${filterRow('mf', 'мф', 'Воздушный фильтр', null)}
-                ${filterRow('sf', 'сф', 'Салонный фильтр', [{v:550,l:'бардачок 550₽'},{v:800,l:'под педалью 800₽'}])}
+    // Артикулы из БД — по клику копируются, для поиска в каталоге
+    const artBadge = (key, abbr) => arts[key] ? `
+        <span class="filter-badge-row">
+            <span class="filter-badge-lbl">${abbr}</span>
+            <span class="filter-badge" data-copy="${esc(arts[key])}" title="нажми чтобы скопировать">${esc(arts[key])}</span>
+        </span>` : '';
+    const artHtml = hasArticles
+        ? `<div class="filters-articles">${artBadge('vf','вф')}${artBadge('mf','мф')}${artBadge('sf','сф')}</div>`
+        : '';
+
+    // Поле вставки стоимостей — формат как в юзерскрипте: «вф LYNX LA-502 - 1488р»
+    const pasteHtml = calcState.showFiltersInput ? `
+        <div class="filters-paste">
+            <textarea id="filters-ta" rows="4" placeholder="вф LYNX LA-502 LYNXauto - 1488р&#10;мф LYNX LC-331 LYNXauto - 330р&#10;сф LYNX LAC-333 auto - 1209р">${esc(filtersToRaw(f))}</textarea>
+            <div class="filters-paste-btns">
+                <button class="btn btn-pri" id="btn-filters-apply">Применить</button>
+                ${hasPrices ? `<button class="btn btn-sec" id="btn-filters-clear">Очистить</button>` : ''}
             </div>
-        `;
-    }
+            <div class="filters-paste-hint">Формат: <code>тип название - ценар</code>. Тип: <b>вф</b>/<b>мф</b>/<b>сф</b> — можно 1, 2 или все 3 строки</div>
+            <div id="filters-debug" class="filters-debug"></div>
+        </div>` : '';
 
-    // Display mode — copyable badges
-    const badgeRow = (key, abbr, label) => {
+    // Строки со стоимостями: галочка «в расчёт» + работа по клику, без прятанья
+    const workChip = (key, opt, cur) =>
+        `<button class="chip chip-sm${cur === opt.v ? ' active' : ''}" data-fwork="${key}:${opt.v}">${opt.l}</button>`;
+    const pricedRow = (key, abbr, workOpts, noWorkNote) => {
         const fd = f[key];
-        if (!fd.name || fd.name === '[нет]') return '';
-        const badge = `<span class="filter-badge" data-copy="${esc(fd.name)}" title="нажми чтобы скопировать">${esc(fd.name)}</span>`;
-        const priceStr = fd.price ? ` ${fd.price}₽` : '';
-        const enabledStyle = fd.enabled ? '' : ' style="opacity:0.45"';
-        return `<div class="filter-badge-row"${enabledStyle}>
-            <span class="filter-badge-lbl">${abbr}</span>${badge}${priceStr ? `<span style="font-size:11px;color:var(--sub)">${priceStr}</span>` : ''}
-        </div>`;
+        if (!fd.price || !fd.name || fd.name === '[нет]') return '';
+        const work = workOpts
+            ? `<div class="filter-work-row"><span class="ctrl-lbl">установка:</span>${workOpts.map(o => workChip(key, o, fd.work)).join('')}</div>`
+            : `<div class="filter-work-none">${noWorkNote}</div>`;
+        return `
+            <div class="filter-priced-row${fd.enabled ? '' : ' filter-priced-off'}">
+                <label class="chk-label">
+                    <input type="checkbox" data-ftoggle="${key}" ${fd.enabled ? 'checked' : ''}/>
+                    <span><b>${abbr.toUpperCase()}</b> ${esc(fd.name)} — <b>${fd.price}₽</b></span>
+                </label>
+                ${work}
+            </div>`;
     };
+    const pricedHtml = hasPrices ? `
+        <div class="filters-priced">
+            ${pricedRow('vf', 'вф', [{v:0,l:'без работы'},{v:350,l:'защёлки 350₽'},{v:600,l:'болты 600₽'},{v:1150,l:'разбор 1150₽'}])}
+            ${pricedRow('mf', 'мф', null, 'меняется при замене масла')}
+            ${pricedRow('sf', 'сф', [{v:0,l:'без работы'},{v:550,l:'бардачок 550₽'},{v:990,l:'под педалью 990₽'}])}
+        </div>` : '';
 
-    const rows = [badgeRow('vf','вф','масляный'), badgeRow('mf','мф','воздушный'), badgeRow('sf','сф','салонный')].filter(Boolean).join('');
+    const copyAllBtn = hasArticles
+        ? `<button class="btn btn-sec btn-mini" id="btn-copy-all-filters">⧉ скопировать все</button>`
+        : '';
+    const toggleLbl = calcState.showFiltersInput
+        ? '✕ закрыть'
+        : (hasPrices ? '💰 обновить стоимость' : '💰 вставить стоимость');
+    const toggleBtn = `<button class="btn btn-sec btn-mini" id="btn-filters-toggle">${toggleLbl}</button>`;
 
     return `
         <div class="filters-section ctrl-section">
             <div class="sec-title">
                 <span>Фильтры ДВС</span>
-                <button class="btn btn-sec" id="btn-filters-edit" style="font-size:11px;padding:3px 10px">✏ изменить</button>
+                <span style="display:flex;gap:6px">${copyAllBtn}${toggleBtn}</span>
             </div>
-            ${rows}
+            ${artHtml}
+            ${pasteHtml}
+            ${pricedHtml}
         </div>
     `;
+}
+
+// ── Filters: parse / persist ──────────────────────────────────────────────────
+
+const FILTERS_LS_PREFIX = 'spotdb_filters_';
+
+function loadSavedFilters(carId) {
+    try {
+        const raw = localStorage.getItem(FILTERS_LS_PREFIX + carId);
+        return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+}
+
+function saveFilters(calcState) {
+    try {
+        const f = calcState.filters;
+        localStorage.setItem(FILTERS_LS_PREFIX + calcState.carId, JSON.stringify({
+            vf: f.vf, mf: f.mf, sf: f.sf,
+        }));
+    } catch { /* приватный режим и т.п. — просто не сохраняем */ }
+}
+
+function clearSavedFilters(calcState) {
+    try { localStorage.removeItem(FILTERS_LS_PREFIX + calcState.carId); } catch {}
+}
+
+function anyFilterPriced(f) {
+    return ['vf', 'mf', 'sf'].some(k => f[k].price > 0 && f[k].name && f[k].name !== '[нет]');
+}
+
+// Тот же формат, что в юзерскрипте: «вф LYNX LA-502 LYNXauto - 1488р»
+function parseFiltersInput(text) {
+    const out = { vf: null, mf: null, sf: null };
+    if (!text) return out;
+    const TYPE_MAP = { 'вф': 'vf', 'мф': 'mf', 'сф': 'sf' };
+    text.split(/\r?\n/).forEach(rawLine => {
+        const line = rawLine.trim();
+        if (!line) return;
+        const m = line.match(/^(вф|мф|сф)\s+(.+?)\s*[-–—]\s*([\d\s]+)\s*(?:р|руб|₽)?\s*$/i);
+        if (!m) return;
+        const key = TYPE_MAP[m[1].toLowerCase()];
+        if (!key) return;
+        const name = m[2].trim();
+        const price = parseInt(m[3].replace(/\s+/g, ''), 10);
+        if (!isFinite(price) || price <= 0) return;
+        out[key] = { name, price };
+    });
+    return out;
+}
+
+// Обновляет только те типы, что есть во вставке — остальные не трогает
+function applyFiltersInput(calcState, text) {
+    const parsed = parseFiltersInput(text);
+    for (const t of ['vf', 'mf', 'sf']) {
+        if (!parsed[t]) continue;
+        const fd = calcState.filters[t];
+        fd.name = parsed[t].name;
+        fd.price = parsed[t].price;
+        fd.enabled = true;
+        if (t === 'vf' && !fd.work) fd.work = 350;
+        if (t === 'sf' && !fd.work) fd.work = 550;
+    }
+    return parsed;
+}
+
+// Префилл textarea из текущего состояния — повторная вставка идемпотентна
+function filtersToRaw(f) {
+    const lines = [];
+    for (const [key, abbr] of [['vf', 'вф'], ['mf', 'мф'], ['sf', 'сф']]) {
+        const fd = f[key];
+        if (fd.price > 0 && fd.name && fd.name !== '[нет]') lines.push(`${abbr} ${fd.name} - ${fd.price}р`);
+    }
+    return lines.join('\n');
 }
 
 // ── Aggregates ────────────────────────────────────────────────────────────────
@@ -467,36 +561,68 @@ function bindEvents(container, car, data, calcState, carApprovals) {
     const sumpChk = container.querySelector('#chk-sump');
     if (sumpChk) sumpChk.onchange = () => { calcState.showWithSump = sumpChk.checked; rerender(); };
 
-    // Filters
+    // Filters: open/close paste panel
     const addFiltBtn = container.querySelector('#btn-add-filters');
     if (addFiltBtn) addFiltBtn.onclick = () => { calcState.showFiltersInput = true; rerender(); };
-    const editFiltBtn = container.querySelector('#btn-filters-edit');
-    if (editFiltBtn) editFiltBtn.onclick = () => { calcState.showFiltersInput = true; rerender(); };
-    const doneFiltBtn = container.querySelector('#btn-filters-done');
-    if (doneFiltBtn) doneFiltBtn.onclick = () => { calcState.showFiltersInput = false; rerender(); };
+    const toggleFiltBtn = container.querySelector('#btn-filters-toggle');
+    if (toggleFiltBtn) toggleFiltBtn.onclick = () => {
+        calcState.showFiltersInput = !calcState.showFiltersInput;
+        rerender();
+    };
 
-    // Filter part / price / work / toggle
-    container.querySelectorAll('[data-filter-part]').forEach(inp => {
-        inp.oninput = () => {
-            calcState.filters[inp.dataset.filterPart].name = inp.value.trim();
-            rerender();
+    // Copy all filter articles at once
+    const copyAllBtn = container.querySelector('#btn-copy-all-filters');
+    if (copyAllBtn) copyAllBtn.onclick = () => {
+        const arts = calcState.articles || {};
+        const text = ['vf', 'mf', 'sf'].map(k => arts[k]).filter(Boolean).join('\n');
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            copyAllBtn.textContent = '✓ скопировано';
+            setTimeout(() => { copyAllBtn.textContent = '⧉ скопировать все'; }, 1200);
+        });
+    };
+
+    // Paste prices: apply / clear
+    const applyFiltBtn = container.querySelector('#btn-filters-apply');
+    if (applyFiltBtn) applyFiltBtn.onclick = () => {
+        const ta = container.querySelector('#filters-ta');
+        const txt = ta ? ta.value : '';
+        const parsed = parseFiltersInput(txt);
+        const found = ['vf', 'mf', 'sf'].filter(t => parsed[t]);
+        if (!found.length) {
+            const dbg = container.querySelector('#filters-debug');
+            if (dbg) dbg.textContent = '❌ Не распознано ни одной строки — формат: «вф LYNX LA-502 - 1488р»';
+            return;
+        }
+        applyFiltersInput(calcState, txt);
+        calcState.showFiltersInput = false;
+        saveFilters(calcState);
+        rerender();
+    };
+    const clearFiltBtn = container.querySelector('#btn-filters-clear');
+    if (clearFiltBtn) clearFiltBtn.onclick = () => {
+        calcState.filters = {
+            vf: { name: '', price: 0, enabled: false, work: 350 },
+            mf: { name: '', price: 0, enabled: false },
+            sf: { name: '', price: 0, enabled: false, work: 550 },
         };
-    });
-    container.querySelectorAll('[data-filter-price]').forEach(inp => {
-        inp.oninput = () => {
-            calcState.filters[inp.dataset.filterPrice].price = parseInt(inp.value) || 0;
-            rerender();
-        };
-    });
-    container.querySelectorAll('[data-filter-work]').forEach(sel => {
-        sel.onchange = () => {
-            calcState.filters[sel.dataset.filterWork].work = parseInt(sel.value);
-            rerender();
-        };
-    });
-    container.querySelectorAll('[data-filter-on]').forEach(chk => {
+        clearSavedFilters(calcState);
+        rerender();
+    };
+
+    // Include-in-calc toggles + work chips (защёлки/болты/бардачок…)
+    container.querySelectorAll('[data-ftoggle]').forEach(chk => {
         chk.onchange = () => {
-            calcState.filters[chk.dataset.filterOn].enabled = chk.checked;
+            calcState.filters[chk.dataset.ftoggle].enabled = chk.checked;
+            saveFilters(calcState);
+            rerender();
+        };
+    });
+    container.querySelectorAll('[data-fwork]').forEach(b => {
+        b.onclick = () => {
+            const [t, v] = b.dataset.fwork.split(':');
+            calcState.filters[t].work = parseInt(v, 10);
+            saveFilters(calcState);
             rerender();
         };
     });
@@ -668,6 +794,17 @@ function dbFiltersFromRecord(rec) {
         }
     }
     return defaults;
+}
+
+// Артикулы из БД — показываются как копируемые бейджи, в расчёте не участвуют
+function dbArticlesFromRecord(rec) {
+    const fpn = rec.filter_part_numbers || {};
+    const out = { vf: '', mf: '', sf: '' };
+    for (const key of ['vf', 'mf', 'sf']) {
+        const entry = fpn[key];
+        if (entry && !entry.absent && entry.part) out[key] = entry.part;
+    }
+    return out;
 }
 
 function esc(s) {
