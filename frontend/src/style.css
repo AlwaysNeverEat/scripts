@@ -302,7 +302,7 @@ h1 { font-size: clamp(20px, 4vw, 26px); font-weight: 700; }
 /* Обычные чекбоксы (агрегаты, тоталы, формы) — квадратные */
 .agg-check, .total-opt input[type="radio"],
 .edit-flag input, .edit-oil input,
-input[data-edit-filter-absent], input[data-filter-on] {
+input[data-edit-filter-absent] {
   appearance: none;
   width: 16px; height: 16px;
   border: 1.5px solid var(--sub);
@@ -314,13 +314,13 @@ input[data-edit-filter-absent], input[data-filter-on] {
 }
 .total-opt input[type="radio"] { border-radius: 50%; }
 .agg-check:checked, .edit-flag input:checked, .edit-oil input:checked,
-input[data-edit-filter-absent]:checked, input[data-filter-on]:checked,
+input[data-edit-filter-absent]:checked,
 .total-opt input[type="radio"]:checked {
   background: var(--accent);
   border-color: var(--accent);
 }
 .agg-check:checked::after, .edit-flag input:checked::after, .edit-oil input:checked::after,
-input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::after {
+input[data-edit-filter-absent]:checked::after {
   content: '✓';
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
@@ -369,6 +369,55 @@ input[data-edit-filter-absent]:checked::after, input[data-filter-on]:checked::af
   color: var(--accent);
 }
 .filter-badge:hover { border-color: var(--accent); }
+
+/* Артикулы в ряд — копирование по клику */
+.filters-articles {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px 18px; margin-bottom: 12px;
+}
+.filters-articles .filter-badge-row { display: inline-flex; margin-bottom: 0; gap: 6px; }
+
+/* Панель вставки стоимостей (формат юзерскрипта) */
+.filters-paste { margin-bottom: 12px; }
+.filters-paste textarea {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  resize: vertical;
+}
+.filters-paste textarea:focus { outline: none; border-color: var(--accent); }
+.filters-paste-btns { display: flex; gap: 8px; margin-top: 8px; }
+.filters-paste-btns .btn-pri { flex: 1; }
+.filters-paste-hint { font-size: 11px; color: var(--sub); margin-top: 6px; }
+.filters-paste-hint code {
+  background: var(--bg2); border-radius: 4px; padding: 1px 5px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+.filters-debug { font-size: 11px; color: var(--red); margin-top: 4px; }
+
+/* Строки со стоимостями: галочка + работа кликом */
+.filter-priced-row {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  transition: opacity .12s;
+}
+.filter-priced-off { opacity: 0.5; }
+.filter-work-row {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px; margin-top: 8px;
+}
+.filter-work-none { font-size: 11px; color: var(--sub); margin-top: 6px; }
+.chip-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+.btn-mini { font-size: 11px; padding: 3px 10px; }
+
 .btn-add-filters {
   background: transparent;
   border: 1px dashed var(--border);
