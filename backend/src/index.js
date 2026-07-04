@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import carsRouter from './routes/cars.js';
-import candidatesRouter from './routes/candidates.js';
 
 const app = express();
 
@@ -41,7 +40,6 @@ app.use('/api', (req, res, next) => {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/cars', carsRouter);
-app.use('/api/candidates', candidatesRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
