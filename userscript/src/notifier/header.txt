@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.0
+// @version      1.1
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
+// @match        https://mann-filter.com/*
 // @match        https://lynxauto.info/*
 // @grant        GM_xmlhttpRequest
 // @connect      cars-db-backend.onrender.com

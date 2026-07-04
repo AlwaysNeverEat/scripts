@@ -17,8 +17,15 @@ const SITE_URL = 'https://alwaysnevereat.github.io/scripts';
 
 const CHECK_INTERVAL_MS = 1500;   // опрос смены URL (SPA-навигация Mann)
 
-// cacheKey → 'pending' | 'notfound' | carRecord — чтобы не долбить API
+// Бэкенд на бесплатном Render засыпает и просыпается до минуты —
+// таймаут должен пережить холодный старт, а сбои надо переспрашивать.
+const REQUEST_TIMEOUT_MS = 60000;
+const RETRY_DELAYS_MS    = [5000, 15000, 30000];
+const NOTFOUND_TTL_MS    = 5 * 60 * 1000; // машину могли рассчитать только что
+
+// cacheKey → 'pending' | {notFoundAt} | {record} ; dismissed_<id> → true
 const checked = new Map();
+const retries = new Map();  // cacheKey → число сделанных повторов
 
 function apiMatch(car) {
     const params = new URLSearchParams();
@@ -33,15 +40,21 @@ function apiMatch(car) {
             method: 'GET',
             url: `${API_BASE}/api/cars/match?${params}`,
             headers: { 'x-api-key': API_KEY },
-            timeout: 10000,
+            timeout: REQUEST_TIMEOUT_MS,
             onload: (resp) => {
                 if (resp.status === 200) {
-                    try { resolve(JSON.parse(resp.responseText)); return; } catch {}
+                    try {
+                        const record = JSON.parse(resp.responseText);
+                        if (record && record.id) { resolve({ status: 'found', record }); return; }
+                    } catch {}
+                    resolve({ status: 'error' });
+                    return;
                 }
-                resolve(null); // 404 и любые ошибки — молчим
+                if (resp.status === 404) { resolve({ status: 'notfound' }); return; }
+                resolve({ status: 'error' }); // 5xx и прочее — временный сбой
             },
-            onerror:   () => resolve(null),
-            ontimeout: () => resolve(null),
+            onerror:   () => resolve({ status: 'error' }),
+            ontimeout: () => resolve({ status: 'error' }),
         });
     });
 }
@@ -104,23 +117,45 @@ async function checkCurrentCar() {
     const car = parseMannUrl();
     if (!car) { removeBanner(); return; }
 
-    const state = checked.get(car.cacheKey);
-    if (state === 'pending' || state === 'notfound') return;
-    if (state && typeof state === 'object') {
-        if (!checked.get('dismissed_' + state.id) && !document.getElementById('spot-db-banner')) {
-            showBanner(state);
+    const key = car.cacheKey;
+    const state = checked.get(key);
+    if (state === 'pending') return;
+    if (state && state.record) {
+        if (!checked.get('dismissed_' + state.record.id) && !document.getElementById('spot-db-banner')) {
+            showBanner(state.record);
         }
         return;
     }
+    if (state && state.notFoundAt && Date.now() - state.notFoundAt < NOTFOUND_TTL_MS) return;
 
-    checked.set(car.cacheKey, 'pending');
-    const record = await apiMatch(car);
-    if (record && record.id) {
-        checked.set(car.cacheKey, record);
-        if (!checked.get('dismissed_' + record.id)) showBanner(record);
-    } else {
-        checked.set(car.cacheKey, 'notfound');
-        removeBanner();
+    checked.set(key, 'pending');
+    const res = await apiMatch(car);
+
+    if (res.status === 'found') {
+        retries.delete(key);
+        checked.set(key, { record: res.record });
+        if (!checked.get('dismissed_' + res.record.id)) showBanner(res.record);
+        return;
+    }
+
+    removeBanner();
+
+    if (res.status === 'notfound') {
+        retries.delete(key);
+        checked.set(key, { notFoundAt: Date.now() });
+        return;
+    }
+
+    // Сеть/таймаут/5xx: не записываем «нет в базе», пробуем ещё раз —
+    // типовой случай это спящий Render, который к повтору уже проснётся.
+    checked.delete(key);
+    const attempt = retries.get(key) || 0;
+    if (attempt < RETRY_DELAYS_MS.length) {
+        retries.set(key, attempt + 1);
+        setTimeout(() => {
+            const cur = parseMannUrl();
+            if (cur && cur.cacheKey === key) checkCurrentCar();
+        }, RETRY_DELAYS_MS[attempt]);
     }
 }
 

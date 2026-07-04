@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.0.75
+// @version      1.1.78
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
+// @match        https://mann-filter.com/*
 // @match        https://lynxauto.info/*
 // @grant        GM_xmlhttpRequest
 // @connect      cars-db-backend.onrender.com
@@ -124,7 +125,11 @@
   var API_KEY = "a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574";
   var SITE_URL = "https://alwaysnevereat.github.io/scripts";
   var CHECK_INTERVAL_MS = 1500;
+  var REQUEST_TIMEOUT_MS = 6e4;
+  var RETRY_DELAYS_MS = [5e3, 15e3, 3e4];
+  var NOTFOUND_TTL_MS = 5 * 60 * 1e3;
   var checked = /* @__PURE__ */ new Map();
+  var retries = /* @__PURE__ */ new Map();
   function apiMatch(car) {
     const params = new URLSearchParams();
     if (car.engineCode) params.set("engine_code", car.engineCode);
@@ -137,19 +142,28 @@
         method: "GET",
         url: `${API_BASE}/api/cars/match?${params}`,
         headers: { "x-api-key": API_KEY },
-        timeout: 1e4,
+        timeout: REQUEST_TIMEOUT_MS,
         onload: (resp) => {
           if (resp.status === 200) {
             try {
-              resolve(JSON.parse(resp.responseText));
-              return;
+              const record = JSON.parse(resp.responseText);
+              if (record && record.id) {
+                resolve({ status: "found", record });
+                return;
+              }
             } catch {
             }
+            resolve({ status: "error" });
+            return;
           }
-          resolve(null);
+          if (resp.status === 404) {
+            resolve({ status: "notfound" });
+            return;
+          }
+          resolve({ status: "error" });
         },
-        onerror: () => resolve(null),
-        ontimeout: () => resolve(null)
+        onerror: () => resolve({ status: "error" }),
+        ontimeout: () => resolve({ status: "error" })
       });
     });
   }
@@ -207,22 +221,38 @@
       removeBanner();
       return;
     }
-    const state = checked.get(car.cacheKey);
-    if (state === "pending" || state === "notfound") return;
-    if (state && typeof state === "object") {
-      if (!checked.get("dismissed_" + state.id) && !document.getElementById("spot-db-banner")) {
-        showBanner(state);
+    const key = car.cacheKey;
+    const state = checked.get(key);
+    if (state === "pending") return;
+    if (state && state.record) {
+      if (!checked.get("dismissed_" + state.record.id) && !document.getElementById("spot-db-banner")) {
+        showBanner(state.record);
       }
       return;
     }
-    checked.set(car.cacheKey, "pending");
-    const record = await apiMatch(car);
-    if (record && record.id) {
-      checked.set(car.cacheKey, record);
-      if (!checked.get("dismissed_" + record.id)) showBanner(record);
-    } else {
-      checked.set(car.cacheKey, "notfound");
-      removeBanner();
+    if (state && state.notFoundAt && Date.now() - state.notFoundAt < NOTFOUND_TTL_MS) return;
+    checked.set(key, "pending");
+    const res = await apiMatch(car);
+    if (res.status === "found") {
+      retries.delete(key);
+      checked.set(key, { record: res.record });
+      if (!checked.get("dismissed_" + res.record.id)) showBanner(res.record);
+      return;
+    }
+    removeBanner();
+    if (res.status === "notfound") {
+      retries.delete(key);
+      checked.set(key, { notFoundAt: Date.now() });
+      return;
+    }
+    checked.delete(key);
+    const attempt = retries.get(key) || 0;
+    if (attempt < RETRY_DELAYS_MS.length) {
+      retries.set(key, attempt + 1);
+      setTimeout(() => {
+        const cur = parseMannUrl();
+        if (cur && cur.cacheKey === key) checkCurrentCar();
+      }, RETRY_DELAYS_MS[attempt]);
     }
   }
   if (typeof location !== "undefined" && typeof document !== "undefined") {
