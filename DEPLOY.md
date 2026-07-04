@@ -20,7 +20,6 @@
    - `db/migrations/002_add_approvals.sql`
    - `db/migrations/003_unique_car.sql`
    - `db/migrations/004_service_flags.sql`
-   - `db/migrations/005_car_candidates.sql`
 3. Кнопка **Connect** (вверху) → вкладка **Session pooler** → скопируй URI вида
    `postgresql://postgres.xxxx:[PASSWORD]@aws-0-eu-west-1.pooler.supabase.com:5432/postgres`
    и подставь свой пароль от базы.

@@ -1,5 +1,4 @@
 import { initCarPage } from './carPage.js';
-import { initCandidatesFeed } from './candidatesFeed.js';
 import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
 
@@ -26,20 +25,14 @@ export async function apiFetch(path, { method = 'GET', body } = {}) {
 //   #/            — поиск
 //   #/car/:id     — страница машины (прямая ссылка переживает F5)
 
-const pageSearch     = document.getElementById('page-search');
-const pageCalc       = document.getElementById('page-calc');
-const pageCandidates = document.getElementById('page-candidates');
-
-function showOnly(el) {
-    for (const p of [pageSearch, pageCalc, pageCandidates]) {
-        p.classList.toggle('hidden', p !== el);
-    }
-}
+const pageSearch = document.getElementById('page-search');
+const pageCalc   = document.getElementById('page-calc');
 
 async function renderRoute() {
     const m = location.hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
     if (m) {
-        showOnly(pageCalc);
+        pageSearch.classList.add('hidden');
+        pageCalc.classList.remove('hidden');
         try {
             const record = await apiFetch('/api/cars/' + m[1]);
             initCarPage(record, { apiFetch, onChanged: () => renderRoute() });
@@ -48,25 +41,11 @@ async function renderRoute() {
                 `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
             document.getElementById('calc-main').innerHTML = '';
         }
-    } else if (location.hash.startsWith('#/add')) {
-        showOnly(pageCandidates);
-        initCandidatesFeed({ apiFetch });
     } else {
-        showOnly(pageSearch);
+        pageCalc.classList.add('hidden');
+        pageSearch.classList.remove('hidden');
         searchInput.focus();
-        refreshAddBadge();
     }
-}
-
-// Бейдж «сколько черновиков ждёт» на кнопке «Добавить машины».
-async function refreshAddBadge() {
-    const badge = document.getElementById('add-badge');
-    if (!badge) return;
-    try {
-        const s = await apiFetch('/api/candidates/stats');
-        if (s.pending > 0) { badge.textContent = s.pending; badge.classList.remove('hidden'); }
-        else badge.classList.add('hidden');
-    } catch { badge.classList.add('hidden'); }
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -121,9 +100,8 @@ function renderResults(cars) {
     });
 }
 
-// ── Back buttons ──────────────────────────────────────────────────────────────
+// ── Back button ───────────────────────────────────────────────────────────────
 document.getElementById('btn-back').onclick = () => { location.hash = '#/'; };
-document.getElementById('btn-add-back').onclick = () => { location.hash = '#/'; };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) {
