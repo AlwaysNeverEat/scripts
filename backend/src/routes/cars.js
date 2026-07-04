@@ -139,13 +139,33 @@ router.get('/match', async (req, res) => {
   const { engine_code, brand, model, year, volume } = req.query;
 
   try {
-    // Priority 1: exact engine_code match
+    // Priority 1: exact engine_code match.
+    // Коды бывают неуникальными («Zetec» стоит у половины Ford), поэтому при
+    // нескольких совпадениях ранжируем по марке, году и объёму из запроса.
     if (engine_code && engine_code.trim()) {
+      const params = [engine_code.trim()];
+      let brandScore = '0', yearScore = '0', volScore = '0';
+      if (brand && brand.trim()) {
+        params.push(normalize(brand));
+        brandScore = `CASE WHEN lower(brand) = $${params.length} THEN 4
+                           WHEN lower(brand) % $${params.length} THEN 2 ELSE 0 END`;
+      }
+      const yr = parseInt(year) || null;
+      if (yr) {
+        params.push(yr);
+        yearScore = `CASE WHEN $${params.length} BETWEEN year_from AND COALESCE(year_to, 9999) THEN 2 ELSE 0 END`;
+      }
+      const vol = parseFloat(volume) || null;
+      if (vol) {
+        params.push(vol);
+        volScore = `CASE WHEN engine_volume IS NOT NULL AND ABS(engine_volume - $${params.length}) < 0.2 THEN 1 ELSE 0 END`;
+      }
       const r = await query(
-        `SELECT * FROM cars
+        `SELECT *, (${brandScore} + ${yearScore} + ${volScore}) AS match_score
+         FROM cars
          WHERE lower(engine_code) = lower($1)
-         ORDER BY year_from DESC LIMIT 1`,
-        [engine_code.trim()],
+         ORDER BY match_score DESC, year_from DESC LIMIT 1`,
+        params,
       );
       if (r.rows.length) return res.json(r.rows[0]);
     }
