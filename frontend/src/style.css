@@ -823,6 +823,88 @@ input[data-edit-filter-absent]:checked::after {
   font-size: 11px; line-height: 1.5;
 }
 
+/* ── Кнопка «Добавить машины» на странице поиска ─────────────────── */
+.search-add-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 22px;
+  padding: 9px 16px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--sub);
+  font-size: 13px;
+  text-decoration: none;
+  transition: border-color .15s, color .15s;
+}
+.search-add-link:hover { border-color: var(--accent); color: var(--text); }
+.feed-badge {
+  min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: 9px; font-size: 11px; font-weight: 700;
+}
+
+/* ── Фид кандидатов ──────────────────────────────────────────────── */
+#page-candidates { max-width: 900px; margin: 0 auto; padding: 0 16px 80px; }
+.feed-sub { font-size: 12px; color: var(--sub); font-weight: 400; }
+.feed-intro {
+  margin: 14px 0 18px; padding: 12px 14px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--sub); font-size: 12.5px; line-height: 1.5;
+}
+.feed-list { display: flex; flex-direction: column; gap: 10px; }
+.feed-empty { padding: 40px 20px; text-align: center; color: var(--sub); font-size: 14px; }
+.feed-more { text-align: center; color: var(--sub); font-size: 12px; padding: 16px; min-height: 20px; }
+.feed-err { color: var(--red); }
+
+.feed-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  transition: border-color .15s, opacity .4s;
+}
+.feed-card.expanded { border-color: var(--accent); }
+.feed-card-gone { opacity: 0; }
+.feed-card-gone-msg { padding: 14px 16px; color: var(--accent); font-size: 13px; }
+
+.feed-card-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; cursor: pointer;
+}
+.feed-card-head:hover { background: var(--bg3); }
+.feed-card-main { flex: 1; min-width: 0; }
+.feed-card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feed-gen { color: var(--sub); font-weight: 500; font-size: 0.85em; }
+.feed-card-sub { font-size: 12px; color: var(--sub); margin-top: 3px; }
+.feed-card-filters { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+.feed-card-chevron { color: var(--sub); font-size: 14px; }
+
+.feed-q { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; letter-spacing: .3px; }
+.q-good    { background: oklch(0.6 0.15 150 / 0.18); color: oklch(0.7 0.15 150); }
+.q-partial { background: var(--accent-dim); color: var(--accent); }
+.q-nofilt  { background: var(--red-dim); color: var(--red); }
+.q-weak    { background: var(--bg3); color: var(--sub); }
+
+.feed-f { font-size: 11px; padding: 2px 7px; border-radius: 5px; font-family: "JetBrains Mono", Consolas, monospace; }
+.feed-f-ok     { background: var(--bg2); color: var(--text); }
+.feed-f-absent { background: var(--bg2); color: var(--sub); }
+.feed-f-miss   { background: var(--red-dim); color: var(--red); }
+
+.feed-card-body { display: none; }
+.feed-card.expanded .feed-card-body { display: block; }
+.feed-edit { padding: 4px 16px 18px; border-top: 1px solid var(--border); }
+.feed-edit textarea {
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 8px 10px; font-size: 13px; width: 100%; font-family: inherit;
+}
+.feed-edit textarea:focus { outline: none; border-color: var(--accent); }
+.feed-src { margin-top: 14px; display: flex; gap: 14px; }
+.feed-src a { color: var(--sub); font-size: 12px; text-decoration: none; }
+.feed-src a:hover { color: var(--accent); }
+.feed-edit-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.btn-danger { color: var(--red); border-color: var(--red-dim); }
+.btn-danger:hover { border-color: var(--red); background: var(--red-dim); }
+.feed-edit-err { margin-top: 12px; }
+
 /* ── Скроллбары ─────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 5px; }
