@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.80
+// @version      2.22.81
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -406,6 +406,46 @@
     return null;
   }
 
+  // shared/fuel.js
+  var FUEL_OPTIONS = [
+    { code: "", label: "не указано" },
+    { code: "01", label: "бензин" },
+    { code: "02", label: "бензин + газ" },
+    { code: "05", label: "дизель" }
+  ];
+  var DIESEL_CODES = /* @__PURE__ */ new Set(["05", "06"]);
+  var PETROL_CODES = /* @__PURE__ */ new Set(["01", "02", "04"]);
+  function isDieselFuel(fuelType) {
+    const ft = String(fuelType == null ? "" : fuelType).trim();
+    return DIESEL_CODES.has(ft) || /дизел|diesel/i.test(ft);
+  }
+  function isPetrolFuel(fuelType) {
+    const ft = String(fuelType == null ? "" : fuelType).trim();
+    return PETROL_CODES.has(ft) || /бензин|petrol|gasol|этанол|ethanol|\bгаз\b|lpg|cng/i.test(ft);
+  }
+  function normalizeFuelCode(fuelType) {
+    const ft = String(fuelType == null ? "" : fuelType).trim();
+    if (isDieselFuel(ft)) return "05";
+    if (ft === "02" || /газ|lpg|cng/i.test(ft)) return "02";
+    if (isPetrolFuel(ft)) return "01";
+    return "";
+  }
+  function fuelLabel(fuelType) {
+    const ft = String(fuelType == null ? "" : fuelType).trim();
+    if (!ft) return "";
+    if (isDieselFuel(ft)) return "⛽ дизель";
+    if (ft === "02") return "⛽ бензин + газ";
+    if (isPetrolFuel(ft)) return "⛽ бензин";
+    const safe = ft.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    return `⛽ топливо: ${safe}?`;
+  }
+  function fuelSelectOptions(current) {
+    const cur = normalizeFuelCode(current);
+    return FUEL_OPTIONS.map(
+      (o) => `<option value="${o.code}"${o.code === cur ? " selected" : ""}>${o.label}</option>`
+    ).join("");
+  }
+
   // shared/calculator.js
   var roundL = (x) => {
     const n = Number(x);
@@ -703,7 +743,7 @@
     const car = calcState2.car;
     const fuelType = String(car.fuelType || "");
     const ec = (car.engineCode || "").toUpperCase();
-    const isDieselVehicle = fuelType === "05" || fuelType === "06" || /дизел|diesel/i.test(fuelType) || /D(CI|TI|I)?\b|TDI|HDI|CRDI|BLUEHDI|JTDM|MULTIJET/i.test(ec);
+    const isDieselVehicle = isDieselFuel(fuelType) || /D(CI|TI|I)?\b|TDI|HDI|CRDI|BLUEHDI|JTD|MULTIJET/i.test(ec);
     const approvals = Array.isArray(carApprovals) ? carApprovals : [];
     const carTokens = tokenSet(approvals);
     const effectiveCarTokens = calcState2.ignoreApprovals ? /* @__PURE__ */ new Set() : carTokens;
@@ -1180,7 +1220,7 @@
     const cacheKey = [makeShort, modelShort, volume, kw, engineCode, yearFrom].filter(Boolean).join("_").toLowerCase().replace(/\s+/g, "");
     let fuelType = "";
     const allText = (engineName + " " + engineCode).toUpperCase();
-    if (/\bD\b|TDI|HDI|CDI|CRDI|TDCI|JTDM|MULTIJET|DTI|CTDI/i.test(allText)) {
+    if (/\bD\b|DCI|TDI|HDI|CDI|CRDI|TDCI|TDDI|JTD|MULTIJET|DTI|CTDI|D-?4D|SDI|\bTD\b/i.test(allText)) {
       fuelType = "05";
     }
     return {
@@ -1312,6 +1352,10 @@
                     ${idField("year_from", "Год с *", car.yearFrom)}
                     ${idField("kw", "кВт", car.kw)}
                     ${idField("bhp", "л.с.", car.bhp)}
+                    <label class="zm-db-field">
+                        <span>Топливо *</span>
+                        <select data-db-field="fuel_type">${fuelSelectOptions(car.fuelType)}</select>
+                    </label>
                 </div>
 
                 <div class="zm-db-sec-h">Объёмы жидкостей (Motul)</div>
@@ -1375,6 +1419,9 @@
       modal.querySelectorAll("[data-db-flag]").forEach((chk) => {
         if (chk.checked) flags[chk.dataset.dbFlag] = true;
       });
+      const fuelSel = val("fuel_type");
+      car.fuelType = fuelSel;
+      if (calcState.car) calcState.car.fuelType = fuelSel;
       const payload = {
         brand: val("brand"),
         model: val("model"),
@@ -1384,7 +1431,7 @@
         year_from: parseInt(val("year_from")) || null,
         kw: parseInt(val("kw")) || null,
         bhp: parseInt(val("bhp")) || null,
-        fuel_type: car.fuelType || null,
+        fuel_type: fuelSel || null,
         motul_name: calcState.data && calcState.data.motulName || null,
         fluid_capacities: fluid,
         filter_part_numbers: filters,
@@ -1630,7 +1677,7 @@
       return `
                 <div class="zm-car">
                     <div class="zm-car-t">${car.makeShort} ${car.modelShort}${car.engineName ? " " + car.engineName : car.volume ? " " + car.volume : ""}</div>
-                    <div class="zm-car-sub">${car.engineCode || "?"} · ${car.kw || "?"}кВт · ${car.yearFrom || "?"}</div>
+                    <div class="zm-car-sub">${car.engineCode || "?"} · ${car.kw || "?"}кВт · ${car.yearFrom || "?"}${fuelLabel(car.fuelType) ? " · " + fuelLabel(car.fuelType) : ""}</div>
                 </div>
                 <div class="zm-tray-status">${status}</div>
                 <div class="zm-tray-btns" style="flex-direction:column;gap:4px">
@@ -1862,7 +1909,7 @@
     return `
             <div class="zm-car">
                 <div class="zm-car-t">${car.makeShort} ${car.modelShort}${car.engineName ? " " + car.engineName : car.volume ? " " + car.volume : ""}</div>
-                <div class="zm-car-sub">${data.motulName || "?"} · ${car.engineCode || "?"} · ${car.kw || "?"}кВт${car.bhp ? " / " + car.bhp + "лс" : ""}${car.yearFrom ? " · " + car.yearFrom : ""}</div>
+                <div class="zm-car-sub">${data.motulName || "?"} · ${car.engineCode || "?"} · ${car.kw || "?"}кВт${car.bhp ? " / " + car.bhp + "лс" : ""}${car.yearFrom ? " · " + car.yearFrom : ""}${fuelLabel(car.fuelType) ? " · " + fuelLabel(car.fuelType) : ""}</div>
             </div>
             <div class="zm-ctrls">
                 <div class="zm-ctrl-row">
@@ -3184,10 +3231,10 @@
             .zm-db-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
             .zm-db-field{display:flex;flex-direction:column;gap:2px}
             .zm-db-field span{font-size:10px;color:#7986cb}
-            .zm-db-field input,.zm-db-agg-row input,.zm-db-filter-row input[type=text],
+            .zm-db-field input,.zm-db-field select,.zm-db-agg-row input,.zm-db-filter-row input[type=text],
             #zm-db-modal textarea{background:#1a1d2e;border:1px solid #2a2d3e;color:#e8eaf6;
                 border-radius:6px;padding:6px 8px;font:12px Arial;width:100%;box-sizing:border-box}
-            .zm-db-field input:focus,#zm-db-modal textarea:focus{outline:none;border-color:#E67E00}
+            .zm-db-field input:focus,.zm-db-field select:focus,#zm-db-modal textarea:focus{outline:none;border-color:#E67E00}
             .zm-db-agg-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
             .zm-db-agg-lbl{font-size:11px;color:#bdc1d1;min-width:130px}
             .zm-db-agg-row input{width:70px !important}

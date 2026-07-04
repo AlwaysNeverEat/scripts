@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getShopOils, getDefaults, getReglamentForBrand } from './oils.js';
+import { isDieselFuel } from './fuel.js';
 
 export const roundL = (x) => {
     const n = Number(x);
@@ -347,8 +348,8 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const car = calcState.car;
     const fuelType = String(car.fuelType || '');
     const ec = (car.engineCode || '').toUpperCase();
-    const isDieselVehicle = fuelType === '05' || fuelType === '06' ||
-        /дизел|diesel/i.test(fuelType) || /D(CI|TI|I)?\b|TDI|HDI|CRDI|BLUEHDI|JTDM|MULTIJET/i.test(ec);
+    const isDieselVehicle = isDieselFuel(fuelType) ||
+        /D(CI|TI|I)?\b|TDI|HDI|CRDI|BLUEHDI|JTD|MULTIJET/i.test(ec);
 
     const approvals = Array.isArray(carApprovals) ? carApprovals : [];
     const carTokens = tokenSet(approvals);

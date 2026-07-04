@@ -101,7 +101,7 @@ export function parseLynxUrl() {
 
     let fuelType = '';
     const allText = (engineName + ' ' + engineCode).toUpperCase();
-    if (/\bD\b|TDI|HDI|CDI|CRDI|TDCI|JTDM|MULTIJET|DTI|CTDI/i.test(allText)) {
+    if (/\bD\b|DCI|TDI|HDI|CDI|CRDI|TDCI|TDDI|JTD|MULTIJET|DTI|CTDI|D-?4D|SDI|\bTD\b/i.test(allText)) {
         fuelType = '05';
     }
 

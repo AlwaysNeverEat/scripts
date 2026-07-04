@@ -7,6 +7,7 @@
 import { initCalculator } from './calculator.js';
 import { activeFlags, SERVICE_FLAGS } from '../../shared/serviceFlags.js';
 import { getShopOils } from '../../shared/oils.js';
+import { fuelLabel, fuelSelectOptions } from '../../shared/fuel.js';
 
 let editMode = false;
 
@@ -169,7 +170,10 @@ function renderEditForm(record) {
                 ${f('year_to', 'Год по', record.year_to, 'number')}
                 ${f('kw', 'кВт', record.kw, 'number')}
                 ${f('bhp', 'л.с.', record.bhp, 'number')}
-                ${f('fuel_type', 'Топливо (01=бензин, 05/06=дизель)', record.fuel_type)}
+                <label class="edit-field">
+                    <span>Топливо</span>
+                    <select data-edit="fuel_type">${fuelSelectOptions(record.fuel_type)}</select>
+                </label>
             </div>
 
             ${volRows ? `<div class="edit-sec-h">Объёмы жидкостей</div>${volRows}` : ''}
@@ -284,13 +288,6 @@ function bindEditForm(head, record, ctx) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function fuelLabel(fuelType) {
-    const ft = String(fuelType || '');
-    if (!ft) return '';
-    if (ft === '05' || ft === '06' || /дизел|diesel/i.test(ft)) return '⛽ дизель';
-    return '⛽ бензин';
-}
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>

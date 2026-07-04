@@ -670,7 +670,8 @@ input[data-edit-filter-absent]:checked::after {
 }
 .edit-field { display: flex; flex-direction: column; gap: 3px; }
 .edit-field span { font-size: 10px; color: var(--sub); }
-.edit-field input, .edit-filter-row input[type="text"], .edit-filter-row input[type="number"],
+.edit-field input, .edit-field select,
+.edit-filter-row input[type="text"], .edit-filter-row input[type="number"],
 .head-card-edit textarea {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -681,7 +682,7 @@ input[data-edit-filter-absent]:checked::after {
   width: 100%;
   font-family: inherit;
 }
-.edit-field input:focus, .head-card-edit textarea:focus,
+.edit-field input:focus, .edit-field select:focus, .head-card-edit textarea:focus,
 .edit-filter-row input:focus { outline: none; border-color: var(--accent); }
 .edit-filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .edit-filter-row input[type="text"] { flex: 1; width: auto; font-family: "JetBrains Mono", Consolas, monospace; }
