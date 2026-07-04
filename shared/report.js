@@ -74,7 +74,8 @@ export function formatAggText(agg, calc, calcState) {
             || roundL(calcState.atpVolumeManual)
             || 0;
         const label = isCvt ? 'вариатор' : 'акпп';
-        lines.push(`${label} (серв ${vService}л)`);
+        const sp3Note = isCvt && calcState.cvtAtfSp3 ? ', ATF SP-III' : '';
+        lines.push(`${label} (серв ${vService}л${sp3Note})`);
         const extras = [];
         if (isPartial) extras.push('работа 1210₽');
         if (isCvt) {

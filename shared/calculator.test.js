@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 import {
     tokenSet, expandCoveredTokens, splitOilApprovals, pickEngineOils,
+    calcForAggregate,
 } from './calculator.js';
 import { getShopOils } from './oils.js';
 
@@ -134,4 +135,22 @@ test('VW 507 00 покрывает 505 00/505 01; RN 0710 покрывает 070
     const ll = expandCoveredTokens(tokenSet(['LL 04']));
     assert.ok(ll.has('LL01'));
     assert.ok(ll.has('LL98'), 'транзитивно через LL 01');
+});
+
+test('вариатор с галочкой «АТФ SP-III»: только ROLF Professional ATF Multi', () => {
+    const makeAgg = () => ({ key: 'automatic', group: 'auto', isCvt: true, volume: 7, approvals: [] });
+    const state = {
+        atpType: 'partial', volumeOverride: {}, atpVolumeManual: null, flush: 'none',
+        cvtFilterCoarse: false, cvtFilterFine: false, cvtAtfSp3: true,
+    };
+
+    const calc = calcForAggregate(makeAgg(), state, []);
+    assert.equal(calc.costs.length, 1, 'предлагается ровно одно масло');
+    assert.equal(calc.costs[0].oil.b, 'ROLF');
+    assert.equal(calc.costs[0].oil.n, 'Professional ATF Multi');
+
+    // без галочки — обычная пара CVT-масел
+    const calc2 = calcForAggregate(makeAgg(), { ...state, cvtAtfSp3: false }, []);
+    assert.equal(calc2.costs.length, 2);
+    assert.ok(calc2.costs.every(c => c.oil.v === 'CVT'));
 });

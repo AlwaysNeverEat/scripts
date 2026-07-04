@@ -27,6 +27,7 @@ export function initCalculator(dbRecord) {
         atpFilter: false,
         cvtFilterCoarse: false,
         cvtFilterFine: false,
+        cvtAtfSp3: false,
         atpVolumeManual: null,
         volumeOverride: {},
         selected: new Set(),
@@ -384,6 +385,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                 ${isCvt ? `
                     <label class="chk-label"><input type="checkbox" data-atp-flag="cvtFilterCoarse" ${calcState.cvtFilterCoarse?'checked':''}/> Фильтр грубый (+1700₽)</label>
                     <label class="chk-label"><input type="checkbox" data-atp-flag="cvtFilterFine"   ${calcState.cvtFilterFine?'checked':''}/> Фильтр тонкий (+3350₽)</label>
+                    <label class="chk-label"><input type="checkbox" data-atp-flag="cvtAtfSp3"       ${calcState.cvtAtfSp3?'checked':''}/> АТФ SP-III (старый вариатор — только ROLF Professional ATF Multi)</label>
                 ` : `
                     <label class="chk-label"><input type="checkbox" data-atp-flag="atpFilter" ${calcState.atpFilter?'checked':''}/> Фильтр (+1700₽)</label>
                 `}

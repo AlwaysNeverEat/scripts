@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.83
+// @version      2.22.84
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -912,8 +912,13 @@
       }
     } else if (agg.group === "auto") {
       if (isCvt) {
-        oil1 = defaults.cvt[0];
-        oil2 = defaults.cvt[1];
+        if (calcState2.cvtAtfSp3) {
+          oil1 = defaults.atf.rolfMulti;
+          oil2 = null;
+        } else {
+          oil1 = defaults.cvt[0];
+          oil2 = defaults.cvt[1];
+        }
       } else {
         const picked = pickAtfOils(agg.approvals || [], defaults.atf);
         oil1 = picked.oil1;
@@ -1054,7 +1059,8 @@
       const pct = !isPartial ? "150%" : isCvt ? "80%" : "60%";
       const vService = roundL(parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)) || roundL((calcState2.volumeOverride || {})[agg.key]) || roundL(calcState2.atpVolumeManual) || 0;
       const label = isCvt ? "вариатор" : "акпп";
-      lines.push(`${label} (серв ${vService}л)`);
+      const sp3Note = isCvt && calcState2.cvtAtfSp3 ? ", ATF SP-III" : "";
+      lines.push(`${label} (серв ${vService}л${sp3Note})`);
       const extras = [];
       if (isPartial) extras.push("работа 1210₽");
       if (isCvt) {
@@ -1881,6 +1887,7 @@
         atpFilter: false,
         cvtFilterCoarse: false,
         cvtFilterFine: false,
+        cvtAtfSp3: false,
         atpVolumeManual: null,
         volumeOverride: {},
         selected: /* @__PURE__ */ new Set(),
@@ -2241,6 +2248,10 @@
                             <input type="checkbox" id="zm-cvt-filter-fine" ${calcState.cvtFilterFine ? "checked" : ""}/>
                             <span class="zm-chk-lbl">Фильтр тонкой очистки (+3350₽)</span>
                         </label>
+                        <label class="zm-chk">
+                            <input type="checkbox" id="zm-cvt-atf-sp3" ${calcState.cvtAtfSp3 ? "checked" : ""}/>
+                            <span class="zm-chk-lbl">АТФ SP-III (старый вариатор — только ROLF Professional ATF Multi)</span>
+                        </label>
                         ` : `
                         <label class="zm-chk">
                             <input type="checkbox" id="zm-atp-filter" ${calcState.atpFilter ? "checked" : ""}/>
@@ -2328,6 +2339,11 @@
     const cvtF = document.getElementById("zm-cvt-filter-fine");
     if (cvtF) cvtF.onchange = () => {
       calcState.cvtFilterFine = cvtF.checked;
+      rerenderAggs();
+    };
+    const cvtSp3 = document.getElementById("zm-cvt-atf-sp3");
+    if (cvtSp3) cvtSp3.onchange = () => {
+      calcState.cvtAtfSp3 = cvtSp3.checked;
       rerenderAggs();
     };
     if (savedFocus) {
