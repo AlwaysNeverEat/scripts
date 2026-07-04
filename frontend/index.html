@@ -11,6 +11,33 @@
   <link rel="stylesheet" href="/src/style.css"/>
 </head>
 <body>
+  <!-- Boot screen: показывается, пока сервер на Render просыпается (src/bootScreen.js) -->
+  <div id="boot-screen">
+    <div class="boot-card">
+      <div class="boot-head">
+        <span class="boot-title">SYS/BOOT</span>
+        <span class="boot-time" id="boot-time"></span>
+      </div>
+      <div class="boot-log" id="boot-log"></div>
+      <div class="boot-bar">
+        <div class="boot-bar-fill" id="boot-bar-fill">
+          <div class="boot-bar-wave"></div>
+          <div class="boot-bar-shimmer"></div>
+        </div>
+      </div>
+      <div class="boot-foot">
+        <span class="boot-status" id="boot-status">LOADING — 0%</span>
+        <div class="boot-actions hidden" id="boot-actions">
+          <button id="boot-retry" class="boot-btn">Retry</button>
+          <button id="boot-skip" class="boot-btn">Continue</button>
+        </div>
+      </div>
+      <div class="boot-hint hidden" id="boot-hint">
+        Бесплатный сервер засыпает без активности — первый запуск может занять до минуты.
+      </div>
+    </div>
+  </div>
+
   <div id="app">
     <!-- Search page -->
     <div id="page-search">

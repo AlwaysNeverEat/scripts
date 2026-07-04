@@ -21,6 +21,11 @@ export default defineConfig(({ mode }) => {
           target: apiTarget,
           changeOrigin: true,
         },
+        // boot-экран пингует /health, чтобы понять что сервер проснулся
+        '/health': {
+          target: apiTarget,
+          changeOrigin: true,
+        },
       },
     },
     define: {

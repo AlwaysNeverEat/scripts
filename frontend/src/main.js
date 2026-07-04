@@ -1,5 +1,6 @@
 import { initCarPage } from './carPage.js';
 import { startSphere } from './sphere.js';
+import { bootScreen } from './bootScreen.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -46,8 +47,6 @@ async function renderRoute() {
         searchInput.focus();
     }
 }
-
-window.addEventListener('hashchange', renderRoute);
 
 // ── Search ────────────────────────────────────────────────────────────────────
 const searchInput   = document.getElementById('search-input');
@@ -125,5 +124,11 @@ async function loadSphere() {
     } catch { /* сфера — украшение, без неё страшного нет */ }
 }
 
-renderRoute();
-loadSphere();
+// ── Старт ─────────────────────────────────────────────────────────────────────
+// Сначала boot-экран ждёт, пока бэкенд на Render проснётся (/health),
+// и только потом запускаем роутинг и загрузку данных.
+bootScreen((API_BASE || '') + '/health').then(() => {
+    window.addEventListener('hashchange', renderRoute);
+    renderRoute();
+    loadSphere();
+});
