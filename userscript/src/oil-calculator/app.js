@@ -23,6 +23,7 @@ import {
     buildTotalsLines as sharedBuildTotalsLines,
 } from '../../../shared/report.js';
 import { SERVICE_FLAGS } from '../../../shared/serviceFlags.js';
+import { fuelLabel, fuelSelectOptions } from '../../../shared/fuel.js';
 import { parseMannUrl } from '../parsers.js';
 
 // ── База рассчитанных машин ───────────────────────────────────────────────────
@@ -162,6 +163,10 @@ function openDbModal(car) {
                     ${idField('year_from',    'Год с *',   car.yearFrom)}
                     ${idField('kw',           'кВт',       car.kw)}
                     ${idField('bhp',          'л.с.',      car.bhp)}
+                    <label class="zm-db-field">
+                        <span>Топливо *</span>
+                        <select data-db-field="fuel_type">${fuelSelectOptions(car.fuelType)}</select>
+                    </label>
                 </div>
 
                 <div class="zm-db-sec-h">Объёмы жидкостей (Motul)</div>
@@ -233,6 +238,12 @@ function openDbModal(car) {
             if (chk.checked) flags[chk.dataset.dbFlag] = true;
         });
 
+        // выбранное топливо — в машину, чтобы снапшот рекомендаций и подбор
+        // считались как для дизеля/бензина, а не как угадал парсер
+        const fuelSel = val('fuel_type');
+        car.fuelType = fuelSel;
+        if (calcState.car) calcState.car.fuelType = fuelSel;
+
         const payload = {
             brand: val('brand'), model: val('model'),
             engine_name: val('engine_name') || null,
@@ -241,7 +252,7 @@ function openDbModal(car) {
             year_from: parseInt(val('year_from')) || null,
             kw: parseInt(val('kw')) || null,
             bhp: parseInt(val('bhp')) || null,
-            fuel_type: car.fuelType || null,
+            fuel_type: fuelSel || null,
             motul_name: (calcState.data && calcState.data.motulName) || null,
             fluid_capacities: fluid,
             filter_part_numbers: filters,
@@ -519,7 +530,7 @@ function calcForAggregate(agg) {
             return `
                 <div class="zm-car">
                     <div class="zm-car-t">${car.makeShort} ${car.modelShort}${car.engineName?' '+car.engineName:(car.volume?' '+car.volume:'')}</div>
-                    <div class="zm-car-sub">${car.engineCode || '?'} · ${car.kw||'?'}кВт · ${car.yearFrom||'?'}</div>
+                    <div class="zm-car-sub">${car.engineCode || '?'} · ${car.kw||'?'}кВт · ${car.yearFrom||'?'}${fuelLabel(car.fuelType) ? ' · ' + fuelLabel(car.fuelType) : ''}</div>
                 </div>
                 <div class="zm-tray-status">${status}</div>
                 <div class="zm-tray-btns" style="flex-direction:column;gap:4px">
@@ -766,7 +777,7 @@ function calcForAggregate(agg) {
         return `
             <div class="zm-car">
                 <div class="zm-car-t">${car.makeShort} ${car.modelShort}${car.engineName?' '+car.engineName:(car.volume?' '+car.volume:'')}</div>
-                <div class="zm-car-sub">${data.motulName || '?'} · ${car.engineCode || '?'} · ${car.kw||'?'}кВт${car.bhp?' / '+car.bhp+'лс':''}${car.yearFrom?' · '+car.yearFrom:''}</div>
+                <div class="zm-car-sub">${data.motulName || '?'} · ${car.engineCode || '?'} · ${car.kw||'?'}кВт${car.bhp?' / '+car.bhp+'лс':''}${car.yearFrom?' · '+car.yearFrom:''}${fuelLabel(car.fuelType) ? ' · ' + fuelLabel(car.fuelType) : ''}</div>
             </div>
             <div class="zm-ctrls">
                 <div class="zm-ctrl-row">
@@ -1592,7 +1603,7 @@ function calcForAggregate(agg) {
             return `
                 <div class="zm-car">
                     <div class="zm-car-t">${car.makeShort} ${car.modelShort}${car.volume?' '+car.volume:''}</div>
-                    <div class="zm-car-sub">${car.engineCode || '?'} · ${car.yearFrom||'?'}${car.fuelType?' · '+car.fuelType:''}</div>
+                    <div class="zm-car-sub">${car.engineCode || '?'} · ${car.yearFrom||'?'}${fuelLabel(car.fuelType) ? ' · ' + fuelLabel(car.fuelType) : ''}</div>
                 </div>
                 ${status}
                 <div class="zm-tray-actions">
@@ -2317,10 +2328,10 @@ function calcForAggregate(agg) {
             .zm-db-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
             .zm-db-field{display:flex;flex-direction:column;gap:2px}
             .zm-db-field span{font-size:10px;color:#7986cb}
-            .zm-db-field input,.zm-db-agg-row input,.zm-db-filter-row input[type=text],
+            .zm-db-field input,.zm-db-field select,.zm-db-agg-row input,.zm-db-filter-row input[type=text],
             #zm-db-modal textarea{background:#1a1d2e;border:1px solid #2a2d3e;color:#e8eaf6;
                 border-radius:6px;padding:6px 8px;font:12px Arial;width:100%;box-sizing:border-box}
-            .zm-db-field input:focus,#zm-db-modal textarea:focus{outline:none;border-color:#E67E00}
+            .zm-db-field input:focus,.zm-db-field select:focus,#zm-db-modal textarea:focus{outline:none;border-color:#E67E00}
             .zm-db-agg-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
             .zm-db-agg-lbl{font-size:11px;color:#bdc1d1;min-width:130px}
             .zm-db-agg-row input{width:70px !important}
