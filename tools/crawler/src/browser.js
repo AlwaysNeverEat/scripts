@@ -4,7 +4,7 @@
 // playwright-core и запускает его. В песочнице с egress-прокси нужно передать
 // HTTPS_PROXY: playwright пробрасывает его в chromium через опцию proxy.
 
-import { chromium } from 'playwright-core';
+import { chromium } from 'playwright';
 
 export async function launchBrowser({ headless = true, executablePath, slowMo = 0 } = {}) {
   const opts = { headless, slowMo, args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'] };

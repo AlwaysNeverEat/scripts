@@ -25,9 +25,9 @@ Lubricant Advisor** (объёмы жидкостей по агрегатам), �
 
 ```bash
 cd tools/crawler
-npm install                       # ставит playwright-core + браузер
+npm install                       # ставит playwright и сам скачивает Chromium
 cp config.example.json config.json
-#   впиши apiBase и apiKey (тот же X-API-KEY, что у бэкенда)
+#   впиши apiBase и apiKey (тот же X-API-KEY, что у бэкенда на Render)
 
 # СНАЧАЛА тюнинг-прогон на 1–2 машинах с видимым браузером и без записи:
 node crawl.mjs --limit 2 --headful --dry-run
