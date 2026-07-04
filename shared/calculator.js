@@ -534,7 +534,13 @@ export function calcForAggregate(agg, calcState, carApprovals) {
         }
     } else if (agg.group === 'auto') {
         if (isCvt) {
-            oil1 = defaults.cvt[0]; oil2 = defaults.cvt[1];
+            if (calcState.cvtAtfSp3) {
+                // Старый вариатор на ATF SP-III: подходит только ROLF
+                // Professional ATF Multi (в допусках Mitsubishi/Hyundai SP-III)
+                oil1 = defaults.atf.rolfMulti; oil2 = null;
+            } else {
+                oil1 = defaults.cvt[0]; oil2 = defaults.cvt[1];
+            }
         } else {
             const picked = pickAtfOils(agg.approvals || [], defaults.atf);
             oil1 = picked.oil1; oil2 = picked.oil2;

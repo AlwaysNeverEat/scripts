@@ -750,6 +750,7 @@ function calcForAggregate(agg) {
                 atpFilter: false,
                 cvtFilterCoarse: false,
                 cvtFilterFine: false,
+                cvtAtfSp3: false,
                 atpVolumeManual: null,
                 volumeOverride: {},
                 selected: new Set(),
@@ -1136,6 +1137,10 @@ function calcForAggregate(agg) {
                             <input type="checkbox" id="zm-cvt-filter-fine" ${calcState.cvtFilterFine?'checked':''}/>
                             <span class="zm-chk-lbl">Фильтр тонкой очистки (+3350₽)</span>
                         </label>
+                        <label class="zm-chk">
+                            <input type="checkbox" id="zm-cvt-atf-sp3" ${calcState.cvtAtfSp3?'checked':''}/>
+                            <span class="zm-chk-lbl">АТФ SP-III (старый вариатор — только ROLF Professional ATF Multi)</span>
+                        </label>
                         ` : `
                         <label class="zm-chk">
                             <input type="checkbox" id="zm-atp-filter" ${calcState.atpFilter?'checked':''}/>
@@ -1224,6 +1229,11 @@ function calcForAggregate(agg) {
         const cvtF = document.getElementById('zm-cvt-filter-fine');
         if (cvtF) cvtF.onchange = () => {
             calcState.cvtFilterFine = cvtF.checked;
+            rerenderAggs();
+        };
+        const cvtSp3 = document.getElementById('zm-cvt-atf-sp3');
+        if (cvtSp3) cvtSp3.onchange = () => {
+            calcState.cvtAtfSp3 = cvtSp3.checked;
             rerenderAggs();
         };
 
