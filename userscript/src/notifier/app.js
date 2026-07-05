@@ -29,16 +29,13 @@ const checked = new Map();
 const retries = new Map();  // cacheKey → число сделанных повторов
 
 function apiMatch(car) {
-    const params = new URLSearchParams();
-    // Сигнатура текущей страницы (mann:type:…, lynx:…) — точный матч по
-    // сурс-ссылке, устойчивый к «мусорным» id в URL. Backend отдаёт ей приоритет.
+    // Матчим ТОЛЬКО по сурс-ссылке: сигнатура текущей страницы (mann:type:…,
+    // lynx:…) устойчива к «мусорным» id в URL. Если ссылка совпала с базой —
+    // это та самая машина; фаззи-подбор по марке/модели больше не нужен.
     const sig = sourceSignature(location.href);
-    if (sig) params.set('source_key', sig);
-    if (car.engineCode) params.set('engine_code', car.engineCode);
-    if (car.makeShort)  params.set('brand', car.makeShort);
-    if (car.modelShort) params.set('model', car.modelShort);
-    if (car.yearFrom)   params.set('year', String(car.yearFrom));
-    if (car.volume)     params.set('volume', String(car.volume));
+    if (!sig) return Promise.resolve({ status: 'notfound' });
+    const params = new URLSearchParams();
+    params.set('source_key', sig);
 
     return new Promise((resolve) => {
         GM_xmlhttpRequest({

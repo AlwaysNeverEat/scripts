@@ -1,6 +1,7 @@
 import { initCarPage } from './carPage.js';
 import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
+import { SOURCE_SITES, SOURCE_LABELS } from '../../shared/sourceLinks.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -102,6 +103,69 @@ function renderResults(cars) {
 
 // ── Back button ───────────────────────────────────────────────────────────────
 document.getElementById('btn-back').onclick = () => { location.hash = '#/'; };
+
+// ── Временный полный список машин ─────────────────────────────────────────────
+// Нужен, пока дозаполняем старые машины сурс-ссылками. Порядок стабильный
+// (backend отдаёт по brand, model, year_from), строки пронумерованы. Убрать
+// вместе с кнопкой #btn-list-all, когда все ссылки проставлены.
+const listToggle = document.getElementById('btn-list-all');
+const listBox = document.getElementById('list-all');
+let listLoaded = false;
+
+async function fetchAllCars() {
+    const limit = 100;
+    let page = 1, all = [], total = Infinity;
+    while (all.length < total) {
+        const res = await apiFetch(`/api/cars?page=${page}&limit=${limit}`);
+        total = res.total;
+        all = all.concat(res.data);
+        if (!res.data.length) break;
+        page += 1;
+    }
+    return all;
+}
+
+function renderAllCars(cars) {
+    const rows = cars.map((car, i) => {
+        const links = car.source_links || {};
+        const present = SOURCE_SITES.filter(s => links[s]);
+        const tags = present.length
+            ? present.map(s => `<span class="list-all-tag">${esc(SOURCE_LABELS[s])}</span>`).join('')
+            : '<span class="list-all-none">нет ссылок</span>';
+        const name = [car.brand, car.model, car.generation].filter(Boolean).join(' ');
+        const sub = [
+            car.engine_code, car.engine_volume ? car.engine_volume + 'л' : '',
+            car.year_from ? car.year_from + (car.year_to ? '–' + car.year_to : '+') : '',
+        ].filter(Boolean).join(' · ');
+        return `
+            <div class="list-all-row" data-id="${car.id}">
+                <span class="list-all-num">${i + 1}.</span>
+                <span class="list-all-name">${esc(name)}${sub ? ` <span class="mono">${esc(sub)}</span>` : ''}</span>
+                <span class="list-all-links">${tags}</span>
+            </div>`;
+    }).join('');
+    const withLinks = cars.filter(c => SOURCE_SITES.some(s => (c.source_links || {})[s])).length;
+    listBox.innerHTML =
+        `<div class="list-all-head">Всего ${cars.length} · со ссылками ${withLinks} · без ссылок ${cars.length - withLinks}</div>` +
+        (rows || '<div class="search-empty">База пуста</div>');
+    listBox.querySelectorAll('.list-all-row').forEach(row => {
+        row.onclick = () => { location.hash = '#/car/' + row.dataset.id; };
+    });
+}
+
+if (listToggle) listToggle.onclick = async () => {
+    if (!listBox.classList.contains('hidden')) { listBox.classList.add('hidden'); return; }
+    listBox.classList.remove('hidden');
+    if (!listLoaded) {
+        listBox.innerHTML = '<div class="search-empty">Загрузка…</div>';
+        try {
+            renderAllCars(await fetchAllCars());
+            listLoaded = true;
+        } catch (e) {
+            listBox.innerHTML = `<div class="search-empty">Ошибка загрузки: ${esc(e.message)}</div>`;
+        }
+    }
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.1.89
+// @version      1.1.90
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
 // @match        https://mann-filter.com/*
@@ -184,14 +184,10 @@
   var checked = /* @__PURE__ */ new Map();
   var retries = /* @__PURE__ */ new Map();
   function apiMatch(car) {
-    const params = new URLSearchParams();
     const sig = sourceSignature(location.href);
-    if (sig) params.set("source_key", sig);
-    if (car.engineCode) params.set("engine_code", car.engineCode);
-    if (car.makeShort) params.set("brand", car.makeShort);
-    if (car.modelShort) params.set("model", car.modelShort);
-    if (car.yearFrom) params.set("year", String(car.yearFrom));
-    if (car.volume) params.set("volume", String(car.volume));
+    if (!sig) return Promise.resolve({ status: "notfound" });
+    const params = new URLSearchParams();
+    params.set("source_key", sig);
     return new Promise((resolve) => {
       GM_xmlhttpRequest({
         method: "GET",
