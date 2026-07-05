@@ -161,6 +161,51 @@ input, button, select, textarea { font-family: inherit; }
 .car-card-sub    { font-size: 12px; color: var(--sub); margin-top: 2px; }
 .search-empty { padding: 20px; text-align: center; color: var(--sub); font-size: 13px; }
 
+/* ── Временный полный список машин (дозаполнение сурс-ссылок) ─────── */
+.list-all-toggle { margin-top: 12px; width: 100%; }
+.list-all {
+  margin-top: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.list-all-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 13px;
+}
+.list-all-row:last-child { border-bottom: none; }
+.list-all-row:hover { background: var(--bg3); }
+.list-all-num { color: var(--sub); font-variant-numeric: tabular-nums; min-width: 2.5em; text-align: right; }
+.list-all-name { flex: 1; }
+.list-all-name .mono { color: var(--sub); font-size: 12px; }
+.list-all-links { display: flex; gap: 4px; flex-wrap: wrap; }
+.list-all-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--sub);
+}
+.list-all-none { color: var(--red); font-size: 11px; font-weight: 600; }
+.list-all-head {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--sub);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--card);
+}
+
 /* ── Кнопки ─────────────────────────────────────────────────────── */
 .btn {
   background: var(--bg2);
@@ -264,6 +309,36 @@ input, button, select, textarea { font-family: inherit; }
   font-size: 13px;
   white-space: pre-wrap;
 }
+/* ── Страницы машины (сурс-ссылки) ──────────────────────────────── */
+.head-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.head-sources-lbl { font-size: 12px; color: var(--sub); margin-right: 2px; }
+.src-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color .15s, background .15s;
+}
+.src-btn:hover { border-color: var(--accent); background: var(--bg3); }
+.src-btn-mann    { border-left: 3px solid oklch(0.62 0.2 25); }
+.src-btn-lynx    { border-left: 3px solid oklch(0.7 0.17 145); }
+.src-btn-ravenol { border-left: 3px solid oklch(0.75 0.16 85); }
+.src-btn-motul   { border-left: 3px solid oklch(0.62 0.2 265); }
+.src-btn-rolf    { border-left: 3px solid oklch(0.68 0.2 20); }
+
 .head-rec { margin-top: 12px; font-size: 12px; }
 .head-rec summary { cursor: pointer; color: var(--sub); }
 .head-rec-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
