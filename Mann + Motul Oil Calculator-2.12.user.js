@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.96
+// @version      2.22.93
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -1143,13 +1143,12 @@
   };
 
   // shared/sourceLinks.js
-  var SOURCE_SITES = ["mann", "lynx", "ravenol", "motul", "rolf"];
+  var SOURCE_SITES = ["mann", "lynx", "ravenol", "motul"];
   var SOURCE_LABELS = {
     mann: "Mann-Filter",
     lynx: "LYNXauto",
     ravenol: "Ravenol",
-    motul: "Motul",
-    rolf: "ROLF"
+    motul: "Motul"
   };
   function detectSite(url) {
     let u;
@@ -1163,7 +1162,6 @@
     if (h.includes("lynxauto.info")) return "lynx";
     if (h.includes("ravenol.ru")) return "ravenol";
     if (h.includes("motul.lubricantadvisor.com")) return "motul";
-    if (h.includes("rolfoil.ru") || h.includes("upec.pro")) return "rolf";
     return null;
   }
   function normPart(s) {
@@ -2772,7 +2770,6 @@
       const result = GM_getValue("rolf_approvals_" + key, null);
       if (result && result.length) {
         clearInterval(interval);
-        recordSourceLink(key, "rolf", location.href);
         const st = document.getElementById("zm-rolf-status");
         const b = document.getElementById("__zm_rolf_badge");
         if (b) {

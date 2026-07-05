@@ -337,7 +337,6 @@ input, button, select, textarea { font-family: inherit; }
 .src-btn-lynx    { border-left: 3px solid oklch(0.7 0.17 145); }
 .src-btn-ravenol { border-left: 3px solid oklch(0.75 0.16 85); }
 .src-btn-motul   { border-left: 3px solid oklch(0.62 0.2 265); }
-.src-btn-rolf    { border-left: 3px solid oklch(0.68 0.2 20); }
 
 .head-rec { margin-top: 12px; font-size: 12px; }
 .head-rec summary { cursor: pointer; color: var(--sub); }

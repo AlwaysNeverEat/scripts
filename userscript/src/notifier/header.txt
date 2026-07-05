@@ -6,6 +6,7 @@
 // @match        https://www.mann-filter.com/*
 // @match        https://mann-filter.com/*
 // @match        https://lynxauto.info/*
+// @match        https://podbor.ravenol.ru/*
 // @grant        GM_xmlhttpRequest
 // @connect      cars-db-backend.onrender.com
 // @connect      localhost

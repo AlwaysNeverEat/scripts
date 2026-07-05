@@ -1,14 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SPOT DB Notifier — лёгкий юзерскрипт для коллег.
-// Видит машину на сайте подбора (Mann Filter / LYNXauto) → спрашивает базу
-// рассчитанных машин → показывает баннер «✓ эта машина уже рассчитана».
+// Видит машину на сайте подбора (Mann Filter / LYNXauto / Ravenol) → спрашивает
+// базу рассчитанных машин → показывает баннер «✓ эта машина уже рассчитана».
 // Клик по баннеру открывает страницу машины на нашем сайте со всеми данными.
+//
+// Матч идёт по сигнатуре текущей страницы (shared/sourceLinks.js): скрипт
+// работает на любом сайте подбора, из которого вытаскивается устойчивый ключ.
 //
 // Никакого калькулятора внутри нет — если у тебя стоит основной
 // «Mann + Motul Oil Calculator», этот скрипт не нужен.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { parseMannUrl } from '../parsers.js';
 import { sourceSignature } from '../../../shared/sourceLinks.js';
 
 // Настройки (для продакшена поменять и добавить хост в @connect в header.txt)
@@ -28,12 +30,10 @@ const NOTFOUND_TTL_MS    = 5 * 60 * 1000; // машину могли рассч�
 const checked = new Map();
 const retries = new Map();  // cacheKey → число сделанных повторов
 
-function apiMatch(car) {
+function apiMatch(sig) {
     // Матчим ТОЛЬКО по сурс-ссылке: сигнатура текущей страницы (mann:type:…,
-    // lynx:…) устойчива к «мусорным» id в URL. Если ссылка совпала с базой —
+    // lynx:…, ravenol:…) устойчива к «мусорным» id в URL. Совпала с базой —
     // это та самая машина; фаззи-подбор по марке/модели больше не нужен.
-    const sig = sourceSignature(location.href);
-    if (!sig) return Promise.resolve({ status: 'notfound' });
     const params = new URLSearchParams();
     params.set('source_key', sig);
 
@@ -116,10 +116,11 @@ function showBanner(record) {
 }
 
 async function checkCurrentCar() {
-    const car = parseMannUrl();
-    if (!car) { removeBanner(); return; }
+    // Ключ страницы = сигнатура сурс-ссылки. Нет ключа (не сайт подбора или
+    // страница-поиск без машины, напр. Motul/ROLF) — баннера нет.
+    const key = sourceSignature(location.href);
+    if (!key) { removeBanner(); return; }
 
-    const key = car.cacheKey;
     const state = checked.get(key);
     if (state === 'pending') return;
     if (state && state.record) {
@@ -131,7 +132,7 @@ async function checkCurrentCar() {
     if (state && state.notFoundAt && Date.now() - state.notFoundAt < NOTFOUND_TTL_MS) return;
 
     checked.set(key, 'pending');
-    const res = await apiMatch(car);
+    const res = await apiMatch(key);
 
     if (res.status === 'found') {
         retries.delete(key);
@@ -155,8 +156,7 @@ async function checkCurrentCar() {
     if (attempt < RETRY_DELAYS_MS.length) {
         retries.set(key, attempt + 1);
         setTimeout(() => {
-            const cur = parseMannUrl();
-            if (cur && cur.cacheKey === key) checkCurrentCar();
+            if (sourceSignature(location.href) === key) checkCurrentCar();
         }, RETRY_DELAYS_MS[attempt]);
     }
 }
