@@ -8,6 +8,9 @@ import { initCalculator } from './calculator.js';
 import { activeFlags, SERVICE_FLAGS } from '../../shared/serviceFlags.js';
 import { getShopOils } from '../../shared/oils.js';
 import { fuelLabel, fuelSelectOptions } from '../../shared/fuel.js';
+import {
+    SOURCE_SITES, SOURCE_LABELS, buildSourceKeys, cleanSourceLinks,
+} from '../../shared/sourceLinks.js';
 
 let editMode = false;
 
@@ -54,6 +57,13 @@ function renderView(record) {
         ? `<div class="head-notes">📝 ${esc(record.notes)}</div>`
         : '';
 
+    const links = record.source_links || {};
+    const srcBtns = SOURCE_SITES.filter(s => links[s]).map(s =>
+        `<a class="src-btn src-btn-${s}" href="${esc(links[s])}" target="_blank" rel="noopener">${esc(SOURCE_LABELS[s])} ↗</a>`).join('');
+    const sourcesHtml = srcBtns
+        ? `<div class="head-sources"><span class="head-sources-lbl">Страницы машины:</span>${srcBtns}</div>`
+        : '';
+
     const rec = Array.isArray(record.recommended_oils) ? record.recommended_oils : [];
     const recHtml = rec.length ? `
         <details class="head-rec">
@@ -71,6 +81,7 @@ function renderView(record) {
                 <button class="btn btn-sec" id="btn-edit-car">✏ Нашли ошибку?</button>
             </div>
             <div class="head-chips">${chips}</div>
+            ${sourcesHtml}
             ${flagsHtml}
             ${notesHtml}
             ${recHtml}
@@ -148,6 +159,13 @@ function renderEditForm(record) {
 
     const approvals = Array.isArray(record.car_approvals) ? record.car_approvals : [];
 
+    const links = record.source_links || {};
+    const sourceRows = SOURCE_SITES.map(site => `
+        <label class="edit-field">
+            <span>${esc(SOURCE_LABELS[site])}</span>
+            <input type="url" data-edit-source="${site}" value="${esc(links[site] || '')}" placeholder="ссылка на страницу машины"/>
+        </label>`).join('');
+
     return `
         <div class="head-card head-card-edit">
             <div class="head-title-row">
@@ -192,6 +210,10 @@ function renderEditForm(record) {
             <div class="edit-sec-h">Какие масла предлагать этой машине</div>
             <div class="edit-oils-note">Снятая галочка убирает масло из предложений на этой странице. Масла SPOT идут по регламенту всегда.</div>
             ${oilRows}
+
+            <div class="edit-sec-h">Страницы машины (сурс-ссылки)</div>
+            <div class="edit-oils-note">Кнопки на странице машины. По ним же нотификатор находит эту машину у коллег на сайтах подбора.</div>
+            <div class="edit-grid">${sourceRows}</div>
 
             <div class="edit-sec-h">Заметка</div>
             <textarea id="edit-notes" rows="2">${esc(record.notes || '')}</textarea>
@@ -253,6 +275,13 @@ function bindEditForm(head, record, ctx) {
             else fluid[key].volumeTotal = v;
         });
 
+        const sourceLinks = {};
+        head.querySelectorAll('[data-edit-source]').forEach(inp => {
+            const url = inp.value.trim();
+            if (url) sourceLinks[inp.dataset.editSource] = url;
+        });
+        const cleanedLinks = cleanSourceLinks(sourceLinks);
+
         const patch = {
             brand: val('brand'), model: val('model'),
             generation: val('generation') || null,
@@ -268,6 +297,8 @@ function bindEditForm(head, record, ctx) {
                 .split(/\r?\n/).map(s => s.trim()).filter(Boolean),
             service_flags: flags,
             oil_overrides: { ...prevOv, exclude },
+            source_links: cleanedLinks,
+            source_keys: buildSourceKeys(cleanedLinks),
             notes: head.querySelector('#edit-notes').value.trim() || null,
         };
 

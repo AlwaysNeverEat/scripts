@@ -24,6 +24,9 @@ import {
 } from '../../../shared/report.js';
 import { SERVICE_FLAGS } from '../../../shared/serviceFlags.js';
 import { fuelLabel, fuelSelectOptions } from '../../../shared/fuel.js';
+import {
+    SOURCE_SITES, SOURCE_LABELS, buildSourceKeys, cleanSourceLinks,
+} from '../../../shared/sourceLinks.js';
 import { parseMannUrl } from '../parsers.js';
 
 // ── База рассчитанных машин ───────────────────────────────────────────────────
@@ -40,6 +43,27 @@ function currentCarApprovals() {
     if (!car) return [];
     const v = GM_getValue('rolf_approvals_' + car.cacheKey, null);
     return Array.isArray(v) ? v : [];
+}
+
+// ── Сурс-ссылки: страницы машины на сайтах подбора ────────────────────────────
+// Каждая площадка (mann/lynx/ravenol/motul/rolf) при заходе на машину пишет свой
+// URL в общий для всех вкладок GM-стор по cacheKey. В отчёт они попадают уже
+// собранными: где встретили машину, где искали объёмы (Motul) и допуска (ROLF).
+
+function recordSourceLink(cacheKey, site, url) {
+    if (!cacheKey || !site || !url) return;
+    const k = 'zm_sources_' + cacheKey;
+    const cur = GM_getValue(k, null);
+    const obj = (cur && typeof cur === 'object' && !Array.isArray(cur)) ? cur : {};
+    if (obj[site] === url) return; // без лишних записей
+    obj[site] = url;
+    GM_setValue(k, obj);
+}
+
+function getSourceLinks(cacheKey) {
+    if (!cacheKey) return {};
+    const v = GM_getValue('zm_sources_' + cacheKey, null);
+    return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
 }
 
 function pickEngineOils(agg, shopOils) {
@@ -141,6 +165,13 @@ function openDbModal(car) {
         <label class="zm-db-chk zm-db-flag"><input type="checkbox" data-db-flag="${key}"/> ${escapeHtml(def.label)}</label>
     `).join('');
 
+    const savedLinks = getSourceLinks(car.cacheKey);
+    const sourceRows = SOURCE_SITES.map(site => `
+        <label class="zm-db-field">
+            <span>${escapeHtml(SOURCE_LABELS[site])}</span>
+            <input type="url" data-db-source="${site}" value="${escapeHtmlSafe(savedLinks[site] || '')}" placeholder="ссылка на страницу машины"/>
+        </label>`).join('');
+
     const modal = document.createElement('div');
     modal.id = 'zm-db-modal';
     modal.innerHTML = `
@@ -182,6 +213,10 @@ function openDbModal(car) {
 
                 <div class="zm-db-sec-h">Особенности обслуживания</div>
                 ${flagRows}
+
+                <div class="zm-db-sec-h">Страницы машины (сурс-ссылки)</div>
+                <div class="zm-db-note">Кнопки на странице машины + по ним нотификатор находит эту машину у коллег.</div>
+                <div class="zm-db-grid">${sourceRows}</div>
 
                 <div class="zm-db-sec-h">Заметка (необязательно)</div>
                 <textarea id="zm-db-notes" rows="2" placeholder="например: сливная пробка под квадрат 8мм"></textarea>
@@ -238,6 +273,13 @@ function openDbModal(car) {
             if (chk.checked) flags[chk.dataset.dbFlag] = true;
         });
 
+        const sourceLinks = {};
+        modal.querySelectorAll('[data-db-source]').forEach(inp => {
+            const url = inp.value.trim();
+            if (url) sourceLinks[inp.dataset.dbSource] = url;
+        });
+        const cleanedLinks = cleanSourceLinks(sourceLinks);
+
         // выбранное топливо — в машину, чтобы снапшот рекомендаций и подбор
         // считались как для дизеля/бензина, а не как угадал парсер
         const fuelSel = val('fuel_type');
@@ -260,6 +302,8 @@ function openDbModal(car) {
                 .split(/\r?\n/).map(s => s.trim()).filter(Boolean),
             recommended_oils: snapshotRecommendedOils(),
             service_flags: flags,
+            source_links: cleanedLinks,
+            source_keys: buildSourceKeys(cleanedLinks),
             notes: document.getElementById('zm-db-notes').value.trim() || null,
             created_by: 'userscript',
         };
@@ -489,6 +533,9 @@ function calcForAggregate(agg) {
                 bindHeaderEvents(null);
                 return;
             }
+
+            // Запоминаем страницу, где встретили машину (mann/lynx/ravenol).
+            recordSourceLink(car.cacheKey, source, location.href);
 
             let cached;
             if (source === 'ravenol') {
@@ -1709,6 +1756,7 @@ function calcForAggregate(agg) {
             const result = GM_getValue('rolf_approvals_' + key, null);
             if (result && result.length) {
                 clearInterval(interval);
+                recordSourceLink(key, 'rolf', location.href);
                 const st = document.getElementById('zm-rolf-status');
                 const b = document.getElementById('__zm_rolf_badge');
                 if (b) {
@@ -1832,6 +1880,7 @@ function calcForAggregate(agg) {
                 const ecMatch = wantedEc ? matchEngineCodes(wantedEc, foundEc) : null;
 
                 GM_setValue('motul_car_' + key, data);
+                recordSourceLink(key, 'motul', location.href);
 
                 if (wantedEc && !ecMatch) {
                     showManualBadge(`⚠️ Код не совпал: ожидался ${wantedEc}, на Motul ${foundEc || '?'}. Сохранено, но проверь машину!`, '#ff9800');

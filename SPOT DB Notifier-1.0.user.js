@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.1.86
+// @version      1.1.89
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
 // @match        https://mann-filter.com/*
@@ -120,6 +120,59 @@
     };
   }
 
+  // shared/sourceLinks.js
+  function detectSite(url) {
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return null;
+    }
+    const h = u.hostname.toLowerCase();
+    if (h.includes("mann-filter.com")) return "mann";
+    if (h.includes("lynxauto.info")) return "lynx";
+    if (h.includes("ravenol.ru")) return "ravenol";
+    if (h.includes("motul.lubricantadvisor.com")) return "motul";
+    if (h.includes("rolfoil.ru") || h.includes("upec.pro")) return "rolf";
+    return null;
+  }
+  function normPart(s) {
+    return String(s == null ? "" : s).toLowerCase().replace(/\+/g, " ").replace(/[^a-zа-яё0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+  }
+  function sourceSignature(url) {
+    const site = detectSite(url);
+    if (!site) return null;
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return null;
+    }
+    const p = u.searchParams;
+    if (site === "mann") {
+      const id = p.get("vehicleTypeId") || p.get("modelTypeId");
+      const digits = (id || "").replace(/\D/g, "").replace(/^0+/, "");
+      if (digits) return "mann:type:" + digits;
+      const parts = [
+        p.get("vehicleMake"),
+        p.get("vehicleModel"),
+        p.get("ccm"),
+        p.get("kw"),
+        p.get("engineCode")
+      ].map(normPart).filter(Boolean);
+      return parts.length ? "mann:" + parts.join(":") : null;
+    }
+    if (site === "lynx") {
+      const parts = [p.get("vendor"), p.get("car"), p.get("modification")].map(normPart).filter(Boolean);
+      return parts.length ? "lynx:" + parts.join(":") : null;
+    }
+    if (site === "ravenol") {
+      const path = normPart(u.pathname);
+      return path ? "ravenol:" + path : null;
+    }
+    return null;
+  }
+
   // userscript/src/notifier/app.js
   var API_BASE = "https://cars-db-backend.onrender.com";
   var API_KEY = "a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574";
@@ -132,6 +185,8 @@
   var retries = /* @__PURE__ */ new Map();
   function apiMatch(car) {
     const params = new URLSearchParams();
+    const sig = sourceSignature(location.href);
+    if (sig) params.set("source_key", sig);
     if (car.engineCode) params.set("engine_code", car.engineCode);
     if (car.makeShort) params.set("brand", car.makeShort);
     if (car.modelShort) params.set("model", car.modelShort);

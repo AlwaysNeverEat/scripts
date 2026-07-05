@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { parseMannUrl } from '../parsers.js';
+import { sourceSignature } from '../../../shared/sourceLinks.js';
 
 // Настройки (для продакшена поменять и добавить хост в @connect в header.txt)
 const API_BASE = 'https://cars-db-backend.onrender.com';
@@ -29,6 +30,10 @@ const retries = new Map();  // cacheKey → число сделанных пов
 
 function apiMatch(car) {
     const params = new URLSearchParams();
+    // Сигнатура текущей страницы (mann:type:…, lynx:…) — точный матч по
+    // сурс-ссылке, устойчивый к «мусорным» id в URL. Backend отдаёт ей приоритет.
+    const sig = sourceSignature(location.href);
+    if (sig) params.set('source_key', sig);
     if (car.engineCode) params.set('engine_code', car.engineCode);
     if (car.makeShort)  params.set('brand', car.makeShort);
     if (car.modelShort) params.set('model', car.modelShort);

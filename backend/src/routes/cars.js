@@ -18,6 +18,24 @@ function validateFilters(fpn) {
   return null;
 }
 
+function validateSourceLinks(links) {
+  if (links === undefined) return null;
+  if (typeof links !== 'object' || links === null || Array.isArray(links))
+    return 'source_links must be an object';
+  for (const [site, url] of Object.entries(links)) {
+    if (url !== null && typeof url !== 'string')
+      return `source_links.${site} must be a string`;
+  }
+  return null;
+}
+
+function validateSourceKeys(keys) {
+  if (keys === undefined) return null;
+  if (!Array.isArray(keys)) return 'source_keys must be an array';
+  if (keys.some(k => typeof k !== 'string')) return 'source_keys must be strings';
+  return null;
+}
+
 function buildSearchVectorSql(synonymTokens) {
   // Build a tsvector from all synonym variants using Russian+simple dictionaries
   const tokens = synonymTokens
@@ -48,6 +66,7 @@ router.post('/', async (req, res) => {
     fluid_capacities, filter_part_numbers,
     car_approvals, recommended_oils,
     service_flags, notes, oil_overrides,
+    source_links, source_keys,
     created_by,
   } = req.body;
 
@@ -67,6 +86,10 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'oil_overrides must be an object' });
   if (notes !== undefined && notes !== null && typeof notes !== 'string')
     return res.status(400).json({ error: 'notes must be a string' });
+  const sourceLinksErr = validateSourceLinks(source_links);
+  if (sourceLinksErr) return res.status(400).json({ error: sourceLinksErr });
+  const sourceKeysErr = validateSourceKeys(source_keys);
+  if (sourceKeysErr) return res.status(400).json({ error: sourceKeysErr });
 
   try {
     const { nameNormalized, nameCyrillic, nameTranslit, svSql } =
@@ -77,12 +100,12 @@ router.post('/', async (req, res) => {
          brand, model, generation, engine_code, engine_volume,
          year_from, year_to, kw, bhp, fuel_type, motul_name, engine_name,
          fluid_capacities, filter_part_numbers, car_approvals, recommended_oils,
-         service_flags, notes, oil_overrides,
+         service_flags, notes, oil_overrides, source_links, source_keys,
          name_normalized, name_cyrillic, name_translit, search_vector,
          created_by
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-         $17,$18,$19,$20,$21,$22,${svSql},$23
+         $17,$18,$19,$20,$21,$22,$23,$24,${svSql},$25
        )
        ON CONFLICT (lower(brand), lower(model), lower(coalesce(engine_code,'')), coalesce(engine_volume,0), year_from)
        DO UPDATE SET
@@ -100,6 +123,8 @@ router.post('/', async (req, res) => {
          service_flags       = EXCLUDED.service_flags,
          notes               = EXCLUDED.notes,
          oil_overrides       = EXCLUDED.oil_overrides,
+         source_links        = EXCLUDED.source_links,
+         source_keys         = EXCLUDED.source_keys,
          name_normalized     = EXCLUDED.name_normalized,
          name_cyrillic       = EXCLUDED.name_cyrillic,
          name_translit       = EXCLUDED.name_translit,
@@ -117,6 +142,8 @@ router.post('/', async (req, res) => {
         JSON.stringify(service_flags ?? {}),
         notes ?? null,
         JSON.stringify(oil_overrides ?? {}),
+        JSON.stringify(source_links ?? {}),
+        JSON.stringify(source_keys ?? []),
         nameNormalized, nameCyrillic, nameTranslit,
         created_by ?? null,
       ],
@@ -136,9 +163,20 @@ router.post('/', async (req, res) => {
 // Returns the single best-matching car or 404.
 
 router.get('/match', async (req, res) => {
-  const { engine_code, brand, model, year, volume } = req.query;
+  const { engine_code, brand, model, year, volume, source_key } = req.query;
 
   try {
+    // Priority 0: точное совпадение по сигнатуре сурс-ссылки (mann:type:…,
+    // lynx:…, ravenol:…). Самый надёжный матч — это ровно та же страница
+    // машины на сайте подбора, откуда её считали. См. shared/sourceLinks.js.
+    if (source_key && source_key.trim()) {
+      const r = await query(
+        `SELECT * FROM cars WHERE source_keys ? $1 ORDER BY updated_at DESC LIMIT 1`,
+        [source_key.trim()],
+      );
+      if (r.rows.length) return res.json(r.rows[0]);
+    }
+
     // Priority 1: exact engine_code match.
     // Коды бывают неуникальными («Zetec» стоит у половины Ford), поэтому при
     // нескольких совпадениях ранжируем по марке, году и объёму из запроса.
@@ -346,7 +384,7 @@ router.patch('/:id', async (req, res) => {
     'brand','model','generation','engine_code','engine_volume',
     'year_from','year_to','kw','bhp','fuel_type','motul_name','engine_name',
     'fluid_capacities','filter_part_numbers','car_approvals','recommended_oils',
-    'service_flags','notes','oil_overrides',
+    'service_flags','notes','oil_overrides','source_links','source_keys',
   ];
 
   const updates = Object.fromEntries(
@@ -359,6 +397,14 @@ router.patch('/:id', async (req, res) => {
 
   if (updates.filter_part_numbers) {
     const err = validateFilters(updates.filter_part_numbers);
+    if (err) return res.status(400).json({ error: err });
+  }
+  if ('source_links' in updates) {
+    const err = validateSourceLinks(updates.source_links);
+    if (err) return res.status(400).json({ error: err });
+  }
+  if ('source_keys' in updates) {
+    const err = validateSourceKeys(updates.source_keys);
     if (err) return res.status(400).json({ error: err });
   }
 
