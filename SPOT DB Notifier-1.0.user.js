@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.1.96
+// @version      1.1.93
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
 // @match        https://mann-filter.com/*
 // @match        https://lynxauto.info/*
+// @match        https://podbor.ravenol.ru/*
 // @grant        GM_xmlhttpRequest
 // @connect      cars-db-backend.onrender.com
 // @connect      localhost
@@ -15,111 +16,6 @@
 // ==/UserScript==
 
 (() => {
-  // userscript/src/parsers.js
-  function parseMannUrl() {
-    if (location.hostname.includes("lynxauto.info")) {
-      return parseLynxUrl();
-    }
-    const p = new URLSearchParams(location.search);
-    if (!p.get("vehicleMake") && !p.get("vehicleModel")) return null;
-    const make = (p.get("vehicleMake") || "").trim();
-    const model = (p.get("vehicleModel") || "").replace(/\+/g, " ").trim();
-    const engineCode = (p.get("engineCode") || "").replace(/\+/g, " ").trim();
-    const fuelType = (p.get("fuelType") || "").trim();
-    const ccm = parseInt(p.get("ccm") || "0") || null;
-    const kw = parseInt(p.get("kw") || "0") || null;
-    const bhp = parseInt(p.get("bhp") || "0") || null;
-    const yMatch = (p.get("vehicleManufacturedFrom") || "").match(/(\d{4})/);
-    const yearFrom = yMatch ? parseInt(yMatch[1]) : null;
-    const makeShort = make.split(/\s+/)[0];
-    const modelShort = model.replace(/\([^)]*\)/g, " ").replace(/[()]/g, " ").replace(/\s{2,}/g, " ").trim().split(/\s+/).slice(0, 3).join(" ");
-    const volume = ccm ? (Math.round(ccm / 100) / 10).toFixed(1) : "";
-    const query = [makeShort, modelShort, volume].filter(Boolean).join(" ").toLowerCase();
-    const cacheKey = [makeShort, modelShort, volume, kw, engineCode, yearFrom].filter(Boolean).join("_").toLowerCase().replace(/\s+/g, "");
-    return {
-      make,
-      model,
-      makeShort,
-      modelShort,
-      engineCode,
-      fuelType,
-      ccm,
-      kw,
-      bhp,
-      yearFrom,
-      volume,
-      query,
-      cacheKey
-    };
-  }
-  function parseLynxUrl() {
-    const p = new URLSearchParams(location.search);
-    const vendor = (p.get("vendor") || "").trim();
-    const car = (p.get("car") || "").replace(/\+/g, " ").trim();
-    const yearRaw = (p.get("year") || "").replace(/\+/g, " ").trim();
-    const mod = (p.get("modification") || "").replace(/\+/g, " ").trim();
-    const power = (p.get("power_engine") || "").replace(/\+/g, " ").trim();
-    if (!vendor || !car) return null;
-    let engineCode = "", engineName = mod;
-    const ecMatch = mod.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-    if (ecMatch) {
-      engineName = ecMatch[1].trim();
-      engineCode = ecMatch[2].trim();
-    }
-    let yearFrom = null;
-    const yMatch = yearRaw.match(/(\d{1,2})\/(\d{2,4})/);
-    if (yMatch) {
-      let y = parseInt(yMatch[2]);
-      if (y < 100) y += y < 50 ? 2e3 : 1900;
-      yearFrom = y;
-    }
-    let kw = null, bhp = null;
-    const pMatch = power.match(/(\d+)\s*\((\d+)\)/);
-    if (pMatch) {
-      kw = parseInt(pMatch[1]);
-      bhp = parseInt(pMatch[2]);
-    } else {
-      const single = power.match(/(\d+)/);
-      if (single) kw = parseInt(single[1]);
-    }
-    const modelClean = car.replace(/\([^)]*\)/g, " ").replace(/\s+\d{1,2}[\/\-]\d{0,4}-?\s*$/g, "").replace(/\s+\d{1,2}-\s*$/g, "").replace(/[-\s]+$/g, "").replace(/\s{2,}/g, " ").trim();
-    let volume = "";
-    const skipVolume = /^(BMW|MERCEDES|MERCEDES-BENZ)$/i.test(vendor);
-    if (!skipVolume) {
-      const volMatch = engineName.match(/(\d\.\d)/);
-      if (volMatch) volume = volMatch[1];
-    }
-    const make = vendor;
-    const makeShort = make.split(/\s+/)[0];
-    const modelShort = modelClean.split(/\s+/).slice(0, 3).join(" ") || car;
-    const queryParts = [makeShort, modelShort];
-    if (engineName) queryParts.push(engineName);
-    else if (volume) queryParts.push(volume);
-    const query = queryParts.filter(Boolean).join(" ").toLowerCase();
-    const cacheKey = [makeShort, modelShort, volume, kw, engineCode, yearFrom].filter(Boolean).join("_").toLowerCase().replace(/\s+/g, "");
-    let fuelType = "";
-    const allText = (engineName + " " + engineCode).toUpperCase();
-    if (/\bD\b|DCI|TDI|HDI|CDI|CRDI|TDCI|TDDI|JTD|MULTIJET|DTI|CTDI|D-?4D|SDI|\bTD\b/i.test(allText)) {
-      fuelType = "05";
-    }
-    return {
-      make,
-      model: car,
-      makeShort,
-      modelShort,
-      engineCode,
-      engineName,
-      fuelType,
-      ccm: null,
-      kw,
-      bhp,
-      yearFrom,
-      volume,
-      query,
-      cacheKey
-    };
-  }
-
   // shared/sourceLinks.js
   function detectSite(url) {
     let u;
@@ -133,7 +29,6 @@
     if (h.includes("lynxauto.info")) return "lynx";
     if (h.includes("ravenol.ru")) return "ravenol";
     if (h.includes("motul.lubricantadvisor.com")) return "motul";
-    if (h.includes("rolfoil.ru") || h.includes("upec.pro")) return "rolf";
     return null;
   }
   function normPart(s) {
@@ -183,9 +78,7 @@
   var NOTFOUND_TTL_MS = 5 * 60 * 1e3;
   var checked = /* @__PURE__ */ new Map();
   var retries = /* @__PURE__ */ new Map();
-  function apiMatch(car) {
-    const sig = sourceSignature(location.href);
-    if (!sig) return Promise.resolve({ status: "notfound" });
+  function apiMatch(sig) {
     const params = new URLSearchParams();
     params.set("source_key", sig);
     return new Promise((resolve) => {
@@ -267,12 +160,11 @@
     document.body.appendChild(el);
   }
   async function checkCurrentCar() {
-    const car = parseMannUrl();
-    if (!car) {
+    const key = sourceSignature(location.href);
+    if (!key) {
       removeBanner();
       return;
     }
-    const key = car.cacheKey;
     const state = checked.get(key);
     if (state === "pending") return;
     if (state && state.record) {
@@ -283,7 +175,7 @@
     }
     if (state && state.notFoundAt && Date.now() - state.notFoundAt < NOTFOUND_TTL_MS) return;
     checked.set(key, "pending");
-    const res = await apiMatch(car);
+    const res = await apiMatch(key);
     if (res.status === "found") {
       retries.delete(key);
       checked.set(key, { record: res.record });
@@ -301,8 +193,7 @@
     if (attempt < RETRY_DELAYS_MS.length) {
       retries.set(key, attempt + 1);
       setTimeout(() => {
-        const cur = parseMannUrl();
-        if (cur && cur.cacheKey === key) checkCurrentCar();
+        if (sourceSignature(location.href) === key) checkCurrentCar();
       }, RETRY_DELAYS_MS[attempt]);
     }
   }

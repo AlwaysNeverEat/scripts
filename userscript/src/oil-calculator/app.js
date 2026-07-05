@@ -1756,7 +1756,6 @@ function calcForAggregate(agg) {
             const result = GM_getValue('rolf_approvals_' + key, null);
             if (result && result.length) {
                 clearInterval(interval);
-                recordSourceLink(key, 'rolf', location.href);
                 const st = document.getElementById('zm-rolf-status');
                 const b = document.getElementById('__zm_rolf_badge');
                 if (b) {

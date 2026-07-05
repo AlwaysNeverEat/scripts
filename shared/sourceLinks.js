@@ -1,23 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Сурс-ссылки: страницы машины на сайтах подбора (Mann / LYNX / Ravenol /
-// Motul / ROLF). Единая точка правды для калькулятора, нотификатора и сайта.
+// Motul). Единая точка правды для калькулятора, нотификатора и сайта.
 //
-// source_links — объект { mann, lynx, ravenol, motul, rolf } с URL'ами страниц,
-// где калькулятор «встретил» машину и где искал объёмы/допуска. Ссылки не
+// source_links — объект { mann, lynx, ravenol, motul } с URL'ами страниц,
+// где калькулятор «встретил» машину и где искал объёмы. Ссылки не
 // совпадают один-в-один между визитами (у Mann в URL куча внутренних id),
 // поэтому для матча нотификатором рядом храним source_keys — набор
 // нормализованных сигнатур, устойчивых к «мусорным» параметрам URL.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Порядок = порядок кнопок «Страницы машины» на сайте.
-export const SOURCE_SITES = ['mann', 'lynx', 'ravenol', 'motul', 'rolf'];
+// ROLF не храним: у них поиск внутри виджета, ссылка всегда одна и та же
+// (rolfoil.ru/podbor) — привязать её к конкретной машине нельзя.
+export const SOURCE_SITES = ['mann', 'lynx', 'ravenol', 'motul'];
 
 export const SOURCE_LABELS = {
     mann:    'Mann-Filter',
     lynx:    'LYNXauto',
     ravenol: 'Ravenol',
     motul:   'Motul',
-    rolf:    'ROLF',
 };
 
 // Определяет сайт по URL. null — чужой/нераспознанный.
@@ -29,7 +30,6 @@ export function detectSite(url) {
     if (h.includes('lynxauto.info'))              return 'lynx';
     if (h.includes('ravenol.ru'))                 return 'ravenol';
     if (h.includes('motul.lubricantadvisor.com')) return 'motul';
-    if (h.includes('rolfoil.ru') || h.includes('upec.pro')) return 'rolf';
     return null;
 }
 
@@ -44,8 +44,8 @@ function normPart(s) {
 }
 
 // Сигнатура для матча: устойчива к смене «мусорных» параметров URL.
-// Возвращает строку-ключ или null (для motul/rolf — это наши собственные
-// страницы поиска, надёжного per-car ключа из них не вытащить).
+// Возвращает строку-ключ или null (для motul — это наша страница поиска,
+// надёжного per-car ключа из неё не вытащить).
 export function sourceSignature(url) {
     const site = detectSite(url);
     if (!site) return null;
@@ -78,7 +78,7 @@ export function sourceSignature(url) {
         return path ? 'ravenol:' + path : null;
     }
 
-    return null; // motul / rolf — только справочная ссылка, не ключ матча
+    return null; // motul — только справочная ссылка, не ключ матча
 }
 
 // Из объекта source_links собирает массив уникальных сигнатур для индекса матча.

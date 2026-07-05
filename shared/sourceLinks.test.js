@@ -13,7 +13,7 @@ test('detectSite распознаёт все площадки', () => {
     assert.equal(detectSite(LYNX), 'lynx');
     assert.equal(detectSite(RAVENOL), 'ravenol');
     assert.equal(detectSite('https://motul.lubricantadvisor.com/advice.aspx'), 'motul');
-    assert.equal(detectSite('https://rolfoil.ru/podbor/'), 'rolf');
+    assert.equal(detectSite('https://rolfoil.ru/podbor/'), null); // ROLF больше не источник
     assert.equal(detectSite('https://example.com/'), null);
     assert.equal(detectSite('not a url'), null);
 });
@@ -35,19 +35,18 @@ test('lynx и ravenol дают устойчивые ключи', () => {
     assert.equal(sourceSignature(RAVENOL), 'ravenol:1-cars-58-mitsubishi-models-144-lancer');
 });
 
-test('motul/rolf не дают ключа матча', () => {
+test('motul не даёт ключа матча', () => {
     assert.equal(sourceSignature('https://motul.lubricantadvisor.com/advice.aspx?x=1'), null);
-    assert.equal(sourceSignature('https://rolfoil.ru/podbor/'), null);
 });
 
-test('buildSourceKeys собирает уникальные ключи, пропуская motul/rolf', () => {
-    const keys = buildSourceKeys({ mann: MANN, motul: 'https://motul.lubricantadvisor.com/advice.aspx', rolf: 'https://rolfoil.ru/podbor/' });
+test('buildSourceKeys собирает уникальные ключи, пропуская motul', () => {
+    const keys = buildSourceKeys({ mann: MANN, motul: 'https://motul.lubricantadvisor.com/advice.aspx' });
     assert.deepEqual(keys, ['mann:type:273752']);
     assert.deepEqual(buildSourceKeys(null), []);
     assert.deepEqual(buildSourceKeys({}), []);
 });
 
-test('cleanSourceLinks отбрасывает пустые и чужие ключи', () => {
+test('cleanSourceLinks отбрасывает пустые и чужие ключи (в т.ч. rolf)', () => {
     const cleaned = cleanSourceLinks({ mann: '  ' + MANN + ' ', lynx: '', junk: 'x', rolf: 'https://rolfoil.ru/podbor/' });
-    assert.deepEqual(cleaned, { mann: MANN, rolf: 'https://rolfoil.ru/podbor/' });
+    assert.deepEqual(cleaned, { mann: MANN });
 });
