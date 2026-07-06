@@ -357,6 +357,31 @@ function renderApprovalsBlock(agg, carApprovals) {
     `;
 }
 
+// Иконка рециркуляции (три «гоняющиеся» стрелки) — водяной знак на CTA-панели
+// «выбрать масло». stroke=currentColor, чтобы менять цвет при наведении.
+const RECYCLE_SVG = `
+    <svg class="oil-pick-cta-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/>
+        <path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/>
+        <path d="m14 16-3 3 3 3"/>
+        <path d="M8.293 13.596 7.196 9.5 3.1 10.598"/>
+        <path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/>
+        <path d="m13.378 9.633 4.096 1.098 1.097-4.096"/>
+    </svg>`;
+
+// CTA-панель «выбрать масло», встроенная в правый край первой карточки масла.
+// Клик открывает список кандидатов (data-picker-open → showOilPicker).
+function renderOilPickCta(aggKey, count) {
+    return `
+        <button class="oil-pick-cta" data-picker-open="${aggKey}"
+                title="Выбрать другое масло — ${count} подходящих">
+            ${RECYCLE_SVG}
+            <span class="oil-pick-cta-label">выбрать<br>масло</span>
+        </button>
+    `;
+}
+
 function renderAggBody(agg, calc, calcState, carApprovals) {
     const parts = [];
 
@@ -415,6 +440,10 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
         const mileage = calcState.mileage;
         const displayedCosts = mileage === '>=200' ? calc.costs.slice(0, 1) : calc.costs;
 
+        const allCandidates = agg.allCandidates || [];
+        const isPickerOpen = calcState.showOilPicker === agg.key;
+        const hasPicker = agg.group === 'engine' && allCandidates.length > 1;
+
         parts.push(displayedCosts.map((c, i) => {
             const { matched, others, hier } = splitOilApprovals(c.oil.a || [], carApprovals);
             const regMatches = agg.group === 'engine' ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
@@ -431,45 +460,43 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                 </div>
             ` : '';
 
+            const withCta = hasPicker && !isPickerOpen && i === 0;
             return `
-                <div class="oil-option${i === 0 ? ' selected' : ''}" data-oil-pick="${agg.key}" data-oil-idx="${i}">
-                    <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
-                    <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b></div>
-                    ${oilApprHtml}
+                <div class="oil-option${i === 0 ? ' selected' : ''}${withCta ? ' has-cta' : ''}">
+                    <div class="oil-option-body" data-oil-pick="${agg.key}" data-oil-idx="${i}">
+                        <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
+                        <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b></div>
+                        ${oilApprHtml}
+                    </div>
+                    ${withCta ? renderOilPickCta(agg.key, allCandidates.length) : ''}
                 </div>
             `;
         }).join(''));
 
-        // Oil picker for engine oils
-        const allCandidates = agg.allCandidates || [];
-        const isPickerOpen = calcState.showOilPicker === agg.key;
-        if (agg.group === 'engine' && allCandidates.length > 1) {
-            if (isPickerOpen) {
-                parts.push(`
-                    <div class="oil-picker">
-                        <div class="oil-picker-head">Выбери масло (${allCandidates.length} подходящих):</div>
-                        ${allCandidates.map((oil, i) => {
-                            const isCur = calc.costs[0] && (calc.costs[0].oil.b + '_' + calc.costs[0].oil.n) === (oil.b + '_' + oil.n);
-                            const regOpt = matchOilToReglament(oil, calcState.car?.makeShort);
-                            const rMark = regOpt.length ? '⭐ ' : '';
-                            const rk = (agg.ranked || []).find(r => r.oil === oil);
-                            let hits = '';
-                            if (rk && (rk.direct.length || rk.hier.length)) {
-                                const tip = [...rk.direct.map(t => 'совпал: ' + t),
-                                             ...rk.hier.map(h => h.via + ' покрывает ' + h.covers)].join('; ');
-                                hits = ` <span class="oil-pick-hits" title="${esc(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
-                            }
-                            if (rk && rk.classMiss) {
-                                hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">⚠ не ${esc(rk.classMiss)}</span>`;
-                            }
-                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
-                        }).join('')}
-                        <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
-                    </div>
-                `);
-            } else {
-                parts.push(`<button class="btn-pick-oil" data-picker-open="${agg.key}">🔄 выбрать масло (${allCandidates.length})</button>`);
-            }
+        // Список кандидатов — раскрывается кликом по CTA «выбрать масло»
+        if (hasPicker && isPickerOpen) {
+            parts.push(`
+                <div class="oil-picker">
+                    <div class="oil-picker-head">Выбери масло (${allCandidates.length} подходящих):</div>
+                    ${allCandidates.map((oil, i) => {
+                        const isCur = calc.costs[0] && (calc.costs[0].oil.b + '_' + calc.costs[0].oil.n) === (oil.b + '_' + oil.n);
+                        const regOpt = matchOilToReglament(oil, calcState.car?.makeShort);
+                        const rMark = regOpt.length ? '⭐ ' : '';
+                        const rk = (agg.ranked || []).find(r => r.oil === oil);
+                        let hits = '';
+                        if (rk && (rk.direct.length || rk.hier.length)) {
+                            const tip = [...rk.direct.map(t => 'совпал: ' + t),
+                                         ...rk.hier.map(h => h.via + ' покрывает ' + h.covers)].join('; ');
+                            hits = ` <span class="oil-pick-hits" title="${esc(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
+                        }
+                        if (rk && rk.classMiss) {
+                            hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">⚠ не ${esc(rk.classMiss)}</span>`;
+                        }
+                        return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
+                    }).join('')}
+                    <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
+                </div>
+            `);
         }
     }
 
