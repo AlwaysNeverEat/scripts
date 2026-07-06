@@ -609,33 +609,36 @@ input[data-edit-filter-absent]:checked::after {
   box-shadow: 0 0 0 1px var(--accent), 0 8px 22px -10px var(--accent-dim);
 }
 
-/* CTA-панель на правом краю карточки: водяной знак-рециркуляция + подпись */
+/* CTA-панель на правом краю карточки: водяной знак-рециркуляция + подпись.
+   Без разделителя-границы — панель бесшовно переходит в карточку. Иконка
+   полностью помещается внутри панели, поэтому не обрезается краем. */
 .oil-pick-cta {
   position: relative;
   flex: 0 0 auto;
   align-self: stretch;
-  min-width: 134px;
+  min-width: 158px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding: 12px 18px;
   border: 0;
-  border-left: 1px solid var(--border);
   background: transparent;
   color: var(--text);
   cursor: pointer;
   overflow: hidden;
-  transition: background .15s, color .15s, border-color .15s;
+  transition: background .15s, color .15s;
 }
 .oil-pick-cta-ico {
   position: absolute;
-  left: -12px;
+  left: 54%;
   top: 50%;
-  transform: translateY(-50%);
-  width: 98px;
-  height: 98px;
+  transform: translate(-50%, -50%);
+  width: 88px;
+  height: 88px;
+  max-width: 88%;
+  max-height: 82%;
   color: currentColor;
-  opacity: .10;
+  opacity: .13;
   pointer-events: none;
 }
 .oil-pick-cta-label {
@@ -650,12 +653,11 @@ input[data-edit-filter-absent]:checked::after {
 }
 /* Наведение на карточку — панель загорается золотым градиентом, текст темнеет */
 .oil-option.has-cta:hover .oil-pick-cta {
-  background: linear-gradient(90deg, transparent 0%, var(--accent) 60%);
-  border-left-color: transparent;
+  background: linear-gradient(100deg, transparent 0%, var(--accent) 42%);
   color: var(--accent-fg);
 }
 .oil-option.has-cta:hover .oil-pick-cta-label { color: var(--accent-fg); }
-.oil-option.has-cta:hover .oil-pick-cta-ico { opacity: .22; }
+.oil-option.has-cta:hover .oil-pick-cta-ico { opacity: .28; }
 /* Notable существует только в 400 — жирность не синтезируем */
 .oil-name  { font-size: 13.5px; font-weight: 400; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .visc-pill {
