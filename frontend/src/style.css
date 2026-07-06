@@ -609,27 +609,23 @@ input[data-edit-filter-absent]:checked::after {
   box-shadow: 0 6px 20px -12px var(--accent-dim);
 }
 
-/* CTA-панель на правом краю карточки: водяной знак-рециркуляция + подпись.
-   Панель инсетнута отступом (margin) от краёв карточки, поэтому золотая
-   заливка при наведении читается как мягкая «пилюля», а не липнет к границам.
-   Иконка полностью помещается внутри панели и не обрезается краем. */
+/* CTA-панель «выбрать масло» в правом крае карточки: водяной знак + подпись.
+   Заполняет правую зону до самого края — скруглённый угол карточки обрезает
+   её по форме (bleed, а не «кнопка»). Клик обрабатывается на всей карточке. */
 .oil-pick-cta {
   position: relative;
   flex: 0 0 auto;
   align-self: stretch;
-  min-width: 150px;
+  min-width: 152px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  margin: 6px;
-  padding: 10px 16px;
-  border: 0;
-  border-radius: 10px;
+  padding: 12px 18px;
   background: transparent;
   color: var(--text);
-  cursor: pointer;
   overflow: hidden;
-  transition: background .18s, color .18s, box-shadow .18s;
+  pointer-events: none;                 /* клик идёт на всю карточку */
+  transition: background .18s, color .18s;
 }
 .oil-pick-cta-ico {
   position: absolute;
@@ -654,11 +650,15 @@ input[data-edit-filter-absent]:checked::after {
   color: #fff;
   letter-spacing: .3px;
 }
-/* Наведение на карточку — мягкая золотая заливка-пилюля, текст темнеет */
+/* Наведение на карточку — тёплая золотая заливка правой зоны, плавно
+   растворяется влево в фон карточки (без резкой границы), текст темнеет */
 .oil-option.has-cta:hover .oil-pick-cta {
-  background: linear-gradient(125deg, oklch(0.83 0.15 86) 0%, var(--accent) 52%, oklch(0.71 0.185 81) 100%);
+  background: linear-gradient(100deg,
+      transparent 0%,
+      oklch(0.80 0.15 84 / 0.55) 34%,
+      oklch(0.82 0.155 85) 60%,
+      oklch(0.73 0.175 82) 100%);
   color: var(--accent-fg);
-  box-shadow: 0 4px 14px -8px var(--accent-dim);
 }
 .oil-option.has-cta:hover .oil-pick-cta-label { color: var(--accent-fg); }
 .oil-option.has-cta:hover .oil-pick-cta-ico { opacity: .16; }

@@ -366,15 +366,15 @@ const RECYCLE_SVG = `
         <path d="M55.322,24.116c-0.281-0.616-0.669-1.174-1.154-1.661c-1.638-1.639-4.284-2.126-6.419-1.155c-2.857,1.316-4.123,4.711-2.836,7.536c0.02,0.048,1.846,4.468-0.058,9.765l-0.915-0.917c-0.393-0.394-0.891-0.611-1.402-0.611c-0.849,0-1.576,0.59-1.809,1.465l-4.407,16.339c-0.169,0.62-0.059,1.246,0.301,1.717c0.349,0.456,0.89,0.717,1.485,0.717c0.184,0,0.373-0.025,0.561-0.075l16.356-4.356c0.706-0.19,1.231-0.693,1.405-1.345c0.175-0.652-0.03-1.35-0.545-1.863l-2.479-2.489C60.479,35.375,55.367,24.212,55.322,24.116z M50.621,45.986c-0.582,0.928-0.441,2.21,0.328,2.983l1.489,1.496l-12.735,3.391l3.434-12.729l0.629,0.631c0.399,0.401,0.915,0.622,1.453,0.622c0.769,0,1.459-0.451,1.801-1.177c3.34-7.086,0.762-13.285,0.637-13.577c-0.619-1.358-0.015-2.974,1.341-3.598c1.005-0.459,2.276-0.225,3.047,0.547c0.231,0.231,0.415,0.496,0.548,0.787C52.637,25.462,57.065,35.615,50.621,45.986z"/>
     </svg>`;
 
-// CTA-панель «выбрать масло», встроенная в правый край первой карточки масла.
-// Клик открывает список кандидатов (data-picker-open → showOilPicker).
-function renderOilPickCta(aggKey, count) {
+// Визуальная CTA-панель «выбрать масло» в правом крае первой карточки.
+// Кликабельность — на всей карточке (data-picker-open на .oil-option),
+// поэтому здесь просто div: водяной знак + подпись.
+function renderOilPickCta() {
     return `
-        <button class="oil-pick-cta" data-picker-open="${aggKey}"
-                title="Выбрать другое масло — ${count} подходящих">
+        <div class="oil-pick-cta" aria-hidden="true">
             ${RECYCLE_SVG}
             <span class="oil-pick-cta-label">выбрать<br>масло</span>
-        </button>
+        </div>
     `;
 }
 
@@ -457,14 +457,20 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             ` : '';
 
             const withCta = hasPicker && !isPickerOpen && i === 0;
+            // Карточка с CTA: кликабельна вся площадь → открывает пикер масла.
+            // Обычная карточка: клик выбирает это масло (data-oil-pick).
+            const cardAttr = withCta
+                ? `data-picker-open="${agg.key}" title="Выбрать другое масло — ${allCandidates.length} подходящих"`
+                : '';
+            const bodyAttr = withCta ? '' : `data-oil-pick="${agg.key}" data-oil-idx="${i}"`;
             return `
-                <div class="oil-option${i === 0 ? ' selected' : ''}${withCta ? ' has-cta' : ''}">
-                    <div class="oil-option-body" data-oil-pick="${agg.key}" data-oil-idx="${i}">
+                <div class="oil-option${i === 0 ? ' selected' : ''}${withCta ? ' has-cta' : ''}" ${cardAttr}>
+                    <div class="oil-option-body" ${bodyAttr}>
                         <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
                         <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b></div>
                         ${oilApprHtml}
                     </div>
-                    ${withCta ? renderOilPickCta(agg.key, allCandidates.length) : ''}
+                    ${withCta ? renderOilPickCta() : ''}
                 </div>
             `;
         }).join(''));
@@ -695,9 +701,10 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         };
     });
 
-    // Oil approval expand ("+ N ещё")
+    // Oil approval expand ("+ N ещё") — не открывать пикер при клике на бэйдж
     container.querySelectorAll('[data-oil-appr]').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
             const k = btn.dataset.oilAppr;
             if (calcState.expandedOilApp.has(k)) calcState.expandedOilApp.delete(k);
             else calcState.expandedOilApp.add(k);
