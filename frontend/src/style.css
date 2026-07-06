@@ -606,39 +606,42 @@ input[data-edit-filter-absent]:checked::after {
 .oil-option.has-cta .oil-option-body { flex: 1 1 auto; min-width: 0; }
 .oil-option.has-cta:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 8px 22px -10px var(--accent-dim);
+  box-shadow: 0 6px 20px -12px var(--accent-dim);
 }
 
 /* CTA-панель на правом краю карточки: водяной знак-рециркуляция + подпись.
-   Без разделителя-границы — панель бесшовно переходит в карточку. Иконка
-   полностью помещается внутри панели, поэтому не обрезается краем. */
+   Панель инсетнута отступом (margin) от краёв карточки, поэтому золотая
+   заливка при наведении читается как мягкая «пилюля», а не липнет к границам.
+   Иконка полностью помещается внутри панели и не обрезается краем. */
 .oil-pick-cta {
   position: relative;
   flex: 0 0 auto;
   align-self: stretch;
-  min-width: 158px;
+  min-width: 150px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 12px 18px;
+  margin: 6px;
+  padding: 10px 16px;
   border: 0;
+  border-radius: 10px;
   background: transparent;
   color: var(--text);
   cursor: pointer;
   overflow: hidden;
-  transition: background .15s, color .15s;
+  transition: background .18s, color .18s, box-shadow .18s;
 }
 .oil-pick-cta-ico {
   position: absolute;
-  left: 54%;
+  left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 88px;
-  height: 88px;
-  max-width: 88%;
-  max-height: 82%;
+  width: 60px;
+  height: 60px;
+  max-width: 76%;
+  max-height: 72%;
   color: currentColor;
-  opacity: .13;
+  opacity: .10;
   pointer-events: none;
 }
 .oil-pick-cta-label {
@@ -651,13 +654,14 @@ input[data-edit-filter-absent]:checked::after {
   color: #fff;
   letter-spacing: .3px;
 }
-/* Наведение на карточку — панель загорается золотым градиентом, текст темнеет */
+/* Наведение на карточку — мягкая золотая заливка-пилюля, текст темнеет */
 .oil-option.has-cta:hover .oil-pick-cta {
-  background: linear-gradient(100deg, transparent 0%, var(--accent) 42%);
+  background: linear-gradient(125deg, oklch(0.83 0.15 86) 0%, var(--accent) 52%, oklch(0.71 0.185 81) 100%);
   color: var(--accent-fg);
+  box-shadow: 0 4px 14px -8px var(--accent-dim);
 }
 .oil-option.has-cta:hover .oil-pick-cta-label { color: var(--accent-fg); }
-.oil-option.has-cta:hover .oil-pick-cta-ico { opacity: .28; }
+.oil-option.has-cta:hover .oil-pick-cta-ico { opacity: .16; }
 /* Notable существует только в 400 — жирность не синтезируем */
 .oil-name  { font-size: 13.5px; font-weight: 400; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .visc-pill {
