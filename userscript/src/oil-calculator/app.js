@@ -834,6 +834,7 @@ function calcForAggregate(agg) {
                     <button class="zm-chip ${calcState.mileage==='>=100'?'zm-chip-act':''}" data-mileage=">=100">100т+</button>
                     <button class="zm-chip ${calcState.mileage==='>=200'?'zm-chip-act':''}" data-mileage=">=200">200т+</button>
                     <button class="zm-chip ${calcState.mileage==='0w20'?'zm-chip-act':''}" data-mileage="0w20">0W-20</button>
+                    <button class="zm-chip ${calcState.mileage==='0w30'?'zm-chip-act':''}" data-mileage="0w30">0W-30</button>
                 </div>
                 <div class="zm-ctrl-row" style="flex-wrap:wrap;gap:8px;margin-top:4px">
                     <label class="zm-chk" style="font-size:11px">
@@ -1116,6 +1117,7 @@ function calcForAggregate(agg) {
         let viscLabel = '';
         if (mileage === '>=200') viscLabel = '<span class="zm-visc-badge zm-visc-10w40">10W-40 (200т+)</span>';
         else if (mileage === '0w20') viscLabel = '<span class="zm-visc-badge zm-visc-0w20">0W-20</span>';
+        else if (mileage === '0w30') viscLabel = '<span class="zm-visc-badge zm-visc-0w30">0W-30</span>';
         else if (mileage === '>=100') viscLabel = '<span class="zm-visc-badge">5W-40</span>';
         else viscLabel = '<span class="zm-visc-badge">5W-30</span>';
 
@@ -2236,6 +2238,7 @@ function calcForAggregate(agg) {
             .zm-flush-total{color:#fff !important;background:#5e35b1;padding:1px 8px;
                 border-radius:3px;font-size:13px;margin-left:2px}
             .zm-visc-0w20{background:#001f3a;border-color:#2196f3;color:#64b5f6;font-weight:bold}
+            .zm-visc-0w30{background:#00332a;border-color:#26a69a;color:#4db6ac;font-weight:bold}
             #zm-aggs{padding:10px 14px}
             .zm-agg{background:#131722;border:1px solid #2a2d3e;border-radius:8px;padding:10px 12px;margin-bottom:10px}
             .zm-agg.zm-bath{background:#3a1818;border-color:#5a2828}

@@ -346,17 +346,21 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         return { mid: oil, spot: null };
     }
 
-    if (mileage === '0w20') {
-        const oils0w20 = shopOils.filter(o => o.v === '0W-20' && !o.isSpot);
+    if (mileage === '0w20' || mileage === '0w30') {
+        const visc0w = mileage === '0w20' ? '0W-20' : '0W-30';
+        const oils0w = shopOils.filter(o => o.v === visc0w && !o.isSpot);
         const carApp0w = Array.isArray(carApprovals) ? carApprovals : [];
         const carTok0w = calcState.ignoreApprovals ? new Set() : tokenSet(carApp0w);
-        const rated0w = oils0w20.map(oil => {
+        const rated0w = oils0w.map(oil => {
             const oilTok = tokenSet(oil.a); let score = 0;
             if (!calcState.ignoreApprovals) for (const t of carTok0w) if (oilTok.has(t)) score += 10;
             return { oil, score };
         });
         rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-        const mid0w = rated0w[0] ? rated0w[0].oil : { b:'ZIC', n:'X9 FE 0W-20', price:1550, v:'0W-20', a:['API SP'], ad:[] };
+        const fallback0w = mileage === '0w20'
+            ? { b:'ZIC', n:'X9 FE 0W-20', price:1550, v:'0W-20', a:['API SP'], ad:[] }
+            : { b:'ZIC', n:'ZERO 0W-30', price:2150, v:'0W-30', a:['ACEA C3'], ad:[] };
+        const mid0w = rated0w[0] ? rated0w[0].oil : fallback0w;
         let second0w = null;
         if (calcState.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
         agg.approvals = carApp0w;

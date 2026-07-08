@@ -14,7 +14,7 @@ export function formatAggText(agg, calc, calcState) {
     const lines = [];
     const mileage = calcState.mileage;
     const isFixedSingle = mileage === '>=200';
-    const is0w20        = mileage === '0w20';
+    const is0w20        = mileage === '0w20' || mileage === '0w30';
 
     if (agg.group === 'engine') {
         const v0       = roundL(parseFloat(agg.volume || 0));
