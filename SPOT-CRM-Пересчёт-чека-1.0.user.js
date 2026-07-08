@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM: Пересчёт чека
 // @namespace    zamena-masla-spot.ru
-// @version      1.6.105
+// @version      1.6.109
 // @description  Пересчёт стоимости услуги по чеку /sale/{id} по актуальным ценам
 // @match        *://crm.zamena-masla-spot.ru/sale/*
 // @match        *://crm.zamena-masla-spot.ru/for-sale/*
@@ -156,6 +156,30 @@
         v: "0W-20",
         a: ["API SP", "ILSAC GF-6A", "GM DEXOS1 Gen 3", "GM DEXOS1"],
         ad: ["бензин", "топливо", "низкотемпературное"]
+      },
+      {
+        b: "ZIC",
+        n: "TOP LS 5W-30",
+        price: 1950,
+        v: "5W-30",
+        a: ["API SN", "ACEA C3", "VW 504 00", "VW 507 00", "MB 229.51", "PORSCHE C30", "LL 04"],
+        ad: ["малозольное", "масло-угар", "отложения", "нагар", "температура"]
+      },
+      {
+        b: "ZIC",
+        n: "TOP 5W-40",
+        price: 1900,
+        v: "5W-40",
+        a: ["API SQ", "ACEA A3/B3", "ACEA A3/B4", "VW 502 00", "VW 505 00", "MB 229.5", "MB 229.3", "LL 01", "RN 0700", "RN 0710", "PSA B71 2296", "PORSCHE A40"],
+        ad: ["интервал", "масло-угар", "отложения", "нагар", "температура"]
+      },
+      {
+        b: "ZIC",
+        n: "ZERO 0W-30",
+        price: 2150,
+        v: "0W-30",
+        a: ["ACEA C3", "VW 504 00", "VW 507 00"],
+        ad: ["отложения", "нагар", "топливо"]
       },
       // GM / Shell / Castrol
       {

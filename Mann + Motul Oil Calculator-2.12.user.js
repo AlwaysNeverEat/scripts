@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.105
+// @version      2.22.109
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -163,6 +163,30 @@
         v: "0W-20",
         a: ["API SP", "ILSAC GF-6A", "GM DEXOS1 Gen 3", "GM DEXOS1"],
         ad: ["бензин", "топливо", "низкотемпературное"]
+      },
+      {
+        b: "ZIC",
+        n: "TOP LS 5W-30",
+        price: 1950,
+        v: "5W-30",
+        a: ["API SN", "ACEA C3", "VW 504 00", "VW 507 00", "MB 229.51", "PORSCHE C30", "LL 04"],
+        ad: ["малозольное", "масло-угар", "отложения", "нагар", "температура"]
+      },
+      {
+        b: "ZIC",
+        n: "TOP 5W-40",
+        price: 1900,
+        v: "5W-40",
+        a: ["API SQ", "ACEA A3/B3", "ACEA A3/B4", "VW 502 00", "VW 505 00", "MB 229.5", "MB 229.3", "LL 01", "RN 0700", "RN 0710", "PSA B71 2296", "PORSCHE A40"],
+        ad: ["интервал", "масло-угар", "отложения", "нагар", "температура"]
+      },
+      {
+        b: "ZIC",
+        n: "ZERO 0W-30",
+        price: 2150,
+        v: "0W-30",
+        a: ["ACEA C3", "VW 504 00", "VW 507 00"],
+        ad: ["отложения", "нагар", "топливо"]
       },
       // GM / Shell / Castrol
       {
@@ -733,11 +757,12 @@
       agg.topCandidates = [oil];
       return { mid: oil, spot: null };
     }
-    if (mileage === "0w20") {
-      const oils0w20 = shopOils.filter((o) => o.v === "0W-20" && !o.isSpot);
+    if (mileage === "0w20" || mileage === "0w30") {
+      const visc0w = mileage === "0w20" ? "0W-20" : "0W-30";
+      const oils0w = shopOils.filter((o) => o.v === visc0w && !o.isSpot);
       const carApp0w = Array.isArray(carApprovals) ? carApprovals : [];
       const carTok0w = calcState2.ignoreApprovals ? /* @__PURE__ */ new Set() : tokenSet(carApp0w);
-      const rated0w = oils0w20.map((oil) => {
+      const rated0w = oils0w.map((oil) => {
         const oilTok = tokenSet(oil.a);
         let score = 0;
         if (!calcState2.ignoreApprovals) {
@@ -746,7 +771,8 @@
         return { oil, score };
       });
       rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-      const mid0w = rated0w[0] ? rated0w[0].oil : { b: "ZIC", n: "X9 FE 0W-20", price: 1550, v: "0W-20", a: ["API SP"], ad: [] };
+      const fallback0w = mileage === "0w20" ? { b: "ZIC", n: "X9 FE 0W-20", price: 1550, v: "0W-20", a: ["API SP"], ad: [] } : { b: "ZIC", n: "ZERO 0W-30", price: 2150, v: "0W-30", a: ["ACEA C3"], ad: [] };
+      const mid0w = rated0w[0] ? rated0w[0].oil : fallback0w;
       let second0w = null;
       if (calcState2.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
       agg.approvals = carApp0w;
@@ -1025,7 +1051,7 @@
     const lines = [];
     const mileage = calcState2.mileage;
     const isFixedSingle = mileage === ">=200";
-    const is0w20 = mileage === "0w20";
+    const is0w20 = mileage === "0w20" || mileage === "0w30";
     if (agg.group === "engine") {
       const v0 = roundL(parseFloat(agg.volume || 0));
       const vFilter = roundL(parseFloat(agg.filterVolume || 0));
@@ -2051,6 +2077,7 @@
                     <button class="zm-chip ${calcState.mileage === ">=100" ? "zm-chip-act" : ""}" data-mileage=">=100">100т+</button>
                     <button class="zm-chip ${calcState.mileage === ">=200" ? "zm-chip-act" : ""}" data-mileage=">=200">200т+</button>
                     <button class="zm-chip ${calcState.mileage === "0w20" ? "zm-chip-act" : ""}" data-mileage="0w20">0W-20</button>
+                    <button class="zm-chip ${calcState.mileage === "0w30" ? "zm-chip-act" : ""}" data-mileage="0w30">0W-30</button>
                 </div>
                 <div class="zm-ctrl-row" style="flex-wrap:wrap;gap:8px;margin-top:4px">
                     <label class="zm-chk" style="font-size:11px">
@@ -2316,6 +2343,7 @@
     let viscLabel = "";
     if (mileage === ">=200") viscLabel = '<span class="zm-visc-badge zm-visc-10w40">10W-40 (200т+)</span>';
     else if (mileage === "0w20") viscLabel = '<span class="zm-visc-badge zm-visc-0w20">0W-20</span>';
+    else if (mileage === "0w30") viscLabel = '<span class="zm-visc-badge zm-visc-0w30">0W-30</span>';
     else if (mileage === ">=100") viscLabel = '<span class="zm-visc-badge">5W-40</span>';
     else viscLabel = '<span class="zm-visc-badge">5W-30</span>';
     box.innerHTML = dctNotice + (viscLabel ? `<div style="padding:4px 14px 0">${viscLabel}</div>` : "") + aggs.map((agg) => {
@@ -3224,6 +3252,7 @@
             .zm-flush-total{color:#fff !important;background:#5e35b1;padding:1px 8px;
                 border-radius:3px;font-size:13px;margin-left:2px}
             .zm-visc-0w20{background:#001f3a;border-color:#2196f3;color:#64b5f6;font-weight:bold}
+            .zm-visc-0w30{background:#00332a;border-color:#26a69a;color:#4db6ac;font-weight:bold}
             #zm-aggs{padding:10px 14px}
             .zm-agg{background:#131722;border:1px solid #2a2d3e;border-radius:8px;padding:10px 12px;margin-bottom:10px}
             .zm-agg.zm-bath{background:#3a1818;border-color:#5a2828}
