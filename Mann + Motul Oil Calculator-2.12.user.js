@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.109
+// @version      2.22.115
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -1090,7 +1090,7 @@
       } else {
         calc.costs.forEach((c) => {
           const base = `${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`;
-          const sumpLine = calcState2.showWithSump ? ` + 550₽ (картер) = ${c.total + 550}₽` : " + 550р (с\\у\\з\\к)";
+          const sumpLine = calcState2.showWithSump ? ` + 550₽ (картер) = ${c.total + 550}₽` : " (картер)";
           lines.push(base + sumpLine);
         });
       }
@@ -1694,7 +1694,7 @@
       const canPick = agg.group === "engine" && i === 0 && !c.oil.isSpot && !isFixedSingle && agg.allCandidates && agg.allCandidates.length > 1;
       const regMatches = agg.group === "engine" ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
       const regBadge = regMatches.length ? `<button class="zm-reg-badge" data-reg-info="${escapeHtmlSafe(JSON.stringify(regMatches))}" title="Совпадение с регламентом — нажми">⭐ⓘ</button>` : "";
-      const sumpSuffix = agg.group === "engine" && calcState.showWithSump ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>` : "";
+      const sumpSuffix = agg.group === "engine" ? calcState.showWithSump ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>` : " + 550₽ (картер)" : "";
       let oilDetailsHtml = "";
       if (agg.group === "engine") {
         oilDetailsHtml = renderOilDetailsBlock(agg, c.oil, i, spotAddsLower);
