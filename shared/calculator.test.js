@@ -98,6 +98,29 @@ test('иерархия не ломает выбор при ignoreApprovals', () 
     assert.equal(scored.length, 0, 'при игноре допусков скоринг нулевой');
 });
 
+test('«Игнорировать допуска» распространяется на АКПП', () => {
+    const makeAgg = () => ({ key: 'automatic', group: 'auto', isCvt: false, volume: 6,
+                             approvals: ['DEXRON VI'] });
+    const state = {
+        atpType: 'partial', volumeOverride: {}, atpVolumeManual: null, flush: 'none',
+        atpFilter: false, ignoreApprovals: false,
+    };
+
+    // по умолчанию подбор по допускам — вторым маслом идёт ATF Dexron VI
+    const withAppr = calcForAggregate(makeAgg(), state, []);
+    assert.ok(withAppr.costs.some(c => /Dexron\s*VI/i.test(c.oil.n)),
+        'без игнора — масло подобрано по допуску Dexron VI');
+
+    // с включённым игнором допуска не учитываются — стандартная пара ATF
+    const ignored = calcForAggregate(makeAgg(), { ...state, ignoreApprovals: true }, []);
+    assert.ok(!ignored.costs.some(c => /Dexron\s*VI/i.test(c.oil.n)),
+        'при игноре допусков подбор по спецификации АКПП отключён');
+    assert.notEqual(
+        withAppr.costs.map(c => c.oil.n).join('|'),
+        ignored.costs.map(c => c.oil.n).join('|'),
+        'кнопка «Игнорировать допуска» должна менять предложение по АКПП');
+});
+
 test('требуемый ACEA-класс не режет пикер до одного масла (LADA, A3/B4)', () => {
     // Реальный кейс: у Лады в допусках ROLF есть ACEA A3/B4, и раньше пул
     // кандидатов жёстко фильтровался до единственного Leichtlauf —

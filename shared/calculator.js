@@ -563,9 +563,13 @@ export function calcForAggregate(agg, calcState, carApprovals) {
                 oil1 = defaults.cvt[0]; oil2 = defaults.cvt[1];
             }
         } else {
-            const picked = pickAtfOils(agg.approvals || [], defaults.atf);
+            // «Игнорировать допуска» распространяется и на АКПП: без учёта
+            // допусков подбираем стандартную пару ATF (как при отсутствии
+            // спецификаций), а предупреждение «нет подходящих» не показываем.
+            const atfApprovals = calcState.ignoreApprovals ? [] : (agg.approvals || []);
+            const picked = pickAtfOils(atfApprovals, defaults.atf);
             oil1 = picked.oil1; oil2 = picked.oil2;
-            agg.atfWarn = picked.noMatch;
+            agg.atfWarn = calcState.ignoreApprovals ? false : picked.noMatch;
         }
     } else {
         const isCvtGear = agg.rawText && /CVT/i.test(agg.rawText);
