@@ -122,6 +122,7 @@ function renderControls(calcState) {
                 ${chip('>=100',  '100т+')}
                 ${chip('>=200',  '200т+')}
                 ${chip('0w20',   '0W-20')}
+                ${chip('0w30',   '0W-30')}
             </div>
             <div class="ctrl-row" style="margin:14px 0">
                 <label class="chk-label">

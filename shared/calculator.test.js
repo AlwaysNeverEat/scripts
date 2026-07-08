@@ -137,6 +137,19 @@ test('VW 507 00 покрывает 505 00/505 01; RN 0710 покрывает 070
     assert.ok(ll.has('LL98'), 'транзитивно через LL 01');
 });
 
+test('режим 0W-30: подбор только из масел 0W-30 (не 0W-20)', () => {
+    const state = makeState({ mileage: '0w30' });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    // машина с допуском VW 507 00 — под него подходит ZIC ZERO 0W-30
+    const { mid } = pickEngineOils(agg, getShopOils(), state, ['VW 507 00']);
+
+    assert.equal(mid.v, '0W-30', 'выбрано масло вязкости 0W-30');
+    assert.ok(agg.allCandidates.every(o => o.v === '0W-30'),
+        'в пуле только 0W-30, без примеси 0W-20');
+    assert.ok(agg.allCandidates.some(o => o.n === 'ZERO 0W-30'),
+        'ZIC ZERO 0W-30 присутствует в кандидатах');
+});
+
 test('вариатор с галочкой «АТФ SP-III»: только ROLF Professional ATF Multi', () => {
     const makeAgg = () => ({ key: 'automatic', group: 'auto', isCvt: true, volume: 7, approvals: [] });
     const state = {

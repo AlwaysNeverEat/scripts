@@ -162,6 +162,11 @@ const CASES = [
         state: makeState({
             mileage: '>=100', selected: new Set(['engine', 'automatic']),
             atpType: 'partial', cvtFilterCoarse: true, cvtFilterFine: true, flush: '5min',
+            // Пин масла двс: RN 0700 даёт большую группу 5W-40 с равным счётом,
+            // и медианный выбор чувствителен к росту каталога. Фикстура проверяет
+            // формат/формулы отчёта, а не политику подбора, — фиксируем масло,
+            // чтобы добавление новых позиций в shared/oils.js не ломало паритет.
+            oilOverride: { engine_mid: 'Motul_5W-40 6100 SYN-CLEAN' },
             totals: [{ engine: 0, automatic: 0 }],
         }),
     },
