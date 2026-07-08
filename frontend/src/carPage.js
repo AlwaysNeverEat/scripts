@@ -119,25 +119,26 @@ function renderEditForm(record) {
         <label class="chk-label edit-flag"><input type="checkbox" data-edit-flag="${key}" ${flags[key] ? 'checked' : ''}/> ${esc(def.label)}</label>
     `).join('');
 
-    // объёмы жидкостей
+    // объёмы жидкостей + переименование штатных агрегатов
     const fc = record.fluid_capacities || {};
-    const volRow = (key, label) => {
+    const volRow = (key, defName) => {
         const a = fc[key];
         if (!a) return '';
         const vol = key === 'engine'
             ? (a.volumeService || a.volumeTotal || a.volumePlain || '')
             : (a.volumeTotal || a.volumeService || a.volumePlain || '');
         return `
-            <div class="edit-filter-row">
-                <span class="edit-lbl">${label}</span>
-                <input type="number" step="0.1" min="0" data-edit-vol="${key}" value="${vol}" style="width:90px"/>
+            <div class="edit-agg-row">
+                <input type="text" class="edit-agg-name" data-edit-agg-label="${key}" value="${esc(a.label || '')}" placeholder="${esc(defName)}" title="название агрегата — можно переименовать"/>
+                <input type="number" step="0.1" min="0" data-edit-vol="${key}" value="${vol}" style="width:90px" title="объём, л"/>
                 <span style="color:var(--sub);font-size:12px">л</span>
             </div>`;
     };
     const volRows = [
-        volRow('engine', 'ДВС'), volRow('automatic', 'АКПП/вариатор'),
-        volRow('manual', 'МКПП'), volRow('transfer', 'Раздатка'),
-        volRow('diffFront', 'Диф. перед'), volRow('diffRear', 'Диф. зад'),
+        volRow('engine', 'ДВС (двигатель)'),
+        volRow('automatic', fc.automatic?.isCvt ? 'Вариатор (CVT)' : 'АКПП'),
+        volRow('manual', 'МКПП'), volRow('transfer', 'Раздаточная коробка'),
+        volRow('diffFront', 'Дифференциал (перед)'), volRow('diffRear', 'Дифференциал (зад)'),
     ].filter(Boolean).join('');
 
     // список масел: чем предлагать (не-SPOT; SPOT идёт по регламенту всегда)
@@ -194,7 +195,7 @@ function renderEditForm(record) {
                 </label>
             </div>
 
-            ${volRows ? `<div class="edit-sec-h">Объёмы жидкостей</div>${volRows}` : ''}
+            ${volRows ? `<div class="edit-sec-h">Агрегаты: название и объём</div><div class="edit-oils-note">Левое поле — название (можно переименовать, пусто = стандартное), правое — объём заправки, л.</div>${volRows}` : ''}
 
             <div class="edit-sec-h">Дополнительные агрегаты</div>
             <div class="edit-oils-note">Свои агрегаты сверх основных: хоть 5 вариаторов, мостов, редукторов или раздаток. У каждого — название, объём и свои допуска (по одному в строке).</div>
@@ -348,6 +349,15 @@ function bindEditForm(head, record, ctx) {
             if (!isFinite(v) || v <= 0 || !fluid[key]) return;
             if (key === 'engine') fluid.engine.volumeService = v;
             else fluid[key].volumeTotal = v;
+        });
+
+        // Переименование штатных агрегатов → fluid_capacities[key].label
+        head.querySelectorAll('[data-edit-agg-label]').forEach(inp => {
+            const key = inp.dataset.editAggLabel;
+            if (!fluid[key]) return;
+            const name = inp.value.trim();
+            if (name) fluid[key].label = name;
+            else delete fluid[key].label;
         });
 
         // Пользовательские агрегаты → fluid_capacities.custom

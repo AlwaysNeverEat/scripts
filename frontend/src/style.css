@@ -766,6 +766,19 @@ input[data-edit-filter-absent]:checked::after {
 .edit-oils-visc { margin-bottom: 10px; }
 .edit-oils-visc-h { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
 .edit-oil { display: flex; margin-bottom: 4px; font-size: 12.5px; }
+.edit-agg-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.edit-agg-row .edit-agg-name {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.edit-agg-row .edit-agg-name:focus { outline: none; border-color: var(--accent); }
+
 .edit-custom-agg {
   border: 1px solid var(--border);
   border-radius: 10px;
