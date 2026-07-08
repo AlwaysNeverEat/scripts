@@ -426,7 +426,7 @@ function calcForAggregate(agg) {
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
                     ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>`
-                    : ' + 550₽')
+                    : ' + 550₽ (картер)')
                 : '';
 
             let oilDetailsHtml = '';

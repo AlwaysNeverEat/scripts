@@ -435,7 +435,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
                     ? ` + 550₽ (картер) = <b>${c.total + 550}₽</b>`
-                    : ' + 550₽')
+                    : ' + 550₽ (картер)')
                 : '';
 
             return `
