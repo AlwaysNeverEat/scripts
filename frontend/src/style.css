@@ -766,6 +766,31 @@ input[data-edit-filter-absent]:checked::after {
 .edit-oils-visc { margin-bottom: 10px; }
 .edit-oils-visc-h { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
 .edit-oil { display: flex; margin-bottom: 4px; font-size: 12.5px; }
+.edit-custom-agg {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--bg2);
+}
+.edit-custom-agg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.edit-custom-agg-head input { flex: 1; }
+.edit-custom-agg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.edit-custom-agg-row select { flex: 1; }
+.edit-custom-agg input, .edit-custom-agg select, .edit-custom-agg textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.edit-custom-agg input:focus, .edit-custom-agg select:focus, .edit-custom-agg textarea:focus {
+  outline: none; border-color: var(--accent);
+}
+.edit-custom-agg textarea { width: 100%; }
+
 .edit-error {
   margin-top: 12px;
   padding: 8px 12px;

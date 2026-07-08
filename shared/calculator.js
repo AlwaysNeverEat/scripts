@@ -270,6 +270,23 @@ export function getAggregates(data) {
     if (data.transfer)  out.push({ key:'transfer',  label:'Раздаточная коробка',     group:'gear', ...pickTotal(data.transfer) });
     if (data.diffFront) out.push({ key:'diffFront', label:'Дифференциал (перед)',    group:'gear', ...pickTotal(data.diffFront) });
     if (data.diffRear)  out.push({ key:'diffRear',  label:'Дифференциал (зад)',      group:'gear', ...pickTotal(data.diffRear) });
+
+    // Пользовательские агрегаты — их добавляют/редактируют вручную на странице
+    // машины («Нашли ошибку?»): свои названия, объём и допуска. Хранятся в
+    // fluid_capacities.custom как массив, поэтому база (JSONB) не требует миграции.
+    const custom = Array.isArray(data.custom) ? data.custom : [];
+    for (const c of custom) {
+        if (!c || typeof c !== 'object' || !c.key) continue;
+        const group = c.group === 'auto' ? 'auto' : 'gear';
+        out.push({
+            key: c.key,
+            label: c.label || (group === 'auto' ? (c.isCvt ? 'Вариатор' : 'АКПП') : 'Агрегат'),
+            group,
+            isCvt: group === 'auto' ? !!c.isCvt : false,
+            isCustom: true,
+            ...pickTotal(c),
+        });
+    }
     return out;
 }
 
@@ -615,7 +632,7 @@ export function totalAggLabel(agg) {
     if (agg.key === 'transfer')  return 'раздатка';
     if (agg.key === 'diffFront') return 'диф.перед';
     if (agg.key === 'diffRear')  return 'диф.зад';
-    return agg.key;
+    return (agg.label || agg.key).toLowerCase();
 }
 
 export const totalOilLabel = (oil) => `${oil.b} ${oil.n}`;

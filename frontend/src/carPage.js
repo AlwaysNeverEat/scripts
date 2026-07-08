@@ -196,6 +196,11 @@ function renderEditForm(record) {
 
             ${volRows ? `<div class="edit-sec-h">Объёмы жидкостей</div>${volRows}` : ''}
 
+            <div class="edit-sec-h">Дополнительные агрегаты</div>
+            <div class="edit-oils-note">Свои агрегаты сверх основных: хоть 5 вариаторов, мостов, редукторов или раздаток. У каждого — название, объём и свои допуска (по одному в строке).</div>
+            <div id="edit-custom-aggs"></div>
+            <button class="btn btn-sec btn-mini" id="btn-add-custom-agg" style="margin-top:6px">➕ Добавить агрегат</button>
+
             <div class="edit-sec-h">Допуски масла — по одному в строке</div>
             <textarea id="edit-approvals" rows="4">${esc(approvals.join('\n'))}</textarea>
 
@@ -223,7 +228,77 @@ function renderEditForm(record) {
     `;
 }
 
+// Рабочее состояние формы для секций с добавлением/удалением строк, которые
+// нельзя восстановить из DOM при пересборке (пользовательские агрегаты).
+const CUSTOM_AGG_TYPES = [
+    { v: 'cvt',  l: 'Вариатор (CVT)' },
+    { v: 'auto', l: 'АКПП' },
+    { v: 'gear', l: 'Мост / редуктор / раздатка / МКПП' },
+];
+
+function customAggsFromRecord(record) {
+    const list = Array.isArray(record.fluid_capacities?.custom) ? record.fluid_capacities.custom : [];
+    return list.map(c => ({
+        key: c.key || newAggKey(),
+        label: c.label || '',
+        type: c.group === 'auto' ? (c.isCvt ? 'cvt' : 'auto') : 'gear',
+        volume: c.volumeTotal || c.volumeService || c.volumePlain || '',
+        approvals: Array.isArray(c.motulProducts) ? c.motulProducts.join('\n') : '',
+    }));
+}
+
+function newAggKey() {
+    return 'custom_' + Math.random().toString(36).slice(2, 9);
+}
+
+function renderCustomAggRow(c, i) {
+    const typeOpts = CUSTOM_AGG_TYPES.map(t =>
+        `<option value="${t.v}" ${c.type === t.v ? 'selected' : ''}>${t.l}</option>`).join('');
+    return `
+        <div class="edit-custom-agg" data-cagg-idx="${i}">
+            <div class="edit-custom-agg-head">
+                <input type="text" data-cagg="label" value="${esc(c.label)}" placeholder="Название (напр. «Вариатор 2», «Задний мост»)"/>
+                <button class="btn-reset-vol" data-cagg-del="${i}" title="удалить агрегат">✕</button>
+            </div>
+            <div class="edit-custom-agg-row">
+                <select data-cagg="type">${typeOpts}</select>
+                <input type="number" step="0.1" min="0" data-cagg="volume" value="${esc(c.volume)}" placeholder="объём, л" style="width:110px"/>
+                <span style="color:var(--sub);font-size:12px">л</span>
+            </div>
+            <textarea data-cagg="approvals" rows="2" placeholder="допуска — по одному в строке (напр. NS-3, Motul CVTF)">${esc(c.approvals)}</textarea>
+        </div>`;
+}
+
+function renderCustomAggs(head, customAggs) {
+    const box = head.querySelector('#edit-custom-aggs');
+    if (!box) return;
+    box.innerHTML = customAggs.length
+        ? customAggs.map((c, i) => renderCustomAggRow(c, i)).join('')
+        : '<div class="edit-oils-note" style="opacity:.7">Пока нет — нажми «Добавить агрегат».</div>';
+
+    box.querySelectorAll('[data-cagg]').forEach(el => {
+        const idx = parseInt(el.closest('[data-cagg-idx]').dataset.caggIdx, 10);
+        const field = el.dataset.cagg;
+        const handler = () => { customAggs[idx][field] = el.value; };
+        el.oninput = handler;
+        el.onchange = handler;
+    });
+    box.querySelectorAll('[data-cagg-del]').forEach(btn => {
+        btn.onclick = () => {
+            customAggs.splice(parseInt(btn.dataset.caggDel, 10), 1);
+            renderCustomAggs(head, customAggs);
+        };
+    });
+}
+
 function bindEditForm(head, record, ctx) {
+    const customAggs = customAggsFromRecord(record);
+    renderCustomAggs(head, customAggs);
+    head.querySelector('#btn-add-custom-agg').onclick = () => {
+        customAggs.push({ key: newAggKey(), label: '', type: 'gear', volume: '', approvals: '' });
+        renderCustomAggs(head, customAggs);
+    };
+
     head.querySelector('#btn-edit-cancel').onclick = () => {
         editMode = false;
         renderHead(record, ctx);
@@ -274,6 +349,22 @@ function bindEditForm(head, record, ctx) {
             if (key === 'engine') fluid.engine.volumeService = v;
             else fluid[key].volumeTotal = v;
         });
+
+        // Пользовательские агрегаты → fluid_capacities.custom
+        fluid.custom = customAggs.map(c => {
+            const group = c.type === 'gear' ? 'gear' : 'auto';
+            const vol = parseFloat(c.volume);
+            const approvals = String(c.approvals || '')
+                .split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            return {
+                key: c.key || newAggKey(),
+                label: String(c.label || '').trim(),
+                group,
+                isCvt: c.type === 'cvt',
+                volumeTotal: isFinite(vol) && vol > 0 ? vol : null,
+                motulProducts: approvals,
+            };
+        }).filter(c => c.label || c.volumeTotal || c.motulProducts.length);
 
         const sourceLinks = {};
         head.querySelectorAll('[data-edit-source]').forEach(inp => {
