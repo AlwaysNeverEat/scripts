@@ -423,8 +423,10 @@ function calcForAggregate(agg) {
                 ? `<button class="zm-reg-badge" data-reg-info="${escapeHtmlSafe(JSON.stringify(regMatches))}" title="Совпадение с регламентом — нажми">⭐ⓘ</button>`
                 : '';
 
-            const sumpSuffix = (agg.group === 'engine' && calcState.showWithSump)
-                ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>`
+            const sumpSuffix = agg.group === 'engine'
+                ? (calcState.showWithSump
+                    ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>`
+                    : ' + 550₽')
                 : '';
 
             let oilDetailsHtml = '';
