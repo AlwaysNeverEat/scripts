@@ -434,14 +434,14 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
 
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
-                    ? ` + 550₽ (картер) = <b>${c.total + 550}₽</b>`
-                    : ' + 550₽ (картер)')
+                    ? ` + 550p (KAPTEP) = <b>${c.total + 550}p</b>`
+                    : ' + 550p (KAPTEP)')
                 : '';
 
             return `
                 <div class="oil-option${i === 0 ? ' selected' : ''}" data-oil-pick="${agg.key}" data-oil-idx="${i}">
                     <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
-                    <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b>${sumpSuffix}</div>
+                    <div class="oil-price">${esc(c.breakdown || c.oil.price + 'p/л')} = <b>${c.total}p</b>${sumpSuffix}</div>
                     ${oilApprHtml}
                 </div>
             `;

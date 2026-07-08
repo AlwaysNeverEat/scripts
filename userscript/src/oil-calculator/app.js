@@ -425,8 +425,8 @@ function calcForAggregate(agg) {
 
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
-                    ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>`
-                    : ' + 550₽ (картер)')
+                    ? ` + 550p (KAPTEP) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}p</b>`
+                    : ' + 550p (KAPTEP)')
                 : '';
 
             let oilDetailsHtml = '';
@@ -442,8 +442,8 @@ function calcForAggregate(agg) {
                         : `${c.oil.b} ${c.oil.n}`}
                     ${regBadge}
                 </div>
-                <div class="zm-oil-calc">${c.breakdown} = <b class="zm-oil-total">${c.total}₽</b>${sumpSuffix}</div>
-                <div class="zm-oil-price">${c.oil.price}₽/л</div>
+                <div class="zm-oil-calc">${c.breakdown} = <b class="zm-oil-total">${c.total}p</b>${sumpSuffix}</div>
+                <div class="zm-oil-price">${c.oil.price}p/л</div>
                 ${oilDetailsHtml}
             </div>`;
         }).join('')}

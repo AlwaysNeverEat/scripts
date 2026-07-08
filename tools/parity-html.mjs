@@ -154,12 +154,16 @@ for (const c of CASES) {
     const r1 = orig.calc(c.agg());
     const r2 = neu.calc(c.agg());
 
-    // Интенциональное расхождение с базой: при ВЫКЛ галочке «с картером» под
-    // ценой масла двс теперь печатается приписка «+ 550₽ (картер)» (в базе её нет).
-    // Срезаем её с обеих сторон, чтобы паритет стерёг остальную вёрстку карточки.
-    const stripOffSump = h => h.replace(/<\/b> \+ 550₽ \(картер\)<\/div>/g, '</b></div>');
-    const h1 = stripOffSump((r1.html || '').replace(/\s+/g, ' ').trim());
-    const h2 = stripOffSump((r2.html || '').replace(/\s+/g, ' ').trim());
+    // Секции с маслом переоформлены намеренно (не логика, а косметика): значок
+    // рубля «₽»→«p», слово «картер»→«KAPTEP», а у ВЫКЛ-состояния добавлена сноска
+    // «+ 550p (KAPTEP)». База (44f7180) печатает старый вид. Схлопываем итог/сноску
+    // и цену/л в маркеры с обеих сторон — паритет продолжает стеречь формулу
+    // расчёта и остальную вёрстку карточки.
+    const canon = h => h
+        .replace(/<b class="zm-oil-total">\d+[₽p]<\/b>(?: \+ 550[₽p] \([^)]*\)(?: = <b class="zm-oil-total zm-oil-total-sump">\d+[₽p]<\/b>)?)?/g, '⟦T⟧')
+        .replace(/<div class="zm-oil-price">\d+[₽p]\/л<\/div>/g, '⟦P⟧');
+    const h1 = canon((r1.html || '').replace(/\s+/g, ' ').trim());
+    const h2 = canon((r2.html || '').replace(/\s+/g, ' ').trim());
     const t1 = JSON.stringify((r1.costs || []).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
     const t2 = JSON.stringify((r2.costs || []).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
 
