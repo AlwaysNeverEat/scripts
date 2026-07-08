@@ -327,7 +327,7 @@ function renderAggCard(agg, calcState, carApprovals) {
 
     const showApp = calcState.showApprovals.has(agg.key);
     const appCount = agg.group === 'engine' ? carApprovals.length : (agg.approvals || []).length;
-    const appLabel = agg.group === 'engine' ? 'Допуска машины' : 'Продукты Motul';
+    const appLabel = agg.group === 'engine' ? 'Допуска машины' : (agg.isCustom ? 'Допуска' : 'Продукты Motul');
     const appBlock = sel && !calc.isHighGear && !calc.needsVolume && appCount > 0 ? `
         <button class="app-btn" data-app-toggle="${agg.key}">
             ${showApp ? '▾' : '▸'} ${appLabel} (${appCount})
@@ -774,6 +774,7 @@ function dbRecordToData(rec) {
     if (fc.transfer)  out.transfer  = { ...fc.transfer };
     if (fc.diffFront) out.diffFront = { ...fc.diffFront };
     if (fc.diffRear)  out.diffRear  = { ...fc.diffRear };
+    if (Array.isArray(fc.custom)) out.custom = fc.custom.map(c => ({ ...c }));
     if (rec.motul_name) out.motulName = rec.motul_name;
     return out;
 }
