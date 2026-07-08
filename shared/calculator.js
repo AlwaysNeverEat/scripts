@@ -251,11 +251,15 @@ export function pickAtfOils(motulProducts, atfDefs) {
 
 export function getAggregates(data) {
     const out = [];
+    // Название агрегата можно переопределить вручную («Нашли ошибку?»): если в
+    // данных лежит непустой label — берём его, иначе штатное имя по типу.
+    const lbl = (a, def) => (a && typeof a.label === 'string' && a.label.trim()) ? a.label.trim() : def;
+    const renamed = (a) => !!(a && typeof a.label === 'string' && a.label.trim());
     if (data.engine) {
         const eng = { ...data.engine };
         eng.volume = eng.volumeService || eng.volumeTotal || eng.volumePlain || eng.volume || 0;
         eng.volumeType = eng.volumeService ? 'service' : (eng.volumeTotal ? 'total' : 'plain');
-        out.push({ key:'engine', label:'ДВС (двигатель)', group:'engine', ...eng });
+        out.push({ key:'engine', group:'engine', ...eng, label: lbl(data.engine, 'ДВС (двигатель)'), labelOverride: renamed(data.engine) });
     }
     const pickTotal = (a) => {
         const r = { ...a };
@@ -265,11 +269,11 @@ export function getAggregates(data) {
         return r;
     };
     if (data.automatic && !data.automatic.isDct)
-        out.push({ key:'automatic', label: data.automatic.isCvt ? 'Вариатор (CVT)' : 'АКПП', group:'auto', ...pickTotal(data.automatic) });
-    if (data.manual)    out.push({ key:'manual',    label: data.manual.isSemiAuto ? 'Робот/АМТ (расчёт как МКПП)' : 'МКПП', group:'gear', ...pickTotal(data.manual) });
-    if (data.transfer)  out.push({ key:'transfer',  label:'Раздаточная коробка',     group:'gear', ...pickTotal(data.transfer) });
-    if (data.diffFront) out.push({ key:'diffFront', label:'Дифференциал (перед)',    group:'gear', ...pickTotal(data.diffFront) });
-    if (data.diffRear)  out.push({ key:'diffRear',  label:'Дифференциал (зад)',      group:'gear', ...pickTotal(data.diffRear) });
+        out.push({ key:'automatic', group:'auto', ...pickTotal(data.automatic), label: lbl(data.automatic, data.automatic.isCvt ? 'Вариатор (CVT)' : 'АКПП'), labelOverride: renamed(data.automatic) });
+    if (data.manual)    out.push({ key:'manual',    group:'gear', ...pickTotal(data.manual),    label: lbl(data.manual, data.manual.isSemiAuto ? 'Робот/АМТ (расчёт как МКПП)' : 'МКПП'), labelOverride: renamed(data.manual) });
+    if (data.transfer)  out.push({ key:'transfer',  group:'gear', ...pickTotal(data.transfer),  label: lbl(data.transfer, 'Раздаточная коробка'),  labelOverride: renamed(data.transfer) });
+    if (data.diffFront) out.push({ key:'diffFront', group:'gear', ...pickTotal(data.diffFront), label: lbl(data.diffFront, 'Дифференциал (перед)'), labelOverride: renamed(data.diffFront) });
+    if (data.diffRear)  out.push({ key:'diffRear',  group:'gear', ...pickTotal(data.diffRear),  label: lbl(data.diffRear, 'Дифференциал (зад)'),   labelOverride: renamed(data.diffRear) });
 
     // Пользовательские агрегаты — их добавляют/редактируют вручную на странице
     // машины («Нашли ошибку?»): свои названия, объём и допуска. Хранятся в
@@ -626,6 +630,7 @@ export function calcForAggregate(agg, calcState, carApprovals) {
 // ── Totals ────────────────────────────────────────────────────────────────────
 
 export function totalAggLabel(agg) {
+    if (agg.labelOverride && agg.label) return agg.label.toLowerCase();
     if (agg.key === 'engine')    return 'двс';
     if (agg.key === 'automatic') return agg.isCvt ? 'вариатор' : 'акпп';
     if (agg.key === 'manual')    return 'мкпп';
