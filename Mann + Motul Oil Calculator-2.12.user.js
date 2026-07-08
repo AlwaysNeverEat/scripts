@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.99
+// @version      2.22.102
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -681,6 +681,19 @@
     if (data.transfer) out.push({ key: "transfer", label: "Раздаточная коробка", group: "gear", ...pickTotal(data.transfer) });
     if (data.diffFront) out.push({ key: "diffFront", label: "Дифференциал (перед)", group: "gear", ...pickTotal(data.diffFront) });
     if (data.diffRear) out.push({ key: "diffRear", label: "Дифференциал (зад)", group: "gear", ...pickTotal(data.diffRear) });
+    const custom = Array.isArray(data.custom) ? data.custom : [];
+    for (const c of custom) {
+      if (!c || typeof c !== "object" || !c.key) continue;
+      const group = c.group === "auto" ? "auto" : "gear";
+      out.push({
+        key: c.key,
+        label: c.label || (group === "auto" ? c.isCvt ? "Вариатор" : "АКПП" : "Агрегат"),
+        group,
+        isCvt: group === "auto" ? !!c.isCvt : false,
+        isCustom: true,
+        ...pickTotal(c)
+      });
+    }
     return out;
   }
   function shouldDefaultToPartial(car, data) {
@@ -988,7 +1001,7 @@
     if (agg.key === "transfer") return "раздатка";
     if (agg.key === "diffFront") return "диф.перед";
     if (agg.key === "diffRear") return "диф.зад";
-    return agg.key;
+    return (agg.label || agg.key).toLowerCase();
   }
   var totalOilLabel = (oil) => `${oil.b} ${oil.n}`;
   function computeTotalSum(tot, aggData) {
