@@ -57,6 +57,12 @@ function renderView(record) {
         ? `<div class="head-notes">📝 ${esc(record.notes)}</div>`
         : '';
 
+    const tags = Array.isArray(record.tags) ? record.tags : [];
+    const tagsHtml = tags.length
+        ? `<div class="head-tags">${tags.map(t =>
+            `<span class="head-tag">🏷 ${esc(t)}</span>`).join('')}</div>`
+        : '';
+
     const links = record.source_links || {};
     const srcBtns = SOURCE_SITES.filter(s => links[s]).map(s =>
         `<a class="src-btn src-btn-${s}" href="${esc(links[s])}" target="_blank" rel="noopener">${esc(SOURCE_LABELS[s])} ↗</a>`).join('');
@@ -84,6 +90,7 @@ function renderView(record) {
             ${sourcesHtml}
             ${flagsHtml}
             ${notesHtml}
+            ${tagsHtml}
             ${recHtml}
         </div>
     `;
@@ -221,6 +228,14 @@ function renderEditForm(record) {
             <div class="edit-oils-note">Кнопки на странице машины. По ним же нотификатор находит эту машину у коллег на сайтах подбора.</div>
             <div class="edit-grid">${sourceRows}</div>
 
+            <div class="edit-sec-h">Теги</div>
+            <div class="edit-oils-note">Слова, по которым эту машину можно найти в поиске (напр. «табуретка», «малолитражка»). Введите тег и нажмите «Добавить» — потом можно удалить крестиком.</div>
+            <div class="edit-tags-input">
+                <input type="text" id="edit-tag-input" placeholder="новый тег" autocomplete="off"/>
+                <button class="btn btn-sec btn-mini" id="btn-add-tag" type="button">➕ Добавить</button>
+            </div>
+            <div id="edit-tags-list" class="edit-tags-list"></div>
+
             <div class="edit-sec-h">Заметка</div>
             <textarea id="edit-notes" rows="2">${esc(record.notes || '')}</textarea>
 
@@ -292,9 +307,43 @@ function renderCustomAggs(head, customAggs) {
     });
 }
 
+// Теги: рабочий массив (как customAggs) + перерисовка списка-чипсов.
+// Ютуб-стиль — ввёл слово, «Добавить» → чип в списке, крестик → удалить.
+function renderTags(head, tags) {
+    const box = head.querySelector('#edit-tags-list');
+    if (!box) return;
+    box.innerHTML = tags.length
+        ? tags.map((t, i) =>
+            `<span class="edit-tag" data-tag-idx="${i}">${esc(t)}<button class="edit-tag-del" data-tag-del="${i}" type="button" title="удалить тег">✕</button></span>`).join('')
+        : '<div class="edit-oils-note" style="opacity:.7">Пока нет тегов.</div>';
+
+    box.querySelectorAll('[data-tag-del]').forEach(btn => {
+        btn.onclick = () => {
+            tags.splice(parseInt(btn.dataset.tagDel, 10), 1);
+            renderTags(head, tags);
+        };
+    });
+}
+
 function bindEditForm(head, record, ctx) {
     const customAggs = customAggsFromRecord(record);
     renderCustomAggs(head, customAggs);
+
+    // Теги
+    const tags = Array.isArray(record.tags) ? record.tags.map(String) : [];
+    renderTags(head, tags);
+    const tagInput = head.querySelector('#edit-tag-input');
+    const addTag = () => {
+        const v = tagInput.value.trim();
+        if (v && !tags.some(t => t.toLowerCase() === v.toLowerCase())) tags.push(v);
+        tagInput.value = '';
+        tagInput.focus();
+        renderTags(head, tags);
+    };
+    head.querySelector('#btn-add-tag').onclick = addTag;
+    tagInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addTag(); }
+    });
     head.querySelector('#btn-add-custom-agg').onclick = () => {
         customAggs.push({ key: newAggKey(), label: '', type: 'gear', volume: '', approvals: '' });
         renderCustomAggs(head, customAggs);
@@ -400,6 +449,7 @@ function bindEditForm(head, record, ctx) {
             oil_overrides: { ...prevOv, exclude },
             source_links: cleanedLinks,
             source_keys: buildSourceKeys(cleanedLinks),
+            tags: tags.map(t => t.trim()).filter(Boolean),
             notes: head.querySelector('#edit-notes').value.trim() || null,
         };
 

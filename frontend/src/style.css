@@ -264,6 +264,15 @@ input, button, select, textarea { font-family: inherit; }
   font-size: 13px;
   white-space: pre-wrap;
 }
+.head-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.head-tag {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  color: var(--sub);
+}
 /* ── Страницы машины (сурс-ссылки) ──────────────────────────────── */
 .head-sources {
   display: flex;
@@ -758,6 +767,51 @@ input[data-edit-filter-absent]:checked::after {
   outline: none; border-color: var(--accent);
 }
 .edit-custom-agg textarea { width: 100%; }
+
+/* ── Теги (как на ютубе) ────────────────────────────────────────── */
+.edit-tags-input { display: flex; gap: 8px; align-items: center; }
+.edit-tags-input input {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.edit-tags-input input:focus { outline: none; border-color: var(--accent); }
+.edit-tags-input .btn-mini { white-space: nowrap; }
+.edit-tags-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.edit-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.edit-tag-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+}
+.edit-tag-del:hover { opacity: 1; background: var(--red-dim); color: var(--red); }
 
 .edit-error {
   margin-top: 12px;
