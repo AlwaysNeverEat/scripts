@@ -153,6 +153,7 @@ export function getDefaults() { return {
     cvt:        [ {b:'ZIC',  n:'CVT Multi HP',                     price:1650, v:'CVT'},
                   {b:'ROLF', n:'Professional CVTF Multi',          price:1850, v:'CVT'} ],
     dct:        [ {b:'ZIC',  n:'DCT FE (для роботов с мокр. сц.)', price:1600, v:'DCT'},
+                  {b:'ZIC',  n:'DCTF Multi',                       price:1600, v:'DCT'},
                   {b:'ROLF', n:'Professional DCT',                 price:2000, v:'DCT'} ],
     atf: {
         zic: {
