@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.22.115
+// @version      2.23.94
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -310,6 +310,7 @@
       ],
       dct: [
         { b: "ZIC", n: "DCT FE (для роботов с мокр. сц.)", price: 1600, v: "DCT" },
+        { b: "ZIC", n: "DCTF Multi", price: 1600, v: "DCT" },
         { b: "ROLF", n: "Professional DCT", price: 2e3, v: "DCT" }
       ],
       atf: {
