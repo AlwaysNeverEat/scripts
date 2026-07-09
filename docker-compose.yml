@@ -27,6 +27,12 @@ services:
       API_KEY: local-dev-key
       CORS_ORIGINS: 'http://localhost:5173,http://localhost:4173'
       PORT: 3001
+      # Пусто = бот и загрузка аватарок выключены локально; заполнить своими
+      # значениями, если нужно проверить Telegram-заявки/Storage в докере.
+      TELEGRAM_BOT_TOKEN: ''
+      ADMIN_TELEGRAM_ID: '691442300'
+      SUPABASE_URL: ''
+      SUPABASE_SERVICE_KEY: ''
     ports:
       - '3001:3001'
     depends_on:

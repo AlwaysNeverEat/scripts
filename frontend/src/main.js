@@ -1,6 +1,9 @@
 import { initCarPage } from './carPage.js';
 import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
+import { initAuthGate } from './authGate.js';
+import { initProfilePage } from './profile.js';
+import { initTopModal } from './top.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -8,40 +11,144 @@ import { bootScreen } from './bootScreen.js';
 const API_BASE = (typeof __API_BASE__ !== 'undefined' && __API_BASE__) ? __API_BASE__ : '';
 const API_KEY  = (typeof __API_KEY__  !== 'undefined' && __API_KEY__)  ? __API_KEY__  : '';
 
-export async function apiFetch(path, { method = 'GET', body } = {}) {
+// ── Сессия ────────────────────────────────────────────────────────────────────
+// Токен хранится в localStorage; поверх x-api-key (грубый гейт) шлём
+// Authorization: Bearer <token> — это личность залогиненного пользователя.
+const TOKEN_KEY = 'cars_db_session_token';
+let sessionToken = localStorage.getItem(TOKEN_KEY) || '';
+let currentUser = null;
+// true только после успешного входа — пока не залогинились, 401 от /me или
+// от самого /login не должен трактоваться как "сессия протухла на лету".
+let unlocked = false;
+
+function setToken(token) {
+    sessionToken = token || '';
+    if (sessionToken) localStorage.setItem(TOKEN_KEY, sessionToken);
+    else localStorage.removeItem(TOKEN_KEY);
+}
+
+export async function apiFetch(path, { method = 'GET', body, isMultipart = false } = {}) {
     const headers = {};
     if (API_KEY) headers['x-api-key'] = API_KEY;
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const res = await fetch(API_BASE + path, {
-        method, headers,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    if (sessionToken) headers['Authorization'] = 'Bearer ' + sessionToken;
+
+    let fetchBody;
+    if (isMultipart) {
+        fetchBody = body; // FormData — браузер сам проставит Content-Type с boundary
+    } else if (body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+        fetchBody = JSON.stringify(body);
+    }
+
+    const res = await fetch(API_BASE + path, { method, headers, body: fetchBody });
+
+    if (res.status === 401 && unlocked) {
+        // Полночь МСК (или бан) разлогинили нас посреди работы — назад к гейту.
+        unlocked = false;
+        setToken('');
+        currentUser = null;
+        showGate('Сессия истекла — войдите заново');
+        throw new Error('сессия истекла');
+    }
+
     const json = await res.json().catch(() => null);
     if (!res.ok) throw new Error((json && json.error) || `API ${res.status}`);
     return json;
 }
 
+// ── Гейт входа/регистрации ──────────────────────────────────────────────────
+// Без валидной сессии не видно ничего, кроме экрана входа/регистрации.
+
+const pageAuth    = document.getElementById('page-auth');
+const pageSearch  = document.getElementById('page-search');
+const pageCalc    = document.getElementById('page-calc');
+const pageProfile = document.getElementById('page-profile');
+
+function hideAllPages() {
+    pageAuth.classList.add('hidden');
+    pageSearch.classList.add('hidden');
+    pageCalc.classList.add('hidden');
+    pageProfile.classList.add('hidden');
+}
+
+function showGate(message) {
+    hideAllPages();
+    pageAuth.classList.remove('hidden');
+    initAuthGate({
+        apiFetch,
+        message,
+        onLoggedIn: (user, token) => {
+            setToken(token);
+            currentUser = user;
+            enterApp();
+        },
+    });
+}
+
+function enterApp() {
+    unlocked = true;
+    hideAllPages();
+    renderUserBar();
+    initTopModal({ apiFetch });
+    window.addEventListener('hashchange', renderRoute);
+    renderRoute();
+    loadSphere();
+}
+
+function renderUserBar() {
+    const img = document.getElementById('avatar-img');
+    const defaultIcon = document.querySelector('#btn-avatar .avatar-default-icon');
+    if (currentUser && currentUser.avatar) {
+        img.src = currentUser.avatar;
+        img.hidden = false;
+        defaultIcon.hidden = true;
+    } else {
+        img.hidden = true;
+        defaultIcon.hidden = false;
+    }
+}
+
+document.getElementById('btn-avatar').onclick = () => { location.hash = '#/profile'; };
+
 // ── Hash routing ──────────────────────────────────────────────────────────────
 //   #/            — поиск
 //   #/car/:id     — страница машины (прямая ссылка переживает F5)
-
-const pageSearch = document.getElementById('page-search');
-const pageCalc   = document.getElementById('page-calc');
+//   #/profile     — профиль
 
 async function renderRoute() {
-    const m = location.hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
-    if (m) {
+    const carMatch = location.hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
+    const isProfile = location.hash === '#/profile';
+
+    if (isProfile) {
+        pageSearch.classList.add('hidden');
+        pageCalc.classList.add('hidden');
+        pageProfile.classList.remove('hidden');
+        await initProfilePage({
+            apiFetch,
+            user: currentUser,
+            onUserChanged: (user) => { currentUser = user; renderUserBar(); },
+            onLogout: () => {
+                unlocked = false;
+                setToken('');
+                currentUser = null;
+                location.hash = '#/';
+                showGate();
+            },
+        });
+    } else if (carMatch) {
+        pageProfile.classList.add('hidden');
         pageSearch.classList.add('hidden');
         pageCalc.classList.remove('hidden');
         try {
-            const record = await apiFetch('/api/cars/' + m[1]);
-            initCarPage(record, { apiFetch, onChanged: () => renderRoute() });
+            const record = await apiFetch('/api/cars/' + carMatch[1]);
+            initCarPage(record, { apiFetch, user: currentUser, onChanged: () => renderRoute() });
         } catch (e) {
             document.getElementById('car-head').innerHTML =
                 `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
             document.getElementById('calc-main').innerHTML = '';
         }
     } else {
+        pageProfile.classList.add('hidden');
         pageCalc.classList.add('hidden');
         pageSearch.classList.remove('hidden');
         searchInput.focus();
@@ -102,6 +209,7 @@ function renderResults(cars) {
 
 // ── Back button ───────────────────────────────────────────────────────────────
 document.getElementById('btn-back').onclick = () => { location.hash = '#/'; };
+document.getElementById('btn-profile-back').onclick = () => { location.hash = '#/'; };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) {
@@ -126,9 +234,13 @@ async function loadSphere() {
 
 // ── Старт ─────────────────────────────────────────────────────────────────────
 // Сначала boot-экран ждёт, пока бэкенд на Render проснётся (/health),
-// и только потом запускаем роутинг и загрузку данных.
-bootScreen((API_BASE || '') + '/health').then(() => {
-    window.addEventListener('hashchange', renderRoute);
-    renderRoute();
-    loadSphere();
+// потом проверяем сессию: есть валидная — сразу в приложение, иначе гейт.
+bootScreen((API_BASE || '') + '/health').then(async () => {
+    try {
+        const me = await apiFetch('/api/auth/me');
+        currentUser = me.user;
+        enterApp();
+    } catch {
+        showGate();
+    }
 });

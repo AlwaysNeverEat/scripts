@@ -9,13 +9,14 @@
 // shared/calculator.test.js.
 
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import * as C from '../shared/calculator.js';
 import * as O from '../shared/oils.js';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BASELINE_COMMIT = '44f7180';
 const US_PATH = 'Mann + Motul Oil Calculator-2.12.user.js';
 

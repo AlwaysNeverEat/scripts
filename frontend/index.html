@@ -39,10 +39,54 @@
   </div>
 
   <div id="app">
+    <!-- Гейт: вход/регистрация. Без валидной сессии не видно ничего другого. -->
+    <div id="page-auth" class="hidden">
+      <div class="auth-card">
+        <div class="auth-title">🛢 Cars DB</div>
+
+        <form id="auth-login-form" class="auth-form">
+          <h2 class="auth-h">Вход</h2>
+          <label class="edit-field"><span>Логин</span>
+            <input id="auth-login-login" type="text" autocomplete="username" required/>
+          </label>
+          <label class="edit-field"><span>Пароль</span>
+            <input id="auth-login-password" type="password" autocomplete="current-password" required/>
+          </label>
+          <div id="auth-login-error" class="edit-error hidden"></div>
+          <button type="submit" class="btn btn-pri auth-submit" id="auth-login-submit">Войти</button>
+          <button type="button" class="btn btn-sec auth-switch" id="auth-show-register">Нет аккаунта? Регистрация</button>
+        </form>
+
+        <form id="auth-register-form" class="auth-form hidden">
+          <h2 class="auth-h">Заявка на регистрацию</h2>
+          <label class="edit-field"><span>Отображаемое имя</span>
+            <input id="auth-reg-name" type="text" required/>
+          </label>
+          <label class="edit-field"><span>Логин для входа</span>
+            <input id="auth-reg-login" type="text" autocomplete="username" required/>
+          </label>
+          <label class="edit-field"><span>Пароль</span>
+            <input id="auth-reg-password" type="password" autocomplete="new-password" required/>
+          </label>
+          <div id="auth-reg-error" class="edit-error hidden"></div>
+          <div id="auth-reg-success" class="auth-success hidden"></div>
+          <button type="submit" class="btn btn-pri auth-submit" id="auth-reg-submit">Отправить заявку</button>
+          <button type="button" class="btn btn-sec auth-switch" id="auth-show-login">Назад ко входу</button>
+        </form>
+      </div>
+    </div>
+
     <!-- Search page -->
-    <div id="page-search">
+    <div id="page-search" class="hidden">
       <div class="sphere-glow"></div>
       <canvas id="sphere-canvas"></canvas>
+      <div class="top-bar-user">
+        <button id="btn-avatar" class="avatar-circle" title="Профиль">
+          <span class="avatar-default-icon">👤</span>
+          <img id="avatar-img" alt="" hidden/>
+        </button>
+        <button id="btn-top" class="btn btn-sec btn-top">⭐ Топ</button>
+      </div>
       <div class="search-ui">
         <p class="search-kicker">Car Search</p>
         <div class="search-wrap">
@@ -71,6 +115,28 @@
           <pre id="report-output" class="report-output">— выберите агрегаты —</pre>
         </div>
       </div>
+      <div id="car-events" class="car-events"></div>
+    </div>
+
+    <!-- Профиль -->
+    <div id="page-profile" class="hidden">
+      <div class="calc-topbar">
+        <button id="btn-profile-back" class="btn btn-sec">← К поиску</button>
+        <div class="calc-car-title">Профиль</div>
+      </div>
+      <div id="profile-content" class="profile-content"></div>
+    </div>
+  </div>
+
+  <!-- Модалка «Топ» -->
+  <div id="top-modal" class="modal hidden">
+    <div class="modal-backdrop" id="top-modal-backdrop"></div>
+    <div class="modal-win">
+      <div class="modal-head">
+        <span>⭐ Топ по добавленным машинам</span>
+        <button class="btn btn-sec" id="top-modal-close">✕</button>
+      </div>
+      <div id="top-modal-body" class="modal-body"></div>
     </div>
   </div>
 

@@ -14,10 +14,11 @@ import {
 
 let editMode = false;
 
-export function initCarPage(record, { apiFetch, onChanged }) {
+export function initCarPage(record, { apiFetch, onChanged, user }) {
     editMode = false;
-    renderHead(record, { apiFetch, onChanged });
+    renderHead(record, { apiFetch, onChanged, user });
     initCalculator(record);
+    renderEvents(record.id, { apiFetch, user });
 }
 
 // ── Шапка ─────────────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ export function initCarPage(record, { apiFetch, onChanged }) {
 function renderHead(record, ctx) {
     const head = document.getElementById('car-head');
     if (!head) return;
-    head.innerHTML = editMode ? renderEditForm(record) : renderView(record);
+    head.innerHTML = editMode ? renderEditForm(record) : renderView(record, ctx);
     if (editMode) bindEditForm(head, record, ctx);
     else bindView(head, record, ctx);
 
@@ -33,7 +34,8 @@ function renderHead(record, ctx) {
     if (title) title.textContent = [record.brand, record.model].filter(Boolean).join(' ');
 }
 
-function renderView(record) {
+function renderView(record, ctx) {
+    const isMod = ctx?.user?.role === 'mod' || ctx?.user?.role === 'admin';
     const years = record.year_from
         ? record.year_from + (record.year_to ? `–${record.year_to}` : '+')
         : '';
@@ -84,7 +86,10 @@ function renderView(record) {
         <div class="head-card">
             <div class="head-title-row">
                 <h2 class="head-title">${esc(record.brand)} ${esc(record.model)}${record.generation ? ` <span class="head-gen">${esc(record.generation)}</span>` : ''}</h2>
-                <button class="btn btn-sec" id="btn-edit-car">✏ Нашли ошибку?</button>
+                <span style="display:flex;gap:8px">
+                    <button class="btn btn-sec" id="btn-edit-car">✏ Нашли ошибку?</button>
+                    ${isMod ? '<button class="btn btn-sec btn-danger" id="btn-delete-car">🗑 Удалить машину</button>' : ''}
+                </span>
             </div>
             <div class="head-chips">${chips}</div>
             ${sourcesHtml}
@@ -99,6 +104,61 @@ function renderView(record) {
 function bindView(head, record, ctx) {
     const btn = head.querySelector('#btn-edit-car');
     if (btn) btn.onclick = () => { editMode = true; renderHead(record, ctx); };
+
+    const delBtn = head.querySelector('#btn-delete-car');
+    if (delBtn) delBtn.onclick = () => confirmDeleteCar(record, ctx);
+}
+
+// ── Удаление машины (модератор) ────────────────────────────────────────────────
+
+function confirmDeleteCar(record, ctx) {
+    const old = document.getElementById('confirm-delete-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'confirm-delete-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-win modal-win-sm">
+            <div class="modal-head">
+                <span>⚠ Удалить машину</span>
+                <button class="btn btn-sec" id="confirm-delete-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p>Машина «${esc(record.brand)} ${esc(record.model)}» будет удалена
+                   <b>полностью и безвозвратно</b>, вместе со всей историей изменений.</p>
+                <div id="confirm-delete-error" class="edit-error hidden"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-sec" id="confirm-delete-cancel">Отмена</button>
+                    <button class="btn btn-danger" id="confirm-delete-yes">Удалить безвозвратно</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').onclick = close;
+    modal.querySelector('#confirm-delete-close').onclick = close;
+    modal.querySelector('#confirm-delete-cancel').onclick = close;
+
+    modal.querySelector('#confirm-delete-yes').onclick = async () => {
+        const btn = modal.querySelector('#confirm-delete-yes');
+        const errBox = modal.querySelector('#confirm-delete-error');
+        btn.disabled = true;
+        btn.textContent = 'Удаление…';
+        try {
+            await ctx.apiFetch('/api/cars/' + record.id, { method: 'DELETE' });
+            close();
+            location.hash = '#/';
+        } catch (e) {
+            errBox.textContent = '⚠ ' + e.message;
+            errBox.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Удалить безвозвратно';
+        }
+    };
 }
 
 // ── Режим правки ──────────────────────────────────────────────────────────────
@@ -454,10 +514,16 @@ function bindEditForm(head, record, ctx) {
         };
 
         errBox.style.display = 'none';
+        const commentResult = await promptEditComment();
+        if (!commentResult.confirmed) return;
+
         btn.disabled = true;
         btn.textContent = '⏳ сохранение…';
         try {
-            await ctx.apiFetch('/api/cars/' + record.id, { method: 'PATCH', body: patch });
+            await ctx.apiFetch('/api/cars/' + record.id, {
+                method: 'PATCH',
+                body: { ...patch, comment: commentResult.comment },
+            });
             editMode = false;
             ctx.onChanged(); // перезагрузит страницу машины со свежими данными
         } catch (e) {
@@ -467,6 +533,149 @@ function bindEditForm(head, record, ctx) {
             btn.textContent = '💾 Сохранить';
         }
     };
+}
+
+// Окно «Опишите, почему изменили?» перед сохранением правки. Комментарий
+// можно оставить пустым — тогда в ленте будет просто «Отредактировано
+// пользователем {ник}». Отмена — возврат к форме без сохранения.
+function promptEditComment() {
+    return new Promise((resolve) => {
+        const old = document.getElementById('edit-comment-modal');
+        if (old) old.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'edit-comment-modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-backdrop"></div>
+            <div class="modal-win modal-win-sm">
+                <div class="modal-head">
+                    <span>💬 Опишите, почему изменили?</span>
+                    <button class="btn btn-sec" id="edit-comment-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="edit-comment-text" rows="3" placeholder="Можно оставить пустым"></textarea>
+                    <div class="modal-actions">
+                        <button class="btn btn-sec" id="edit-comment-cancel">Отмена</button>
+                        <button class="btn btn-pri" id="edit-comment-save">💾 Сохранить</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const finish = (result) => { modal.remove(); resolve(result); };
+        modal.querySelector('.modal-backdrop').onclick = () => finish({ confirmed: false });
+        modal.querySelector('#edit-comment-close').onclick = () => finish({ confirmed: false });
+        modal.querySelector('#edit-comment-cancel').onclick = () => finish({ confirmed: false });
+        modal.querySelector('#edit-comment-save').onclick = () => {
+            const comment = modal.querySelector('#edit-comment-text').value.trim();
+            finish({ confirmed: true, comment: comment || null });
+        };
+        modal.querySelector('#edit-comment-text').focus();
+    });
+}
+
+// ── Лента событий машины (только этой машины, хронологически) ─────────────────
+// Плашки «добавлена»/«отредактирована» с крупной аватаркой автора. Машины без
+// created_by не показывают плашку добавления — просто нет такого события.
+
+async function renderEvents(carId, ctx) {
+    const box = document.getElementById('car-events');
+    if (!box) return;
+    box.innerHTML = '';
+
+    let events;
+    try {
+        events = await ctx.apiFetch('/api/cars/' + carId + '/events');
+    } catch {
+        return; // лента — не критично, страница машины работает и без неё
+    }
+    if (!events.length) return;
+
+    box.innerHTML = `
+        <div class="sec-title">История машины</div>
+        <div class="events-feed">
+            ${events.map((ev, i) => renderEventCard(ev, i)).join('')}
+        </div>
+    `;
+
+    box.querySelectorAll('[data-event-idx]').forEach(card => {
+        const ev = events[parseInt(card.dataset.eventIdx, 10)];
+        if (ev.type === 'edited') card.onclick = () => openEventDetails(ev);
+    });
+}
+
+function rolePrefixHtml(rolePrefix) {
+    if (!rolePrefix) return '';
+    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
+}
+
+function renderEventCard(ev, i) {
+    const isAdded = ev.type === 'added';
+    const author = ev.user ? esc(ev.user.display_name) : 'неизвестный пользователь';
+    const avatarHtml = ev.user && ev.user.avatar
+        ? `<img src="${esc(ev.user.avatar)}" alt=""/>`
+        : `<span class="event-avatar-default">👤</span>`;
+    const when = new Date(ev.created_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
+
+    return `
+        <div class="event-card ${isAdded ? 'event-card-added' : 'event-card-edited'}"
+             data-event-idx="${i}" ${!isAdded ? 'role="button" tabindex="0"' : ''}>
+            <div class="event-avatar">${avatarHtml}</div>
+            <div class="event-body">
+                <div class="event-text">
+                    ${isAdded ? 'Машина добавлена' : 'Отредактировано'} пользователем
+                    ${rolePrefixHtml(ev.user?.role_prefix)}<b>${author}</b>
+                </div>
+                <div class="event-date">${when}</div>
+            </div>
+        </div>
+    `;
+}
+
+function openEventDetails(ev) {
+    const old = document.getElementById('event-details-modal');
+    if (old) old.remove();
+
+    const fields = Object.entries(ev.changed_fields || {});
+    const fieldsHtml = fields.length
+        ? fields.map(([key, diff]) => `
+            <div class="event-diff-row">
+                <span class="event-diff-field">${esc(key)}</span>
+                <span class="event-diff-from">${esc(formatDiffValue(diff.from))}</span>
+                <span class="event-diff-arrow">→</span>
+                <span class="event-diff-to">${esc(formatDiffValue(diff.to))}</span>
+            </div>`).join('')
+        : '<div class="search-empty">Изменённые поля не записаны</div>';
+
+    const modal = document.createElement('div');
+    modal.id = 'event-details-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-win">
+            <div class="modal-head">
+                <span>✏ Что изменили</span>
+                <button class="btn btn-sec" id="event-details-close">✕</button>
+            </div>
+            <div class="modal-body">
+                ${ev.comment ? `<div class="head-notes">📝 ${esc(ev.comment)}</div>` : ''}
+                <div class="event-diff-list">${fieldsHtml}</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').onclick = close;
+    modal.querySelector('#event-details-close').onclick = close;
+}
+
+function formatDiffValue(v) {
+    if (v === null || v === undefined) return '—';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

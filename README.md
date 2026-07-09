@@ -12,7 +12,9 @@
 | Пересчёт чека SPOT CRM | `SPOT-CRM-Пересчёт-чека-1.0.user.js` | Рабочий |
 | Прочие CRM-хелперы | `*.user.js` / `*.user(N).js` в корне | Рабочие, самостоятельные |
 | Backend (REST API) | `backend/` | Рабочий: Node.js + Express + PostgreSQL |
-| Сайт (поиск + страница машины) | `frontend/` | Рабочий: Vite + vanilla JS |
+| Сайт (поиск + страница машины + профиль/топ) | `frontend/` | Рабочий: Vite + vanilla JS, за гейтом входа |
+| Аккаунты и сессии | `backend/src/auth/` | Рабочий: bcryptjs, сессии, автовыход в полночь МСК |
+| Telegram-админка (заявки, юзеры, машины) | `backend/src/bot/` | Рабочий: long-polling в том же процессе |
 | Общая логика | `shared/` | Каталог масел, подбор, отчёт — единый источник |
 | Схема БД | `db/migrations/` | PostgreSQL, миграции по порядку |
 
@@ -67,6 +69,9 @@ docker compose up --build
 ```
 
 Postgres-контейнер прогоняет миграции из `db/migrations/` при первом старте.
+Без `TELEGRAM_BOT_TOKEN`/`SUPABASE_*` (не заданы по умолчанию в
+`docker-compose.yml`) регистрация продолжает работать — заявки просто копятся
+в БД без уведомления, а загрузка аватарки вернёт понятную ошибку.
 
 ---
 
@@ -85,6 +90,10 @@ npm run dev
 | `API_KEY` | Shared secret — must match `x-api-key` in all clients |
 | `CORS_ORIGINS` | Comma-separated allowed origins |
 | `PORT` | Default `3001` |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token (@BotFather). Empty = bot disabled, registration requests just pile up unactioned |
+| `ADMIN_TELEGRAM_ID` | Telegram user id seeded as the first bot admin (default `691442300`) |
+| `SUPABASE_URL` | Supabase project URL — needed for avatar uploads to Storage |
+| `SUPABASE_SERVICE_KEY` | Supabase **service_role** key (not anon) — write access to the `avatars` bucket |
 
 Тестовые данные и проверка поиска:
 
@@ -133,6 +142,11 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 «этому роботу расчёт не делаем») и заметкой — всё можно поправить перед
 отправкой. Повторная отправка той же машины обновляет запись, а не плодит дубли.
 
+При нажатии «Отправить» юзерскрипт проверяет сохранённый токен сессии
+(`GM_setValue`); если его нет или сервер ответил 401 (протух — например,
+наступила полночь по МСК) — всплывает окно логина тем же аккаунтом, что и на
+сайте. `created_by` в базе всегда берётся из этой сессии, а не из юзерскрипта.
+
 **Нотификатор для коллег** (`SPOT DB Notifier-1.0.user.js`) — для тех, кто
 работает по старинке и калькулятором не пользуется:
 
@@ -156,7 +170,9 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 
 ### 2. Railway (Backend)
 - New project → Deploy from GitHub → Root directory: `backend`.
-- Env vars: `DATABASE_URL`, `API_KEY` (random string), `CORS_ORIGINS` (Vercel URL).
+- Env vars: `DATABASE_URL`, `API_KEY` (random string), `CORS_ORIGINS` (Vercel URL),
+  `TELEGRAM_BOT_TOKEN`, `ADMIN_TELEGRAM_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+  (see table above — same variables regardless of host).
 - Note the public URL.
 
 ### 3. Vercel (Frontend)
@@ -192,17 +208,58 @@ cloudflared tunnel run carsdb
 
 ## API reference
 
-All endpoints require `x-api-key: <API_KEY>` header.
+All endpoints require `x-api-key: <API_KEY>` header. Everything except
+`/api/auth/login` and `/api/auth/register` additionally requires
+`Authorization: Bearer <session token>` (see [Аутентификация](#аутентификация)
+below) — sessions expire for everyone at midnight Moscow time.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET`   | `/health` | Liveness (no auth) |
-| `POST`  | `/api/cars` | Create/upsert car record |
-| `GET`   | `/api/cars/match?engine_code=&brand=&model=&year=&volume=` | Best match |
-| `GET`   | `/api/cars/search?q=` | Free-text search (top 20) |
-| `GET`   | `/api/cars/:id` | Full record |
-| `GET`   | `/api/cars?page=&limit=` | Paginated list |
-| `PATCH` | `/api/cars/:id` | Edit record |
+| Method   | Path | Description |
+|----------|------|-------------|
+| `GET`    | `/health` | Liveness (no auth at all) |
+| `POST`   | `/api/auth/register` | Registration request → pending, notified in Telegram |
+| `POST`   | `/api/auth/login` | `{login, password}` → `{token, user}` |
+| `POST`   | `/api/auth/logout` | Destroys the session behind the given token |
+| `GET`    | `/api/auth/me` | Current session's user |
+| `POST`   | `/api/cars` | Create/upsert car record (`created_by` = session user) |
+| `GET`    | `/api/cars/match?engine_code=&brand=&model=&year=&volume=` | Best match |
+| `GET`    | `/api/cars/search?q=` | Free-text search (top 20) |
+| `GET`    | `/api/cars/:id` | Full record |
+| `GET`    | `/api/cars?page=&limit=` | Paginated list |
+| `PATCH`  | `/api/cars/:id` | Edit record (`comment` field → car_events) |
+| `DELETE` | `/api/cars/:id` | **mod/admin only** — permanent delete |
+| `GET`    | `/api/cars/:id/events` | This car's event feed (added/edited placards) |
+| `PATCH`  | `/api/profile` | Change own display name |
+| `POST`   | `/api/profile/avatar` | Upload avatar (multipart, `avatar` field) → Supabase Storage |
+| `GET`    | `/api/profile/stats` | `{added, edited}` counts for the current user |
+| `GET`    | `/api/profile/achievements` | Empty extensible placeholder feed |
+| `GET`    | `/api/top` | Top users by cars added, ranked |
+
+### Аутентификация
+
+Two layers, stacked: `x-api-key` is a blunt "are you one of our clients"
+gate (same as before); a session token on top identifies *which* user is
+acting, drives `created_by`/`car_events`, and gates role-restricted actions
+(`DELETE /api/cars/:id`). Registration is request-based: the form creates a
+`registration_requests` row and pings admins in Telegram with Accept/Decline
+buttons (request dies after 30 minutes). All sessions — for every user —
+become invalid at the first minute of a new day in Moscow time
+(`backend/src/auth/midnightMsk.js`), forcing a fresh login daily on both the
+site and the userscript.
+
+### Telegram-админка
+
+Бот отвечает только тем Telegram-аккаунтам, что есть в таблице `bot_admins`
+(сидируется `ADMIN_TELEGRAM_ID` при первом старте). Команды в чате с ботом:
+
+| Команда | Действие |
+|---------|----------|
+| `/users <текст>` | Поиск по имени/логину, у каждого — «Забанить», «Поменять ник», «Сделать модератором / Снять» |
+| `/cars <текст>` | Поиск машин, у каждой — «Удалить машину» (с подтверждением) |
+| `/addadmin <telegram_id>` | Передать доступ к этой админке ещё одному Telegram-аккаунту |
+
+Заявки на регистрацию приходят отдельными сообщениями с кнопками
+**✅ Accept / ❌ Decline** сразу при отправке формы на сайте — их не нужно
+искать командой.
 
 ### filter_part_numbers shape
 
@@ -222,15 +279,21 @@ Every key must be present. `absent: true` OR non-empty `part`. Otherwise → HTT
 
 ```
 scripts/
-├── Mann + Motul Oil Calculator-2.12.user.js  ← калькулятор (будет собираться из shared/)
-├── SPOT-CRM-Пересчёт-чека-1.0.user.js        ← пересчёт чека (будет собираться из shared/)
+├── Mann + Motul Oil Calculator-2.12.user.js  ← калькулятор (собирается из shared/)
+├── SPOT-CRM-Пересчёт-чека-1.0.user.js        ← пересчёт чека (собирается из shared/)
 ├── <прочие CRM-хелперы>.user.js
 ├── backend/
-│   ├── src/{index,db/client,routes/cars,search/translit}.js
+│   ├── src/
+│   │   ├── index.js                 ← Express + запуск Telegram-воркера
+│   │   ├── db/client.js
+│   │   ├── auth/                    ← пароли, сессии, полночь МСК, валидация
+│   │   ├── bot/                     ← Telegram long-polling + команды админки
+│   │   ├── storage/                 ← загрузка аватарок в Supabase Storage
+│   │   └── routes/{cars,auth,profile,top}.js
 │   ├── Dockerfile
 │   └── package.json
 ├── frontend/
-│   ├── src/{main,calculator,style.css}
+│   ├── src/{main,authGate,profile,top,carPage,calculator,style.css}
 │   ├── index.html / Dockerfile / nginx.conf
 │   └── package.json
 ├── shared/

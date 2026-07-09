@@ -3,9 +3,10 @@
 --
 --  ⚠ ВНИМАНИЕ: блок сброса ниже УДАЛЯЕТ таблицу cars со ВСЕМИ данными
 --  (зачищает остатки прошлой попытки). Если в старой таблице есть что-то
---  ценное — сначала выгрузи, потом запускай.
+--  ценное — сначала выгрузи, потом запускай. Таблицы users/sessions/… (008+)
+--  НЕ дропаются — только CREATE IF NOT EXISTS, повторный запуск их не тронет.
 --
---  Файл сгенерирован из db/migrations/001…007 (tools: cat в один файл).
+--  Файл сгенерирован из db/migrations/001…013 (tools: cat в один файл).
 --  При изменении миграций — пересобрать, вручную не редактировать.
 -- ═════════════════════════════════════════════════════════════════════════════
 
@@ -170,3 +171,135 @@ UPDATE cars
 
 ALTER TABLE cars
   ADD COLUMN IF NOT EXISTS tags jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+-- ── db/migrations/008_users.sql ──────────────────────────────────────────────────────
+-- Пользователи сайта: регистрация через заявку в Telegram (см. 010_registration_requests.sql),
+-- роли и модерация (см. 009_role_labels.sql), фид событий по машинам (см. 011_car_events.sql).
+--
+-- display_name: отображаемое имя (рус/лат), редактируется на странице профиля.
+-- login: логин для входа, уникален (сравнение case-insensitive — см. индекс ниже).
+-- password_hash: bcryptjs, никогда не хранить/логировать пароль в открытом виде.
+-- role: 'user' | 'mod' | 'admin' — расширяемо, подписи и цвета ролей вынесены
+--   в role_labels, а не в код, чтобы новые роли не требовали миграции кода.
+-- avatar: публичный URL из Supabase Storage (bucket 'avatars'); пусто = дефолтная
+--   шаблонная аватарка на фронте.
+
+CREATE TABLE users (
+  id              uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_name    text          NOT NULL,
+  login           text          NOT NULL,
+  password_hash   text          NOT NULL,
+  role            text          NOT NULL DEFAULT 'user'
+                                CHECK (role IN ('user', 'mod', 'admin')),
+  avatar          text,
+  created_at      timestamptz   DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_users_login ON users (lower(login));
+
+-- ── db/migrations/009_role_labels.sql ──────────────────────────────────────────────────────
+-- Метаданные отображения ролей — вынесены в таблицу, чтобы новые роли/префиксы
+-- (кроме 'mod') можно было добавлять без релиза кода, только строкой в БД.
+--
+-- prefix_label: короткий префикс перед ником ("mod"); NULL = роль без префикса
+--   (обычный 'user' ничего не показывает).
+-- color: CSS-цвет префикса (см. --green и др. в frontend/src/style.css).
+-- tooltip: подсказка при наведении на префикс.
+
+CREATE TABLE role_labels (
+  role          text  PRIMARY KEY,
+  prefix_label  text,
+  color         text,
+  tooltip       text
+);
+
+-- 'admin' в enum есть (см. CHECK в 008_users.sql), но ТЗ не описывает для него
+-- отдельного визуального признака — префикс задаётся здесь же, когда понадобится.
+INSERT INTO role_labels (role, prefix_label, color, tooltip) VALUES
+  ('user',  NULL,  NULL,      NULL),
+  ('mod',   'mod', 'green',   'модератор'),
+  ('admin', NULL,  NULL,      NULL)
+ON CONFLICT (role) DO NOTHING;
+
+-- ── db/migrations/010_sessions.sql ──────────────────────────────────────────────────────
+-- Сессии: клиент получает сырой токен один раз при логине, хранится только его
+-- SHA-256 (token_hash) — компрометация БД не отдаёт рабочие токены напрямую.
+--
+-- Инвалидация — не по expires_at, а по created_at < "последняя полночь МСК"
+-- (см. backend/src/auth/midnightMsk.js): с наступлением новых суток по Москве
+-- все сессии всех пользователей становятся недействительными одномоментно.
+
+CREATE TABLE sessions (
+  id            uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid          NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  token_hash    text          NOT NULL,
+  created_at    timestamptz   NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_sessions_token_hash ON sessions (token_hash);
+CREATE INDEX idx_sessions_user_id ON sessions (user_id);
+
+-- ── db/migrations/011_registration_requests.sql ──────────────────────────────────────────────────────
+-- Заявки на регистрацию: форма на сайте создаёт запись здесь и уходит
+-- сообщением в Telegram админу (см. backend/src/bot/). Accept/Decline —
+-- inline-кнопки под сообщением бота.
+--
+-- Жизнь заявки — 30 минут (expires_at = created_at + interval '30 minutes').
+-- После истечения accept не срабатывает, статус переводится в 'expired'.
+-- password_hash уже посчитан на этапе заявки (bcryptjs) — при Accept просто
+-- переносится в users, пароль в открытом виде нигде не хранится и не логируется.
+
+CREATE TABLE registration_requests (
+  id              uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_name    text          NOT NULL,
+  login           text          NOT NULL,
+  password_hash   text          NOT NULL,
+  status          text          NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending', 'accepted', 'declined', 'expired')),
+  created_at      timestamptz   NOT NULL DEFAULT now(),
+  expires_at      timestamptz   NOT NULL DEFAULT (now() + interval '30 minutes')
+);
+
+CREATE INDEX idx_registration_requests_status ON registration_requests (status);
+
+-- Дубли логина среди живых заявок/юзеров не допускаются на уровне приложения
+-- (login может уже быть занят другой pending-заявкой) — проверяется в
+-- backend/src/routes/auth.js, здесь только уникальность имени колонки для поиска.
+CREATE INDEX idx_registration_requests_login ON registration_requests (lower(login));
+
+-- ── db/migrations/012_car_events.sql ──────────────────────────────────────────────────────
+-- Фид событий по машине: живёт ТОЛЬКО на странице машины (frontend/src/carPage.js),
+-- показывает историю ровно одной машины (car_id), хронологически.
+--
+-- type: 'added' — пишется в POST /api/cars при вставке новой записи.
+--       'edited' — пишется в PATCH /api/cars/:id при любой правке.
+-- changed_fields: { field: { from, to } } — на вырост: полей у машины станет
+--   больше, формат key→{from,to} переваривает любое их число без миграции.
+-- comment: свободный текст «почему изменили» (можно пусто).
+-- user_id нужен как есть, а не только имя — ник и аватар могут поменяться,
+-- фид всегда должен показывать актуального автора (join на users).
+
+CREATE TABLE car_events (
+  id              uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  car_id          uuid          NOT NULL REFERENCES cars (id) ON DELETE CASCADE,
+  user_id         uuid          REFERENCES users (id) ON DELETE SET NULL,
+  type            text          NOT NULL CHECK (type IN ('added', 'edited')),
+  comment         text,
+  changed_fields  jsonb         NOT NULL DEFAULT '{}'::jsonb,
+  created_at      timestamptz   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_car_events_car_id ON car_events (car_id, created_at);
+
+-- ── db/migrations/013_bot_admins.sql ──────────────────────────────────────────────────────
+-- Кто может командовать Telegram-ботом. Список хранится в БД (не только в env),
+-- чтобы можно было передать доступ к админке новому Telegram id прямо из бота
+-- ("указываю Telegram user id — бот начинает слушать команды и от него").
+--
+-- Дефолтный админ сидируется из ADMIN_TELEGRAM_ID (env, дефолт 691442300 —
+-- см. backend/src/bot/) при первом старте бота, если таблица пуста.
+
+CREATE TABLE bot_admins (
+  telegram_id   bigint        PRIMARY KEY,
+  added_at      timestamptz   NOT NULL DEFAULT now()
+);

@@ -86,27 +86,122 @@ function rerenderResult() {
 //          ОТПРАВКА ОТЧЁТА В БАЗУ РАССЧИТАННЫХ МАШИН
 // ══════════════════════════════════════════════════════════════════
 
+// Токен сессии — привязка «Отправить отчёт» к залогиненному пользователю.
+// Полночь МСК протухает сессию на бэке — токен просто перестаёт работать
+// (401), и мы заново спрашиваем логин, как и должно быть по ТЗ.
+function getStoredToken() { return GM_getValue('zm_session_token', null); }
+function setStoredToken(t) { if (t) GM_setValue('zm_session_token', t); else GM_deleteValue('zm_session_token'); }
+
 function dbRequest(method, path, body) {
     return new Promise((resolve, reject) => {
+        const headers = {
+            'Content-Type': 'application/json',
+            'x-api-key': DB_API_KEY,
+        };
+        const token = getStoredToken();
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
         GM_xmlhttpRequest({
             method,
             url: DB_API_BASE + path,
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': DB_API_KEY,
-            },
+            headers,
             data: body ? JSON.stringify(body) : undefined,
             timeout: 15000,
             onload: (resp) => {
                 let json = null;
                 try { json = JSON.parse(resp.responseText); } catch {}
                 if (resp.status >= 200 && resp.status < 300) resolve(json);
-                else reject(new Error((json && json.error) || ('HTTP ' + resp.status)));
+                else {
+                    const err = new Error((json && json.error) || ('HTTP ' + resp.status));
+                    err.status = resp.status;
+                    reject(err);
+                }
             },
             onerror:   () => reject(new Error('сеть недоступна (' + DB_API_BASE + ')')),
             ontimeout: () => reject(new Error('таймаут запроса')),
         });
     });
+}
+
+async function dbLogin(login, password) {
+    const resp = await dbRequest('POST', '/api/auth/login', { login, password });
+    setStoredToken(resp.token);
+    return resp.user;
+}
+
+// Окно логина: резолвит true при успешном входе, false при отмене.
+function openLoginModal() {
+    return new Promise((resolve) => {
+        const old = document.getElementById('zm-login-modal');
+        if (old) old.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'zm-login-modal';
+        modal.innerHTML = `
+            <div class="zm-db-backdrop"></div>
+            <div class="zm-db-win" style="width:340px">
+                <div class="zm-db-head">
+                    <span>🔐 Вход для отправки отчёта</span>
+                    <button class="zm-btn zm-btn-sec" id="zm-login-close">✕</button>
+                </div>
+                <div class="zm-db-body">
+                    <label class="zm-db-field"><span>Логин</span>
+                        <input type="text" id="zm-login-login" autocomplete="username"/>
+                    </label>
+                    <label class="zm-db-field" style="margin-top:8px"><span>Пароль</span>
+                        <input type="password" id="zm-login-password" autocomplete="current-password"/>
+                    </label>
+                    <div id="zm-login-error" class="zm-db-error" style="display:none"></div>
+                </div>
+                <div class="zm-db-foot">
+                    <button class="zm-btn zm-btn-sec" id="zm-login-cancel">Отмена</button>
+                    <button class="zm-btn zm-btn-pri" id="zm-login-submit">Войти</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const finish = (ok) => { modal.remove(); resolve(ok); };
+        modal.querySelector('.zm-db-backdrop').onclick = () => finish(false);
+        document.getElementById('zm-login-close').onclick = () => finish(false);
+        document.getElementById('zm-login-cancel').onclick = () => finish(false);
+
+        const submit = async () => {
+            const btn = document.getElementById('zm-login-submit');
+            const errBox = document.getElementById('zm-login-error');
+            const login = document.getElementById('zm-login-login').value.trim();
+            const password = document.getElementById('zm-login-password').value;
+            if (!login || !password) {
+                errBox.textContent = 'Заполните логин и пароль';
+                errBox.style.display = 'block';
+                return;
+            }
+            errBox.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Входим…';
+            try {
+                await dbLogin(login, password);
+                finish(true);
+            } catch (e) {
+                errBox.textContent = '⚠ ' + e.message;
+                errBox.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Войти';
+            }
+        };
+        document.getElementById('zm-login-submit').onclick = submit;
+        document.getElementById('zm-login-password').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        });
+    });
+}
+
+// Гарантирует валидный токен перед отправкой: если его нет — сразу просит
+// войти. Просроченный/забаненный токен (401 от сервера) разбирается уже
+// в самом submit-обработчике — там же, где летит запрос.
+async function ensureLoggedIn() {
+    if (getStoredToken()) return true;
+    return await openLoginModal();
 }
 
 // Снапшот рекомендаций для recommended_oils (справка «что советовали при сохранении»)
@@ -305,14 +400,31 @@ function openDbModal(car) {
             source_links: cleanedLinks,
             source_keys: buildSourceKeys(cleanedLinks),
             notes: document.getElementById('zm-db-notes').value.trim() || null,
-            created_by: 'userscript',
+            // created_by сервер берёт из сессии залогиненного пользователя —
+            // клиентское значение игнорируется (см. backend/src/routes/cars.js).
         };
 
         errBox.style.display = 'none';
+
+        if (!(await ensureLoggedIn())) return; // юзер отменил вход — отчёт не отправляем
+
         btn.disabled = true;
         btn.textContent = '⏳ отправка…';
         try {
-            const resp = await dbRequest('POST', '/api/cars', payload);
+            let resp;
+            try {
+                resp = await dbRequest('POST', '/api/cars', payload);
+            } catch (e) {
+                if (e.status === 401) {
+                    // Токен протух (например, наступила полночь МСК) — просим войти
+                    // заново и повторяем ту же отправку один раз.
+                    setStoredToken(null);
+                    if (!(await openLoginModal())) throw new Error('вход отменён');
+                    resp = await dbRequest('POST', '/api/cars', payload);
+                } else {
+                    throw e;
+                }
+            }
             close();
             showDbToast(resp);
         } catch (e) {
@@ -2375,6 +2487,8 @@ function calcForAggregate(agg) {
 
             /* ── Модалка «Отправить отчёт в базу» ── */
             #zm-db-modal{position:fixed;inset:0;z-index:2147483646;font:13px Arial}
+            /* Окно логина — поверх модалки отчёта, тот же визуальный язык (.zm-db-*) */
+            #zm-login-modal{position:fixed;inset:0;z-index:2147483647;font:13px Arial}
             .zm-db-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
             .zm-db-win{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
                 width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/client.js';
 import { normalize, expandQuery, buildNameFields } from '../search/translit.js';
+import { requireRole } from '../auth/middleware.js';
 
 const router = Router();
 
@@ -43,6 +44,39 @@ function validateTags(tags) {
   return null;
 }
 
+// Фид событий машины (car_events, Фаза 4) — пишется здесь же, при POST
+// (только на реальную вставку) и PATCH. changed_fields: { field: {from,to} },
+// переваривает любое число полей без переписывания при их росте.
+
+async function recordCarEvent({ carId, userId, type, comment, changedFields }) {
+  await query(
+    `INSERT INTO car_events (car_id, user_id, type, comment, changed_fields)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [carId, userId ?? null, type, comment ?? null, JSON.stringify(changedFields ?? {})],
+  );
+}
+
+// engine_volume — numeric(4,1) в БД; узел pg возвращает numeric строкой (не
+// парсит во float, чтобы не терять точность), а с фронта приходит число —
+// без нормализации это давало бы ложное "изменение" 1.6 → 1.6 на каждой правке.
+const NUMERIC_COLUMNS = new Set(['engine_volume']);
+
+function diffChangedFields(existing, updates) {
+  const diff = {};
+  for (const [key, next] of Object.entries(updates)) {
+    let before = existing[key] ?? null;
+    let after = next ?? null;
+    if (NUMERIC_COLUMNS.has(key)) {
+      before = before === null ? null : Number(before);
+      after = after === null ? null : Number(after);
+    }
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      diff[key] = { from: before, to: after };
+    }
+  }
+  return diff;
+}
+
 function buildSearchVectorSql(synonymTokens) {
   // Build a tsvector from all synonym variants using Russian+simple dictionaries
   const tokens = synonymTokens
@@ -83,8 +117,10 @@ router.post('/', async (req, res) => {
     car_approvals, recommended_oils,
     service_flags, notes, oil_overrides,
     source_links, source_keys, tags,
-    created_by,
   } = req.body;
+  // created_by — всегда залогиненный юзер из сессии, а не то, что прислал
+  // клиент (иначе кто угодно мог бы подписать машину чужим именем).
+  const createdBy = req.user.display_name;
 
   if (!brand || !model) return res.status(400).json({ error: 'brand and model are required' });
   if (!year_from) return res.status(400).json({ error: 'year_from is required' });
@@ -165,12 +201,15 @@ router.post('/', async (req, res) => {
         JSON.stringify(source_keys ?? []),
         JSON.stringify(tags ?? []),
         nameNormalized, nameCyrillic, nameTranslit,
-        created_by ?? null,
+        createdBy,
       ],
     );
 
     const row = result.rows[0];
     const created = row.inserted === true || row.inserted === 't';
+    if (created) {
+      await recordCarEvent({ carId: row.id, userId: req.user.id, type: 'added' });
+    }
     res.status(created ? 201 : 200).json({ ...row, created });
   } catch (err) {
     console.error('POST /api/cars', err);
@@ -410,6 +449,8 @@ router.patch('/:id', async (req, res) => {
   const updates = Object.fromEntries(
     Object.entries(req.body).filter(([k]) => allowed.includes(k)),
   );
+  // Необязательный комментарий «почему изменили» — идёт в car_events, не в cars.
+  const comment = typeof req.body.comment === 'string' ? req.body.comment.trim() || null : null;
 
   if (!Object.keys(updates).length) {
     return res.status(400).json({ error: 'no updatable fields provided' });
@@ -437,6 +478,8 @@ router.patch('/:id', async (req, res) => {
     const existing = await query('SELECT * FROM cars WHERE id = $1', [req.params.id]);
     if (!existing.rows.length) return res.status(404).json({ error: 'not found' });
 
+    const changedFields = diffChangedFields(existing.rows[0], updates);
+
     const merged = { ...existing.rows[0], ...updates };
     const { nameNormalized, nameCyrillic, nameTranslit, svSql } = await upsertSearchFields(merged);
 
@@ -460,9 +503,65 @@ router.patch('/:id', async (req, res) => {
     const sql = `UPDATE cars SET ${setClauses.join(', ')} WHERE id = $${params.length} RETURNING *`;
 
     const r = await query(sql, params);
+    await recordCarEvent({
+      carId: req.params.id, userId: req.user.id, type: 'edited', comment, changedFields,
+    });
     res.json(r.rows[0]);
   } catch (err) {
     console.error('PATCH /api/cars/:id', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/cars/:id/events ──────────────────────────────────────────────────
+// Фид ТОЛЬКО этой машины, хронологически — используется на странице машины.
+
+router.get('/:id/events', async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT ce.id, ce.type, ce.comment, ce.changed_fields, ce.created_at,
+              u.display_name, u.login, u.avatar, u.role,
+              rl.prefix_label, rl.color, rl.tooltip
+         FROM car_events ce
+         LEFT JOIN users u ON u.id = ce.user_id
+         LEFT JOIN role_labels rl ON rl.role = u.role
+        WHERE ce.car_id = $1
+        ORDER BY ce.created_at ASC`,
+      [req.params.id],
+    );
+    res.json(r.rows.map(row => ({
+      id: row.id,
+      type: row.type,
+      comment: row.comment,
+      changed_fields: row.changed_fields,
+      created_at: row.created_at,
+      user: row.display_name ? {
+        display_name: row.display_name,
+        login: row.login,
+        avatar: row.avatar,
+        role: row.role,
+        role_prefix: row.prefix_label
+          ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
+          : null,
+      } : null,
+    })));
+  } catch (err) {
+    console.error('GET /api/cars/:id/events', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DELETE /api/cars/:id ───────────────────────────────────────────────────────
+// Только mod/admin — проверка роли на сервере (кнопка на сайте не защита).
+// Полное и безвозвратное удаление; car_events этой машины уходят каскадом.
+
+router.delete('/:id', requireRole('mod', 'admin'), async (req, res) => {
+  try {
+    const r = await query('DELETE FROM cars WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/cars/:id', err);
     res.status(500).json({ error: err.message });
   }
 });
