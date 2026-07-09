@@ -36,6 +36,13 @@ function validateSourceKeys(keys) {
   return null;
 }
 
+function validateTags(tags) {
+  if (tags === undefined) return null;
+  if (!Array.isArray(tags)) return 'tags must be an array';
+  if (tags.some(t => typeof t !== 'string')) return 'tags must be strings';
+  return null;
+}
+
 function buildSearchVectorSql(synonymTokens) {
   // Build a tsvector from all synonym variants using Russian+simple dictionaries
   const tokens = synonymTokens
@@ -48,11 +55,20 @@ function buildSearchVectorSql(synonymTokens) {
 }
 
 async function upsertSearchFields(carRow) {
-  const { brand, model, generation, engine_code, engine_volume, year_from, year_to } = carRow;
+  const { brand, model, generation, engine_code, engine_volume, year_from, year_to, tags } = carRow;
   const { nameNormalized, nameCyrillic, nameTranslit, synonymTokens } =
     buildNameFields(brand, model, generation, engine_code, engine_volume, year_from, year_to);
-  const svSql = buildSearchVectorSql(synonymTokens);
-  return { nameNormalized, nameCyrillic, nameTranslit, svSql };
+
+  // Теги — свободные слова, по которым машину должно находить обычным поиском.
+  // Кладём их и в search_vector (точный/префиксный матч по слову), и в
+  // name_normalized (триграммная похожесть → терпит опечатки). Каждый тег
+  // прогоняем через expandQuery, чтобы находился и в кириллице, и в транслите.
+  const tagList = Array.isArray(tags) ? tags.map(t => normalize(t)).filter(Boolean) : [];
+  const tagTokens = tagList.flatMap(t => expandQuery(t));
+
+  const nameWithTags = tagList.length ? `${nameNormalized} ${tagList.join(' ')}` : nameNormalized;
+  const svSql = buildSearchVectorSql([...synonymTokens, ...tagTokens]);
+  return { nameNormalized: nameWithTags, nameCyrillic, nameTranslit, svSql };
 }
 
 // ── POST /api/cars ────────────────────────────────────────────────────────────
@@ -66,7 +82,7 @@ router.post('/', async (req, res) => {
     fluid_capacities, filter_part_numbers,
     car_approvals, recommended_oils,
     service_flags, notes, oil_overrides,
-    source_links, source_keys,
+    source_links, source_keys, tags,
     created_by,
   } = req.body;
 
@@ -90,22 +106,24 @@ router.post('/', async (req, res) => {
   if (sourceLinksErr) return res.status(400).json({ error: sourceLinksErr });
   const sourceKeysErr = validateSourceKeys(source_keys);
   if (sourceKeysErr) return res.status(400).json({ error: sourceKeysErr });
+  const tagsErr = validateTags(tags);
+  if (tagsErr) return res.status(400).json({ error: tagsErr });
 
   try {
     const { nameNormalized, nameCyrillic, nameTranslit, svSql } =
-      await upsertSearchFields({ brand, model, generation, engine_code, engine_volume, year_from, year_to });
+      await upsertSearchFields({ brand, model, generation, engine_code, engine_volume, year_from, year_to, tags });
 
     const result = await query(
       `INSERT INTO cars (
          brand, model, generation, engine_code, engine_volume,
          year_from, year_to, kw, bhp, fuel_type, motul_name, engine_name,
          fluid_capacities, filter_part_numbers, car_approvals, recommended_oils,
-         service_flags, notes, oil_overrides, source_links, source_keys,
+         service_flags, notes, oil_overrides, source_links, source_keys, tags,
          name_normalized, name_cyrillic, name_translit, search_vector,
          created_by
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-         $17,$18,$19,$20,$21,$22,$23,$24,${svSql},$25
+         $17,$18,$19,$20,$21,$22,$23,$24,$25,${svSql},$26
        )
        ON CONFLICT (lower(brand), lower(model), lower(coalesce(engine_code,'')), coalesce(engine_volume,0), year_from)
        DO UPDATE SET
@@ -125,6 +143,7 @@ router.post('/', async (req, res) => {
          oil_overrides       = EXCLUDED.oil_overrides,
          source_links        = EXCLUDED.source_links,
          source_keys         = EXCLUDED.source_keys,
+         tags                = EXCLUDED.tags,
          name_normalized     = EXCLUDED.name_normalized,
          name_cyrillic       = EXCLUDED.name_cyrillic,
          name_translit       = EXCLUDED.name_translit,
@@ -144,6 +163,7 @@ router.post('/', async (req, res) => {
         JSON.stringify(oil_overrides ?? {}),
         JSON.stringify(source_links ?? {}),
         JSON.stringify(source_keys ?? []),
+        JSON.stringify(tags ?? []),
         nameNormalized, nameCyrillic, nameTranslit,
         created_by ?? null,
       ],
@@ -384,7 +404,7 @@ router.patch('/:id', async (req, res) => {
     'brand','model','generation','engine_code','engine_volume',
     'year_from','year_to','kw','bhp','fuel_type','motul_name','engine_name',
     'fluid_capacities','filter_part_numbers','car_approvals','recommended_oils',
-    'service_flags','notes','oil_overrides','source_links','source_keys',
+    'service_flags','notes','oil_overrides','source_links','source_keys','tags',
   ];
 
   const updates = Object.fromEntries(
@@ -405,6 +425,10 @@ router.patch('/:id', async (req, res) => {
   }
   if ('source_keys' in updates) {
     const err = validateSourceKeys(updates.source_keys);
+    if (err) return res.status(400).json({ error: err });
+  }
+  if ('tags' in updates) {
+    const err = validateTags(updates.tags);
     if (err) return res.status(400).json({ error: err });
   }
 
