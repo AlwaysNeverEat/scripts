@@ -28,6 +28,34 @@ export const ACHIEVEMENTS = [
     metric: 'added',
     threshold: 5,
   },
+  {
+    id: 'cars_added_50',
+    title: 'Эксперт расчетов 50',
+    description: 'Добавьте в базу 50 новых машин',
+    metric: 'added',
+    threshold: 50,
+  },
+  {
+    id: 'cars_added_100',
+    title: 'Эксперт расчетов 100',
+    description: 'Добавьте в базу 100 новых машин',
+    metric: 'added',
+    threshold: 100,
+  },
+  {
+    id: 'cars_added_500',
+    title: 'Эксперт расчетов 500',
+    description: 'Добавьте в базу 500 новых машин',
+    metric: 'added',
+    threshold: 500,
+  },
+  {
+    id: 'cars_added_1000',
+    title: 'Экспертище',
+    description: 'Не думал, что кто то получит эту ачивку. . .',
+    metric: 'added',
+    threshold: 1000,
+  },
 ];
 
 const byId = new Map(ACHIEVEMENTS.map(a => [a.id, a]));

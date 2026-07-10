@@ -6,6 +6,7 @@
 
 import { openAvatarCropper } from './avatarCropper.js';
 import { achievementIcon } from './achievements.js';
+import { attachAchievementParticles } from './achievementParticles.js';
 import { openAssignCarsModal } from './assignCars.js';
 
 function esc(s) {
@@ -96,7 +97,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                         const icon = achievementIcon(a.id);
                         return `
                         <div class="achievement-card">
-                            <div class="achievement-icon">${icon ? `<img src="${esc(icon)}" alt=""/>` : '🏆'}</div>
+                            <div class="achievement-icon" data-ach-icon="${esc(a.id)}">${icon ? `<img src="${esc(icon)}" alt=""/>` : '🏆'}</div>
                             <div class="achievement-title">${esc(a.title)}</div>
                             <div class="achievement-date">${a.unlockedAt ? new Date(a.unlockedAt).toLocaleDateString('ru-RU') : ''}</div>
                             <div class="achievement-desc">${esc(a.description || '')}</div>
@@ -115,6 +116,10 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             </div>
         `;
         bind();
+        // партиклы на медалях 100/500/1000 (см. achievementParticles.js);
+        // навешиваются после вставки разметки — им нужен живой DOM
+        box.querySelectorAll('[data-ach-icon]').forEach(el =>
+            attachAchievementParticles(el, el.dataset.achIcon, 64));
     }
 
     function bind() {

@@ -1246,6 +1246,17 @@ input[data-edit-filter-absent]:checked::after {
 .ach-toast-head { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
 .ach-toast-title { font-size: 14px; font-weight: 700; color: var(--accent); margin-top: 2px; }
 
+/* Партиклы медалей (achievementParticles.js): слой поверх картинки, искры
+   могут вылетать за её пределы — overflow не режем. */
+.ach-particles-host { position: relative; overflow: visible; }
+.ach-particles-layer {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+/* 1000 — кристальная медаль дополнительно подсвечена, как в макете */
+.ach-glow-crystal img { filter: drop-shadow(0 0 12px rgba(186, 230, 253, 0.35)); }
+
 /* ── Модалка «Назначить ответственного» ─────────────────────────── */
 #assign-search {
   width: 100%;
