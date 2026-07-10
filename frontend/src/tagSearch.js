@@ -1,4 +1,6 @@
-// ── Режим «Теги»: каскадные выпадашки марка → модель → объём ──────────────────
+// ── Режим «Теги»: каскадные автокомплиты марка → модель → объём ───────────────
+// Свой комбобокс вместо нативного <select> (тот не красится под тему сайта —
+// белый попап списка в Chrome/Windows) — умеет фильтроваться по вводу текста.
 // Сфера на фоне сужается по мере выбора: узлы, не подходящие под текущий
 // фильтр, пропадают (main.js передаёт сюда простенький sphere-адаптер).
 // Когда подходящих машин остаётся меньше SPHERE_HIDE_THRESHOLD — сфера
@@ -8,6 +10,9 @@ const SPHERE_HIDE_THRESHOLD = 5;
 const RESULTS_LIMIT = 60;
 // Маркер «объём не указан у машины» — отдельно от '' (означающего «объём ещё не выбран»)
 const NULL_VOLUME = '__null__';
+// Пока input в фокусе, blur от клика по опции срабатывает раньше mousedown,
+// если не отложить закрытие — поэтому revert/close идут с небольшой задержкой.
+const BLUR_CLOSE_DELAY_MS = 120;
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -23,6 +28,118 @@ function formatYears(yearFrom, yearTo) {
     return ` (${yearFrom}–${yearTo || 'н.в.'})`;
 }
 
+// ── Комбобокс с фильтрацией по вводу ───────────────────────────────────────
+// options: [{ value, label, search }] — search — то, по чему матчим текст
+// (обычно совпадает с label без счётчика в скобках).
+function createCombo(container, { onChange }) {
+    const input = container.querySelector('.tag-combo-input');
+    const list  = container.querySelector('.tag-combo-list');
+    const clearBtn = container.querySelector('.tag-combo-clear');
+
+    let options = [];
+    let visible = [];   // текущий отфильтрованный список
+    let selected = null; // { value, label }
+    let activeIndex = -1;
+
+    function renderList(text) {
+        const q = text.trim().toLowerCase();
+        visible = q ? options.filter(o => (o.search ?? o.label).toLowerCase().includes(q)) : options;
+        activeIndex = -1;
+        list.innerHTML = visible.length
+            ? visible.map((o, i) => `<div class="tag-combo-opt" data-idx="${i}">${esc(o.label)}</div>`).join('')
+            : '<div class="tag-combo-empty">Ничего не найдено</div>';
+    }
+
+    function highlight() {
+        [...list.children].forEach((el, i) => el.classList.toggle('active', i === activeIndex));
+        list.children[activeIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+
+    function openList() {
+        renderList(input.value);
+        list.classList.remove('hidden');
+    }
+    function closeList() {
+        list.classList.add('hidden');
+        activeIndex = -1;
+    }
+
+    function applySelected() {
+        input.value = selected ? selected.label : '';
+        container.classList.toggle('has-value', !!selected);
+        clearBtn.classList.toggle('hidden', !selected);
+    }
+
+    function selectItem(item) {
+        selected = item;
+        applySelected();
+        closeList();
+        onChange(item.value);
+    }
+
+    input.addEventListener('focus', openList);
+    input.addEventListener('input', () => {
+        renderList(input.value);
+        list.classList.remove('hidden');
+    });
+    input.addEventListener('blur', () => {
+        // Задержка, чтобы mousedown по опции (см. ниже) успел сработать раньше.
+        setTimeout(() => { applySelected(); closeList(); }, BLUR_CLOSE_DELAY_MS);
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { applySelected(); closeList(); input.blur(); return; }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (list.classList.contains('hidden')) openList();
+            activeIndex = Math.min(activeIndex + 1, visible.length - 1);
+            highlight();
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIndex = Math.max(activeIndex - 1, 0);
+            highlight();
+            return;
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const item = visible[activeIndex] ?? (visible.length === 1 ? visible[0] : null);
+            if (item) selectItem(item);
+            return;
+        }
+    });
+    list.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // не даём инпуту потерять фокус раньше выбора
+        const el = e.target.closest('.tag-combo-opt');
+        if (!el) return;
+        const item = visible[Number(el.dataset.idx)];
+        if (item) selectItem(item);
+    });
+    clearBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    clearBtn.addEventListener('click', () => {
+        selected = null;
+        applySelected();
+        closeList();
+        onChange('');
+    });
+
+    return {
+        setOptions(opts) {
+            options = opts;
+            if (selected && !options.some(o => o.value === selected.value)) {
+                selected = null;
+                applySelected();
+            }
+        },
+        reset() {
+            selected = null;
+            applySelected();
+            closeList();
+        },
+        get value() { return selected ? selected.value : ''; },
+    };
+}
+
 /**
  * @param {{apiFetch: Function, onPick: (id:string) => void, sphere: {
  *   setNodes: (nodes: {id:string,label:string}[]) => void,
@@ -31,10 +148,10 @@ function formatYears(yearFrom, yearTo) {
  * }}} deps
  */
 export function initTagSearch({ apiFetch, onPick, sphere }) {
-    const brandSelect  = document.getElementById('tag-brand');
-    const modelSelect  = document.getElementById('tag-model');
-    const volumeSelect = document.getElementById('tag-volume');
-    const resultsEl    = document.getElementById('tag-results');
+    const brandBox  = document.getElementById('tag-combo-brand');
+    const modelBox  = document.getElementById('tag-combo-model');
+    const volumeBox = document.getElementById('tag-combo-volume');
+    const resultsEl = document.getElementById('tag-results');
 
     let state = { brand: '', model: '', volume: '' };
     let brandsLoaded = false;
@@ -42,56 +159,43 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
     // не перезаписал уже более новое состояние.
     let requestSeq = 0;
 
-    function resetSelect(select, placeholder) {
-        select.innerHTML = `<option value="">${placeholder}</option>`;
-    }
+    const brandCombo = createCombo(brandBox, { onChange: onBrandChange });
+    const modelCombo = createCombo(modelBox, { onChange: onModelChange });
+    const volumeCombo = createCombo(volumeBox, { onChange: onVolumeChange });
 
     async function loadBrands() {
-        resetSelect(brandSelect, 'Марка…');
         try {
             const brands = await apiFetch('/api/cars/tags/brands');
-            for (const b of brands) {
-                const opt = document.createElement('option');
-                opt.value = b.brand;
-                opt.textContent = `${b.brand} (${b.count})`;
-                brandSelect.appendChild(opt);
-            }
+            brandCombo.setOptions(brands.map(b => ({
+                value: b.brand, label: `${b.brand} (${b.count})`, search: b.brand,
+            })));
             brandsLoaded = true;
-        } catch { /* пусто — дропдаун останется с одним плейсхолдером */ }
+        } catch { /* пусто — список останется прежним/пустым */ }
     }
 
     async function loadModels(brand) {
-        resetSelect(modelSelect, 'Модель…');
         try {
             const models = await apiFetch('/api/cars/tags/models?brand=' + encodeURIComponent(brand));
-            for (const m of models) {
-                const opt = document.createElement('option');
-                opt.value = m.model;
-                opt.textContent = `${m.model}${formatYears(m.year_from, m.year_to)} · ${m.count}`;
-                modelSelect.appendChild(opt);
-            }
+            modelCombo.setOptions(models.map(m => ({
+                value: m.model,
+                label: `${m.model}${formatYears(m.year_from, m.year_to)} · ${m.count}`,
+                search: m.model,
+            })));
         } catch { /* … */ }
     }
 
     async function loadVolumes(brand, model) {
-        resetSelect(volumeSelect, 'Объём…');
         try {
             const volumes = await apiFetch(
                 '/api/cars/tags/volumes?brand=' + encodeURIComponent(brand) +
                 '&model=' + encodeURIComponent(model),
             );
-            for (const v of volumes) {
-                const opt = document.createElement('option');
+            volumeCombo.setOptions(volumes.map(v => {
                 const codes = v.engine_codes && v.engine_codes.length ? ' · ' + v.engine_codes.join(', ') : '';
-                if (v.engine_volume == null) {
-                    opt.value = NULL_VOLUME;
-                    opt.textContent = `без объёма${codes} · ${v.count}`;
-                } else {
-                    opt.value = v.engine_volume;
-                    opt.textContent = `${v.engine_volume} л${codes} · ${v.count}`;
-                }
-                volumeSelect.appendChild(opt);
-            }
+                return v.engine_volume == null
+                    ? { value: NULL_VOLUME, label: `без объёма${codes} · ${v.count}`, search: 'без объёма ' + (v.engine_codes || []).join(' ') }
+                    : { value: String(v.engine_volume), label: `${v.engine_volume} л${codes} · ${v.count}`, search: v.engine_volume + ' ' + (v.engine_codes || []).join(' ') };
+            }));
         } catch { /* … */ }
     }
 
@@ -158,29 +262,32 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
         }
     }
 
-    brandSelect.addEventListener('change', () => {
-        state = { brand: brandSelect.value, model: '', volume: '' };
-        resetSelect(modelSelect, 'Модель…');
-        resetSelect(volumeSelect, 'Объём…');
-        modelSelect.classList.toggle('hidden', !state.brand);
-        volumeSelect.classList.add('hidden');
-        if (state.brand) loadModels(state.brand);
+    function onBrandChange(value) {
+        state = { brand: value, model: '', volume: '' };
+        modelCombo.reset();
+        modelCombo.setOptions([]);
+        volumeCombo.reset();
+        volumeCombo.setOptions([]);
+        modelBox.classList.toggle('hidden', !value);
+        volumeBox.classList.add('hidden');
+        if (value) loadModels(value);
         refreshResults();
-    });
+    }
 
-    modelSelect.addEventListener('change', () => {
-        state.model = modelSelect.value;
+    function onModelChange(value) {
+        state.model = value;
         state.volume = '';
-        resetSelect(volumeSelect, 'Объём…');
-        volumeSelect.classList.toggle('hidden', !state.model);
-        if (state.model) loadVolumes(state.brand, state.model);
+        volumeCombo.reset();
+        volumeCombo.setOptions([]);
+        volumeBox.classList.toggle('hidden', !value);
+        if (value) loadVolumes(state.brand, value);
         refreshResults();
-    });
+    }
 
-    volumeSelect.addEventListener('change', () => {
-        state.volume = volumeSelect.value;
+    function onVolumeChange(value) {
+        state.volume = value;
         refreshResults();
-    });
+    }
 
     return {
         activate() {
@@ -188,11 +295,13 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
         },
         deactivate() {
             state = { brand: '', model: '', volume: '' };
-            resetSelect(brandSelect, 'Марка…');
-            resetSelect(modelSelect, 'Модель…');
-            resetSelect(volumeSelect, 'Объём…');
-            modelSelect.classList.add('hidden');
-            volumeSelect.classList.add('hidden');
+            brandCombo.reset();
+            modelCombo.reset();
+            modelCombo.setOptions([]);
+            volumeCombo.reset();
+            volumeCombo.setOptions([]);
+            modelBox.classList.add('hidden');
+            volumeBox.classList.add('hidden');
             resultsEl.innerHTML = '';
             brandsLoaded = false;
             sphere.setVisible(true);

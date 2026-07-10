@@ -101,15 +101,21 @@
 
           <div id="tag-search" class="tag-search hidden">
             <div class="tag-select-row">
-              <select id="tag-brand" class="tag-select">
-                <option value="">Марка…</option>
-              </select>
-              <select id="tag-model" class="tag-select hidden">
-                <option value="">Модель…</option>
-              </select>
-              <select id="tag-volume" class="tag-select hidden">
-                <option value="">Объём…</option>
-              </select>
+              <div class="tag-combo" id="tag-combo-brand">
+                <input type="text" class="tag-combo-input" placeholder="Марка…" autocomplete="off" spellcheck="false"/>
+                <button type="button" class="tag-combo-clear hidden" aria-label="Очистить">✕</button>
+                <div class="tag-combo-list hidden"></div>
+              </div>
+              <div class="tag-combo hidden" id="tag-combo-model">
+                <input type="text" class="tag-combo-input" placeholder="Модель…" autocomplete="off" spellcheck="false"/>
+                <button type="button" class="tag-combo-clear hidden" aria-label="Очистить">✕</button>
+                <div class="tag-combo-list hidden"></div>
+              </div>
+              <div class="tag-combo hidden" id="tag-combo-volume">
+                <input type="text" class="tag-combo-input" placeholder="Объём…" autocomplete="off" spellcheck="false"/>
+                <button type="button" class="tag-combo-clear hidden" aria-label="Очистить">✕</button>
+                <div class="tag-combo-list hidden"></div>
+              </div>
             </div>
             <div id="tag-results" class="search-results tag-results"></div>
           </div>
