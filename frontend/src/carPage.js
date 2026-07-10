@@ -580,6 +580,10 @@ function promptEditComment() {
 // Плашки «добавлена»/«отредактирована» с крупной аватаркой автора. Машины без
 // created_by не показывают плашку добавления — просто нет такого события.
 
+// По умолчанию лента свёрнута до 3 последних изменений (новые сверху), чтобы не
+// растягивать страницу. Кнопка разворачивает всю историю в компактном скролле.
+const EVENTS_COLLAPSED = 3;
+
 async function renderEvents(carId, ctx) {
     const box = document.getElementById('car-events');
     if (!box) return;
@@ -593,24 +597,47 @@ async function renderEvents(carId, ctx) {
     }
     if (!events.length) return;
 
-    box.innerHTML = `
-        <div class="sec-title">История машины</div>
-        <div class="events-feed">
-            ${events.map((ev, i) => renderEventCard(ev, i)).join('')}
-        </div>
-    `;
+    // С сервера события идут по возрастанию (старые → новые). Разворачиваем,
+    // чтобы «Последние изменения» были сверху.
+    const ordered = events.slice().reverse();
+    const hasMore = ordered.length > EVENTS_COLLAPSED;
+    let expanded = false;
 
-    box.querySelectorAll('[data-event-idx]').forEach(card => {
-        const ev = events[parseInt(card.dataset.eventIdx, 10)];
-        if (ev.type === 'edited') card.onclick = () => openEventDetails(ev);
-    });
+    const draw = () => {
+        const shown = expanded ? ordered : ordered.slice(0, EVENTS_COLLAPSED);
+        const toggle = hasMore
+            ? `<button class="btn btn-sec btn-mini events-toggle" id="events-toggle">${
+                expanded ? '▲ Скрыть историю' : `▼ Показать всю историю (${ordered.length})`
+              }</button>`
+            : '';
+        box.innerHTML = `
+            <div class="events-wrap">
+                <div class="sec-title">Последние изменения</div>
+                <div class="events-feed${expanded ? ' events-feed-scroll' : ''}">
+                    ${shown.map((ev, i) => renderEventCard(ev, i)).join('')}
+                </div>
+                ${toggle}
+            </div>
+        `;
+        bind();
+    };
 
-    box.querySelectorAll('[data-user-link]').forEach(el => {
-        el.onclick = (e) => {
-            e.stopPropagation(); // не даём сработать открытию диффа у edited-карточки
-            location.hash = '#/user/' + el.dataset.userLink;
-        };
-    });
+    const bind = () => {
+        box.querySelectorAll('[data-event-idx]').forEach(card => {
+            const ev = ordered[parseInt(card.dataset.eventIdx, 10)];
+            if (ev && ev.type === 'edited') card.onclick = () => openEventDetails(ev);
+        });
+        box.querySelectorAll('[data-user-link]').forEach(el => {
+            el.onclick = (e) => {
+                e.stopPropagation(); // не даём сработать открытию диффа у edited-карточки
+                location.hash = '#/user/' + el.dataset.userLink;
+            };
+        });
+        const toggleBtn = box.querySelector('#events-toggle');
+        if (toggleBtn) toggleBtn.onclick = () => { expanded = !expanded; draw(); };
+    };
+
+    draw();
 }
 
 function rolePrefixHtml(rolePrefix) {
@@ -626,16 +653,19 @@ function renderEventCard(ev, i) {
         : `<span class="event-avatar-default">👤</span>`;
     const when = new Date(ev.created_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
 
-    const userLinkAttr = ev.user ? `data-user-link="${esc(ev.user.id)}" title="Открыть профиль"` : '';
+    const avatarLinkAttr = ev.user ? `data-user-link="${esc(ev.user.id)}" title="Открыть профиль"` : '';
+    const userChip = ev.user
+        ? `<span class="event-user" data-user-link="${esc(ev.user.id)}" role="button" tabindex="0" title="Открыть профиль коллеги">${rolePrefixHtml(ev.user.role_prefix)}<b>${author}</b></span>`
+        : `<b>${author}</b>`;
 
     return `
         <div class="event-card ${isAdded ? 'event-card-added' : 'event-card-edited'}"
              data-event-idx="${i}" ${!isAdded ? 'role="button" tabindex="0"' : ''}>
-            <div class="event-avatar" ${userLinkAttr}>${avatarHtml}</div>
+            <div class="event-avatar" ${avatarLinkAttr}>${avatarHtml}</div>
             <div class="event-body">
                 <div class="event-text">
                     ${isAdded ? 'Машина добавлена' : 'Отредактировано'} пользователем
-                    <span ${userLinkAttr}>${rolePrefixHtml(ev.user?.role_prefix)}<b>${author}</b></span>
+                    ${userChip}
                 </div>
                 <div class="event-date">${when}</div>
             </div>
