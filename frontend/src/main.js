@@ -6,6 +6,7 @@ import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
 import { initTopModal } from './top.js';
 import { initAchievements } from './achievements.js';
+import { initTagSearch } from './tagSearch.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -233,20 +234,70 @@ function esc(s) {
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
-// Сфера из машин, которые уже есть в базе (до 50 случайных)
+// Сфера из машин, которые уже есть в базе (до 50 случайных). Контроллер
+// сохраняем в module-level переменную — режим «Теги» (tagSearch.js) дальше
+// подменяет её узлы по мере выбора марки/модели/объёма и прячет сферу,
+// когда подходящих машин остаётся мало.
+let sphereController = null;
+
+function carNode(c) {
+    return { id: c.id, label: [c.brand, c.model, c.generation].filter(Boolean).join(' ') };
+}
+
+async function fetchRandomNodes(limit = 50) {
+    const cars = await apiFetch('/api/cars/random?limit=' + limit);
+    return cars.map(carNode);
+}
+
 async function loadSphere() {
     const canvas = document.getElementById('sphere-canvas');
     if (!canvas) return;
     try {
-        const cars = await apiFetch('/api/cars/random?limit=50');
-        if (!cars.length) return;
-        const nodes = cars.map(c => ({
-            id: c.id,
-            label: [c.brand, c.model, c.generation].filter(Boolean).join(' '),
-        }));
-        startSphere(canvas, nodes, id => { location.hash = '#/car/' + id; });
+        const nodes = await fetchRandomNodes();
+        if (!nodes.length) return;
+        sphereController = startSphere(canvas, nodes);
     } catch { /* сфера — украшение, без неё страшного нет */ }
 }
+
+// ── Переключатель «Поиск / Теги» ────────────────────────────────────────────
+const modeBtnSearch = document.getElementById('mode-btn-search');
+const modeBtnTags   = document.getElementById('mode-btn-tags');
+const searchBoxEl   = document.querySelector('.search-box');
+const tagSearchEl   = document.getElementById('tag-search');
+
+const tagSearch = initTagSearch({
+    apiFetch,
+    onPick: id => {
+        searchResults.innerHTML = '';
+        location.hash = '#/car/' + id;
+    },
+    sphere: {
+        setNodes: nodes => sphereController?.setNodes(nodes),
+        setVisible: v => sphereController?.setVisible(v),
+        async resetRandom() {
+            try {
+                sphereController?.setNodes(await fetchRandomNodes());
+            } catch { /* сфера — украшение, без неё страшного нет */ }
+        },
+    },
+});
+
+function setSearchMode(mode) {
+    const isTags = mode === 'tags';
+    modeBtnSearch.classList.toggle('active', !isTags);
+    modeBtnTags.classList.toggle('active', isTags);
+    searchBoxEl.classList.toggle('hidden', isTags);
+    searchResults.classList.toggle('hidden', isTags);
+    tagSearchEl.classList.toggle('hidden', !isTags);
+    if (isTags) {
+        tagSearch.activate();
+    } else {
+        tagSearch.deactivate();
+    }
+}
+
+modeBtnSearch.onclick = () => setSearchMode('search');
+modeBtnTags.onclick = () => setSearchMode('tags');
 
 // ── Старт ─────────────────────────────────────────────────────────────────────
 // Сначала boot-экран ждёт, пока бэкенд на Render проснётся (/health),

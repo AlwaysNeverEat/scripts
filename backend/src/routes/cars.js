@@ -458,6 +458,108 @@ router.get('/owners', requireRole('mod', 'admin'), async (_req, res) => {
   }
 });
 
+// ── GET /api/cars/tags/brands ─────────────────────────────────────────────────
+// Каскадные выпадашки режима «Теги»: марка → модель → объём.
+
+router.get('/tags/brands', async (_req, res) => {
+  try {
+    const r = await query(
+      `SELECT brand, count(*)::int AS count FROM cars GROUP BY brand ORDER BY brand`,
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('GET /api/cars/tags/brands', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/cars/tags/models?brand= ──────────────────────────────────────────
+// year_to = NULL, если хотя бы одно поколение модели ещё в производстве —
+// диапазон модели тогда «открытый», а не обрезанный по самому старому поколению.
+
+router.get('/tags/models', async (req, res) => {
+  const brand = (req.query.brand || '').trim();
+  if (!brand) return res.status(400).json({ error: 'brand is required' });
+  try {
+    const r = await query(
+      `SELECT model,
+              min(year_from) AS year_from,
+              CASE WHEN bool_or(year_to IS NULL) THEN NULL ELSE max(year_to) END AS year_to,
+              count(*)::int AS count
+         FROM cars
+        WHERE lower(brand) = lower($1)
+        GROUP BY model
+        ORDER BY model`,
+      [brand],
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('GET /api/cars/tags/models', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/cars/tags/volumes?brand=&model= ──────────────────────────────────
+// Коды двигателей идут прямо в выпадашке объёма — не отдельным шагом.
+
+router.get('/tags/volumes', async (req, res) => {
+  const brand = (req.query.brand || '').trim();
+  const model = (req.query.model || '').trim();
+  if (!brand || !model) return res.status(400).json({ error: 'brand and model are required' });
+  try {
+    const r = await query(
+      `SELECT engine_volume,
+              coalesce(array_agg(DISTINCT engine_code) FILTER (WHERE engine_code IS NOT NULL), '{}') AS engine_codes,
+              count(*)::int AS count
+         FROM cars
+        WHERE lower(brand) = lower($1) AND lower(model) = lower($2)
+        GROUP BY engine_volume
+        ORDER BY engine_volume NULLS LAST`,
+      [brand, model],
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('GET /api/cars/tags/volumes', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/cars/tags/results?brand=&model=&volume=&limit= ──────────────────
+// Все параметры опциональны — прогрессивная фильтрация по мере выбора тегов.
+// volume='__null__' — отдельный маркер для «без указанного объёма» (engine_volume IS NULL),
+// т.к. пустая строка уже означает «объём не выбран».
+// total — точное число совпадений (для решения «спрятать сферу» на фронте),
+// cars — обрезанный до limit список для отрисовки сферы/списка.
+
+router.get('/tags/results', async (req, res) => {
+  const { brand, model, volume } = req.query;
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit || '60')));
+
+  const clauses = [];
+  const whereParams = [];
+  if (brand) { whereParams.push(brand); clauses.push(`lower(brand) = lower($${whereParams.length})`); }
+  if (model) { whereParams.push(model); clauses.push(`lower(model) = lower($${whereParams.length})`); }
+  if (volume === '__null__') {
+    clauses.push('engine_volume IS NULL');
+  } else if (volume) {
+    whereParams.push(parseFloat(volume));
+    clauses.push(`engine_volume = $${whereParams.length}`);
+  }
+  const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
+
+  try {
+    const rowsParams = [...whereParams, limit];
+    const [rows, total] = await Promise.all([
+      query(`SELECT * FROM cars ${where} ORDER BY brand, model, year_from LIMIT $${rowsParams.length}`, rowsParams),
+      query(`SELECT count(*)::int AS n FROM cars ${where}`, whereParams),
+    ]);
+    res.json({ total: total.rows[0].n, cars: rows.rows });
+  } catch (err) {
+    console.error('GET /api/cars/tags/results', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/cars/:id ─────────────────────────────────────────────────────────
 
 router.get('/:id', async (req, res) => {

@@ -1,7 +1,10 @@
 // ── Словесная сфера на странице поиска ───────────────────────────────────────
-// Порт канвас-анимации из фигма-макета (fibonacci sphere): узлы — случайные
-// машины из БД (марка + модель + поколение), до 50 штук. Клик по карточке
-// открывает страницу машины.
+// Порт канвас-анимации из фигма-макета (fibonacci sphere): узлы — машины из
+// БД (марка + модель + поколение). Обычный поиск — случайные до 50 штук;
+// режим «Теги» подменяет узлы через setNodes() по мере сужения фильтра
+// (main.js/tagSearch.js). Чисто декоративная — карточки только подсвечиваются
+// под курсором, кликом никуда не ведут (было криво: тесная зона попадания,
+// путаница с крестом-курсором вместо обычного).
 
 // Fibonacci sphere — равномерное распределение точек по единичной сфере
 function fibonacciSphere(n) {
@@ -49,14 +52,25 @@ function roundRect(ctx, x, y, w, h, r) {
     ctx.closePath();
 }
 
+// Пересчитать позиции узлов и рёбра под новый набор машин (режим «Теги»:
+// сфера сужается по мере выбора марки/модели/объёма).
+function buildLayout(nodes) {
+    const basePos = fibonacciSphere(nodes.length);
+    // ~3 ребра на узел, чтобы паутина оставалась плотной
+    const edgeCount = Math.min(Math.max(nodes.length * 3, 20), 200);
+    const edges = buildEdges(basePos, edgeCount);
+    return { nodes, basePos, edges };
+}
+
 /**
  * @param {HTMLCanvasElement} canvas
- * @param {{id:string, label:string}[]} nodes — машины для узлов сферы
- * @param {(id:string) => void} onPick — клик по карточке машины
+ * @param {{id:string, label:string}[]} initialNodes — машины для узлов сферы
+ * @returns {{ setNodes: (nodes: {id:string,label:string}[]) => void, setVisible: (v: boolean) => void }}
  */
-export function startSphere(canvas, nodes, onPick) {
+export function startSphere(canvas, initialNodes) {
     const ctx = canvas.getContext('2d');
-    const nodeCount = nodes.length;
+    let layout = buildLayout(initialNodes);
+    let visible = true;
     const mouse = { x: -9999, y: -9999 };
     const smooth = { x: -9999, y: -9999 };
 
@@ -69,11 +83,6 @@ export function startSphere(canvas, nodes, onPick) {
     resize();
     window.addEventListener('resize', resize);
 
-    const basePos = fibonacciSphere(nodeCount);
-    // ~3 ребра на узел, чтобы паутина оставалась плотной
-    const edgeCount = Math.min(Math.max(nodeCount * 3, 20), 200);
-    const edges = buildEdges(basePos, edgeCount);
-
     const FOV = 2.8;
     const MOUSE_RADIUS = 160;
     const SMOOTH = 0.04;
@@ -82,11 +91,16 @@ export function startSphere(canvas, nodes, onPick) {
 
     const draw = (time) => {
         requestAnimationFrame(draw);
-        // Страница поиска скрыта — не рисуем
-        if (canvas.offsetWidth === 0) return;
-
         const W = canvas.offsetWidth;
         const H = canvas.offsetHeight;
+        // Страница поиска скрыта, сфера спрятана (мало вариантов в режиме тегов),
+        // или узлов ноль — не рисуем
+        if (W === 0 || !visible || layout.nodes.length === 0) {
+            if (W !== 0) ctx.clearRect(0, 0, W, H);
+            return;
+        }
+        const { nodes, basePos, edges } = layout;
+
         ctx.clearRect(0, 0, W, H);
 
         if (mouse.x > -999) {
@@ -165,8 +179,6 @@ export function startSphere(canvas, nodes, onPick) {
             const rr = 4 * p.ps * 0.82;
             const x = p.sx - cardW / 2;
             const y = p.sy - cardH / 2;
-            p.hitW = cardW;
-            p.hitH = cardH;
 
             if (p.hoverT > 0) {
                 ctx.save();
@@ -210,17 +222,14 @@ export function startSphere(canvas, nodes, onPick) {
         mouse.x = -9999;
         mouse.y = -9999;
     });
-    canvas.addEventListener('click', (e) => {
-        if (!onPick) return;
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-        // Ищем самую переднюю карточку под курсором
-        const hit = proj
-            .filter(p => p.hitW &&
-                Math.abs(mx - p.sx) <= p.hitW / 2 &&
-                Math.abs(my - p.sy) <= p.hitH / 2)
-            .sort((a, b) => b.rz2 - a.rz2)[0];
-        if (hit) onPick(hit.node.id);
-    });
+
+    return {
+        // Подменить набор узлов без пересоздания canvas/анимации (режим «Теги»)
+        setNodes(nodes) { layout = buildLayout(nodes); },
+        // Спрятать/показать сферу (режим «Теги»: < 5 вариантов — сфера не нужна)
+        setVisible(v) {
+            visible = v;
+            if (!v) { mouse.x = -9999; mouse.y = -9999; }
+        },
+    };
 }
