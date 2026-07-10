@@ -1121,16 +1121,23 @@ input[data-edit-filter-absent]:checked::after {
   border-radius: 16px;
   padding: 28px 24px;
   text-align: center;
+  /* flex-колонка — надёжно ставит аватар/ник/статистику друг под другом
+     независимо от того, block или inline-* элемент внутри (аватар в своём
+     профиле обёрнут в <label> для загрузки файла, в чужом — обычный div). */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.profile-avatar-wrap { display: inline-block; cursor: pointer; }
+.profile-avatar-wrap { cursor: pointer; }
 .profile-avatar { width: 96px; height: 96px; margin: 0 auto; font-size: 34px; }
 .profile-avatar-default { font-size: 34px; }
 .profile-name {
   margin-top: 14px;
   font-size: 18px; font-weight: 700;
   cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 6px;
 }
+.profile-name-static { cursor: default; }
 .profile-name-edit-hint { font-size: 12px; opacity: .5; }
 .profile-name-input {
   background: var(--bg2);
@@ -1142,14 +1149,17 @@ input[data-edit-filter-absent]:checked::after {
   font-family: inherit;
   text-align: center;
 }
-.profile-stats { display: flex; justify-content: center; gap: 32px; margin-top: 20px; }
+.profile-stats { display: flex; justify-content: center; gap: 32px; margin-top: 20px; align-self: stretch; }
 .profile-stat { display: flex; flex-direction: column; align-items: center; }
 .profile-stat b { font-size: 22px; color: var(--accent); }
 .profile-stat span { font-size: 11px; color: var(--sub); margin-top: 2px; }
 .achievements-feed {
   display: flex; gap: 10px; overflow-x: auto;
   padding-bottom: 6px; margin-top: 4px;
+  align-self: stretch;
 }
+.profile-card .edit-sec-h { align-self: stretch; text-align: left; }
+#profile-error { align-self: stretch; }
 .achievement-card {
   flex: none; width: 120px;
   background: var(--bg2);
