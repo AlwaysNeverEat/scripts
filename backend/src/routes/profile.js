@@ -6,6 +6,7 @@ import { loadPublicUser } from '../auth/sessions.js';
 import {
   uploadAvatarOriginal, uploadAvatarCropped, isAllowedAvatarMime, AVATAR_MAX_BYTES,
 } from '../storage/supabaseStorage.js';
+import { achievementById, computeMetrics } from '../achievements/achievements.js';
 
 const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
   .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
@@ -108,17 +109,13 @@ router.patch('/avatar/crop', uploadCroppedOnly, async (req, res) => {
 
 // ── GET /api/profile/stats ─────────────────────────────────────────────────────
 // «Добавлено машин» / «Отредактировано машин» — считается по car_events,
-// это тот же источник правды, что и фид на странице машины.
+// это тот же источник правды, что и фид на странице машины и ачивки.
+// edited — по МАШИНАМ (DISTINCT car_id), не по числу правок: 100 правок
+// одной машины = 1 отредактированная машина.
 
 router.get('/stats', async (req, res) => {
   try {
-    const r = await query(
-      `SELECT type, count(*)::int AS n FROM car_events WHERE user_id = $1 GROUP BY type`,
-      [req.user.id],
-    );
-    const stats = { added: 0, edited: 0 };
-    for (const row of r.rows) stats[row.type] = row.n;
-    res.json(stats);
+    res.json(await computeMetrics(req.user.id));
   } catch (err) {
     console.error('GET /api/profile/stats', err);
     res.status(500).json({ error: err.message });
@@ -126,11 +123,73 @@ router.get('/stats', async (req, res) => {
 });
 
 // ── GET /api/profile/achievements ──────────────────────────────────────────────
-// Реальных достижений нет — готовый пустой расширяемый фид-заглушка.
-// Формат карточки на вырост: { id, icon, title, description, unlockedAt, hint }.
+// Полученные достижения для карточек в профиле. Тексты берутся из определений
+// в коде (не из БД) — если формулировку поправили, поменяется и у уже выданных.
 
-router.get('/achievements', (_req, res) => {
-  res.json([]);
+function presentAchievement(row) {
+  const def = achievementById(row.achievement_id);
+  return {
+    id: row.achievement_id,
+    title: def?.title ?? row.achievement_id,
+    description: def?.description ?? '',
+    unlockedAt: row.unlocked_at,
+  };
+}
+
+router.get('/achievements', async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT achievement_id, unlocked_at FROM user_achievements
+        WHERE user_id = $1 ORDER BY unlocked_at ASC`,
+      [req.user.id],
+    );
+    res.json(r.rows.map(presentAchievement));
+  } catch (err) {
+    console.error('GET /api/profile/achievements', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/profile/achievements/pending ─────────────────────────────────────
+// Достижения, о которых пользователю ещё не показывали тост (notified_at NULL).
+// Фронт опрашивает этот эндпоинт (при входе + после действий), показывает
+// стим-тосты и подтверждает показ через POST /achievements/seen — так
+// уведомление не теряется, даже если ачивку начислил модератор, пока
+// пользователя не было на сайте.
+
+router.get('/achievements/pending', async (req, res) => {
+  try {
+    const r = await query(
+      `SELECT achievement_id, unlocked_at FROM user_achievements
+        WHERE user_id = $1 AND notified_at IS NULL ORDER BY unlocked_at ASC`,
+      [req.user.id],
+    );
+    res.json(r.rows.map(presentAchievement));
+  } catch (err) {
+    console.error('GET /api/profile/achievements/pending', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/profile/achievements/seen ────────────────────────────────────────
+// Подтверждение «тост показан»: body { ids: ['cars_added_5', …] }.
+
+router.post('/achievements/seen', async (req, res) => {
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids) || !ids.length || ids.some(id => typeof id !== 'string')) {
+    return res.status(400).json({ error: 'ids must be a non-empty array of strings' });
+  }
+  try {
+    await query(
+      `UPDATE user_achievements SET notified_at = now()
+        WHERE user_id = $1 AND achievement_id = ANY($2) AND notified_at IS NULL`,
+      [req.user.id, ids],
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('POST /api/profile/achievements/seen', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { openAvatarCropper } from './avatarCropper.js';
+import { achievementIcon } from './achievements.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -90,12 +91,16 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
                 <div class="edit-sec-h">Достижения</div>
                 <div class="achievements-feed">
-                    ${achievements.length ? achievements.map(a => `
-                        <div class="achievement-card" title="${esc(a.hint || '')}">
-                            <div class="achievement-icon">${esc(a.icon || '🏆')}</div>
+                    ${achievements.length ? achievements.map(a => {
+                        const icon = achievementIcon(a.id);
+                        return `
+                        <div class="achievement-card">
+                            <div class="achievement-icon">${icon ? `<img src="${esc(icon)}" alt=""/>` : '🏆'}</div>
                             <div class="achievement-title">${esc(a.title)}</div>
                             <div class="achievement-date">${a.unlockedAt ? new Date(a.unlockedAt).toLocaleDateString('ru-RU') : ''}</div>
-                        </div>`).join('')
+                            <div class="achievement-desc">${esc(a.description || '')}</div>
+                        </div>`;
+                    }).join('')
                         : '<div class="search-empty">Пока пусто — достижения появятся здесь</div>'}
                 </div>
 

@@ -1190,15 +1190,99 @@ input[data-edit-filter-absent]:checked::after {
   flex: none; width: 120px;
   background: var(--bg2);
   border: 1px solid var(--border);
+  transition: border-color .25s ease;
   border-radius: 10px;
   padding: 12px 10px;
   text-align: center;
   cursor: help;
 }
+.achievement-card:hover { border-color: var(--accent); }
 .achievement-icon { font-size: 26px; margin-bottom: 6px; }
+.achievement-icon img {
+  width: 64px; height: 64px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
 .achievement-title { font-size: 12px; font-weight: 600; }
 .achievement-date { font-size: 10px; color: var(--sub); margin-top: 4px; }
+/* Описание скрыто и плавно раскрывается при наведении на карточку */
+.achievement-desc {
+  font-size: 11px; color: var(--sub);
+  max-height: 0; opacity: 0; overflow: hidden;
+  transition: max-height .35s ease, opacity .35s ease, margin-top .35s ease;
+  margin-top: 0;
+}
+.achievement-card:hover .achievement-desc {
+  max-height: 80px; opacity: 1; margin-top: 6px;
+}
 .profile-logout { margin-top: 22px; width: 100%; }
+
+/* ── Стим-тосты о полученных достижениях (справа снизу, без звука) ── */
+#achievement-toasts {
+  position: fixed;
+  right: 16px; bottom: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  z-index: 600; /* поверх модалок (500) — ачивка может прилететь в любой момент */
+  pointer-events: none;
+}
+.ach-toast {
+  display: flex; align-items: center; gap: 12px;
+  width: 300px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 30px oklch(0 0 0 / 0.5);
+  opacity: 0;
+  transform: translateX(24px);
+  transition: opacity .4s ease, transform .4s ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.ach-toast-show { opacity: 1; transform: translateX(0); }
+.ach-toast-icon { flex: none; font-size: 32px; line-height: 1; }
+.ach-toast-icon img { width: 48px; height: 48px; object-fit: contain; display: block; }
+.ach-toast-head { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
+.ach-toast-title { font-size: 14px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+
+/* ── Модалка «Назначить ответственного» ─────────────────────────── */
+#assign-search {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: 10px;
+}
+#assign-search:focus { outline: none; border-color: var(--accent); }
+.assign-list {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 300px; overflow-y: auto;
+}
+.assign-user {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit; font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.assign-user:hover { border-color: var(--accent); }
+.assign-user:disabled { opacity: .5; cursor: default; }
+.assign-user-avatar {
+  flex: none; width: 28px; height: 28px;
+  border-radius: 50%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg3);
+}
+.assign-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ── Лента событий машины ───────────────────────────────────────── */
 /* Внешний контейнер тянется под ту же центровку, что и .calc-layout,
@@ -1220,6 +1304,7 @@ input[data-edit-filter-absent]:checked::after {
 .event-card-added  { border-left-color: var(--green); }
 .event-card-edited { border-left-color: var(--blue); cursor: pointer; }
 .event-card-edited:hover { border-color: var(--blue); }
+.event-card-reassigned { border-left-color: var(--accent); }
 .event-avatar, .top-avatar { width: 36px; height: 36px; }
 .event-text { font-size: 13px; }
 .event-date { font-size: 11px; color: var(--sub); margin-top: 2px; }

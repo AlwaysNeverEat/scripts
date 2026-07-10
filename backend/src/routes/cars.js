@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { query } from '../db/client.js';
+import pool, { query } from '../db/client.js';
 import { normalize, expandQuery, buildNameFields } from '../search/translit.js';
 import { requireRole } from '../auth/middleware.js';
+import { syncAchievementsSafe } from '../achievements/achievements.js';
 
 const router = Router();
 
@@ -223,6 +224,7 @@ router.post('/', async (req, res) => {
     const created = row.inserted === true || row.inserted === 't';
     if (created) {
       await recordCarEvent({ carId: row.id, userId: req.user.id, type: 'added' });
+      await syncAchievementsSafe(req.user.id);
     }
     res.status(created ? 201 : 200).json({ ...row, created });
   } catch (err) {
@@ -520,11 +522,102 @@ router.patch('/:id', async (req, res) => {
     await recordCarEvent({
       carId: req.params.id, userId: req.user.id, type: 'edited', comment, changedFields,
     });
+    await syncAchievementsSafe(req.user.id);
     res.json(r.rows[0]);
   } catch (err) {
     console.error('PATCH /api/cars/:id', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── POST /api/cars/:id/assign ─────────────────────────────────────────────────
+// «Назначить ответственного» (только mod/admin): переатрибутировать машину
+// пользователю, как будто он её добавил. Можно и самому себе.
+//
+// Ключевой инвариант: у машины не больше ОДНОГО события 'added', и именно его
+// user_id — единственный источник правды для счётчика «добавлено машин»
+// (топ, статистика профиля, ачивки). Поэтому переназначение не плодит новых
+// 'added', а переписывает user_id существующего; если события нет (машина из
+// эпохи до фида) — создаёт его задним числом на момент создания машины.
+// В фид дополнительно пишется 'reassigned' («{мод} засчитал машину {нику}»),
+// а ачивки пересчитываются у ОБОИХ: прежний владелец может потерять,
+// новый — получить.
+
+router.post('/:id/assign', requireRole('mod', 'admin'), async (req, res) => {
+  const targetUserId = req.body?.user_id;
+  if (!targetUserId || typeof targetUserId !== 'string') {
+    return res.status(400).json({ error: 'user_id is required' });
+  }
+
+  const client = await pool.connect();
+  let prevOwnerId = null;
+  try {
+    const [carR, userR] = await Promise.all([
+      client.query('SELECT id, created_at FROM cars WHERE id = $1', [req.params.id]),
+      client.query('SELECT id, display_name FROM users WHERE id = $1', [targetUserId]),
+    ]);
+    if (!carR.rows.length) return res.status(404).json({ error: 'машина не найдена' });
+    if (!userR.rows.length) return res.status(404).json({ error: 'пользователь не найден' });
+    const target = userR.rows[0];
+
+    await client.query('BEGIN');
+    // Лочим 'added'-событие машины, чтобы два модератора не переназначили её
+    // одновременно (иначе можно получить рассинхрон ачивок у прежнего владельца).
+    const addedR = await client.query(
+      `SELECT id, user_id FROM car_events
+        WHERE car_id = $1 AND type = 'added'
+        ORDER BY created_at ASC LIMIT 1
+        FOR UPDATE`,
+      [req.params.id],
+    );
+
+    prevOwnerId = addedR.rows[0]?.user_id ?? null;
+    if (prevOwnerId === targetUserId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'машина уже засчитана этому пользователю' });
+    }
+
+    if (addedR.rows.length) {
+      await client.query(
+        'UPDATE car_events SET user_id = $1 WHERE id = $2',
+        [targetUserId, addedR.rows[0].id],
+      );
+    } else {
+      // Машин без 'added' (созданы до появления фида) — событие задним числом,
+      // датой создания машины, чтобы хронология фида не ломалась.
+      await client.query(
+        `INSERT INTO car_events (car_id, user_id, type, created_at)
+         VALUES ($1, $2, 'added', $3)`,
+        [req.params.id, targetUserId, carR.rows[0].created_at],
+      );
+    }
+
+    // created_by на cars — денормализованная подпись автора; держим в актуальном
+    // состоянии, чтобы она не противоречила фиду.
+    await client.query(
+      'UPDATE cars SET created_by = $1 WHERE id = $2',
+      [target.display_name, req.params.id],
+    );
+
+    await client.query(
+      `INSERT INTO car_events (car_id, user_id, type, target_user_id)
+       VALUES ($1, $2, 'reassigned', $3)`,
+      [req.params.id, req.user.id, targetUserId],
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('POST /api/cars/:id/assign', err);
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+
+  // Пересчёт ачивок вне транзакции: счётчики уже зафиксированы, а полный
+  // пересинк идемпотентен — при сбое его догонит следующее действие юзера.
+  await syncAchievementsSafe(prevOwnerId);
+  await syncAchievementsSafe(targetUserId);
+  res.json({ ok: true });
 });
 
 // ── GET /api/cars/:id/events ──────────────────────────────────────────────────
@@ -535,10 +628,16 @@ router.get('/:id/events', async (req, res) => {
     const r = await query(
       `SELECT ce.id, ce.type, ce.comment, ce.changed_fields, ce.created_at,
               u.id AS user_id, u.display_name, u.avatar, u.role,
-              rl.prefix_label, rl.color, rl.tooltip
+              rl.prefix_label, rl.color, rl.tooltip,
+              tu.id AS target_id, tu.display_name AS target_display_name,
+              tu.avatar AS target_avatar,
+              trl.prefix_label AS target_prefix_label, trl.color AS target_color,
+              trl.tooltip AS target_tooltip
          FROM car_events ce
          LEFT JOIN users u ON u.id = ce.user_id
          LEFT JOIN role_labels rl ON rl.role = u.role
+         LEFT JOIN users tu ON tu.id = ce.target_user_id
+         LEFT JOIN role_labels trl ON trl.role = tu.role
         WHERE ce.car_id = $1
         ORDER BY ce.created_at ASC`,
       [req.params.id],
@@ -558,6 +657,15 @@ router.get('/:id/events', async (req, res) => {
           ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
           : null,
       } : null,
+      // Кому засчитали машину (только у type='reassigned').
+      target_user: row.target_id ? {
+        id: row.target_id,
+        display_name: row.target_display_name,
+        avatar: row.target_avatar,
+        role_prefix: row.target_prefix_label
+          ? { label: row.target_prefix_label, color: row.target_color, tooltip: row.target_tooltip }
+          : null,
+      } : null,
     })));
   } catch (err) {
     console.error('GET /api/cars/:id/events', err);
@@ -571,8 +679,16 @@ router.get('/:id/events', async (req, res) => {
 
 router.delete('/:id', requireRole('mod', 'admin'), async (req, res) => {
   try {
+    // Каскад унесёт car_events машины — счётчики её участников уменьшатся,
+    // поэтому после удаления пересинкиваем ачивки всем, кто в них фигурировал.
+    const affected = await query(
+      `SELECT DISTINCT user_id FROM car_events
+        WHERE car_id = $1 AND user_id IS NOT NULL AND type IN ('added', 'edited')`,
+      [req.params.id],
+    );
     const r = await query('DELETE FROM cars WHERE id = $1 RETURNING id', [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'not found' });
+    for (const row of affected.rows) await syncAchievementsSafe(row.user_id);
     res.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/cars/:id', err);

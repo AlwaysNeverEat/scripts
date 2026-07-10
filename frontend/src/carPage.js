@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { initCalculator } from './calculator.js';
+import { checkAchievementsNow } from './achievements.js';
 import { activeFlags, SERVICE_FLAGS } from '../../shared/serviceFlags.js';
 import { getShopOils } from '../../shared/oils.js';
 import { fuelLabel, fuelSelectOptions } from '../../shared/fuel.js';
@@ -86,8 +87,9 @@ function renderView(record, ctx) {
         <div class="head-card">
             <div class="head-title-row">
                 <h2 class="head-title">${esc(record.brand)} ${esc(record.model)}${record.generation ? ` <span class="head-gen">${esc(record.generation)}</span>` : ''}</h2>
-                <span style="display:flex;gap:8px">
+                <span style="display:flex;gap:8px;flex-wrap:wrap">
                     <button class="btn btn-sec" id="btn-edit-car">✏ Нашли ошибку?</button>
+                    ${isMod ? '<button class="btn btn-sec" id="btn-assign-car">👤 Назначить ответственного</button>' : ''}
                     ${isMod ? '<button class="btn btn-sec btn-danger" id="btn-delete-car">🗑 Удалить машину</button>' : ''}
                 </span>
             </div>
@@ -107,6 +109,101 @@ function bindView(head, record, ctx) {
 
     const delBtn = head.querySelector('#btn-delete-car');
     if (delBtn) delBtn.onclick = () => confirmDeleteCar(record, ctx);
+
+    const assignBtn = head.querySelector('#btn-assign-car');
+    if (assignBtn) assignBtn.onclick = () => openAssignModal(record, ctx);
+}
+
+// ── Назначить ответственного (модератор) ──────────────────────────────────────
+// Переатрибутировать машину пользователю, как будто он её добавил (можно и
+// себе). Сервер перепишет 'added'-событие, добавит 'reassigned' в фид и
+// пересчитает ачивки обоих участников — здесь только выбор пользователя.
+
+function openAssignModal(record, ctx) {
+    const old = document.getElementById('assign-car-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'assign-car-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-win modal-win-sm">
+            <div class="modal-head">
+                <span>👤 Назначить ответственного</span>
+                <button class="btn btn-sec" id="assign-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="edit-oils-note">Машина «${esc(record.brand)} ${esc(record.model)}» будет засчитана
+                   выбранному пользователю, как будто он её добавил. Счётчики и достижения
+                   пересчитаются у обоих: у прежнего автора и у нового.</p>
+                <input type="text" id="assign-search" placeholder="Поиск по нику или логину…" autocomplete="off"/>
+                <div id="assign-list" class="assign-list"><div class="search-empty">Загрузка…</div></div>
+                <div id="assign-error" class="edit-error hidden"></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('.modal-backdrop').onclick = close;
+    modal.querySelector('#assign-close').onclick = close;
+
+    const listBox = modal.querySelector('#assign-list');
+    const errBox = modal.querySelector('#assign-error');
+    const searchInput = modal.querySelector('#assign-search');
+
+    async function loadUsers(q) {
+        try {
+            const users = await ctx.apiFetch('/api/users' + (q ? '?q=' + encodeURIComponent(q) : ''));
+            drawUsers(users);
+        } catch (e) {
+            listBox.innerHTML = `<div class="search-empty">Ошибка: ${esc(e.message)}</div>`;
+        }
+    }
+
+    function drawUsers(users) {
+        if (!users.length) {
+            listBox.innerHTML = '<div class="search-empty">Никого не нашлось</div>';
+            return;
+        }
+        listBox.innerHTML = users.map(u => `
+            <button class="assign-user" data-assign-id="${esc(u.id)}" data-assign-name="${esc(u.display_name)}">
+                <span class="assign-user-avatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt=""/>` : '👤'}</span>
+                <span class="assign-user-name">${rolePrefixHtml(u.role_prefix)}${esc(u.display_name)}</span>
+            </button>
+        `).join('');
+        listBox.querySelectorAll('[data-assign-id]').forEach(btn => {
+            btn.onclick = () => assign(btn.dataset.assignId, btn.dataset.assignName, btn);
+        });
+    }
+
+    async function assign(userId, name, btn) {
+        if (!confirm(`Засчитать машину «${record.brand} ${record.model}» пользователю ${name}?`)) return;
+        errBox.classList.add('hidden');
+        btn.disabled = true;
+        try {
+            await ctx.apiFetch('/api/cars/' + record.id + '/assign', {
+                method: 'POST',
+                body: { user_id: userId },
+            });
+            close();
+            checkAchievementsNow(); // модератор мог назначить машину самому себе
+            ctx.onChanged(); // перерисует страницу — в фиде появится «засчитал машину»
+        } catch (e) {
+            errBox.textContent = '⚠ ' + e.message;
+            errBox.classList.remove('hidden');
+            btn.disabled = false;
+        }
+    }
+
+    let searchTimer = null;
+    searchInput.oninput = () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => loadUsers(searchInput.value.trim()), 250);
+    };
+    searchInput.focus();
+    loadUsers('');
 }
 
 // ── Удаление машины (модератор) ────────────────────────────────────────────────
@@ -525,6 +622,7 @@ function bindEditForm(head, record, ctx) {
                 body: { ...patch, comment: commentResult.comment },
             });
             editMode = false;
+            checkAchievementsNow(); // правка могла добить счётчик до ачивки
             ctx.onChanged(); // перезагрузит страницу машины со свежими данными
         } catch (e) {
             errBox.textContent = '⚠ ' + e.message;
@@ -645,28 +743,37 @@ function rolePrefixHtml(rolePrefix) {
     return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
+function userChipHtml(u) {
+    if (!u) return '<b>неизвестный пользователь</b>';
+    return `<span class="event-user" data-user-link="${esc(u.id)}" role="button" tabindex="0" title="Открыть профиль коллеги">${rolePrefixHtml(u.role_prefix)}<b>${esc(u.display_name)}</b></span>`;
+}
+
 function renderEventCard(ev, i) {
     const isAdded = ev.type === 'added';
-    const author = ev.user ? esc(ev.user.display_name) : 'неизвестный пользователь';
+    const isReassigned = ev.type === 'reassigned';
     const avatarHtml = ev.user && ev.user.avatar
         ? `<img src="${esc(ev.user.avatar)}" alt=""/>`
         : `<span class="event-avatar-default">👤</span>`;
     const when = new Date(ev.created_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
 
     const avatarLinkAttr = ev.user ? `data-user-link="${esc(ev.user.id)}" title="Открыть профиль"` : '';
-    const userChip = ev.user
-        ? `<span class="event-user" data-user-link="${esc(ev.user.id)}" role="button" tabindex="0" title="Открыть профиль коллеги">${rolePrefixHtml(ev.user.role_prefix)}<b>${author}</b></span>`
-        : `<b>${author}</b>`;
+    const userChip = userChipHtml(ev.user);
+
+    // «{модератор} засчитал машину пользователю {ник}» — оба ника кликабельны.
+    const text = isReassigned
+        ? `${userChip} засчитал машину пользователю ${userChipHtml(ev.target_user)}`
+        : `${isAdded ? 'Машина добавлена' : 'Отредактировано'} пользователем ${userChip}`;
+
+    const cardClass = isAdded ? 'event-card-added'
+        : isReassigned ? 'event-card-reassigned' : 'event-card-edited';
+    const clickable = ev.type === 'edited';
 
     return `
-        <div class="event-card ${isAdded ? 'event-card-added' : 'event-card-edited'}"
-             data-event-idx="${i}" ${!isAdded ? 'role="button" tabindex="0"' : ''}>
+        <div class="event-card ${cardClass}"
+             data-event-idx="${i}" ${clickable ? 'role="button" tabindex="0"' : ''}>
             <div class="event-avatar" ${avatarLinkAttr}>${avatarHtml}</div>
             <div class="event-body">
-                <div class="event-text">
-                    ${isAdded ? 'Машина добавлена' : 'Отредактировано'} пользователем
-                    ${userChip}
-                </div>
+                <div class="event-text">${text}</div>
                 <div class="event-date">${when}</div>
             </div>
         </div>

@@ -5,6 +5,7 @@ import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
 import { initTopModal } from './top.js';
+import { initAchievements } from './achievements.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -91,6 +92,7 @@ function enterApp() {
     hideAllPages();
     renderUserBar();
     initTopModal({ apiFetch });
+    initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     window.addEventListener('hashchange', renderRoute);
     renderRoute();
     loadSphere();
