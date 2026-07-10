@@ -1064,6 +1064,32 @@ input[data-edit-filter-absent]:checked::after {
 .modal-body textarea:focus { outline: none; border-color: var(--accent); }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
 
+/* ── Меню выбора действия с аватаркой ───────────────────────────────────── */
+.avatar-action-list { display: flex; flex-direction: column; gap: 10px; }
+.avatar-action-list .btn { width: 100%; padding: 10px; }
+
+/* ── Кроппер аватарки ────────────────────────────────────────────────────── */
+.crop-viewport {
+  width: 260px; height: 260px;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg2);
+  border: 2px solid var(--border);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.crop-viewport:active { cursor: grabbing; }
+#crop-img { position: absolute; pointer-events: none; }
+.crop-zoom-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 16px;
+}
+.crop-zoom-row input[type="range"] { flex: 1; }
+.crop-hint { font-size: 11px; color: var(--sub); text-align: center; margin-top: 8px; }
+
 .btn-danger {
   background: var(--red-dim);
   border-color: var(--red);

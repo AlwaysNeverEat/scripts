@@ -3,14 +3,31 @@ import multer from 'multer';
 import { query } from '../db/client.js';
 import { validateDisplayName } from '../auth/validate.js';
 import { loadPublicUser } from '../auth/sessions.js';
-import { uploadAvatar, isAllowedAvatarMime, AVATAR_MAX_BYTES } from '../storage/supabaseStorage.js';
+import {
+  uploadAvatarOriginal, uploadAvatarCropped, isAllowedAvatarMime, AVATAR_MAX_BYTES,
+} from '../storage/supabaseStorage.js';
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } });
+const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
+  .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
+const uploadCroppedOnly = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
+  .single('avatar');
 
 const router = Router();
 
+// crop — {x,y,zoom} из кроппера, чисто для UX (предзаполнить редактор при
+// повторном открытии), на отображение не влияет — парсим нестрого.
+function parseCrop(raw) {
+  if (typeof raw !== 'string') return {};
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+
 // ── PATCH /api/profile ────────────────────────────────────────────────────────
-// Смена ника (display_name). Клик по нику/аватарке на странице профиля.
+// Смена ника (display_name). Клик по нику на странице профиля.
 
 router.patch('/', async (req, res) => {
   const { display_name } = req.body || {};
@@ -27,21 +44,64 @@ router.patch('/', async (req, res) => {
 });
 
 // ── POST /api/profile/avatar ───────────────────────────────────────────────────
-// Загрузка файла в Supabase Storage (bucket 'avatars'). Только изображения,
-// ограничение размера — AVATAR_MAX_BYTES (см. multer limits выше).
+// Первая загрузка ИЛИ «Загрузить новую»: приходит оригинал (avatar_original)
+// + уже обрезанная на клиенте квадратная картинка (avatar, всегда jpeg).
+// Оба кладутся в Storage по ДЕТЕРМИНИРОВАННОМУ пути (см. supabaseStorage.js) —
+// повторная загрузка сама перезаписывает предыдущий файл, мусор не копится.
 
-router.post('/avatar', upload.single('avatar'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'файл avatar обязателен' });
-  if (!isAllowedAvatarMime(req.file.mimetype)) {
+router.post('/avatar', uploadFull, async (req, res) => {
+  const originalFile = req.files?.avatar_original?.[0];
+  const croppedFile = req.files?.avatar?.[0];
+  if (!originalFile || !croppedFile) {
+    return res.status(400).json({ error: 'нужны оба файла: avatar_original (исходник) и avatar (обрезка)' });
+  }
+  if (!isAllowedAvatarMime(originalFile.mimetype)) {
     return res.status(400).json({ error: 'разрешены только изображения (jpeg/png/webp/gif)' });
+  }
+  // avatar — всегда jpeg с кроппера (canvas.toBlob('image/jpeg')); не доверяем
+  // клиенту слепо, проверяем и на бэке.
+  if (croppedFile.mimetype !== 'image/jpeg') {
+    return res.status(400).json({ error: 'avatar должен быть image/jpeg' });
   }
 
   try {
-    const url = await uploadAvatar(req.user.id, req.file.buffer, req.file.mimetype);
-    await query('UPDATE users SET avatar = $1 WHERE id = $2', [url, req.user.id]);
+    const originalUrl = await uploadAvatarOriginal(req.user.id, originalFile.buffer, originalFile.mimetype);
+    const croppedUrl = await uploadAvatarCropped(req.user.id, croppedFile.buffer);
+    await query(
+      'UPDATE users SET avatar = $1, avatar_original = $2, avatar_crop = $3 WHERE id = $4',
+      [croppedUrl, originalUrl, JSON.stringify(parseCrop(req.body.crop)), req.user.id],
+    );
     res.json({ user: await loadPublicUser(req.user.id) });
   } catch (err) {
     console.error('POST /api/profile/avatar', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── PATCH /api/profile/avatar/crop ─────────────────────────────────────────────
+// «Изменить отображение»: оригинал не трогаем, перезаписываем только
+// обрезанную версию (клиент сам перерисовал канвас с новым паном/зумом
+// поверх уже загруженного avatar_original).
+
+router.patch('/avatar/crop', uploadCroppedOnly, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'файл avatar обязателен' });
+  if (req.file.mimetype !== 'image/jpeg') {
+    return res.status(400).json({ error: 'avatar должен быть image/jpeg' });
+  }
+
+  try {
+    const cur = await query('SELECT avatar_original FROM users WHERE id = $1', [req.user.id]);
+    if (!cur.rows[0]?.avatar_original) {
+      return res.status(400).json({ error: 'сначала загрузите фото' });
+    }
+    const croppedUrl = await uploadAvatarCropped(req.user.id, req.file.buffer);
+    await query(
+      'UPDATE users SET avatar = $1, avatar_crop = $2 WHERE id = $3',
+      [croppedUrl, JSON.stringify(parseCrop(req.body.crop)), req.user.id],
+    );
+    res.json({ user: await loadPublicUser(req.user.id) });
+  } catch (err) {
+    console.error('PATCH /api/profile/avatar/crop', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -2,6 +2,17 @@
 // Storage REST API, без отдельного SDK (в стиле остального backend: только
 // то, что реально нужно). Бакет публичный на чтение; запись — по service-role
 // ключу из env (SUPABASE_URL/SUPABASE_SERVICE_KEY), в коде не хардкодится.
+//
+// Пути ДЕТЕРМИНИРОВАННЫЕ (фиксированы на userId, без таймстампа), запись —
+// с x-upsert:true: повторная загрузка всегда перезаписывает тот же объект,
+// а не плодит новый. Поэтому старый файл никогда не остаётся мусором в
+// бакете — ни отдельного DELETE, ни явной очистки не нужно.
+//
+// Храним два объекта на юзера:
+//   {userId}-original      — как есть загрузил юзер (для повторного кропа)
+//   {userId}-cropped.jpg   — то, что видно everywhere (users.avatar), всегда
+//                            jpeg — рендерится на фронте через canvas, так что
+//                            расширение не плавает между загрузками.
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
@@ -22,14 +33,11 @@ export function isStorageConfigured() {
   return config() !== null;
 }
 
-export async function uploadAvatar(userId, buffer, mime) {
+async function uploadObject(path, buffer, mime) {
   const cfg = config();
   if (!cfg) {
     throw new Error('Supabase Storage не настроен: заполните SUPABASE_URL и SUPABASE_SERVICE_KEY');
   }
-  const ext = mime.split('/')[1] || 'jpg';
-  const path = `${userId}-${Date.now()}.${ext}`;
-
   const res = await fetch(`${cfg.url}/storage/v1/object/avatars/${path}`, {
     method: 'POST',
     headers: {
@@ -45,4 +53,12 @@ export async function uploadAvatar(userId, buffer, mime) {
     throw new Error(`Supabase Storage upload failed: ${res.status} ${text}`);
   }
   return `${cfg.url}/storage/v1/object/public/avatars/${path}`;
+}
+
+export function uploadAvatarOriginal(userId, buffer, mime) {
+  return uploadObject(`${userId}-original`, buffer, mime);
+}
+
+export function uploadAvatarCropped(userId, buffer) {
+  return uploadObject(`${userId}-cropped.jpg`, buffer, 'image/jpeg');
 }

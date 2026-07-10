@@ -26,6 +26,7 @@ export async function createSession(userId) {
 export async function loadPublicUser(userId) {
   const r = await query(
     `SELECT u.id, u.display_name, u.login, u.role, u.avatar,
+            u.avatar_original, u.avatar_crop,
             rl.prefix_label, rl.color, rl.tooltip
        FROM users u
        LEFT JOIN role_labels rl ON rl.role = u.role
@@ -40,6 +41,11 @@ export async function loadPublicUser(userId) {
     login: row.login,
     role: row.role,
     avatar: row.avatar,
+    // Нужны только самому юзеру, чтобы «Изменить отображение» открыло
+    // редактор на оригинале без повторной загрузки файла — в публичном
+    // профиле (GET /api/users/:id/public) этих полей нет.
+    avatar_original: row.avatar_original,
+    avatar_crop: row.avatar_crop,
     role_prefix: row.prefix_label
       ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
       : null,

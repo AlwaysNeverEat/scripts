@@ -1,8 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Страница профиля: аватар (загрузка файлом в Supabase Storage), ник
-// (клик-редактирование), статистика «добавлено/отредактировано», пустой
+// Страница профиля: аватар (загрузка + обрезка кроппером в Supabase Storage),
+// ник (клик-редактирование), статистика «добавлено/отредактировано», пустой
 // расширяемый фид достижений-заглушка, кнопка «Выйти».
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { openAvatarCropper } from './avatarCropper.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -12,6 +14,40 @@ function esc(s) {
 function rolePrefixHtml(rolePrefix) {
     if (!rolePrefix) return '';
     return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
+}
+
+// Есть аватар — спрашиваем, что делать; нет — сразу открываем file picker.
+function chooseAvatarAction() {
+    return new Promise((resolve) => {
+        const old = document.getElementById('avatar-action-modal');
+        if (old) old.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'avatar-action-modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-backdrop"></div>
+            <div class="modal-win modal-win-sm">
+                <div class="modal-head">
+                    <span>Аватарка</span>
+                    <button class="btn btn-sec" id="avatar-action-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="avatar-action-list">
+                        <button class="btn btn-pri" id="avatar-action-recrop">✂️ Изменить отображение</button>
+                        <button class="btn btn-sec" id="avatar-action-new">📤 Загрузить новую</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const finish = (v) => { modal.remove(); resolve(v); };
+        modal.querySelector('.modal-backdrop').onclick = () => finish(null);
+        modal.querySelector('#avatar-action-close').onclick = () => finish(null);
+        modal.querySelector('#avatar-action-recrop').onclick = () => finish('recrop');
+        modal.querySelector('#avatar-action-new').onclick = () => finish('new');
+    });
 }
 
 export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout }) {
@@ -38,10 +74,10 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
         box.innerHTML = `
             <div class="profile-card">
-                <label class="profile-avatar-wrap" title="Кликните, чтобы сменить аватар">
+                <div class="profile-avatar-wrap" id="profile-avatar-wrap" title="Кликните, чтобы сменить аватар">
                     <div class="profile-avatar">${avatarHtml}</div>
-                    <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
-                </label>
+                </div>
+                <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
                 <div class="profile-name" id="profile-name-view" title="Кликните, чтобы поменять ник">
                     ${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}
                     <span class="profile-name-edit-hint">✏️</span>
@@ -73,22 +109,60 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
     function bind() {
         const errBox = document.getElementById('profile-error');
         const showErr = (msg) => { errBox.textContent = msg; errBox.classList.remove('hidden'); };
-
         const fileInput = document.getElementById('profile-avatar-input');
-        fileInput.onchange = async () => {
-            const file = fileInput.files[0];
-            if (!file) return;
-            errBox.classList.add('hidden');
-            const fd = new FormData();
-            fd.append('avatar', file);
+
+        async function uploadNew(file) {
+            const objectUrl = URL.createObjectURL(file);
             try {
+                const result = await openAvatarCropper({ imageSrc: objectUrl });
+                if (!result) return; // отменили в кроппере
+                const fd = new FormData();
+                fd.append('avatar_original', file);
+                fd.append('avatar', result.blob, 'avatar.jpg');
+                fd.append('crop', JSON.stringify(result.crop));
                 const resp = await apiFetch('/api/profile/avatar', { method: 'POST', body: fd, isMultipart: true });
                 user = resp.user;
                 onUserChanged(user);
                 render();
             } catch (err) {
                 showErr(err.message);
+            } finally {
+                URL.revokeObjectURL(objectUrl);
             }
+        }
+
+        async function recrop() {
+            if (!user.avatar_original) return;
+            try {
+                const result = await openAvatarCropper({ imageSrc: user.avatar_original, initialCrop: user.avatar_crop });
+                if (!result) return;
+                const fd = new FormData();
+                fd.append('avatar', result.blob, 'avatar.jpg');
+                fd.append('crop', JSON.stringify(result.crop));
+                const resp = await apiFetch('/api/profile/avatar/crop', { method: 'PATCH', body: fd, isMultipart: true });
+                user = resp.user;
+                onUserChanged(user);
+                render();
+            } catch (err) {
+                showErr(err.message);
+            }
+        }
+
+        document.getElementById('profile-avatar-wrap').onclick = async () => {
+            errBox.classList.add('hidden');
+            if (user.avatar && user.avatar_original) {
+                const action = await chooseAvatarAction();
+                if (action === 'recrop') await recrop();
+                else if (action === 'new') fileInput.click();
+            } else {
+                fileInput.click();
+            }
+        };
+
+        fileInput.onchange = () => {
+            const file = fileInput.files[0];
+            fileInput.value = ''; // чтобы повторный выбор того же файла тоже сработал
+            if (file) uploadNew(file);
         };
 
         document.getElementById('profile-name-view').onclick = () => {
