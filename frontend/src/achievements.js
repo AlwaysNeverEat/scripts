@@ -12,9 +12,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import achCarsAdded5 from './assets/ach-cars-added-5.png';
+import achCarsAdded50 from './assets/ach-cars-added-50.png';
+import achCarsAdded100 from './assets/ach-cars-added-100.png';
+import achCarsAdded500 from './assets/ach-cars-added-500.png';
+import achCarsAdded1000 from './assets/ach-cars-added-1000.png';
+import { attachAchievementParticles } from './achievementParticles.js';
 
 const ICONS = {
     cars_added_5: achCarsAdded5,
+    cars_added_50: achCarsAdded50,
+    cars_added_100: achCarsAdded100,
+    cars_added_500: achCarsAdded500,
+    cars_added_1000: achCarsAdded1000,
 };
 
 export function achievementIcon(id) {
@@ -78,6 +87,7 @@ function showToast(achievement) {
         </div>
     `;
     toastContainer().appendChild(toast);
+    attachAchievementParticles(toast.querySelector('.ach-toast-icon'), achievement.id, 48);
     // рефлоу перед классом — иначе браузер склеит начальное и конечное
     // состояние и въезжающей анимации не будет
     toast.getBoundingClientRect();
