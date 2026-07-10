@@ -760,8 +760,11 @@ function renderEventCard(ev, i) {
     const userChip = userChipHtml(ev.user);
 
     // «{модератор} засчитал машину пользователю {ник}» — оба ника кликабельны.
+    // target_user нет — модератор снял ответственного (машина стала ничьей).
     const text = isReassigned
-        ? `${userChip} засчитал машину пользователю ${userChipHtml(ev.target_user)}`
+        ? (ev.target_user
+            ? `${userChip} засчитал машину пользователю ${userChipHtml(ev.target_user)}`
+            : `${userChip} снял ответственного с машины`)
         : `${isAdded ? 'Машина добавлена' : 'Отредактировано'} пользователем ${userChip}`;
 
     const cardClass = isAdded ? 'event-card-added'

@@ -6,6 +6,7 @@
 
 import { openAvatarCropper } from './avatarCropper.js';
 import { achievementIcon } from './achievements.js';
+import { openAssignCarsModal } from './assignCars.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -104,6 +105,11 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                         : '<div class="search-empty">Пока пусто — достижения появятся здесь</div>'}
                 </div>
 
+                ${user.role === 'mod' || user.role === 'admin' ? `
+                    <div class="edit-sec-h">Модератор</div>
+                    <button class="btn btn-sec profile-mod-assign" id="btn-self-assign-cars">🚗 Записать себе незанятые машины</button>
+                ` : ''}
+
                 <div id="profile-error" class="edit-error hidden"></div>
                 <button class="btn btn-sec profile-logout" id="btn-logout">Выйти</button>
             </div>
@@ -195,6 +201,25 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
                 if (e.key === 'Escape') { e.preventDefault(); render(); }
             };
+        };
+
+        const selfAssignBtn = document.getElementById('btn-self-assign-cars');
+        if (selfAssignBtn) selfAssignBtn.onclick = () => {
+            openAssignCarsModal({
+                apiFetch,
+                targetUser: { id: user.id, display_name: user.display_name },
+                self: true, // себе — только незанятые машины
+                onDone: async () => {
+                    // обновить счётчики и ачивки на странице
+                    try {
+                        [stats, achievements] = await Promise.all([
+                            apiFetch('/api/profile/stats'),
+                            apiFetch('/api/profile/achievements'),
+                        ]);
+                    } catch { /* покажем старые цифры */ }
+                    render();
+                },
+            });
         };
 
         document.getElementById('btn-logout').onclick = async () => {

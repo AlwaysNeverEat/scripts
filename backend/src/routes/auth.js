@@ -81,6 +81,7 @@ router.post('/login', async (req, res) => {
     const invalid = () => res.status(401).json({ error: 'неверный логин или пароль' });
     const ok = await verifyPassword(password, user ? user.password_hash : await DUMMY_HASH_PROMISE);
     if (!user || !ok) return invalid();
+    if (user.banned_at) return res.status(403).json({ error: 'аккаунт заблокирован' });
 
     const { token } = await createSession(user.id);
     const publicUser = await loadPublicUser(user.id);

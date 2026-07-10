@@ -1284,6 +1284,62 @@ input[data-edit-filter-absent]:checked::after {
 }
 .assign-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
+/* ── Модалка «Назначить машины» (массовые галочки) ──────────────── */
+#assign-cars-search {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: 10px;
+}
+#assign-cars-search:focus { outline: none; border-color: var(--accent); }
+.assign-cars-list {
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 380px; overflow-y: auto;
+}
+.assign-car-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.assign-car-row:hover { border-color: var(--accent); }
+.assign-car-row input[type="checkbox"] { flex: none; accent-color: var(--accent); }
+.assign-car-row-disabled { opacity: .55; cursor: default; }
+.assign-car-row-disabled:hover { border-color: var(--border); }
+.assign-car-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assign-car-owner {
+  flex: none;
+  font-size: 11px;
+  color: var(--sub);
+  background: var(--bg3);
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.assign-cars-summary { margin-right: auto; align-self: center; color: var(--sub); font-size: 12px; }
+
+/* ── Панель модератора на странице пользователя ─────────────────── */
+.mod-panel { align-self: stretch; }
+.mod-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.mod-banned-badge {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--red-dim);
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 600;
+}
+.profile-mod-assign { align-self: stretch; }
+
 /* ── Лента событий машины ───────────────────────────────────────── */
 /* Внешний контейнер тянется под ту же центровку, что и .calc-layout,
    а .events-wrap ограничивает ленту шириной калькулятора (без Битрикса). */

@@ -6,7 +6,7 @@
 --  ценное — сначала выгрузи, потом запускай. Таблицы users/sessions/… (008+)
 --  НЕ дропаются — только CREATE IF NOT EXISTS, повторный запуск их не тронет.
 --
---  Файл сгенерирован из db/migrations/001…015 (tools: cat в один файл).
+--  Файл сгенерирован из db/migrations/001…016 (tools: cat в один файл).
 --  При изменении миграций — пересобрать, вручную не редактировать.
 -- ═════════════════════════════════════════════════════════════════════════════
 
@@ -348,3 +348,14 @@ ALTER TABLE car_events ADD CONSTRAINT car_events_type_check
 
 ALTER TABLE car_events
   ADD COLUMN target_user_id uuid REFERENCES users (id) ON DELETE SET NULL;
+
+-- ── db/migrations/016_user_ban.sql ──────────────────────────────────────────────────
+-- Бан пользователей (кнопка «Забанить» на странице юзера, только mod/admin).
+--
+-- banned_at: NULL = активен, timestamptz = когда забанен. Отдельного boolean
+-- не нужно — дата и есть флаг, заодно видно, когда забанили.
+-- При бане сессии пользователя удаляются (см. POST /api/users/:id/ban), а
+-- verifySessionToken дополнительно отбрасывает забаненных — даже если сессия
+-- каким-то образом уцелела, работать под баном нельзя. Логин под баном — 403.
+
+ALTER TABLE users ADD COLUMN banned_at timestamptz;
