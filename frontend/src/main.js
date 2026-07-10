@@ -3,6 +3,7 @@ import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
 import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
+import { initPublicProfilePage } from './publicProfile.js';
 import { initTopModal } from './top.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
@@ -113,10 +114,12 @@ document.getElementById('btn-avatar').onclick = () => { location.hash = '#/profi
 // ── Hash routing ──────────────────────────────────────────────────────────────
 //   #/            — поиск
 //   #/car/:id     — страница машины (прямая ссылка переживает F5)
-//   #/profile     — профиль
+//   #/profile     — свой профиль (редактируемый)
+//   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
 
 async function renderRoute() {
     const carMatch = location.hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
+    const userMatch = location.hash.match(/^#\/user\/([0-9a-f-]{10,})/i);
     const isProfile = location.hash === '#/profile';
 
     if (isProfile) {
@@ -135,6 +138,11 @@ async function renderRoute() {
                 showGate();
             },
         });
+    } else if (userMatch) {
+        pageSearch.classList.add('hidden');
+        pageCalc.classList.add('hidden');
+        pageProfile.classList.remove('hidden');
+        await initPublicProfilePage({ apiFetch, userId: userMatch[1] });
     } else if (carMatch) {
         pageProfile.classList.add('hidden');
         pageSearch.classList.add('hidden');

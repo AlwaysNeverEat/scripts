@@ -40,18 +40,26 @@ export function initTopModal({ apiFetch }) {
             body.innerHTML = '<div class="search-empty">Пока никто не добавил ни одной машины</div>';
             return;
         }
-        body.innerHTML = rows.map(row => {
+        body.innerHTML = rows.map((row, i) => {
             const avatarHtml = row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : `<span class="top-avatar-default">👤</span>`;
             return `
-                <div class="top-row ${row.rank === 1 ? 'top-row-gold' : ''}">
+                <div class="top-row ${row.rank === 1 ? 'top-row-gold' : ''}" data-top-idx="${i}" title="Открыть профиль">
                     <span class="top-rank">${row.rank}</span>
                     <div class="top-avatar">${avatarHtml}</div>
                     <div class="top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
                     <div class="top-count">${row.added}</div>
                 </div>`;
         }).join('');
+
+        body.querySelectorAll('[data-top-idx]').forEach(el => {
+            el.onclick = () => {
+                const row = rows[parseInt(el.dataset.topIdx, 10)];
+                close();
+                location.hash = '#/user/' + row.id;
+            };
+        });
     }
 
     if (!bound) {

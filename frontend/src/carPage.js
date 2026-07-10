@@ -604,6 +604,13 @@ async function renderEvents(carId, ctx) {
         const ev = events[parseInt(card.dataset.eventIdx, 10)];
         if (ev.type === 'edited') card.onclick = () => openEventDetails(ev);
     });
+
+    box.querySelectorAll('[data-user-link]').forEach(el => {
+        el.onclick = (e) => {
+            e.stopPropagation(); // не даём сработать открытию диффа у edited-карточки
+            location.hash = '#/user/' + el.dataset.userLink;
+        };
+    });
 }
 
 function rolePrefixHtml(rolePrefix) {
@@ -619,14 +626,16 @@ function renderEventCard(ev, i) {
         : `<span class="event-avatar-default">👤</span>`;
     const when = new Date(ev.created_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
 
+    const userLinkAttr = ev.user ? `data-user-link="${esc(ev.user.id)}" title="Открыть профиль"` : '';
+
     return `
         <div class="event-card ${isAdded ? 'event-card-added' : 'event-card-edited'}"
              data-event-idx="${i}" ${!isAdded ? 'role="button" tabindex="0"' : ''}>
-            <div class="event-avatar">${avatarHtml}</div>
+            <div class="event-avatar" ${userLinkAttr}>${avatarHtml}</div>
             <div class="event-body">
                 <div class="event-text">
                     ${isAdded ? 'Машина добавлена' : 'Отредактировано'} пользователем
-                    ${rolePrefixHtml(ev.user?.role_prefix)}<b>${author}</b>
+                    <span ${userLinkAttr}>${rolePrefixHtml(ev.user?.role_prefix)}<b>${author}</b></span>
                 </div>
                 <div class="event-date">${when}</div>
             </div>

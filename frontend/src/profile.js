@@ -16,6 +16,8 @@ function rolePrefixHtml(rolePrefix) {
 
 export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout }) {
     const box = document.getElementById('profile-content');
+    const titleEl = document.getElementById('page-profile-title');
+    if (titleEl) titleEl.textContent = 'Профиль';
     box.innerHTML = '<div class="search-empty">Загрузка…</div>';
 
     let stats = { added: 0, edited: 0 };

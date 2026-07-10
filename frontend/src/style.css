@@ -1077,7 +1077,13 @@ input[data-edit-filter-absent]:checked::after {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 8px;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: filter .12s;
 }
+/* filter, не background — иначе на золотой #1-строке хover перебивал бы
+   переливающийся градиент (см. .top-row-gold ниже) */
+.top-row:hover { filter: brightness(1.15); }
 .top-row:last-child { border-bottom: none; }
 .top-rank { width: 22px; text-align: center; font-weight: 700; color: var(--sub); font-size: 13px; }
 .top-avatar, .event-avatar, .profile-avatar {
@@ -1175,6 +1181,10 @@ input[data-edit-filter-absent]:checked::after {
 .event-avatar, .top-avatar { width: 36px; height: 36px; }
 .event-text { font-size: 13px; }
 .event-date { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
+[data-user-link] { cursor: pointer; border-radius: 50%; }
+.event-text [data-user-link] { border-radius: 4px; padding: 1px 3px; margin: -1px -3px; }
+[data-user-link]:hover { background: var(--bg3); }
 
 .event-diff-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .event-diff-row {

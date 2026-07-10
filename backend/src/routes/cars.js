@@ -520,7 +520,7 @@ router.get('/:id/events', async (req, res) => {
   try {
     const r = await query(
       `SELECT ce.id, ce.type, ce.comment, ce.changed_fields, ce.created_at,
-              u.display_name, u.login, u.avatar, u.role,
+              u.id AS user_id, u.display_name, u.avatar, u.role,
               rl.prefix_label, rl.color, rl.tooltip
          FROM car_events ce
          LEFT JOIN users u ON u.id = ce.user_id
@@ -535,9 +535,9 @@ router.get('/:id/events', async (req, res) => {
       comment: row.comment,
       changed_fields: row.changed_fields,
       created_at: row.created_at,
-      user: row.display_name ? {
+      user: row.user_id ? {
+        id: row.user_id,
         display_name: row.display_name,
-        login: row.login,
         avatar: row.avatar,
         role: row.role,
         role_prefix: row.prefix_label
