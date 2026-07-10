@@ -5,6 +5,7 @@ import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
 import { initTopModal } from './top.js';
+import { initAchievements } from './achievements.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -91,6 +92,7 @@ function enterApp() {
     hideAllPages();
     renderUserBar();
     initTopModal({ apiFetch });
+    initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     window.addEventListener('hashchange', renderRoute);
     renderRoute();
     loadSphere();
@@ -139,10 +141,16 @@ async function renderRoute() {
             },
         });
     } else if (userMatch) {
+        // Клик по самому себе (в топе, в фиде машины) — открываем свой
+        // редактируемый профиль, а не свою «зрительскую» страницу.
+        if (currentUser && userMatch[1] === currentUser.id) {
+            location.hash = '#/profile';
+            return;
+        }
         pageSearch.classList.add('hidden');
         pageCalc.classList.add('hidden');
         pageProfile.classList.remove('hidden');
-        await initPublicProfilePage({ apiFetch, userId: userMatch[1] });
+        await initPublicProfilePage({ apiFetch, userId: userMatch[1], viewer: currentUser });
     } else if (carMatch) {
         pageProfile.classList.add('hidden');
         pageSearch.classList.add('hidden');
