@@ -61,6 +61,20 @@ async function recordCarEvent({ carId, userId, type, comment, changedFields }) {
 // без нормализации это давало бы ложное "изменение" 1.6 → 1.6 на каждой правке.
 const NUMERIC_COLUMNS = new Set(['engine_volume']);
 
+// jsonb-колонки (source_links, filter_part_numbers, …) Postgres возвращает со
+// своим порядком ключей (jsonb сортирует их по длине, затем побайтово), а с
+// фронта объект приходит в порядке заполнения формы — обычный JSON.stringify
+// при идентичном содержимом давал ложное "изменение" в фиде.
+function stableStringify(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const body = Object.keys(value)
+    .sort()
+    .map(k => `${JSON.stringify(k)}:${stableStringify(value[k])}`)
+    .join(',');
+  return `{${body}}`;
+}
+
 function diffChangedFields(existing, updates) {
   const diff = {};
   for (const [key, next] of Object.entries(updates)) {
@@ -70,7 +84,7 @@ function diffChangedFields(existing, updates) {
       before = before === null ? null : Number(before);
       after = after === null ? null : Number(after);
     }
-    if (JSON.stringify(before) !== JSON.stringify(after)) {
+    if (stableStringify(before) !== stableStringify(after)) {
       diff[key] = { from: before, to: after };
     }
   }
