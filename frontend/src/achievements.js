@@ -17,6 +17,11 @@ import achCarsAdded50 from './assets/ach-cars-added-50.png';
 import achCarsAdded100 from './assets/ach-cars-added-100.png';
 import achCarsAdded500 from './assets/ach-cars-added-500.png';
 import achCarsAdded1000 from './assets/ach-cars-added-1000.png';
+import achCarsEdited5 from './assets/ach-cars-edited-5.png';
+import achCarsEdited50 from './assets/ach-cars-edited-50.png';
+import achCarsEdited100 from './assets/ach-cars-edited-100.png';
+import achCarsEdited500 from './assets/ach-cars-edited-500.png';
+import achCarsEdited1000 from './assets/ach-cars-edited-1000.png';
 import { attachAchievementParticles } from './achievementParticles.js';
 
 const ICONS = {
@@ -26,6 +31,11 @@ const ICONS = {
     cars_added_100: achCarsAdded100,
     cars_added_500: achCarsAdded500,
     cars_added_1000: achCarsAdded1000,
+    cars_edited_5: achCarsEdited5,
+    cars_edited_50: achCarsEdited50,
+    cars_edited_100: achCarsEdited100,
+    cars_edited_500: achCarsEdited500,
+    cars_edited_1000: achCarsEdited1000,
 };
 
 export function achievementIcon(id) {
