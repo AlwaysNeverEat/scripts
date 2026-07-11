@@ -68,6 +68,41 @@ export const ACHIEVEMENTS = [
     metric: 'added',
     threshold: 1000,
   },
+  {
+    id: 'cars_edited_5',
+    title: 'Редактор машин 5',
+    description: 'Отредактируйте 5 машин.',
+    metric: 'edited',
+    threshold: 5,
+  },
+  {
+    id: 'cars_edited_50',
+    title: 'Редактор машин 50',
+    description: 'Отредактируйте 50 машин.',
+    metric: 'edited',
+    threshold: 50,
+  },
+  {
+    id: 'cars_edited_100',
+    title: 'Редактор машин 100',
+    description: 'Отредактируйте 100 машин.',
+    metric: 'edited',
+    threshold: 100,
+  },
+  {
+    id: 'cars_edited_500',
+    title: 'Редактор машин 500',
+    description: 'Отредактируйте 500 машин.',
+    metric: 'edited',
+    threshold: 500,
+  },
+  {
+    id: 'cars_edited_1000',
+    title: 'Летописец',
+    description: 'Даже разработчик не видел эту ачивку.',
+    metric: 'edited',
+    threshold: 1000,
+  },
 ];
 
 const byId = new Map(ACHIEVEMENTS.map(a => [a.id, a]));

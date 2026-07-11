@@ -76,6 +76,30 @@ test('diffAchievements: упал со 100 до 99 — отзывается то�
   assert.deepEqual(revoke, ['cars_added_100']);
 });
 
+test('линейка edited: 5/50/100/500/1000, названия и пороги', () => {
+  const ladder = [
+    ['cars_edited_5', 5, 'Редактор машин 5'],
+    ['cars_edited_50', 50, 'Редактор машин 50'],
+    ['cars_edited_100', 100, 'Редактор машин 100'],
+    ['cars_edited_500', 500, 'Редактор машин 500'],
+    ['cars_edited_1000', 1000, 'Летописец'],
+  ];
+  for (const [id, threshold, title] of ladder) {
+    const a = achievementById(id);
+    assert.ok(a, id);
+    assert.equal(a.metric, 'edited');
+    assert.equal(a.threshold, threshold);
+    assert.equal(a.title, title);
+  }
+});
+
+test('diffAchievements: метрики added и edited независимы', () => {
+  // 5 отредактированных машин при 0 добавленных — только редакторская ачивка
+  const { grant, revoke } = diffAchievements({ added: 0, edited: 5, registered: 1 }, ['registered']);
+  assert.deepEqual(grant, ['cars_edited_5']);
+  assert.deepEqual(revoke, []);
+});
+
 test('registered: выдаётся любому существующему пользователю и не отзывается', () => {
   const a = achievementById('registered');
   assert.ok(a);
