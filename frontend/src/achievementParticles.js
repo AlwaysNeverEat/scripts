@@ -178,7 +178,15 @@ const PARTICLE_EFFECTS = {
     cars_added_100: purpleSparks,
     cars_added_500: fireSparks,
     cars_added_1000: crystalSparkles,
+    // Линейка «Редактор машин» — та же цветовая схема (фиолет/огонь/кристалл),
+    // те же эффекты.
+    cars_edited_100: purpleSparks,
+    cars_edited_500: fireSparks,
+    cars_edited_1000: crystalSparkles,
 };
+
+// Кристальные медали дополнительно подсвечиваются голубым свечением.
+const CRYSTAL_GLOW = new Set(['cars_added_1000', 'cars_edited_1000']);
 
 // Навесить партиклы на контейнер с медалью. size — размер медали в px
 // (масштаб макета 240). У медалей без эффекта тихо ничего не делает.
@@ -187,7 +195,7 @@ export function attachAchievementParticles(host, achievementId, size) {
     if (!effect || REDUCED_MOTION || !host) return;
 
     host.classList.add('ach-particles-host');
-    if (achievementId === 'cars_added_1000') host.classList.add('ach-glow-crystal');
+    if (CRYSTAL_GLOW.has(achievementId)) host.classList.add('ach-glow-crystal');
 
     const layer = document.createElement('div');
     layer.className = 'ach-particles-layer';
