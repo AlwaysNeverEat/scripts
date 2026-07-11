@@ -103,7 +103,7 @@ test('diffAchievements: метрики added и edited независимы', ()
 test('registered: выдаётся любому существующему пользователю и не отзывается', () => {
   const a = achievementById('registered');
   assert.ok(a);
-  assert.equal(a.title, 'Зеленый свет.');
+  assert.equal(a.title, 'Зеленый свет');
   assert.equal(a.description, 'Добро пожаловать в клуб!');
   // метрики нового юзера без единого действия
   const fresh = diffAchievements({ added: 0, edited: 0, registered: 1 }, []);
