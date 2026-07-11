@@ -11,6 +11,7 @@
 // шлём POST /achievements/seen — второй раз тот же тост не появится.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import achRegistered from './assets/ach-registered.png';
 import achCarsAdded5 from './assets/ach-cars-added-5.png';
 import achCarsAdded50 from './assets/ach-cars-added-50.png';
 import achCarsAdded100 from './assets/ach-cars-added-100.png';
@@ -19,6 +20,7 @@ import achCarsAdded1000 from './assets/ach-cars-added-1000.png';
 import { attachAchievementParticles } from './achievementParticles.js';
 
 const ICONS = {
+    registered: achRegistered,
     cars_added_5: achCarsAdded5,
     cars_added_50: achCarsAdded50,
     cars_added_100: achCarsAdded100,

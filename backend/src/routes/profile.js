@@ -6,7 +6,7 @@ import { loadPublicUser } from '../auth/sessions.js';
 import {
   uploadAvatarOriginal, uploadAvatarCropped, isAllowedAvatarMime, AVATAR_MAX_BYTES,
 } from '../storage/supabaseStorage.js';
-import { achievementById, computeMetrics } from '../achievements/achievements.js';
+import { achievementById, computeMetrics, syncAchievementsSafe } from '../achievements/achievements.js';
 
 const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
   .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
@@ -159,6 +159,12 @@ router.get('/achievements', async (req, res) => {
 
 router.get('/achievements/pending', async (req, res) => {
   try {
+    // Самолечащийся синк перед выдачей тостов: докидывает ачивки, которые не
+    // выдавались событием (например, «Зеленый свет.» за регистрацию у
+    // существующих пользователей или новые ступени, задеплоенные позже).
+    // Эндпоинт дёргается при каждом входе на сайт — любой юзер довыдаст себе
+    // всё положенное первым же визитом.
+    await syncAchievementsSafe(req.user.id);
     const r = await query(
       `SELECT achievement_id, unlocked_at FROM user_achievements
         WHERE user_id = $1 AND notified_at IS NULL ORDER BY unlocked_at ASC`,
