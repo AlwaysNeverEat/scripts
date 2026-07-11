@@ -75,3 +75,17 @@ test('diffAchievements: упал со 100 до 99 — отзывается то�
   assert.deepEqual(grant, []);
   assert.deepEqual(revoke, ['cars_added_100']);
 });
+
+test('registered: выдаётся любому существующему пользователю и не отзывается', () => {
+  const a = achievementById('registered');
+  assert.ok(a);
+  assert.equal(a.title, 'Зеленый свет.');
+  assert.equal(a.description, 'Добро пожаловать в клуб!');
+  // метрики нового юзера без единого действия
+  const fresh = diffAchievements({ added: 0, edited: 0, registered: 1 }, []);
+  assert.deepEqual(fresh.grant, ['registered']);
+  // уже есть — не дублируется и не отзывается
+  const again = diffAchievements({ added: 0, edited: 0, registered: 1 }, ['registered']);
+  assert.deepEqual(again.grant, []);
+  assert.deepEqual(again.revoke, []);
+});
