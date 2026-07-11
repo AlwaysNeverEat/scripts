@@ -42,28 +42,28 @@ function renderView(record, ctx) {
         : '';
     const fuel = fuelLabel(record.fuel_type);
     const chips = [
-        record.engine_name && `⚙ ${esc(record.engine_name)}`,
+        record.engine_name && esc(record.engine_name),
         record.engine_code && `<span class="mono">${esc(record.engine_code)}</span>`,
         record.engine_volume && `${record.engine_volume} л`,
         (record.bhp || record.kw) && (record.bhp ? `${record.bhp} л.с.` : `${record.kw} кВт`),
         fuel,
-        years && `📅 ${years}`,
+        years,
     ].filter(Boolean).map(c => `<span class="head-chip">${c}</span>`).join('');
 
     const flags = activeFlags(record.service_flags);
     const flagsHtml = flags.length
         ? `<div class="head-flags">${flags.map(f =>
-            `<span class="head-flag${f.warn ? ' head-flag-warn' : ''}">⚠ ${esc(f.label)}</span>`).join('')}</div>`
+            `<span class="head-flag${f.warn ? ' head-flag-warn' : ''}">${esc(f.label)}</span>`).join('')}</div>`
         : '';
 
     const notesHtml = record.notes
-        ? `<div class="head-notes">📝 ${esc(record.notes)}</div>`
+        ? `<div class="head-notes">${esc(record.notes)}</div>`
         : '';
 
     const tags = Array.isArray(record.tags) ? record.tags : [];
     const tagsHtml = tags.length
         ? `<div class="head-tags">${tags.map(t =>
-            `<span class="head-tag">🏷 ${esc(t)}</span>`).join('')}</div>`
+            `<span class="head-tag">${esc(t)}</span>`).join('')}</div>`
         : '';
 
     const links = record.source_links || {};
@@ -88,9 +88,9 @@ function renderView(record, ctx) {
             <div class="head-title-row">
                 <h2 class="head-title">${esc(record.brand)} ${esc(record.model)}${record.generation ? ` <span class="head-gen">${esc(record.generation)}</span>` : ''}</h2>
                 <span style="display:flex;gap:8px;flex-wrap:wrap">
-                    <button class="btn btn-sec" id="btn-edit-car">✏ Нашли ошибку?</button>
-                    ${isMod ? '<button class="btn btn-sec" id="btn-assign-car">👤 Назначить ответственного</button>' : ''}
-                    ${isMod ? '<button class="btn btn-sec btn-danger" id="btn-delete-car">🗑 Удалить машину</button>' : ''}
+                    <button class="btn btn-sec" id="btn-edit-car">Нашли ошибку?</button>
+                    ${isMod ? '<button class="btn btn-sec" id="btn-assign-car">Назначить ответственного</button>' : ''}
+                    ${isMod ? '<button class="btn btn-sec btn-danger" id="btn-delete-car">Удалить машину</button>' : ''}
                 </span>
             </div>
             <div class="head-chips">${chips}</div>
@@ -130,7 +130,7 @@ function openAssignModal(record, ctx) {
         <div class="modal-backdrop"></div>
         <div class="modal-win modal-win-sm">
             <div class="modal-head">
-                <span>👤 Назначить ответственного</span>
+                <span>Назначить ответственного</span>
                 <button class="btn btn-sec" id="assign-close">✕</button>
             </div>
             <div class="modal-body">
@@ -169,7 +169,7 @@ function openAssignModal(record, ctx) {
         }
         listBox.innerHTML = users.map(u => `
             <button class="assign-user" data-assign-id="${esc(u.id)}" data-assign-name="${esc(u.display_name)}">
-                <span class="assign-user-avatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt=""/>` : '👤'}</span>
+                <span class="assign-user-avatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt=""/>` : ''}</span>
                 <span class="assign-user-name">${rolePrefixHtml(u.role_prefix)}${esc(u.display_name)}</span>
             </button>
         `).join('');
@@ -191,7 +191,7 @@ function openAssignModal(record, ctx) {
             checkAchievementsNow(); // модератор мог назначить машину самому себе
             ctx.onChanged(); // перерисует страницу — в фиде появится «засчитал машину»
         } catch (e) {
-            errBox.textContent = '⚠ ' + e.message;
+            errBox.textContent = e.message;
             errBox.classList.remove('hidden');
             btn.disabled = false;
         }
@@ -219,7 +219,7 @@ function confirmDeleteCar(record, ctx) {
         <div class="modal-backdrop"></div>
         <div class="modal-win modal-win-sm">
             <div class="modal-head">
-                <span>⚠ Удалить машину</span>
+                <span>Удалить машину</span>
                 <button class="btn btn-sec" id="confirm-delete-close">✕</button>
             </div>
             <div class="modal-body">
@@ -250,7 +250,7 @@ function confirmDeleteCar(record, ctx) {
             close();
             location.hash = '#/';
         } catch (e) {
-            errBox.textContent = '⚠ ' + e.message;
+            errBox.textContent = e.message;
             errBox.classList.remove('hidden');
             btn.disabled = false;
             btn.textContent = 'Удалить безвозвратно';
@@ -334,10 +334,10 @@ function renderEditForm(record) {
     return `
         <div class="head-card head-card-edit">
             <div class="head-title-row">
-                <h2 class="head-title">✏ Редактирование машины</h2>
+                <h2 class="head-title">Редактирование машины</h2>
                 <span style="display:flex;gap:8px">
                     <button class="btn btn-sec" id="btn-edit-cancel">Отмена</button>
-                    <button class="btn btn-pri" id="btn-edit-save">💾 Сохранить</button>
+                    <button class="btn btn-pri" id="btn-edit-save">Сохранить</button>
                 </span>
             </div>
 
@@ -364,7 +364,7 @@ function renderEditForm(record) {
             <div class="edit-sec-h">Дополнительные агрегаты</div>
             <div class="edit-oils-note">Свои агрегаты сверх основных: хоть 5 вариаторов, мостов, редукторов или раздаток. У каждого — название, объём и свои допуска (по одному в строке).</div>
             <div id="edit-custom-aggs"></div>
-            <button class="btn btn-sec btn-mini" id="btn-add-custom-agg" style="margin-top:6px">➕ Добавить агрегат</button>
+            <button class="btn btn-sec btn-mini" id="btn-add-custom-agg" style="margin-top:6px">Добавить агрегат</button>
 
             <div class="edit-sec-h">Допуски масла — по одному в строке</div>
             <textarea id="edit-approvals" rows="4">${esc(approvals.join('\n'))}</textarea>
@@ -389,7 +389,7 @@ function renderEditForm(record) {
             <div class="edit-oils-note">Слова, по которым эту машину можно найти в поиске (напр. «табуретка», «малолитражка»). Введите тег и нажмите «Добавить» — потом можно удалить крестиком.</div>
             <div class="edit-tags-input">
                 <input type="text" id="edit-tag-input" placeholder="новый тег" autocomplete="off"/>
-                <button class="btn btn-sec btn-mini" id="btn-add-tag" type="button">➕ Добавить</button>
+                <button class="btn btn-sec btn-mini" id="btn-add-tag" type="button">Добавить</button>
             </div>
             <div id="edit-tags-list" class="edit-tags-list"></div>
 
@@ -615,7 +615,7 @@ function bindEditForm(head, record, ctx) {
         if (!commentResult.confirmed) return;
 
         btn.disabled = true;
-        btn.textContent = '⏳ сохранение…';
+        btn.textContent = 'сохранение…';
         try {
             await ctx.apiFetch('/api/cars/' + record.id, {
                 method: 'PATCH',
@@ -625,10 +625,10 @@ function bindEditForm(head, record, ctx) {
             checkAchievementsNow(); // правка могла добить счётчик до ачивки
             ctx.onChanged(); // перезагрузит страницу машины со свежими данными
         } catch (e) {
-            errBox.textContent = '⚠ ' + e.message;
+            errBox.textContent = e.message;
             errBox.style.display = 'block';
             btn.disabled = false;
-            btn.textContent = '💾 Сохранить';
+            btn.textContent = 'Сохранить';
         }
     };
 }
@@ -648,14 +648,14 @@ function promptEditComment() {
             <div class="modal-backdrop"></div>
             <div class="modal-win modal-win-sm">
                 <div class="modal-head">
-                    <span>💬 Опишите, почему изменили?</span>
+                    <span>Опишите, почему изменили?</span>
                     <button class="btn btn-sec" id="edit-comment-close">✕</button>
                 </div>
                 <div class="modal-body">
                     <textarea id="edit-comment-text" rows="3" placeholder="Можно оставить пустым"></textarea>
                     <div class="modal-actions">
                         <button class="btn btn-sec" id="edit-comment-cancel">Отмена</button>
-                        <button class="btn btn-pri" id="edit-comment-save">💾 Сохранить</button>
+                        <button class="btn btn-pri" id="edit-comment-save">Сохранить</button>
                     </div>
                 </div>
             </div>
@@ -753,7 +753,7 @@ function renderEventCard(ev, i) {
     const isReassigned = ev.type === 'reassigned';
     const avatarHtml = ev.user && ev.user.avatar
         ? `<img src="${esc(ev.user.avatar)}" alt=""/>`
-        : `<span class="event-avatar-default">👤</span>`;
+        : `<span class="event-avatar-default"></span>`;
     const when = new Date(ev.created_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
 
     const avatarLinkAttr = ev.user ? `data-user-link="${esc(ev.user.id)}" title="Открыть профиль"` : '';
@@ -805,11 +805,11 @@ function openEventDetails(ev) {
         <div class="modal-backdrop"></div>
         <div class="modal-win">
             <div class="modal-head">
-                <span>✏ Что изменили</span>
+                <span>Что изменили</span>
                 <button class="btn btn-sec" id="event-details-close">✕</button>
             </div>
             <div class="modal-body">
-                ${ev.comment ? `<div class="head-notes">📝 ${esc(ev.comment)}</div>` : ''}
+                ${ev.comment ? `<div class="head-notes">${esc(ev.comment)}</div>` : ''}
                 <div class="event-diff-list">${fieldsHtml}</div>
             </div>
         </div>

@@ -72,7 +72,7 @@ export function initAuthGate({ apiFetch, onLoggedIn, message }) {
         try {
             await apiFetch('/api/auth/register', { method: 'POST', body: { display_name, login, password } });
             regForm.reset();
-            regSuccess.textContent = '✅ Заявка отправлена! Администратор получит её в Telegram — заявка живёт 30 минут.';
+            regSuccess.textContent = 'Заявка отправлена! Администратор получит её в Telegram — заявка живёт 30 минут.';
             regSuccess.classList.remove('hidden');
         } catch (err) {
             regErr.textContent = err.message;

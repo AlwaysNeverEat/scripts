@@ -37,8 +37,8 @@ function chooseAvatarAction() {
                 </div>
                 <div class="modal-body">
                     <div class="avatar-action-list">
-                        <button class="btn btn-pri" id="avatar-action-recrop">✂️ Изменить отображение</button>
-                        <button class="btn btn-sec" id="avatar-action-new">📤 Загрузить новую</button>
+                        <button class="btn btn-pri" id="avatar-action-recrop">Изменить отображение</button>
+                        <button class="btn btn-sec" id="avatar-action-new">Загрузить новую</button>
                     </div>
                 </div>
             </div>
@@ -73,7 +73,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
     function render() {
         const avatarHtml = user.avatar
             ? `<img src="${esc(user.avatar)}" alt=""/>`
-            : `<span class="profile-avatar-default">👤</span>`;
+            : `<span class="profile-avatar-default"></span>`;
 
         box.innerHTML = `
             <div class="profile-card">
@@ -83,7 +83,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
                 <div class="profile-name" id="profile-name-view" title="Кликните, чтобы поменять ник">
                     ${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}
-                    <span class="profile-name-edit-hint">✏️</span>
+                    <span class="profile-name-edit-hint"></span>
                 </div>
 
                 <div class="profile-stats">
@@ -97,7 +97,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                         const icon = achievementIcon(a.id);
                         return `
                         <div class="achievement-card">
-                            <div class="achievement-icon" data-ach-icon="${esc(a.id)}">${icon ? `<img src="${esc(icon)}" alt=""/>` : '🏆'}</div>
+                            <div class="achievement-icon" data-ach-icon="${esc(a.id)}">${icon ? `<img src="${esc(icon)}" alt=""/>` : ''}</div>
                             <div class="achievement-title">${esc(a.title)}</div>
                             <div class="achievement-date">${a.unlockedAt ? new Date(a.unlockedAt).toLocaleDateString('ru-RU') : ''}</div>
                             <div class="achievement-desc">${esc(a.description || '')}</div>
@@ -108,7 +108,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
                 ${user.role === 'mod' || user.role === 'admin' ? `
                     <div class="edit-sec-h">Модератор</div>
-                    <button class="btn btn-sec profile-mod-assign" id="btn-self-assign-cars">🚗 Записать себе незанятые машины</button>
+                    <button class="btn btn-sec profile-mod-assign" id="btn-self-assign-cars">Записать себе незанятые машины</button>
                 ` : ''}
 
                 <div id="profile-error" class="edit-error hidden"></div>

@@ -40,16 +40,16 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
 
     const avatarHtml = user.avatar
         ? `<img src="${esc(user.avatar)}" alt=""/>`
-        : `<span class="profile-avatar-default">👤</span>`;
+        : `<span class="profile-avatar-default"></span>`;
 
     const modPanelHtml = viewerIsMod ? `
         <div class="mod-panel">
             <div class="edit-sec-h">Управление (видно только модераторам)</div>
-            ${user.banned ? '<div class="mod-banned-badge">🚫 Пользователь заблокирован</div>' : ''}
+            ${user.banned ? '<div class="mod-banned-badge">Пользователь заблокирован</div>' : ''}
             <div class="mod-panel-actions">
-                <button class="btn btn-sec" id="btn-mod-assign-cars">🚗 Назначить машины</button>
+                <button class="btn btn-sec" id="btn-mod-assign-cars">Назначить машины</button>
                 ${canBan ? `<button class="btn btn-sec ${user.banned ? '' : 'btn-danger'}" id="btn-mod-ban">${
-                    user.banned ? '♻ Разбанить пользователя' : '🚫 Забанить пользователя'
+                    user.banned ? 'Разбанить пользователя' : 'Забанить пользователя'
                 }</button>` : ''}
             </div>
             <div id="mod-panel-error" class="edit-error hidden"></div>
@@ -96,7 +96,7 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
             await apiFetch('/api/users/' + user.id + '/ban', { method: 'POST', body: { banned } });
             reload();
         } catch (e) {
-            errBox.textContent = '⚠ ' + e.message;
+            errBox.textContent = e.message;
             errBox.classList.remove('hidden');
             banBtn.disabled = false;
         }

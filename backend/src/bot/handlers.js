@@ -30,15 +30,15 @@ async function handleRegistrationCallback(cb, action, requestId) {
     const result = await acceptRegistrationRequest(requestId);
     if (result.error === 'expired') {
       await answerCallbackQuery(cb.id, 'Заявка просрочена (жила 30 минут)');
-      await editMessageText(chatId, messageId, cb.message.text + '\n\n⏱ Просрочена, accept не сработал.');
+      await editMessageText(chatId, messageId, cb.message.text + '\n\nПросрочена, accept не сработал.');
     } else if (result.error === 'login_taken') {
       await answerCallbackQuery(cb.id, 'Логин уже занят — заявка отклонена');
-      await editMessageText(chatId, messageId, cb.message.text + '\n\n❌ Логин уже занят, заявка отклонена.');
+      await editMessageText(chatId, messageId, cb.message.text + '\n\nЛогин уже занят, заявка отклонена.');
     } else if (result.error) {
       await answerCallbackQuery(cb.id, 'Уже обработана');
     } else {
-      await answerCallbackQuery(cb.id, 'Принято ✅');
-      await editMessageText(chatId, messageId, cb.message.text + `\n\n✅ Принято: ${escapeHtml(result.user.display_name)}`);
+      await answerCallbackQuery(cb.id, 'Принято');
+      await editMessageText(chatId, messageId, cb.message.text + `\n\nПринято: ${escapeHtml(result.user.display_name)}`);
     }
     return;
   }
@@ -48,8 +48,8 @@ async function handleRegistrationCallback(cb, action, requestId) {
     if (result.error) {
       await answerCallbackQuery(cb.id, 'Уже обработана');
     } else {
-      await answerCallbackQuery(cb.id, 'Отклонено ❌');
-      await editMessageText(chatId, messageId, cb.message.text + '\n\n❌ Отклонено.');
+      await answerCallbackQuery(cb.id, 'Отклонено');
+      await editMessageText(chatId, messageId, cb.message.text + '\n\nОтклонено.');
     }
   }
 }
@@ -81,7 +81,7 @@ async function handleUserCallback(cb, action, userId) {
     const r = await query('DELETE FROM users WHERE id = $1 RETURNING display_name', [userId]);
     await answerCallbackQuery(cb.id, r.rows.length ? 'Забанен' : 'Уже нет такого юзера');
     if (r.rows.length) {
-      await editMessageText(chatId, cb.message.message_id, `🔨 ${escapeHtml(r.rows[0].display_name)} — забанен и удалён.`);
+      await editMessageText(chatId, cb.message.message_id, `${escapeHtml(r.rows[0].display_name)} — забанен и удалён.`);
     }
     return;
   }
@@ -95,7 +95,7 @@ async function handleUserCallback(cb, action, userId) {
     await answerCallbackQuery(cb.id, next === 'mod' ? 'Стал модератором' : 'Модератор снят');
     await editMessageText(
       chatId, cb.message.message_id,
-      `${next === 'mod' ? '🛡' : '👤'} ${escapeHtml(cur.rows[0].display_name)} — теперь ${next}.`,
+      `${escapeHtml(cur.rows[0].display_name)} — теперь ${next}.`,
     );
     return;
   }
@@ -138,7 +138,7 @@ async function handleCarCallback(cb, action, carId) {
     await answerCallbackQuery(cb.id);
     await sendMessage(
       chatId,
-      `⚠️ Удалить «${formatCarLine(cur.rows[0])}» ПОЛНОСТЬЮ И БЕЗВОЗВРАТНО?`,
+      `Удалить «${formatCarLine(cur.rows[0])}» ПОЛНОСТЬЮ И БЕЗВОЗВРАТНО?`,
       { replyMarkup: carDeleteConfirmKeyboard(cur.rows[0]) },
     );
     return;
@@ -149,14 +149,14 @@ async function handleCarCallback(cb, action, carId) {
     await answerCallbackQuery(cb.id, r.rows.length ? 'Удалено' : 'Уже нет такой машины');
     await editMessageText(
       chatId, cb.message.message_id,
-      r.rows.length ? `🗑 Удалено: ${escapeHtml(r.rows[0].brand)} ${escapeHtml(r.rows[0].model)}` : 'Уже удалено.',
+      r.rows.length ? `Удалено: ${escapeHtml(r.rows[0].brand)} ${escapeHtml(r.rows[0].model)}` : 'Уже удалено.',
     );
     return;
   }
 
   if (action === 'delno') {
     await answerCallbackQuery(cb.id, 'Отменено');
-    await editMessageText(chatId, cb.message.message_id, '↩️ Удаление отменено.');
+    await editMessageText(chatId, cb.message.message_id, 'Удаление отменено.');
   }
 }
 
@@ -191,13 +191,13 @@ async function handleMessage(message) {
   const fromId = message.from?.id;
   if (!(await isBotAdmin(fromId))) return; // тихо игнорируем чужих
 
-  // Ожидается новый ник после нажатия "✏️ Поменять ник"
+  // Ожидается новый ник после нажатия "Поменять ник"
   if (pendingRename.has(chatId) && typeof message.text === 'string' && !message.text.startsWith('/')) {
     const userId = pendingRename.get(chatId);
     pendingRename.delete(chatId);
     const name = message.text.trim().slice(0, 60);
     const r = await query('UPDATE users SET display_name = $1 WHERE id = $2 RETURNING display_name', [name, userId]);
-    await sendMessage(chatId, r.rows.length ? `✏️ Ник обновлён: ${escapeHtml(r.rows[0].display_name)}` : 'Юзер не найден.');
+    await sendMessage(chatId, r.rows.length ? `Ник обновлён: ${escapeHtml(r.rows[0].display_name)}` : 'Юзер не найден.');
     return;
   }
 
@@ -220,11 +220,11 @@ async function handleMessage(message) {
         await sendMessage(chatId, 'Использование: /addadmin 123456789');
       } else {
         await addBotAdmin(id);
-        await sendMessage(chatId, `✅ ${id} теперь может управлять этим ботом.`);
+        await sendMessage(chatId, `${id} теперь может управлять этим ботом.`);
       }
     }
   } catch (err) {
     console.error('bot message', err);
-    await sendMessage(chatId, '⚠ Ошибка на сервере, попробуйте ещё раз.');
+    await sendMessage(chatId, 'Ошибка на сервере, попробуйте ещё раз.');
   }
 }

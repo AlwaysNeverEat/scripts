@@ -43,7 +43,7 @@ export function initTopModal({ apiFetch }) {
         body.innerHTML = rows.map((row, i) => {
             const avatarHtml = row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
-                : `<span class="top-avatar-default">👤</span>`;
+                : `<span class="top-avatar-default"></span>`;
             return `
                 <div class="top-row ${row.rank === 1 ? 'top-row-gold' : ''}" data-top-idx="${i}" title="Открыть профиль">
                     <span class="top-rank">${row.rank}</span>

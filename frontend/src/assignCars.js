@@ -26,7 +26,7 @@ export function openAssignCarsModal({ apiFetch, targetUser, self = false, onDone
         <div class="modal-backdrop"></div>
         <div class="modal-win">
             <div class="modal-head">
-                <span>🚗 Назначить машины — ${esc(targetUser.display_name)}</span>
+                <span>Назначить машины — ${esc(targetUser.display_name)}</span>
                 <button class="btn btn-sec" id="assign-cars-close">✕</button>
             </div>
             <div class="modal-body">
@@ -39,7 +39,7 @@ export function openAssignCarsModal({ apiFetch, targetUser, self = false, onDone
                 <div class="modal-actions">
                     <span id="assign-cars-summary" class="assign-cars-summary"></span>
                     <button class="btn btn-sec" id="assign-cars-cancel">Отмена</button>
-                    <button class="btn btn-pri" id="assign-cars-save" disabled>💾 Применить</button>
+                    <button class="btn btn-pri" id="assign-cars-save" disabled>Применить</button>
                 </div>
             </div>
         </div>
@@ -152,7 +152,7 @@ export function openAssignCarsModal({ apiFetch, targetUser, self = false, onDone
 
         errBox.classList.add('hidden');
         saveBtn.disabled = true;
-        saveBtn.textContent = '⏳ применяем…';
+        saveBtn.textContent = 'применяем…';
         try {
             await apiFetch('/api/cars/bulk-assign', {
                 method: 'POST',
@@ -162,10 +162,10 @@ export function openAssignCarsModal({ apiFetch, targetUser, self = false, onDone
             checkAchievementsNow(); // мод мог записать машины на себя
             if (onDone) onDone();
         } catch (e) {
-            errBox.textContent = '⚠ ' + e.message;
+            errBox.textContent = e.message;
             errBox.classList.remove('hidden');
             saveBtn.disabled = false;
-            saveBtn.textContent = '💾 Применить';
+            saveBtn.textContent = 'Применить';
         }
     };
 }

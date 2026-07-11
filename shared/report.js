@@ -86,7 +86,7 @@ export function formatAggText(agg, calc, calcState) {
         }
         const extraTxt = extras.length ? ' + ' + extras.join(' + ') : '';
         lines.push(`${typeTxt} (${calc.vCalc}л / ${pct})${extraTxt}`);
-        if (!isCvt && agg.atfWarn) lines.push('⚠ подходящих масел в наличии нет — перевести на мастера');
+        if (!isCvt && agg.atfWarn) lines.push('подходящих масел в наличии нет — перевести на мастера');
         calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
     } else {
         const vService = (parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)).toFixed(1);

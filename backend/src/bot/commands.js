@@ -33,15 +33,15 @@ function escapeHtml(s) {
 }
 
 export function formatUserLine(user) {
-  const prefix = user.role === 'mod' ? '🟢mod ' : '';
+  const prefix = user.role === 'mod' ? 'mod ' : '';
   return `${prefix}${escapeHtml(user.display_name)} (@${escapeHtml(user.login)}) — ${escapeHtml(user.role)}`;
 }
 
 export function userActionsKeyboard(user) {
-  const modLabel = user.role === 'mod' ? '🛡 Снять модератора' : '🛡 Сделать модератором';
+  const modLabel = user.role === 'mod' ? 'Снять модератора' : 'Сделать модератором';
   const rows = [
-    [{ text: '🔨 Забанить', callback_data: `u:ban:${user.id}` }],
-    [{ text: '✏️ Поменять ник', callback_data: `u:rename:${user.id}` }],
+    [{ text: 'Забанить', callback_data: `u:ban:${user.id}` }],
+    [{ text: 'Поменять ник', callback_data: `u:rename:${user.id}` }],
   ];
   if (user.role !== 'admin') {
     rows.push([{ text: modLabel, callback_data: `u:mod:${user.id}` }]);
@@ -50,14 +50,14 @@ export function userActionsKeyboard(user) {
 }
 
 export function carActionsKeyboard(car) {
-  return { inline_keyboard: [[{ text: '🗑 Удалить машину', callback_data: `c:del:${car.id}` }]] };
+  return { inline_keyboard: [[{ text: 'Удалить машину', callback_data: `c:del:${car.id}` }]] };
 }
 
 export function carDeleteConfirmKeyboard(car) {
   return {
     inline_keyboard: [[
-      { text: '✅ Да, удалить безвозвратно', callback_data: `c:delyes:${car.id}` },
-      { text: '↩️ Отмена', callback_data: `c:delno:${car.id}` },
+      { text: 'Да, удалить безвозвратно', callback_data: `c:delyes:${car.id}` },
+      { text: 'Отмена', callback_data: `c:delno:${car.id}` },
     ]],
   };
 }

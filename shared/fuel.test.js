@@ -33,10 +33,10 @@ test('normalizeFuelCode приводит к кодам селекта', () => {
 });
 
 test('fuelLabel: дизель/бензин/неизвестное', () => {
-    assert.equal(fuelLabel('05'), '⛽ дизель');
-    assert.equal(fuelLabel('01'), '⛽ бензин');
+    assert.equal(fuelLabel('05'), 'дизель');
+    assert.equal(fuelLabel('01'), 'бензин');
     assert.equal(fuelLabel(''), '');
-    assert.equal(fuelLabel('08'), '⛽ топливо: 08?');
+    assert.equal(fuelLabel('08'), 'топливо: 08?');
     assert.ok(!fuelLabel('<img>').includes('<img>'), 'сырое значение экранируется');
 });
 

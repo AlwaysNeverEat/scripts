@@ -82,7 +82,7 @@ function showToast(achievement) {
     const toast = document.createElement('div');
     toast.className = 'ach-toast';
     toast.innerHTML = `
-        <div class="ach-toast-icon">${icon ? `<img src="${esc(icon)}" alt=""/>` : '🏆'}</div>
+        <div class="ach-toast-icon">${icon ? `<img src="${esc(icon)}" alt=""/>` : ''}</div>
         <div class="ach-toast-body">
             <div class="ach-toast-head">Вы получили достижение</div>
             <div class="ach-toast-title">${esc(achievement.title)}</div>

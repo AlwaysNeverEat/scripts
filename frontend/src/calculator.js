@@ -73,7 +73,7 @@ export function initCalculator(dbRecord) {
         if (!text || text.startsWith('—')) return;
         navigator.clipboard.writeText(text).then(() => {
             const orig = copyBtn.textContent;
-            copyBtn.textContent = '✓ скопировано';
+            copyBtn.textContent = 'скопировано';
             setTimeout(() => { copyBtn.textContent = orig; }, 1500);
         });
     };
@@ -127,11 +127,11 @@ function renderControls(calcState) {
             <div class="ctrl-row" style="margin:14px 0">
                 <label class="chk-label">
                     <input type="checkbox" id="chk-ignore-approvals" ${calcState.ignoreApprovals ? 'checked' : ''}/>
-                    <span>🔓 Игнорировать допуска</span>
+                    <span>Игнорировать допуска</span>
                 </label>
                 <label class="chk-label">
                     <input type="checkbox" id="chk-sump" ${calcState.showWithSump ? 'checked' : ''}/>
-                    <span>🛡 С картером (+550₽)</span>
+                    <span>С картером (+550₽)</span>
                 </label>
             </div>
             <div class="ctrl-lbl" style="margin-bottom:6px">Промывка ДВС</div>
@@ -153,7 +153,7 @@ function renderFiltersSection(calcState) {
     const hasPrices = anyFilterPriced(f);
 
     if (!hasArticles && !hasPrices && !calcState.showFiltersInput) {
-        return `<div class="filters-section"><button class="btn-add-filters" id="btn-add-filters">➕ Добавить фильтры ДВС</button></div>`;
+        return `<div class="filters-section"><button class="btn-add-filters" id="btn-add-filters">Добавить фильтры ДВС</button></div>`;
     }
 
     // Артикулы из БД — по клику копируются, для поиска в каталоге
@@ -207,8 +207,8 @@ function renderFiltersSection(calcState) {
         ? `<button class="btn btn-sec btn-mini" id="btn-copy-all-filters">⧉ скопировать все</button>`
         : '';
     const toggleLbl = calcState.showFiltersInput
-        ? '✕ закрыть'
-        : (hasPrices ? '💰 обновить стоимость' : '💰 вставить стоимость');
+        ? 'закрыть'
+        : (hasPrices ? 'обновить стоимость' : 'вставить стоимость');
     const toggleBtn = `<button class="btn btn-sec btn-mini" id="btn-filters-toggle">${toggleLbl}</button>`;
 
     return `
@@ -311,10 +311,10 @@ function renderAggCard(agg, calcState, carApprovals) {
     let body = '';
     if (sel) {
         if (calc.isHighGear) {
-            body = '<div class="warn-box">⚠ HIGH GEAR — нельзя обслуживать стандартно. Передай мастеру.</div>';
+            body = '<div class="warn-box">HIGH GEAR — нельзя обслуживать стандартно. Передай мастеру.</div>';
         } else if (calc.needsVolume) {
             body = `
-                <div class="warn-box">⚠ Motul не дал объём заправки. Введи вручную:</div>
+                <div class="warn-box">Motul не дал объём заправки. Введи вручную:</div>
                 <div class="agg-volume" style="margin-top:8px">
                     <span class="ctrl-lbl">Объём (л):</span>
                     <input type="number" step="0.1" min="0" class="filter-row input vol-input"
@@ -393,7 +393,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             </div>
         `);
         if (calc.costs && agg.atfWarn) {
-            parts.push('<div class="warn-box">⚠ подходящих масел в наличии нет — перевести на мастера</div>');
+            parts.push('<div class="warn-box">подходящих масел в наличии нет — перевести на мастера</div>');
         }
     }
 
@@ -419,7 +419,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
         parts.push(displayedCosts.map((c, i) => {
             const { matched, others, hier } = splitOilApprovals(c.oil.a || [], carApprovals);
             const regMatches = agg.group === 'engine' ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
-            const regMark = regMatches.length ? `<span class="reg-mark" title="${esc(regMatches.map(m => m.tag + (m.desc ? ': ' + m.desc : '')).join(', '))}">⭐</span>` : '';
+            const regMark = regMatches.length ? `<span class="reg-mark" title="${esc(regMatches.map(m => m.tag + (m.desc ? ': ' + m.desc : '')).join(', '))}"></span>` : '';
             const matchedBadges = matched.map(a => `<span class="appr-hit">${esc(a)}</span>`).join(' ');
             const hierBadges = (hier || []).map(h =>
                 `<span class="appr-hier" title="${esc(h.approval)} покрывает требуемый ${esc(h.covers)} (старший допуск)">${esc(h.approval)} ⊃ ${esc(h.covers)}</span>`).join(' ');
@@ -458,7 +458,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                         ${allCandidates.map((oil, i) => {
                             const isCur = calc.costs[0] && (calc.costs[0].oil.b + '_' + calc.costs[0].oil.n) === (oil.b + '_' + oil.n);
                             const regOpt = matchOilToReglament(oil, calcState.car?.makeShort);
-                            const rMark = regOpt.length ? '⭐ ' : '';
+                            const rMark = '';
                             const rk = (agg.ranked || []).find(r => r.oil === oil);
                             let hits = '';
                             if (rk && (rk.direct.length || rk.hier.length)) {
@@ -467,7 +467,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                                 hits = ` <span class="oil-pick-hits" title="${esc(tip)}">✓${rk.direct.length ? ' ' + rk.direct.length : ''}${rk.hier.length ? ' ⊃' + rk.hier.length : ''}</span>`;
                             }
                             if (rk && rk.classMiss) {
-                                hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">⚠ не ${esc(rk.classMiss)}</span>`;
+                                hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">не ${esc(rk.classMiss)}</span>`;
                             }
                             return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
                         }).join('')}
@@ -475,7 +475,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                     </div>
                 `);
             } else {
-                parts.push(`<button class="btn-pick-oil" data-picker-open="${agg.key}">🔄 выбрать масло (${allCandidates.length})</button>`);
+                parts.push(`<button class="btn-pick-oil" data-picker-open="${agg.key}">выбрать масло (${allCandidates.length})</button>`);
             }
         }
     }
@@ -586,7 +586,7 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         const text = ['vf', 'mf', 'sf'].map(k => arts[k]).filter(Boolean).join('\n');
         if (!text) return;
         navigator.clipboard.writeText(text).then(() => {
-            copyAllBtn.textContent = '✓ скопировано';
+            copyAllBtn.textContent = 'скопировано';
             setTimeout(() => { copyAllBtn.textContent = '⧉ скопировать все'; }, 1200);
         });
     };
@@ -600,7 +600,7 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         const found = ['vf', 'mf', 'sf'].filter(t => parsed[t]);
         if (!found.length) {
             const dbg = container.querySelector('#filters-debug');
-            if (dbg) dbg.textContent = '❌ Не распознано ни одной строки — формат: «вф LYNX LA-502 - 1488р»';
+            if (dbg) dbg.textContent = 'Не распознано ни одной строки — формат: «вф LYNX LA-502 - 1488р»';
             return;
         }
         applyFiltersInput(calcState, txt);

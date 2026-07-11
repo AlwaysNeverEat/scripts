@@ -41,12 +41,12 @@ export function normalizeFuelCode(fuelType) {
 export function fuelLabel(fuelType) {
     const ft = String(fuelType == null ? '' : fuelType).trim();
     if (!ft) return '';
-    if (isDieselFuel(ft)) return '⛽ дизель';
-    if (ft === '02') return '⛽ бензин + газ';
-    if (isPetrolFuel(ft)) return '⛽ бензин';
+    if (isDieselFuel(ft)) return 'дизель';
+    if (ft === '02') return 'бензин + газ';
+    if (isPetrolFuel(ft)) return 'бензин';
     const safe = ft.replace(/[&<>"']/g, c =>
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-    return `⛽ топливо: ${safe}?`;
+    return `топливо: ${safe}?`;
 }
 
 // <option> для селекта топлива; текущее значение приводится к коду.

@@ -29,7 +29,7 @@ export function openAvatarCropper({ imageSrc, initialCrop } = {}) {
             <div class="modal-backdrop"></div>
             <div class="modal-win modal-win-sm">
                 <div class="modal-head">
-                    <span>🖼 Обрезка аватарки</span>
+                    <span>Обрезка аватарки</span>
                     <button class="btn btn-sec" id="crop-close">✕</button>
                 </div>
                 <div class="modal-body">
@@ -37,14 +37,14 @@ export function openAvatarCropper({ imageSrc, initialCrop } = {}) {
                         <img id="crop-img" alt="" draggable="false"/>
                     </div>
                     <div class="crop-zoom-row">
-                        <span>🔍</span>
+                        <span></span>
                         <input type="range" id="crop-zoom" min="${MIN_ZOOM}" max="${MAX_ZOOM}" step="0.01" value="${MIN_ZOOM}"/>
                     </div>
                     <div class="crop-hint">Перетащи картинку, чтобы выбрать, как она ляжет в кружок</div>
                     <div id="crop-error" class="edit-error hidden"></div>
                     <div class="modal-actions">
                         <button class="btn btn-sec" id="crop-cancel">Отмена</button>
-                        <button class="btn btn-pri" id="crop-save">💾 Сохранить</button>
+                        <button class="btn btn-pri" id="crop-save">Сохранить</button>
                     </div>
                 </div>
             </div>

@@ -23,8 +23,8 @@ export async function notifyNewRegistrationRequest(reqRow) {
 
   const replyMarkup = {
     inline_keyboard: [[
-      { text: '✅ Accept', callback_data: `reg:accept:${reqRow.id}` },
-      { text: '❌ Decline', callback_data: `reg:decline:${reqRow.id}` },
+      { text: 'Accept', callback_data: `reg:accept:${reqRow.id}` },
+      { text: 'Decline', callback_data: `reg:decline:${reqRow.id}` },
     ]],
   };
 
