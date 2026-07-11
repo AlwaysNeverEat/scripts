@@ -28,7 +28,7 @@ import { query } from '../db/client.js';
 export const ACHIEVEMENTS = [
   {
     id: 'registered',
-    title: 'Зеленый свет.',
+    title: 'Зеленый свет',
     description: 'Добро пожаловать в клуб!',
     metric: 'registered',
     threshold: 1,
