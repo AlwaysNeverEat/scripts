@@ -53076,5 +53076,1054 @@
   "_type_label": "Logan II 1.5 dCi 75 (2014 - )",
   "_type_key": "333298:3311419:33094375",
   "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Logan II",
+  "generation": "L52",
+  "engine_code": "K9K",
+  "engine_name": "Logan II 1.5 dCi 75 DPF",
+  "engine_volume": 1.5,
+  "year_from": 2014,
+  "year_to": null,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Renault (RUS) · Logan II, L52 (2014 - ) · Logan II 1.5 dCi 75 DPF (2014 - )",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "SPECIFIC 0720 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.8,
+    "volumeType": "plain",
+    "label": "Двигатель K9K",
+    "rawText": "Объем : Oбъем 4,1-4,8 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : SPECIFIC 0720 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км Продукты : SPECIFIC 0720 5W-30"
+   },
+   "manual": {
+    "volume": 2.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.5,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая JR5 5/1",
+    "rawText": "Объем : Oбъем 2,5 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=790b165fa03ad2b248b3714306d2c575"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Logan II, L52 (2014 - )",
+  "_type_label": "Logan II 1.5 dCi 75 DPF (2014 - )",
+  "_type_key": "333298:3311419:33103080",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Logan II",
+  "generation": "L52",
+  "engine_code": "K9K",
+  "engine_name": "Logan II 1.5 dCi 90",
+  "engine_volume": 1.5,
+  "year_from": 2014,
+  "year_to": null,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Renault (RUS) · Logan II, L52 (2014 - ) · Logan II 1.5 dCi 90 (2014 - )",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "6100 SYN-CLEAN SPEC 5W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый",
+     "Предпочтительный",
+     "Предпочтительно, тяжелые условия эксплуатации"
+    ],
+    "interval": "Замена 7500 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.8,
+    "volumeType": "plain",
+    "label": "Двигатель K9K",
+    "rawText": "Объем : Oбъем 4,1-4,8 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 Режим : Тяжелый Интервалы : Замена 7500 км Продукты : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-40 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 Режим : Предпочтительно, тяжелые условия эксплуатации Интервалы : Замена 7500 км Продукты : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-40 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40"
+   },
+   "manual": {
+    "volume": 2.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.5,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая JR5 5/1",
+    "rawText": "Объем : Oбъем 2,5 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=e57300f3d755193588de051f5fce525a"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Logan II, L52 (2014 - )",
+  "_type_label": "Logan II 1.5 dCi 90 (2014 - )",
+  "_type_key": "333298:3311419:33094376",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Logan II",
+  "generation": "L52",
+  "engine_code": "K9K",
+  "engine_name": "Logan II 1.5 dCi 90 DPF",
+  "engine_volume": 1.5,
+  "year_from": 2014,
+  "year_to": null,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Renault (RUS) · Logan II, L52 (2014 - ) · Logan II 1.5 dCi 90 DPF (2014 - )",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "SPECIFIC 0720 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.8,
+    "volumeType": "plain",
+    "label": "Двигатель K9K",
+    "rawText": "Объем : Oбъем 4,1-4,8 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : SPECIFIC 0720 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км Продукты : SPECIFIC 0720 5W-30"
+   },
+   "manual": {
+    "volume": 2.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.5,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая JR5 5/1",
+    "rawText": "Объем : Oбъем 2,5 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=47f5ba83f85fd619f36780c778f5b2ce"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Logan II, L52 (2014 - )",
+  "_type_label": "Logan II 1.5 dCi 90 DPF (2014 - )",
+  "_type_key": "333298:3311419:33103081",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Logan II",
+  "generation": "L52",
+  "engine_code": "K9K",
+  "engine_name": "Logan II 1.5 dCi 110",
+  "engine_volume": 1.5,
+  "year_from": 2015,
+  "year_to": null,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Renault (RUS) · Logan II, L52 (2014 - ) · Logan II 1.5 dCi 110 (2015 - )",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "6100 SYN-CLEAN SPEC 5W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Предпочтительный"
+    ],
+    "interval": "Замена 15000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.8,
+    "volumeType": "plain",
+    "label": "Двигатель K9K",
+    "rawText": "Объем : Oбъем 4,5-4,8 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-40 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40"
+   },
+   "manual": {
+    "volume": 1.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.9,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, полуавтоматическая TS4 6/1",
+    "rawText": "Объем : Oбъем 1,9 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80",
+    "isSemiAuto": true
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=04e2cc8553412e8c01223c7b655c51a2"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Logan II, L52 (2014 - )",
+  "_type_label": "Logan II 1.5 dCi 110 (2015 - )",
+  "_type_key": "333298:3311419:33136684",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Logan II",
+  "generation": "L52",
+  "engine_code": "K9K",
+  "engine_name": "Logan II 1.5 dCi 110 DPF",
+  "engine_volume": 1.5,
+  "year_from": 2015,
+  "year_to": null,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Renault (RUS) · Logan II, L52 (2014 - ) · Logan II 1.5 dCi 110 DPF (2015 - )",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "SPECIFIC 0720 5W-30"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "interval": "Замена 15000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.8,
+    "volumeType": "plain",
+    "label": "Двигатель K9K",
+    "rawText": "Объем : Oбъем 4,5-4,8 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : SPECIFIC 0720 5W-30"
+   },
+   "manual": {
+    "volume": 1.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.9,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, полуавтоматическая TS4 6/1",
+    "rawText": "Объем : Oбъем 1,9 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80",
+    "isSemiAuto": true
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=a8f0ad011108c347b1089bf582af99ae"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Logan II, L52 (2014 - )",
+  "_type_label": "Logan II 1.5 dCi 110 DPF (2015 - )",
+  "_type_key": "333298:3311419:33136685",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Duster I",
+  "generation": "H79",
+  "engine_code": "K4M",
+  "engine_name": "Duster I 1.6 (4x2)",
+  "engine_volume": 1.6,
+  "year_from": 2009,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Renault (RUS) · Duster I, H79 (2009 - 2021) · Duster I 1.6 (4x2) (2009 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 POWER 5W-50",
+     "8100 ECO-CLEAN 0W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 0W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 0W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 10W-40",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "4000 MOTION 15W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый",
+     "Предпочтительный",
+     "Предпочтительно, тяжелые условия эксплуатации"
+    ],
+    "interval": "Замена 7500 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.8,
+    "volumeType": "plain",
+    "label": "Двигатель K4M",
+    "rawText": "Объем : Oбъем 4,8 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Тяжелый Интервалы : Замена 7500 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 Режим : Предпочтительно, тяжелые условия эксплуатации Интервалы : Замена 7500 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40"
+   },
+   "manual": {
+    "volume": 2.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.5,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая JR5 5/1",
+    "rawText": "Объем : Oбъем 2,5 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=fd4a421b7ed2dae1bf67f8f2a6664fe9"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Duster I, H79 (2009 - 2021)",
+  "_type_label": "Duster I 1.6 (4x2) (2009 - 2015)",
+  "_type_key": "333298:3308387:33080660",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Duster I",
+  "generation": "H79",
+  "engine_code": "K4M",
+  "engine_name": "Duster I 1.6 (4x4)",
+  "engine_volume": 1.6,
+  "year_from": 2009,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Renault (RUS) · Duster I, H79 (2009 - 2021) · Duster I 1.6 (4x4) (2009 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 POWER 5W-50",
+     "8100 ECO-CLEAN 0W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 0W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 0W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 10W-40",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "4000 MOTION 15W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый",
+     "Предпочтительный",
+     "Предпочтительно, тяжелые условия эксплуатации"
+    ],
+    "interval": "Замена 7500 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.8,
+    "volumeType": "plain",
+    "label": "Двигатель K4M",
+    "rawText": "Объем : Oбъем 4,8 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Тяжелый Интервалы : Замена 7500 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 Режим : Предпочтительно, тяжелые условия эксплуатации Интервалы : Замена 7500 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40"
+   },
+   "manual": {
+    "volume": 2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая TL8 6/1",
+    "rawText": "Объем : Oбъем 2 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   },
+   "transfer": {
+    "volume": 0,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEARBOX 80W-90",
+     "HD 80W-90"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Режим : Нормальный Продукты : GEARBOX 80W-90 : HD 80W-90"
+   },
+   "diffRear": {
+    "volume": 0,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEARBOX 80W-90",
+     "HD 80W-90"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний (4x4)",
+    "rawText": "Режим : Нормальный Продукты : GEARBOX 80W-90 : HD 80W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=175d620c103deb22c91936fe31a6beb5"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Duster I, H79 (2009 - 2021)",
+  "_type_label": "Duster I 1.6 (4x4) (2009 - 2015)",
+  "_type_key": "333298:3308387:33080664",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Duster I",
+  "generation": "H79",
+  "engine_code": "H4M",
+  "engine_name": "Duster I SCe 115",
+  "engine_volume": null,
+  "year_from": 2015,
+  "year_to": 2021,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Renault (RUS) · Duster I, H79 (2009 - 2021) · Duster I SCe 115 (2015 - 2021)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 POWER 5W-50",
+     "8100 ECO-CLEAN 0W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 0W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 0W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 10W-40",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "4000 MOTION 15W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Предпочтительный"
+    ],
+    "interval": "Замена 15000 км",
+    "volumeService": 4.2,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель H4M",
+    "rawText": "Объем : Oбъем 4,2 л Сервисный Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40"
+   },
+   "manual": {
+    "volume": 2.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.5,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая JR5 5/1",
+    "rawText": "Объем : Oбъем 2,5 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=13eb00845bd5d513acb104809cdfeef7"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Duster I, H79 (2009 - 2021)",
+  "_type_label": "Duster I SCe 115 (2015 - 2021)",
+  "_type_key": "333298:3308387:33136671",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Duster I",
+  "generation": "H79",
+  "engine_code": "H4M",
+  "engine_name": "Duster I 1.6 SCe 115 (4x4)",
+  "engine_volume": 1.6,
+  "year_from": 2015,
+  "year_to": 2021,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Renault (RUS) · Duster I, H79 (2009 - 2021) · Duster I 1.6 SCe 115 (4x4) (2015 - 2021)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 POWER 5W-50",
+     "8100 ECO-CLEAN 0W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 0W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 0W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 10W-40",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "4000 MOTION 15W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Предпочтительный"
+    ],
+    "interval": "Замена 15000 км",
+    "volumeService": 4.2,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель H4M",
+    "rawText": "Объем : Oбъем 4,2 л Сервисный Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40"
+   },
+   "manual": {
+    "volume": 2.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.1,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая TL8 6/1",
+    "rawText": "Объем : Oбъем 2,1 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   },
+   "transfer": {
+    "volume": 0.3,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEARBOX 80W-90",
+     "HD 80W-90"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.3,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,3 л Режим : Нормальный Продукты : GEARBOX 80W-90 : HD 80W-90"
+   },
+   "diffRear": {
+    "volume": 0.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEARBOX 80W-90",
+     "HD 80W-90"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.8,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний (4x4)",
+    "rawText": "Объем : Oбъем 0,55-0,8 л Режим : Нормальный Продукты : GEARBOX 80W-90 : HD 80W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=112b8a44d3bb3d79d25b04af433d74bf"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Duster I, H79 (2009 - 2021)",
+  "_type_label": "Duster I 1.6 SCe 115 (4x4) (2015 - 2021)",
+  "_type_key": "333298:3308387:33136672",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Duster I",
+  "generation": "H79",
+  "engine_code": "F4R",
+  "engine_name": "Duster I 2.0 (4x2)",
+  "engine_volume": 2,
+  "year_from": 2009,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Renault (RUS) · Duster I, H79 (2009 - 2021) · Duster I 2.0 (4x2) (2009 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 POWER 5W-50",
+     "8100 ECO-CLEAN 0W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 0W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 0W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 10W-40",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "4000 MOTION 15W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый",
+     "Предпочтительный",
+     "Предпочтительно, тяжелые условия эксплуатации"
+    ],
+    "interval": "Замена 7500 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.4,
+    "volumeType": "plain",
+    "label": "Двигатель F4R",
+    "rawText": "Объем : Oбъем 5,4 л Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Тяжелый Интервалы : Замена 7500 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 Режим : Предпочтительно, тяжелые условия эксплуатации Интервалы : Замена 7500 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40"
+   },
+   "automatic": {
+    "volume": 3.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI",
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 3.5,
+    "volumeTotal": 6,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая DP2 4/1",
+    "rawText": "Объем : Oбъем 3,5 л Сервисный : Oбъем 6 л Общий объём Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF : ATF III"
+   },
+   "manual": {
+    "volume": 2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая TL4 6/1",
+    "rawText": "Объем : Oбъем 2 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=78cabc9d38befe030c010cb5e07be4e9"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Duster I, H79 (2009 - 2021)",
+  "_type_label": "Duster I 2.0 (4x2) (2009 - 2015)",
+  "_type_key": "333298:3308387:33080665",
+  "_warnings": []
+ },
+ {
+  "brand": "RENAULT",
+  "model": "Duster I",
+  "generation": "H79",
+  "engine_code": "F4R",
+  "engine_name": "Duster I 2.0 16V",
+  "engine_volume": 2,
+  "year_from": 2015,
+  "year_to": 2021,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Renault (RUS) · Duster I, H79 (2009 - 2021) · Duster I 2.0 16V (2015 - 2021)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 POWER 5W-50",
+     "8100 ECO-CLEAN 0W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 0W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 0W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-MAX 0W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 10W-40",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "4000 MOTION 15W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Предпочтительный"
+    ],
+    "interval": "Замена 15000 км",
+    "volumeService": 5.4,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель F4R",
+    "rawText": "Объем : Oбъем 5,4 л Сервисный Режим : Нормальный Интервалы : Замена 15000 км Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 POWER 5W-50 : 8100 ECO-CLEAN 0W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 0W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 0W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-MAX 0W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 10W-40 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 4000 MOTION 15W-50 Режим : Предпочтительный Интервалы : Замена 15000 км Продукты : 8100 ECO-CLEAN 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : 6100 SAVE-CLEAN 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40"
+   },
+   "automatic": {
+    "volume": 3.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI",
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 3.5,
+    "volumeTotal": 6,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая DP2 4/1",
+    "rawText": "Объем : Oбъем 3,5 л Сервисный : Oбъем 6 л Общий объём Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF : ATF III"
+   },
+   "manual": {
+    "volume": 2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER 75W-80",
+     "MOTYLGEAR 75W-80"
+    ],
+    "modes": [
+     "Нормальный"
+    ],
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая TL4 6/1",
+    "rawText": "Объем : Oбъем 2 л Режим : Нормальный Продукты : GEAR POWER 75W-80 : MOTYLGEAR 75W-80"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=9999abd8804073927f23c805fc25686b"
+  },
+  "_make_label": "Renault (RUS)",
+  "_model_label": "Duster I, H79 (2009 - 2021)",
+  "_type_label": "Duster I 2.0 16V (2015 - 2021)",
+  "_type_key": "333298:3308387:33136673",
+  "_warnings": []
  }
 ]
