@@ -141,62 +141,122 @@ function createCombo(container, { onChange }) {
 }
 
 /**
- * @param {{apiFetch: Function, onPick: (id:string) => void, sphere: {
+ * @param {{getCars: () => (Array|Promise<Array>), onPick: (id:string) => void, sphere: {
  *   setNodes: (nodes: {id:string,label:string}[]) => void,
  *   setVisible: (v: boolean) => void,
- *   resetRandom: () => Promise<void>,
+ *   resetRandom: () => void,
  * }}} deps
+ *
+ * Каскад марка → модель → объём считается целиком из снимка базы (getCars),
+ * без единого запроса к серверу — переключение тегов мгновенно.
  */
-export function initTagSearch({ apiFetch, onPick, sphere }) {
+export function initTagSearch({ getCars, onPick, sphere }) {
     const brandBox  = document.getElementById('tag-combo-brand');
     const modelBox  = document.getElementById('tag-combo-model');
     const volumeBox = document.getElementById('tag-combo-volume');
     const resultsEl = document.getElementById('tag-results');
 
     let state = { brand: '', model: '', volume: '' };
-    let brandsLoaded = false;
-    // Растущий счётчик — чтобы устаревший ответ (юзер быстро переключил выбор)
-    // не перезаписал уже более новое состояние.
-    let requestSeq = 0;
+    let allCars = [];   // снимок базы (заполняется в activate)
 
     const brandCombo = createCombo(brandBox, { onChange: onBrandChange });
     const modelCombo = createCombo(modelBox, { onChange: onModelChange });
     const volumeCombo = createCombo(volumeBox, { onChange: onVolumeChange });
 
-    async function loadBrands() {
-        try {
-            const brands = await apiFetch('/api/cars/tags/brands');
-            brandCombo.setOptions(brands.map(b => ({
-                value: b.brand, label: `${b.brand} (${b.count})`, search: b.brand,
-            })));
-            brandsLoaded = true;
-        } catch { /* пусто — список останется прежним/пустым */ }
+    // ── Производные списки из снимка (всё синхронно, повторяет SQL /tags/*) ──
+    function carsOfBrand(brand) {
+        const bl = brand.toLowerCase();
+        return allCars.filter(c => String(c.brand).toLowerCase() === bl);
     }
 
-    async function loadModels(brand) {
-        try {
-            const models = await apiFetch('/api/cars/tags/models?brand=' + encodeURIComponent(brand));
-            modelCombo.setOptions(models.map(m => ({
-                value: m.model,
-                label: `${m.model}${formatYears(m.year_from, m.year_to)} · ${m.count}`,
-                search: m.model,
-            })));
-        } catch { /* … */ }
+    function computeBrands() {
+        const counts = new Map();
+        for (const c of allCars) counts.set(c.brand, (counts.get(c.brand) || 0) + 1);
+        return [...counts.entries()]
+            .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+            .map(([brand, count]) => ({ brand, count }));
     }
 
-    async function loadVolumes(brand, model) {
-        try {
-            const volumes = await apiFetch(
-                '/api/cars/tags/volumes?brand=' + encodeURIComponent(brand) +
-                '&model=' + encodeURIComponent(model),
-            );
-            volumeCombo.setOptions(volumes.map(v => {
-                const codes = v.engine_codes && v.engine_codes.length ? ' · ' + v.engine_codes.join(', ') : '';
-                return v.engine_volume == null
-                    ? { value: NULL_VOLUME, label: `без объёма${codes} · ${v.count}`, search: 'без объёма ' + (v.engine_codes || []).join(' ') }
-                    : { value: String(v.engine_volume), label: `${v.engine_volume} л${codes} · ${v.count}`, search: v.engine_volume + ' ' + (v.engine_codes || []).join(' ') };
+    // year_to = null, если хоть одно поколение модели ещё в производстве
+    // (bool_or(year_to IS NULL) в SQL) — иначе max(year_to).
+    function computeModels(brand) {
+        const map = new Map();
+        for (const c of carsOfBrand(brand)) {
+            const m = map.get(c.model) || { yearFrom: Infinity, open: false, yearTo: -Infinity, count: 0 };
+            m.count++;
+            if (c.year_from != null) m.yearFrom = Math.min(m.yearFrom, Number(c.year_from));
+            if (c.year_to == null) m.open = true; else m.yearTo = Math.max(m.yearTo, Number(c.year_to));
+            map.set(c.model, m);
+        }
+        return [...map.entries()]
+            .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+            .map(([model, m]) => ({
+                model,
+                year_from: Number.isFinite(m.yearFrom) ? m.yearFrom : null,
+                year_to: m.open ? null : (Number.isFinite(m.yearTo) ? m.yearTo : null),
+                count: m.count,
             }));
-        } catch { /* … */ }
+    }
+
+    function computeVolumes(brand, model) {
+        const ml = model.toLowerCase();
+        const map = new Map();  // ключ: число объёма или '__null__'
+        for (const c of carsOfBrand(brand)) {
+            if (String(c.model).toLowerCase() !== ml) continue;
+            const vol = c.engine_volume == null ? null : Number(c.engine_volume);
+            const key = vol == null ? NULL_VOLUME : String(vol);
+            const e = map.get(key) || { engine_volume: vol, codes: new Set(), count: 0 };
+            e.count++;
+            if (c.engine_code) e.codes.add(c.engine_code);
+            map.set(key, e);
+        }
+        return [...map.values()]
+            .sort((a, b) => {          // engine_volume ASC, NULLS LAST
+                if (a.engine_volume == null) return 1;
+                if (b.engine_volume == null) return -1;
+                return a.engine_volume - b.engine_volume;
+            })
+            .map(e => ({ engine_volume: e.engine_volume, engine_codes: [...e.codes], count: e.count }));
+    }
+
+    // Отфильтрованный по текущим тегам список машин (порядок как в SQL).
+    function computeResults() {
+        const bl = state.brand.toLowerCase();
+        const ml = state.model.toLowerCase();
+        const vol = state.volume && state.volume !== NULL_VOLUME ? parseFloat(state.volume) : null;
+        return allCars.filter(c => {
+            if (String(c.brand).toLowerCase() !== bl) return false;
+            if (state.model && String(c.model).toLowerCase() !== ml) return false;
+            if (state.volume === NULL_VOLUME) return c.engine_volume == null;
+            if (vol != null) return c.engine_volume != null && Number(c.engine_volume) === vol;
+            return true;
+        }).sort((a, b) =>
+            String(a.brand).localeCompare(String(b.brand)) ||
+            String(a.model).localeCompare(String(b.model)) ||
+            (Number(a.year_from || 0) - Number(b.year_from || 0)));
+    }
+
+    function populateBrands() {
+        brandCombo.setOptions(computeBrands().map(b => ({
+            value: b.brand, label: `${b.brand} (${b.count})`, search: b.brand,
+        })));
+    }
+
+    function populateModels(brand) {
+        modelCombo.setOptions(computeModels(brand).map(m => ({
+            value: m.model,
+            label: `${m.model}${formatYears(m.year_from, m.year_to)} · ${m.count}`,
+            search: m.model,
+        })));
+    }
+
+    function populateVolumes(brand, model) {
+        volumeCombo.setOptions(computeVolumes(brand, model).map(v => {
+            const codes = v.engine_codes && v.engine_codes.length ? ' · ' + v.engine_codes.join(', ') : '';
+            return v.engine_volume == null
+                ? { value: NULL_VOLUME, label: `без объёма${codes} · ${v.count}`, search: 'без объёма ' + (v.engine_codes || []).join(' ') }
+                : { value: String(v.engine_volume), label: `${v.engine_volume} л${codes} · ${v.count}`, search: v.engine_volume + ' ' + (v.engine_codes || []).join(' ') };
+        }));
     }
 
     function renderResults(cars, total) {
@@ -228,37 +288,26 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
         });
     }
 
-    async function refreshResults() {
-        const seq = ++requestSeq;
-
+    // Всё синхронно — фильтруем снимок в памяти, никакой сети и гонок.
+    function refreshResults() {
         if (!state.brand) {
             resultsEl.innerHTML = '';
-            await sphere.resetRandom();
+            sphere.resetRandom();
             return;
         }
 
-        const params = new URLSearchParams();
-        params.set('brand', state.brand);
-        if (state.model) params.set('model', state.model);
-        if (state.volume) params.set('volume', state.volume);
-        params.set('limit', String(RESULTS_LIMIT));
+        const all = computeResults();
+        const total = all.length;
+        const cars = all.slice(0, RESULTS_LIMIT);
 
-        try {
-            const { total, cars } = await apiFetch('/api/cars/tags/results?' + params.toString());
-            if (seq !== requestSeq) return; // устарело — юзер уже выбрал дальше
-
-            renderResults(cars, total);
-            if (total > 0 && total < SPHERE_HIDE_THRESHOLD) {
-                sphere.setVisible(false);
-            } else if (cars.length) {
-                sphere.setNodes(cars.map(carNode));
-                sphere.setVisible(true);
-            } else {
-                sphere.setVisible(false);
-            }
-        } catch {
-            if (seq !== requestSeq) return;
-            resultsEl.innerHTML = '<div class="search-empty">Ошибка подключения к серверу</div>';
+        renderResults(cars, total);
+        if (total > 0 && total < SPHERE_HIDE_THRESHOLD) {
+            sphere.setVisible(false);
+        } else if (cars.length) {
+            sphere.setNodes(cars.map(carNode));
+            sphere.setVisible(true);
+        } else {
+            sphere.setVisible(false);
         }
     }
 
@@ -270,7 +319,7 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
         volumeCombo.setOptions([]);
         modelBox.classList.toggle('hidden', !value);
         volumeBox.classList.add('hidden');
-        if (value) loadModels(value);
+        if (value) populateModels(value);
         refreshResults();
     }
 
@@ -280,7 +329,7 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
         volumeCombo.reset();
         volumeCombo.setOptions([]);
         volumeBox.classList.toggle('hidden', !value);
-        if (value) loadVolumes(state.brand, value);
+        if (value) populateVolumes(state.brand, value);
         refreshResults();
     }
 
@@ -291,7 +340,12 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
 
     return {
         activate() {
-            if (!brandsLoaded) loadBrands();
+            // Снимок мог ещё грузиться (пользователь сразу нажал «Теги») —
+            // ждём его один раз, дальше всё мгновенно из памяти.
+            Promise.resolve(getCars()).then(cars => {
+                allCars = Array.isArray(cars) ? cars : [];
+                populateBrands();
+            }).catch(() => { /* пусто — список останется пустым */ });
         },
         deactivate() {
             state = { brand: '', model: '', volume: '' };
@@ -303,7 +357,6 @@ export function initTagSearch({ apiFetch, onPick, sphere }) {
             modelBox.classList.add('hidden');
             volumeBox.classList.add('hidden');
             resultsEl.innerHTML = '';
-            brandsLoaded = false;
             sphere.setVisible(true);
             sphere.resetRandom();
         },

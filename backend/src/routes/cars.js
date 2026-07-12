@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool, { query } from '../db/client.js';
-import { normalize, expandQuery, buildNameFields } from '../search/translit.js';
+import { normalize, expandQuery, buildNameFields } from '../../../shared/translit.js';
 import { requireRole } from '../auth/middleware.js';
 import { syncAchievementsSafe } from '../achievements/achievements.js';
 
@@ -556,6 +556,34 @@ router.get('/tags/results', async (req, res) => {
     res.json({ total: total.rows[0].n, cars: rows.rows });
   } catch (err) {
     console.error('GET /api/cars/tags/results', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/cars/index ───────────────────────────────────────────────────────
+// Компактный снимок всей базы для клиентского поиска и режима «Теги»: сайт
+// тянет его один раз и дальше фильтрует всё в браузере — ноль запросов на
+// символ/клик. Отдаём только поля, нужные для карточек, ранкера (name_normalized
+// уже посчитан в БД) и каскада тегов. version = count + ':' + max(updated_at) —
+// дешёвый валидатор, по которому клиент решает, устарел ли его снимок.
+// Должен стоять ВЫШЕ '/:id', иначе тот перехватит 'index' как id.
+
+router.get('/index', async (_req, res) => {
+  try {
+    const [rows, meta] = await Promise.all([
+      query(
+        `SELECT id, brand, model, generation, engine_code, engine_volume,
+                kw, bhp, year_from, year_to, name_normalized
+           FROM cars
+          ORDER BY brand, model, year_from`,
+      ),
+      query('SELECT count(*)::int AS n, max(updated_at) AS max_updated FROM cars'),
+    ]);
+    const { n, max_updated } = meta.rows[0];
+    const version = `${n}:${max_updated ? new Date(max_updated).getTime() : 0}`;
+    res.json({ version, cars: rows.rows });
+  } catch (err) {
+    console.error('GET /api/cars/index', err);
     res.status(500).json({ error: err.message });
   }
 });

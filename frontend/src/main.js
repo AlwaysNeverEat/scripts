@@ -7,6 +7,7 @@ import { initPublicProfilePage } from './publicProfile.js';
 import { initTopModal } from './top.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
+import { rankCars, augmentCars } from '../../shared/carSearch.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -96,6 +97,7 @@ function enterApp() {
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     window.addEventListener('hashchange', renderRoute);
     renderRoute();
+    loadSnapshot();   // прогреваем базу для поиска и тегов
     loadSphere();
 }
 
@@ -172,26 +174,55 @@ async function renderRoute() {
     }
 }
 
+// ── Снимок базы (мгновенный поиск и теги) ──────────────────────────────────────
+// Тянем всю (небольшую) базу один раз и фильтруем в браузере — никакой сети на
+// каждый символ/клик. Обновляем не чаще раза в минуту и при возврате на вкладку.
+const SNAPSHOT_TTL_MS = 60_000;
+let snapshot = { version: null, cars: [] };
+let snapshotFetchedAt = 0;
+let snapshotPromise = null;
+
+function loadSnapshot(force = false) {
+    const fresh = snapshot.cars.length && (Date.now() - snapshotFetchedAt < SNAPSHOT_TTL_MS);
+    if (!force && fresh) return Promise.resolve(snapshot);
+    if (!snapshotPromise) {
+        snapshotPromise = apiFetch('/api/cars/index')
+            .then(data => {
+                // augmentCars досчитывает search_text (синонимы/транслит имени) —
+                // один раз на снимок, а не на каждый ввод.
+                snapshot = { version: data.version, cars: augmentCars(data.cars || []) };
+                snapshotFetchedAt = Date.now();
+                return snapshot;
+            })
+            .finally(() => { snapshotPromise = null; });
+    }
+    return snapshotPromise;
+}
+
+// Обновляем снимок при возврате на вкладку (не чаще, чем раз в TTL).
+document.addEventListener('visibilitychange', () => { if (!document.hidden && unlocked) loadSnapshot(); });
+window.addEventListener('focus', () => { if (unlocked) loadSnapshot(); });
+
 // ── Search ────────────────────────────────────────────────────────────────────
 const searchInput   = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
 
-let searchTimer = null;
-
 searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimer);
     const q = searchInput.value.trim();
     if (!q) { searchResults.innerHTML = ''; return; }
-    searchTimer = setTimeout(() => doSearch(q), 250);
+    runLocalSearch(q);
 });
 
-async function doSearch(q) {
-    try {
-        const results = await apiFetch('/api/cars/search?q=' + encodeURIComponent(q));
-        renderResults(results);
-    } catch {
-        searchResults.innerHTML = '<div class="search-empty">Ошибка подключения к серверу</div>';
+async function runLocalSearch(q) {
+    // Обычный путь — снимок уже в памяти: ранжируем синхронно, мгновенно.
+    if (!snapshot.cars.length) {
+        searchResults.innerHTML = '<div class="search-empty">Загрузка базы…</div>';
+        try { await loadSnapshot(); }
+        catch { searchResults.innerHTML = '<div class="search-empty">Ошибка подключения к серверу</div>'; return; }
+        // Пока грузилось, ввод мог измениться — не перетираем более свежий запрос.
+        if (searchInput.value.trim() !== q) return;
     }
+    renderResults(rankCars(q, snapshot.cars));
 }
 
 function renderResults(cars) {
@@ -244,16 +275,22 @@ function carNode(c) {
     return { id: c.id, label: [c.brand, c.model, c.generation].filter(Boolean).join(' ') };
 }
 
-async function fetchRandomNodes(limit = 50) {
-    const cars = await apiFetch('/api/cars/random?limit=' + limit);
-    return cars.map(carNode);
+// Случайная выборка узлов для сферы — из снимка, без обращения к серверу.
+function sampleNodes(limit = 50) {
+    const arr = snapshot.cars.slice();
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr.slice(0, limit).map(carNode);
 }
 
 async function loadSphere() {
     const canvas = document.getElementById('sphere-canvas');
     if (!canvas) return;
     try {
-        const nodes = await fetchRandomNodes();
+        await loadSnapshot();
+        const nodes = sampleNodes();
         if (!nodes.length) return;
         sphereController = startSphere(canvas, nodes);
     } catch { /* сфера — украшение, без неё страшного нет */ }
@@ -266,7 +303,7 @@ const searchBoxEl   = document.querySelector('.search-box');
 const tagSearchEl   = document.getElementById('tag-search');
 
 const tagSearch = initTagSearch({
-    apiFetch,
+    getCars: () => loadSnapshot().then(s => s.cars),
     onPick: id => {
         searchResults.innerHTML = '';
         location.hash = '#/car/' + id;
@@ -274,10 +311,9 @@ const tagSearch = initTagSearch({
     sphere: {
         setNodes: nodes => sphereController?.setNodes(nodes),
         setVisible: v => sphereController?.setVisible(v),
-        async resetRandom() {
-            try {
-                sphereController?.setNodes(await fetchRandomNodes());
-            } catch { /* сфера — украшение, без неё страшного нет */ }
+        resetRandom() {
+            try { sphereController?.setNodes(sampleNodes()); }
+            catch { /* сфера — украшение, без неё страшного нет */ }
         },
     },
 });

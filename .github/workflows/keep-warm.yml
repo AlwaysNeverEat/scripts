@@ -1,0 +1,41 @@
+name: Keep backend warm
+
+# Render free-tier засыпает после 15 мин простоя, и первый запрос потом ждёт
+# 30–60 с — из-за этого «просыпается» и загрузка снимка базы, и логин. Пингуем
+# /health раз в ~10 минут, чтобы сервис не уходил в сон.
+#
+# Требуется repository variable VITE_API_BASE (тот же, что для deploy-pages) —
+# URL backend'а на Render без слэша в конце. /health вне /api, поэтому API-ключ
+# не нужен.
+#
+# Оговорки: расписание GitHub Actions — best-effort (может опаздывать на 5–15
+# мин под нагрузкой), а всегда-включённый сервис тратит бесплатные часы Render
+# (750 ч/мес хватает на один сервис). Для гарантии лучше внешний uptime-пингер.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        env:
+          API_BASE: ${{ vars.VITE_API_BASE }}
+        run: |
+          if [ -z "$API_BASE" ]; then
+            echo "VITE_API_BASE не задан — пропускаю пинг."
+            exit 0
+          fi
+          # --max-time с запасом на холодный старт; повторы, если сервис ещё встаёт.
+          curl -fsS --max-time 90 --retry 3 --retry-delay 15 "$API_BASE/health"
+          echo ""  # перенос строки после ответа {"ok":true}

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/client.js';
 import { requireRole } from '../auth/middleware.js';
+import { clearSessionCache } from '../auth/sessions.js';
 
 const router = Router();
 
@@ -122,6 +123,7 @@ router.post('/:id/ban', requireRole('mod', 'admin'), async (req, res) => {
     );
     if (banned) {
       await query('DELETE FROM sessions WHERE user_id = $1', [target.id]);
+      clearSessionCache(); // бан действует сразу, а не в пределах TTL кэша
     }
     res.json({ ok: true, banned });
   } catch (err) {

@@ -4,7 +4,7 @@
 // Идёт через POST /api/cars? Нет — напрямую в БД, чтобы не зависеть от API-ключа.
 
 import { query } from '../src/db/client.js';
-import { buildNameFields } from '../src/search/translit.js';
+import { buildNameFields } from '../../shared/translit.js';
 
 const CARS = [
     { brand: 'FORD', model: 'FOCUS', engine_code: 'IQDB', engine_volume: 1.6, year_from: 2011, year_to: 2019, bhp: 105, fuel_type: '01',
