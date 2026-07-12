@@ -16,6 +16,9 @@ frontend/.vite/
 dist/
 build/
 
+# ── Кэш скрейперов импорта (тысячи HTML/JSON, не для репозитория) ─
+data/import/cache/
+
 # ── Logs ────────────────────────────────────────────────────────
 *.log
 npm-debug.log*

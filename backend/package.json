@@ -15,5 +15,9 @@
     "express": "^4.19.2",
     "multer": "^2.2.0",
     "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "cheerio": "^1.2.0",
+    "undici": "^8.7.0"
   }
 }
