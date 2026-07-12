@@ -50,10 +50,18 @@ function renderView(record, ctx) {
         years,
     ].filter(Boolean).map(c => `<span class="head-chip">${c}</span>`).join('');
 
+    // Каждому типу данных — своя подписанная секция, чтобы ничего не «висело»
+    // в шапке безымянным (теги, флаги и ссылки не путались между собой).
+    const section = (label, bodyHtml) => bodyHtml ? `
+        <div class="head-sec">
+            <div class="head-sec-lbl">${label}</div>
+            <div class="head-sec-body">${bodyHtml}</div>
+        </div>` : '';
+
     const flags = activeFlags(record.service_flags);
     const flagsHtml = flags.length
         ? `<div class="head-flags">${flags.map(f =>
-            `<span class="head-flag${f.warn ? ' head-flag-warn' : ''}">${esc(f.label)}</span>`).join('')}</div>`
+            `<span class="head-flag${f.warn ? ' head-flag-warn' : ''}">${f.warn ? '⚠ ' : ''}${esc(f.label)}</span>`).join('')}</div>`
         : '';
 
     const notesHtml = record.notes
@@ -69,9 +77,7 @@ function renderView(record, ctx) {
     const links = record.source_links || {};
     const srcBtns = SOURCE_SITES.filter(s => links[s]).map(s =>
         `<a class="src-btn src-btn-${s}" href="${esc(links[s])}" target="_blank" rel="noopener">${esc(SOURCE_LABELS[s])} ↗</a>`).join('');
-    const sourcesHtml = srcBtns
-        ? `<div class="head-sources"><span class="head-sources-lbl">Страницы машины:</span>${srcBtns}</div>`
-        : '';
+    const sourcesHtml = srcBtns ? `<div class="head-sources">${srcBtns}</div>` : '';
 
     const rec = Array.isArray(record.recommended_oils) ? record.recommended_oils : [];
     const recHtml = rec.length ? `
@@ -87,18 +93,20 @@ function renderView(record, ctx) {
         <div class="head-card">
             <div class="head-title-row">
                 <h2 class="head-title">${esc(record.brand)} ${esc(record.model)}${record.generation ? ` <span class="head-gen">${esc(record.generation)}</span>` : ''}</h2>
-                <span style="display:flex;gap:8px;flex-wrap:wrap">
+                <span class="head-actions">
                     <button class="btn btn-sec" id="btn-edit-car">Нашли ошибку?</button>
                     ${isMod ? '<button class="btn btn-sec" id="btn-assign-car">Назначить ответственного</button>' : ''}
                     ${isMod ? '<button class="btn btn-sec btn-danger" id="btn-delete-car">Удалить машину</button>' : ''}
                 </span>
             </div>
             <div class="head-chips">${chips}</div>
-            ${sourcesHtml}
-            ${flagsHtml}
-            ${notesHtml}
-            ${tagsHtml}
-            ${recHtml}
+            <div class="head-secs">
+                ${section('Страницы машины', sourcesHtml)}
+                ${section('Особенности обслуживания', flagsHtml)}
+                ${section('Заметка', notesHtml)}
+                ${section('Теги', tagsHtml)}
+                ${section('История', recHtml)}
+            </div>
         </div>
     `;
 }

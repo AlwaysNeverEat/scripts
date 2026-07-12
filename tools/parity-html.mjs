@@ -60,7 +60,7 @@ const newFactory = new Function('GM_getValue', 'S', `
     let calcState = null;
     const { roundL, normApproval, tokenSet, anyMatch, splitOilApprovals,
             matchOilToReglament, getShopOils, getDefaults, getReglamentForBrand,
-            sharedCalcForAggregate } = S;
+            sharedCalcForAggregate, manualWarnText } = S;
     ${NEW_FNS.map(n => extractFunction(appSrc, n)).join('\n')}
     return { setState(s){calcState=s;}, calc(agg){return calcForAggregate(agg);} };
 `);
@@ -72,6 +72,7 @@ const sharedBag = {
     getShopOils: O.getShopOils, getDefaults: O.getDefaults,
     getReglamentForBrand: O.getReglamentForBrand,
     sharedCalcForAggregate: C.calcForAggregate,
+    manualWarnText: C.manualWarnText,
 };
 
 // ── Фикстуры ─────────────────────────────────────────────────────────────────
@@ -122,7 +123,9 @@ const CASES = [
       state: makeState({ atpType:'partial', cvtFilterCoarse:true, cvtFilterFine:true, selected:new Set(['automatic']) }) },
     { name: 'мкпп (gear) обычная',
       car: { makeShort:'LADA', modelShort:'VESTA', cacheKey:'k6', fuelType:'01', engineCode:'21129' },
-      agg: () => ({ key:'manual', label:'МКПП', group:'gear', volume:2.2 }),
+      // 75W-90 в продуктах — сознательно НЕ триггерит пост-рефакторный варн
+      // МКПП (70W/75W-85/80W-90/LS/пусто), см. shared/calculator.test.js
+      agg: () => ({ key:'manual', label:'МКПП', group:'gear', volume:2.2, motulProducts:['Motul MOTYLGEAR 75W-90'] }),
       approvals: [],
       state: makeState({ selected:new Set(['manual']) }) },
     { name: 'мкпп HIGH GEAR',

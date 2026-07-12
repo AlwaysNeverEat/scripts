@@ -492,6 +492,42 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     return { mid, spot };
 }
 
+// ── МКПП: спецификации, под которые у нас нет масла ──────────────────────────
+// Для МКПП в наличии только 75W-90 (ZIC GFT / ROLF Professional). Если Motul
+// требует 70W, 75W-85, 80W-90 или LS-масло (limited slip — «LS» может стоять
+// и до, и после вязкости, важен сам факт), предложить нечего. Пустой список
+// продуктов = Motul ответил «products not found» (парсер такие строки
+// отбрасывает) — тоже предложить нечего.
+
+const MANUAL_UNSUPPORTED_SPECS = [
+    { re: /\b70W\b/i,      label: '70W' },
+    { re: /75W[\s-]?85/i,  label: '75W-85' },
+    { re: /80W[\s-]?90/i,  label: '80W-90' },
+    { re: /\bLS\b/i,       label: 'LS (limited slip)' },
+];
+
+export function manualOilWarn(agg) {
+    if (agg.key !== 'manual') return null;
+    const products = agg.motulProducts || agg.approvals || [];
+    if (!products.length) return { reason: 'notFound' };
+    for (const p of products) {
+        for (const spec of MANUAL_UNSUPPORTED_SPECS) {
+            if (spec.re.test(String(p))) {
+                return { reason: 'spec', spec: spec.label, product: String(p) };
+            }
+        }
+    }
+    return null;
+}
+
+export function manualWarnText(warn) {
+    if (!warn) return '';
+    if (warn.reason === 'notFound') {
+        return 'Motul не дал продуктов для МКПП (product not found) — предложить нечего, перевести на мастера';
+    }
+    return `Motul требует ${warn.spec} («${warn.product}») — такого масла в наличии нет, предложить нечего, перевести на мастера`;
+}
+
 // ── Aggregate cost calculation ────────────────────────────────────────────────
 // Returns { costs, vCalc, formula, volumeStr, oils } — NO HTML.
 // For 200k+ mileage the userscript/frontend shows only costs[0].
@@ -572,6 +608,13 @@ export function calcForAggregate(agg, calcState, carApprovals) {
             agg.atfWarn = picked.noMatch;
         }
     } else {
+        const mkppWarn = manualOilWarn(agg);
+        if (mkppWarn) {
+            agg.mkppWarn = mkppWarn;
+            return { mkppWarn, costs: [], vCalc, formula, volumeStr,
+                     vService, motulVol, overrideUsed };
+        }
+        agg.mkppWarn = null;
         const isCvtGear = agg.rawText && /CVT/i.test(agg.rawText);
         const defs = isCvtGear ? defaults.cvt : defaults.gear75W90;
         oil1 = defs[0]; oil2 = defs[1];

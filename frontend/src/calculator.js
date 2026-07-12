@@ -3,7 +3,7 @@ import {
     roundL, getAggregates, shouldDefaultToPartial,
     filtersTotal, anyFilterEnabled, calcForAggregate,
     pickAtfOils, totalAggLabel, totalOilLabel, computeTotalSum,
-    splitOilApprovals, matchOilToReglament,
+    splitOilApprovals, matchOilToReglament, manualWarnText,
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
 
@@ -382,19 +382,25 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                 <button class="chip${calcState.atpType === 'partial' ? ' active' : ''}" data-atp="partial">частичная</button>
                 <button class="chip${calcState.atpType === 'full'    ? ' active' : ''}" data-atp="full">полная (150%)</button>
             </div>
-            <div class="ctrl-row">
+            <div class="atp-flags">
                 ${isCvt ? `
-                    <label class="chk-label"><input type="checkbox" data-atp-flag="cvtFilterCoarse" ${calcState.cvtFilterCoarse?'checked':''}/> Фильтр грубый (+1700₽)</label>
-                    <label class="chk-label"><input type="checkbox" data-atp-flag="cvtFilterFine"   ${calcState.cvtFilterFine?'checked':''}/> Фильтр тонкий (+3350₽)</label>
-                    <label class="chk-label"><input type="checkbox" data-atp-flag="cvtAtfSp3"       ${calcState.cvtAtfSp3?'checked':''}/> АТФ SP-III (старый вариатор — только ROLF Professional ATF Multi)</label>
+                    <label class="chk-label"><input type="checkbox" data-atp-flag="cvtFilterCoarse" ${calcState.cvtFilterCoarse?'checked':''}/> <span>Фильтр грубый <b>+1700₽</b></span></label>
+                    <label class="chk-label"><input type="checkbox" data-atp-flag="cvtFilterFine"   ${calcState.cvtFilterFine?'checked':''}/> <span>Фильтр тонкий <b>+3350₽</b></span></label>
+                    <label class="chk-label"><input type="checkbox" data-atp-flag="cvtAtfSp3"       ${calcState.cvtAtfSp3?'checked':''}/> <span>АТФ SP-III <span class="atp-flag-note">старый вариатор — только ROLF Professional ATF Multi</span></span></label>
                 ` : `
-                    <label class="chk-label"><input type="checkbox" data-atp-flag="atpFilter" ${calcState.atpFilter?'checked':''}/> Фильтр (+1700₽)</label>
+                    <label class="chk-label"><input type="checkbox" data-atp-flag="atpFilter" ${calcState.atpFilter?'checked':''}/> <span>Фильтр <b>+1700₽</b></span></label>
                 `}
             </div>
         `);
         if (calc.costs && agg.atfWarn) {
             parts.push('<div class="warn-box">подходящих масел в наличии нет — перевести на мастера</div>');
         }
+    }
+
+    // МКПП: Motul требует 70W / 75W-85 / 80W-90 / LS, либо продуктов нет вовсе
+    // (product not found) — предложить нечего, вместо масел только варн.
+    if (calc.mkppWarn) {
+        parts.push(`<div class="warn-box">⚠ ${esc(manualWarnText(calc.mkppWarn))}</div>`);
     }
 
     // Engine: flush formula box
@@ -415,8 +421,13 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
     if (calc.costs && calc.costs.length) {
         const mileage = calcState.mileage;
         const displayedCosts = mileage === '>=200' ? calc.costs.slice(0, 1) : calc.costs;
+        const allCandidates = agg.allCandidates || [];
+        const isPickerOpen = calcState.showOilPicker === agg.key;
 
         parts.push(displayedCosts.map((c, i) => {
+            // Первое (не-SPOT) масло двс — сама карточка открывает выбор замены
+            const canPick = agg.group === 'engine' && i === 0 && !c.oil.isSpot &&
+                            allCandidates.length > 1;
             const { matched, others, hier } = splitOilApprovals(c.oil.a || [], carApprovals);
             const regMatches = agg.group === 'engine' ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
             const regMark = regMatches.length ? `<span class="reg-mark" title="${esc(regMatches.map(m => m.tag + (m.desc ? ': ' + m.desc : '')).join(', '))}"></span>` : '';
@@ -438,18 +449,21 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                     : ' + 550₽ (картер)')
                 : '';
 
+            const pickHint = canPick
+                ? `<div class="oil-pick-hint">${isPickerOpen ? '▴ скрыть список' : `⇄ выбрать другое масло (${allCandidates.length})`}</div>`
+                : '';
+
             return `
-                <div class="oil-option${i === 0 ? ' selected' : ''}" data-oil-pick="${agg.key}" data-oil-idx="${i}">
+                <div class="oil-option${i === 0 ? ' selected' : ''}${canPick ? ' oil-option-pick' : ''}"${canPick ? ` data-picker-toggle="${agg.key}"` : ''}>
                     <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
                     <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b>${sumpSuffix}</div>
                     ${oilApprHtml}
+                    ${pickHint}
                 </div>
             `;
         }).join(''));
 
-        // Oil picker for engine oils
-        const allCandidates = agg.allCandidates || [];
-        const isPickerOpen = calcState.showOilPicker === agg.key;
+        // Oil picker for engine oils — открывается кликом по первой карточке
         if (agg.group === 'engine' && allCandidates.length > 1) {
             if (isPickerOpen) {
                 parts.push(`
@@ -474,8 +488,6 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                         <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
                     </div>
                 `);
-            } else {
-                parts.push(`<button class="btn-pick-oil" data-picker-open="${agg.key}">выбрать масло (${allCandidates.length})</button>`);
             }
         }
     }
@@ -679,9 +691,10 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         };
     });
 
-    // Oil approval expand ("+ N ещё")
+    // Oil approval expand ("+ N ещё") — клик не должен открывать пикер карточки
     container.querySelectorAll('[data-oil-appr]').forEach(btn => {
-        btn.onclick = () => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
             const k = btn.dataset.oilAppr;
             if (calcState.expandedOilApp.has(k)) calcState.expandedOilApp.delete(k);
             else calcState.expandedOilApp.add(k);
@@ -697,9 +710,13 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         chk.onchange = () => { calcState[chk.dataset.atpFlag] = chk.checked; rerender(); };
     });
 
-    // Oil picker open/close/pick
-    container.querySelectorAll('[data-picker-open]').forEach(btn => {
-        btn.onclick = () => { calcState.showOilPicker = btn.dataset.pickerOpen; rerender(); };
+    // Oil picker open/close/pick — открывается кликом по первой карточке масла
+    container.querySelectorAll('[data-picker-toggle]').forEach(el => {
+        el.onclick = () => {
+            const key = el.dataset.pickerToggle;
+            calcState.showOilPicker = calcState.showOilPicker === key ? null : key;
+            rerender();
+        };
     });
     container.querySelectorAll('[data-picker-close]').forEach(btn => {
         btn.onclick = () => { calcState.showOilPicker = null; rerender(); };
@@ -714,20 +731,6 @@ function bindEvents(container, car, data, calcState, carApprovals) {
             const oil = (agg.allCandidates || [])[idx];
             if (oil) calcState.oilOverride[key + '_mid'] = oil.b + '_' + oil.n;
             calcState.showOilPicker = null;
-            rerender();
-        };
-    });
-
-    // Oil option click (select oil1 vs oil2)
-    container.querySelectorAll('[data-oil-pick]').forEach(el => {
-        el.onclick = () => {
-            const key = el.dataset.oilPick;
-            const idx = parseInt(el.dataset.oilIdx);
-            const agg = getAggregates(data).find(a => a.key === key);
-            if (!agg) return;
-            const calc = calcForAggregate(agg, calcState, carApprovals);
-            const oil = calc.costs[idx]?.oil;
-            if (oil) calcState.oilOverride[key + '_mid'] = oil.b + '_' + oil.n;
             rerender();
         };
     });

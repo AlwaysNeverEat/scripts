@@ -175,7 +175,9 @@ const CASES = [
         car: { makeShort: 'FORD', modelShort: 'KUGA', engineName: 'Duratec 2.5', yearFrom: 2012, bhp: 150, cacheKey: 'k4', fuelType: '01', engineCode: 'HYDB' },
         data: {
             engine: { volumeService: 5.3, filterVolume: 0.2 },
-            manual: { volumeTotal: 2.2, isSemiAuto: true, motulProducts: [] },
+            // 75W-90 в продуктах — сознательно НЕ триггерит пост-рефакторный
+            // варн МКПП (70W/75W-85/80W-90/LS/пусто), см. calculator.test.js
+            manual: { volumeTotal: 2.2, isSemiAuto: true, motulProducts: ['Motul MOTYLGEAR 75W-90'] },
             transfer: { volumeTotal: 0.5 },
             diffRear: { volumeTotal: 0.8 },
         },

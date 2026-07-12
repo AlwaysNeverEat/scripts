@@ -337,7 +337,22 @@ input, button, select, textarea { font-family: inherit; }
 }
 .head-title { font-size: clamp(19px, 3vw, 24px); font-weight: 700; }
 .head-gen   { font-size: 0.6em; color: var(--sub); font-weight: 500; }
+.head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .head-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+
+/* Секции шапки: у каждого типа данных — свой подписанный блок с разделителем */
+.head-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.head-sec-lbl {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin-bottom: 8px;
+}
+/* Внутри секций блоки больше не носят собственные отступы шапки */
+.head-sec .head-flags, .head-sec .head-notes, .head-sec .head-tags,
+.head-sec .head-sources, .head-sec .head-rec { margin-top: 0; }
 .head-chip {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -375,6 +390,8 @@ input, button, select, textarea { font-family: inherit; }
   font-size: 12px;
   color: var(--sub);
 }
+/* «#» перед словом — сразу видно, что это тег, а не случайный текст */
+.head-tag::before { content: '#'; opacity: .55; margin-right: 2px; }
 /* ── Страницы машины (сурс-ссылки) ──────────────────────────────── */
 .head-sources {
   display: flex;
@@ -383,7 +400,6 @@ input, button, select, textarea { font-family: inherit; }
   gap: 8px;
   margin-top: 14px;
 }
-.head-sources-lbl { font-size: 12px; color: var(--sub); margin-right: 2px; }
 .src-btn {
   display: inline-flex;
   align-items: center;
@@ -653,6 +669,14 @@ input[data-edit-filter-absent]:checked::after {
 .atp-ctrl { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .atp-ctrl .chip { border-radius: 8px; padding: 6px 12px; font-size: 12px; }
 
+/* Опции коробки (фильтры, SP-III) — колонкой с ровными отступами,
+   а не вперемешку в одну строку */
+.atp-flags { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.atp-flags .chk-label { align-items: flex-start; }
+.atp-flags .chk-label input[type="checkbox"] { margin-top: 1px; }
+.atp-flags .chk-label b { color: var(--accent); font-weight: 600; }
+.atp-flag-note { display: block; font-size: 11px; color: var(--sub); margin-top: 2px; }
+
 /* Варианты масел */
 .oil-option {
   background: var(--bg2);
@@ -660,11 +684,20 @@ input[data-edit-filter-absent]:checked::after {
   border-radius: 12px;
   padding: 12px 14px;
   margin-bottom: 8px;
-  cursor: pointer;
   transition: border-color .1s;
 }
-.oil-option:hover { border-color: oklch(0.4 0.03 252); }
 .oil-option.selected { border-color: var(--accent); }
+/* Первая карточка двс сама открывает выбор замены масла */
+.oil-option-pick { cursor: pointer; }
+.oil-option-pick:hover { border-color: oklch(0.4 0.03 252); }
+.oil-pick-hint {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 11.5px;
+  color: var(--sub);
+}
+.oil-option-pick:hover .oil-pick-hint { color: var(--accent); }
 /* Notable существует только в 400 — жирность не синтезируем */
 .oil-name  { font-size: 13.5px; font-weight: 400; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .visc-pill {
@@ -708,18 +741,6 @@ input[data-edit-filter-absent]:checked::after {
 .approvals-block { padding: 0 18px 12px; }
 
 /* Пикер масла */
-.btn-pick-oil {
-  background: transparent;
-  border: 1px dashed var(--border);
-  color: var(--sub);
-  border-radius: 8px;
-  padding: 8px;
-  width: 100%;
-  font-size: 12px;
-  cursor: pointer;
-  margin-bottom: 8px;
-}
-.btn-pick-oil:hover { border-color: var(--accent); color: var(--accent); }
 .oil-picker {
   background: var(--bg2);
   border: 1px solid var(--accent);
