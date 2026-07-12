@@ -265,14 +265,14 @@ export function initTagSearch({ getCars, onPick, sphere }) {
 
     function populateBrands() {
         brandCombo.setOptions(computeBrands().map(b => ({
-            value: b.brand, label: `${b.brand} (${b.count})`, search: b.brand,
+            value: b.brand, label: b.brand, search: b.brand,
         })));
     }
 
     function populateModels(brand) {
         modelCombo.setOptions(computeModels(brand).map(m => ({
             value: m.key,
-            label: `${m.model}${formatYears(m.year_from, m.year_to)} · ${m.count}`,
+            label: `${m.model}${formatYears(m.year_from, m.year_to)}`,
             search: m.model,
         })));
     }
@@ -281,8 +281,8 @@ export function initTagSearch({ getCars, onPick, sphere }) {
         volumeCombo.setOptions(computeVolumes(brand, modelKey).map(v => {
             const codes = v.engine_codes && v.engine_codes.length ? ' · ' + v.engine_codes.join(', ') : '';
             return v.engine_volume == null
-                ? { value: NULL_VOLUME, label: `без объёма${codes} · ${v.count}`, search: 'без объёма ' + (v.engine_codes || []).join(' ') }
-                : { value: String(v.engine_volume), label: `${v.engine_volume} л${codes} · ${v.count}`, search: v.engine_volume + ' ' + (v.engine_codes || []).join(' ') };
+                ? { value: NULL_VOLUME, label: `без объёма${codes}`, search: 'без объёма ' + (v.engine_codes || []).join(' ') }
+                : { value: String(v.engine_volume), label: `${v.engine_volume} л${codes}`, search: v.engine_volume + ' ' + (v.engine_codes || []).join(' ') };
         }));
     }
 
