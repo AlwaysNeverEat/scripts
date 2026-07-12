@@ -10,6 +10,32 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+// Короткий кэш результата проверки сессии. verifySessionToken делает 2 запроса
+// к БД (sessions + loadPublicUser) на КАЖДЫЙ /api/* — это заметный налог на
+// загрузку снимка базы, страницу машины и юзерскрипт. Держим результат ~30 с;
+// logout инвалидирует запись сразу (destroySession), а бан/полночь МСК
+// применяются не позже TTL — приемлемая задержка для этих редких событий.
+const SESSION_CACHE_TTL_MS = 30_000;
+const sessionCache = new Map(); // tokenHash → { result, expires }
+
+function cacheGet(tokenHash) {
+  const hit = sessionCache.get(tokenHash);
+  if (!hit) return undefined;
+  if (Date.now() > hit.expires) { sessionCache.delete(tokenHash); return undefined; }
+  return hit.result;
+}
+
+function cacheSet(tokenHash, result) {
+  sessionCache.set(tokenHash, { result, expires: Date.now() + SESSION_CACHE_TTL_MS });
+}
+
+// Полный сброс кэша — для действий, что инвалидируют сессии не по токену, а по
+// пользователю (бан удаляет все сессии юзера через DELETE ... WHERE user_id).
+// Кэш маленький, а бан редок — проще сбросить весь, чем вести обратный индекс.
+export function clearSessionCache() {
+  sessionCache.clear();
+}
+
 export async function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(token);
@@ -58,6 +84,16 @@ export async function loadPublicUser(userId) {
 export async function verifySessionToken(token) {
   if (!token) return null;
   const tokenHash = hashToken(token);
+
+  const cached = cacheGet(tokenHash);
+  if (cached !== undefined) return cached;
+
+  const result = await verifySessionTokenUncached(tokenHash);
+  cacheSet(tokenHash, result);
+  return result;
+}
+
+async function verifySessionTokenUncached(tokenHash) {
   const r = await query(
     'SELECT id, user_id, created_at FROM sessions WHERE token_hash = $1',
     [tokenHash],
@@ -78,7 +114,9 @@ export async function verifySessionToken(token) {
 // это идемпотентная очистка, а не проверка доступа.
 export async function destroySession(token) {
   if (!token) return;
-  await query('DELETE FROM sessions WHERE token_hash = $1', [hashToken(token)]);
+  const tokenHash = hashToken(token);
+  sessionCache.delete(tokenHash); // logout действует сразу, не ждёт TTL
+  await query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]);
 }
 
 export function parseBearerToken(header) {
