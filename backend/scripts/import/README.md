@@ -47,7 +47,16 @@ node scripts/import/scrape-rolf.js --force    # пересобрать даже 
 DATABASE_URL=postgres://... node scripts/import/import-cars.js --dry-run
 DATABASE_URL=postgres://... node scripts/import/import-cars.js
 DATABASE_URL=postgres://... node scripts/import/import-cars.js --limit 100
+DATABASE_URL=postgres://... node scripts/import/import-cars.js --user vasya   # начислить машины на юзера
 ```
+
+`--user <login>` — машины записываются на пользователя сайта: `created_by` =
+его display_name + событие `added` в `car_events`, так что топ и ачивки
+считают их как добавленные им. Без флага — `created_by='import'`, без событий.
+
+Вместо прямого Postgres можно работать через HTTPS Management API Supabase
+(когда сырой TCP наружу закрыт): `SUPABASE_ACCESS_TOKEN=sbp_... `
+`SUPABASE_PROJECT_REF=<ref проекта> node scripts/import/import-cars.js ...`
 
 По образцу `scripts/seed.js`: прямая вставка в Postgres с
 `ON CONFLICT DO NOTHING` по уникальному ключу машины — **рассчитанные
