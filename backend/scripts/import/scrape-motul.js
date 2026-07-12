@@ -126,8 +126,12 @@ const catHtml = catResult.html;
 const makes = selectOptions(cheerio.load(catHtml), 'ctl00$ContentPlaceHolder1$lstMake');
 console.log(`Марок в каталоге: ${makes.length}`);
 
+// Рынки USA/CAN, TUR и Iran Khodro не про наш парк — пропускаем.
+const EXCLUDE_MARKETS = /\((USA|TUR)|IRAN KHODRO/i;
+
 const matchedMakes = makes.filter(m =>
-    wantedBrands.some(b => m.label.toLowerCase().includes(b)));
+    wantedBrands.some(b => m.label.toLowerCase().includes(b))
+    && !EXCLUDE_MARKETS.test(m.label));
 // (RUS)-варианты первыми: при конфликте по upsert-ключу их данные приоритетнее.
 matchedMakes.sort((a, b) => Number(b.label.includes('(RUS)')) - Number(a.label.includes('(RUS)')));
 console.log(`Совпало марок: ${matchedMakes.length} — ${matchedMakes.map(m => m.label).join(', ')}`);
