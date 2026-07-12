@@ -28,6 +28,32 @@ function formatYears(yearFrom, yearTo) {
     return ` (${yearFrom}–${yearTo || 'н.в.'})`;
 }
 
+// Кириллические буквы-двойники латиницы. При ручном вводе «C5 (T19C)» легко
+// набрать половину букв в русской раскладке — визуально не отличить, а модель
+// в базе получается «другая», и в выпадашке плодятся мнимые дубли.
+const CYR_LOOKALIKE = {
+    'а': 'a', 'в': 'b', 'е': 'e', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o',
+    'р': 'p', 'с': 'c', 'т': 't', 'у': 'y', 'х': 'x',
+};
+
+// Ключ для схлопывания визуально одинаковых имён моделей: убираем регистр,
+// лишние пробелы и кириллические двойники — «C5 (T19C)» и «С5 (Т19С)» дают
+// один и тот же ключ и мержатся в одну строку списка.
+function normModel(s) {
+    return String(s ?? '')
+        .normalize('NFKC')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+        .replace(/[авекмнорстух]/g, ch => CYR_LOOKALIKE[ch] || ch);
+}
+
+// Из вариантов написания под одним ключом — самое частое, при равенстве по алфавиту.
+function pickCanonical(variants) {
+    return [...variants.entries()]
+        .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0][0];
+}
+
 // ── Комбобокс с фильтрацией по вводу ───────────────────────────────────────
 // options: [{ value, label, search }] — search — то, по чему матчим текст
 // (обычно совпадает с label без счётчика в скобках).
@@ -180,29 +206,31 @@ export function initTagSearch({ getCars, onPick, sphere }) {
     // year_to = null, если хоть одно поколение модели ещё в производстве
     // (bool_or(year_to IS NULL) в SQL) — иначе max(year_to).
     function computeModels(brand) {
-        const map = new Map();
+        const map = new Map();  // ключ: normModel(model) — см. normModel
         for (const c of carsOfBrand(brand)) {
-            const m = map.get(c.model) || { yearFrom: Infinity, open: false, yearTo: -Infinity, count: 0 };
+            const key = normModel(c.model);
+            const m = map.get(key) || { yearFrom: Infinity, open: false, yearTo: -Infinity, count: 0, variants: new Map() };
             m.count++;
+            m.variants.set(c.model, (m.variants.get(c.model) || 0) + 1);
             if (c.year_from != null) m.yearFrom = Math.min(m.yearFrom, Number(c.year_from));
             if (c.year_to == null) m.open = true; else m.yearTo = Math.max(m.yearTo, Number(c.year_to));
-            map.set(c.model, m);
+            map.set(key, m);
         }
         return [...map.entries()]
-            .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-            .map(([model, m]) => ({
-                model,
+            .map(([key, m]) => ({
+                key,
+                model: pickCanonical(m.variants),
                 year_from: Number.isFinite(m.yearFrom) ? m.yearFrom : null,
                 year_to: m.open ? null : (Number.isFinite(m.yearTo) ? m.yearTo : null),
                 count: m.count,
-            }));
+            }))
+            .sort((a, b) => String(a.model).localeCompare(String(b.model)));
     }
 
-    function computeVolumes(brand, model) {
-        const ml = model.toLowerCase();
+    function computeVolumes(brand, modelKey) {
         const map = new Map();  // ключ: число объёма или '__null__'
         for (const c of carsOfBrand(brand)) {
-            if (String(c.model).toLowerCase() !== ml) continue;
+            if (normModel(c.model) !== modelKey) continue;
             const vol = c.engine_volume == null ? null : Number(c.engine_volume);
             const key = vol == null ? NULL_VOLUME : String(vol);
             const e = map.get(key) || { engine_volume: vol, codes: new Set(), count: 0 };
@@ -222,11 +250,10 @@ export function initTagSearch({ getCars, onPick, sphere }) {
     // Отфильтрованный по текущим тегам список машин (порядок как в SQL).
     function computeResults() {
         const bl = state.brand.toLowerCase();
-        const ml = state.model.toLowerCase();
         const vol = state.volume && state.volume !== NULL_VOLUME ? parseFloat(state.volume) : null;
         return allCars.filter(c => {
             if (String(c.brand).toLowerCase() !== bl) return false;
-            if (state.model && String(c.model).toLowerCase() !== ml) return false;
+            if (state.model && normModel(c.model) !== state.model) return false;
             if (state.volume === NULL_VOLUME) return c.engine_volume == null;
             if (vol != null) return c.engine_volume != null && Number(c.engine_volume) === vol;
             return true;
@@ -244,14 +271,14 @@ export function initTagSearch({ getCars, onPick, sphere }) {
 
     function populateModels(brand) {
         modelCombo.setOptions(computeModels(brand).map(m => ({
-            value: m.model,
+            value: m.key,
             label: `${m.model}${formatYears(m.year_from, m.year_to)} · ${m.count}`,
             search: m.model,
         })));
     }
 
-    function populateVolumes(brand, model) {
-        volumeCombo.setOptions(computeVolumes(brand, model).map(v => {
+    function populateVolumes(brand, modelKey) {
+        volumeCombo.setOptions(computeVolumes(brand, modelKey).map(v => {
             const codes = v.engine_codes && v.engine_codes.length ? ' · ' + v.engine_codes.join(', ') : '';
             return v.engine_volume == null
                 ? { value: NULL_VOLUME, label: `без объёма${codes} · ${v.count}`, search: 'без объёма ' + (v.engine_codes || []).join(' ') }
