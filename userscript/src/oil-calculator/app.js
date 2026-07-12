@@ -13,6 +13,7 @@ import {
     anyFilterEnabled as sharedAnyFilterEnabled,
     pickEngineOils as sharedPickEngineOils,
     calcForAggregate as sharedCalcForAggregate,
+    manualWarnText,
 } from '../../../shared/calculator.js';
 import {
     getShopOils, getMotulOils, getDefaults, getReglament, getReglamentForBrand,
@@ -519,11 +520,18 @@ function calcForAggregate(agg) {
             ⚠ Ни ZIC, ни ROLF не покрывают спецификации этой коробки — перевести клиента на мастера
         </div>` : '';
 
+    // МКПП: Motul требует 70W / 75W-85 / 80W-90 / LS, либо продуктов нет
+    // вовсе (product not found) — предложить нечего, только варн.
+    const mkppWarnBox = calc.mkppWarn ? `
+        <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a0000;border:1px solid #e53935;border-radius:6px;margin-top:6px;color:#ff8a80">
+            ⚠ ${escapeHtmlSafe(manualWarnText(calc.mkppWarn))}
+        </div>` : '';
+
     const html = `
         ${volEditHtml}
         <div class="zm-formula">📐 ${formula}</div>
         ${flushBox}
-        ${atfWarnBox}
+        ${atfWarnBox}${mkppWarnBox}
         ${costs.map((c, i) => {
             const canPick = agg.group === 'engine' && i === 0 && !c.oil.isSpot &&
                             !isFixedSingle &&

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 
 import {
     tokenSet, expandCoveredTokens, splitOilApprovals, pickEngineOils,
-    calcForAggregate,
+    calcForAggregate, manualOilWarn, manualWarnText,
 } from './calculator.js';
 import { getShopOils } from './oils.js';
 
@@ -166,4 +166,72 @@ test('вариатор с галочкой «АТФ SP-III»: только ROLF 
     const calc2 = calcForAggregate(makeAgg(), { ...state, cvtAtfSp3: false }, []);
     assert.equal(calc2.costs.length, 2);
     assert.ok(calc2.costs.every(c => c.oil.v === 'CVT'));
+});
+
+// ── МКПП: варн «предложить нечего» ────────────────────────────────────────────
+// В наличии только 75W-90. Если Motul требует 70W / 75W-85 / 80W-90 / LS
+// (LS может стоять и до, и после вязкости), либо продуктов нет вовсе
+// («products not found» парсер отбрасывает → пустой список) — не предлагаем
+// ничего, только варн.
+
+test('манж МКПП: варн на 70W, 75W-85, 80W-90 и LS в любом месте названия', () => {
+    const cases = [
+        ['Motul Gear 300 70W',          '70W'],
+        ['Motul HD 80W-90',             '80W-90'],
+        ['Motul Motylgear 75W-85',      '75W-85'],
+        ['Motul Gear Competition 75W-90 LS', 'LS (limited slip)'],
+        ['Motul LS 75W-90',             'LS (limited slip)'],
+    ];
+    for (const [product, expected] of cases) {
+        const warn = manualOilWarn({ key: 'manual', motulProducts: [product] });
+        assert.ok(warn, `«${product}» должен давать варн`);
+        assert.equal(warn.spec, expected, `«${product}» → ${expected}`);
+        assert.ok(manualWarnText(warn).includes(expected));
+    }
+});
+
+test('манж МКПП: пустой список продуктов (product not found) — тоже варн', () => {
+    const warn = manualOilWarn({ key: 'manual', motulProducts: [] });
+    assert.ok(warn);
+    assert.equal(warn.reason, 'notFound');
+    assert.ok(manualWarnText(warn).includes('не дал продуктов'));
+});
+
+test('манж МКПП: обычный 75W-90 без LS варн не даёт', () => {
+    assert.equal(manualOilWarn({ key: 'manual', motulProducts: ['Motul MOTYLGEAR 75W-90'] }), null);
+    assert.equal(manualOilWarn({ key: 'manual', motulProducts: ['75W-80 GL-4'] }), null,
+        '75W-80 не в списке запрещённых — без варна');
+});
+
+test('манж МКПП: варн только для МКПП, раздатка/дифы не задеты', () => {
+    assert.equal(manualOilWarn({ key: 'transfer',  motulProducts: ['75W-90 LS'] }), null);
+    assert.equal(manualOilWarn({ key: 'diffRear',  motulProducts: [] }), null);
+});
+
+test('calcForAggregate МКПП с варном: масел нет, mkppWarn проставлен', () => {
+    const state = { volumeOverride: {}, atpVolumeManual: null, flush: 'none', mileage: '<100' };
+    const agg = { key: 'manual', label: 'МКПП', group: 'gear', volume: 2.2,
+                  motulProducts: ['Motul Motylgear 75W-85'], approvals: ['Motul Motylgear 75W-85'] };
+    const calc = calcForAggregate(agg, state, []);
+    assert.equal(calc.costs.length, 0, 'масла не предлагаются');
+    assert.ok(calc.mkppWarn, 'варн в результате расчёта');
+    assert.equal(calc.mkppWarn.spec, '75W-85');
+    assert.equal(calc.volumeStr, '2.2л', 'объём при этом посчитан');
+
+    // без запрещённых спецификаций — обычная пара 75W-90
+    const agg2 = { key: 'manual', label: 'МКПП', group: 'gear', volume: 2.2,
+                   motulProducts: ['Motul MOTYLGEAR 75W-90'], approvals: ['Motul MOTYLGEAR 75W-90'] };
+    const calc2 = calcForAggregate(agg2, state, []);
+    assert.equal(calc2.costs.length, 2);
+    assert.ok(!calc2.mkppWarn);
+    assert.ok(calc2.costs.every(c => c.oil.v === '75W-90'));
+});
+
+test('HIGH GEAR приоритетнее варна МКПП', () => {
+    const state = { volumeOverride: {}, atpVolumeManual: null, flush: 'none', mileage: '<100' };
+    const agg = { key: 'manual', label: 'МКПП', group: 'gear', volume: 2.2,
+                  rawText: 'HIGH GEAR 75W-90', motulProducts: [] };
+    const calc = calcForAggregate(agg, state, []);
+    assert.ok(calc.isHighGear);
+    assert.ok(!calc.mkppWarn);
 });

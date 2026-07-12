@@ -6,7 +6,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { roundL, calcForAggregate, getAggregates, filtersTotal,
-         totalAggLabel, totalOilLabel, computeTotalSum } from './calculator.js';
+         totalAggLabel, totalOilLabel, computeTotalSum,
+         manualWarnText } from './calculator.js';
 
 // ── Per-aggregate text block ──────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ export function formatAggText(agg, calc, calcState) {
     } else {
         const vService = (parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)).toFixed(1);
         lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
+        if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
         calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
     }
     return lines.join('\n');

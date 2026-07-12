@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<!-- Дев-песочница страницы машины: фейковая запись, без бэкенда.
+     Открыть: npx vite → /dev-carpage.html?mkpp=75W-85 (или mkpp=empty).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: страница машины</title>
+  <link rel="stylesheet" href="/src/style.css"/>
+</head>
+<body>
+  <div id="page-calc">
+    <div class="calc-topbar">
+      <button id="btn-back" class="btn btn-sec">← К поиску</button>
+      <div id="calc-car-title" class="calc-car-title"></div>
+    </div>
+    <div id="car-head"></div>
+    <div class="calc-layout">
+      <div class="calc-main" id="calc-main"></div>
+      <div class="report-panel">
+        <div class="report-head">
+          <span>Итог для Битрикса</span>
+          <button class="btn btn-sec" id="btn-copy">⧉ Копировать</button>
+        </div>
+        <pre id="report-output" class="report-output">— выберите агрегаты —</pre>
+      </div>
+    </div>
+    <div id="car-events" class="car-events"></div>
+  </div>
+  <script type="module">
+    import { initCarPage } from '/src/carPage.js';
+
+    const record = {
+      id: 'dev-1',
+      brand: 'RENAULT', model: 'Logan II', generation: '',
+      engine_name: 'H4M 438', engine_code: 'H4M 438', engine_volume: 1.6,
+      bhp: 113, fuel_type: '01', year_from: 2016, year_to: null,
+      service_flags: { no_full_atp: true },
+      notes: 'АКПП полную не делаем',
+      tags: ['пенсия'],
+      source_links: {
+        mann: 'https://example.com', lynx: 'https://example.com', ravenol: 'https://example.com',
+      },
+      recommended_oils: [
+        { b: 'Liqui Moly', n: 'Leichtlauf HC 7 5W-30', price: 2000 },
+        { b: 'SPOT', n: 'OPTIMAL 5W-30', price: 1450 },
+      ],
+      car_approvals: ['ACEA A3/B4', 'RN 0700'],
+      fluid_capacities: {
+        engine: { volumeService: 4.5 },
+        automatic: { volumeTotal: 4.8, isCvt: true, motulProducts: ['MOTUL CVTF'],
+                     label: 'Коробка передач в блоке с главной передачей, вариатор 1/1 WLY CVT7 / QR019CHA' },
+        manual: { volumeTotal: 2.8, motulProducts: [
+          (new URLSearchParams(location.search).get('mkpp')) || 'Motul MOTYLGEAR 75W-90',
+        ].filter(p => p !== 'empty') },
+      },
+      filter_part_numbers: { vf: { part: 'LYNX LO-1911' }, mf: { part: 'LYNX LA-1911' } },
+      oil_overrides: {},
+    };
+
+    initCarPage(record, {
+      apiFetch: async () => [],
+      onChanged: () => location.reload(),
+      user: { role: 'mod' },
+    });
+  </script>
+</body>
+</html>
