@@ -24,9 +24,13 @@ async function ping(url) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Ждёт, пока сервер ответит на pingUrl, показывая boot-лог.
-// Резолвится когда оверлей скрыт (сервер готов или юзер нажал Continue).
-export function bootScreen(pingUrl) {
+// Ждёт, пока сервер ответит на pingUrl, показывая boot-лог. После пробуждения
+// сервера — но ДО скрытия оверлея — прогоняет prepare(log): там грузятся
+// сессия и снимок базы, а их прогресс идёт строками в тот же лог. Так вся
+// «доподгрузка» происходит под лоадером, а не мелькает уже в приложении.
+// Резолвится тем, что вернул prepare (или undefined, если юзер нажал Continue
+// до пробуждения сервера).
+export function bootScreen(pingUrl, { prepare } = {}) {
     const overlay = document.getElementById('boot-screen');
     const log     = document.getElementById('boot-log');
     const barFill = document.getElementById('boot-bar-fill');
@@ -59,6 +63,12 @@ export function bootScreen(pingUrl) {
         return txt; // чтобы можно было обновлять текст строки на месте
     }
 
+    // Минимальный лог-API для prepare: добавить строку и обновить её текст.
+    const logApi = {
+        line: text => addLine(text),
+        set: (node, text) => { if (node) node.textContent = text; },
+    };
+
     // ── Прогресс: асимптотически ползёт к 88%, 100% — только по факту ──
     const t0 = Date.now();
     let progress = 0;
@@ -73,6 +83,7 @@ export function bootScreen(pingUrl) {
 
     return new Promise(resolve => {
         let settled = false;
+        let prepareResult; // то, что вернул prepare — прокидываем в resolve
 
         function dismiss() {
             if (settled) return;
@@ -80,15 +91,12 @@ export function bootScreen(pingUrl) {
             clearInterval(creep);
             overlay.classList.add('boot-done');
             overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-            resolve();
+            resolve(prepareResult);
         }
 
         async function finish() {
             clearInterval(creep);
-            addLine('Connection established.');
             barFill.style.width = '100%';
-            await sleep(250);
-            addLine('Car database online.');
             await sleep(250);
             addLine('System ready.', { final: true });
             status.textContent = 'COMPLETE';
@@ -131,6 +139,15 @@ export function bootScreen(pingUrl) {
             pingLine.textContent = 'Contacting server... OK';
             if (retryLine) retryLine.textContent = `Server is awake (took ${Math.round((Date.now() - t0) / 1000)}s)`;
             actions.classList.add('hidden');
+            addLine('Connection established.');
+
+            // Реальная подготовка (сессия + снимок базы) — пока оверлей ещё виден.
+            if (prepare) {
+                try { prepareResult = await prepare(logApi); }
+                catch { /* приложение разберётся дальше по resolve(undefined) */ }
+                if (settled) return; // юзер мог нажать Continue во время подготовки
+            }
+
             await finish();
         })();
     });
