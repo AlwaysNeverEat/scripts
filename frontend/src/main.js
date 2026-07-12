@@ -336,14 +336,43 @@ modeBtnSearch.onclick = () => setSearchMode('search');
 modeBtnTags.onclick = () => setSearchMode('tags');
 
 // ── Старт ─────────────────────────────────────────────────────────────────────
-// Сначала boot-экран ждёт, пока бэкенд на Render проснётся (/health),
-// потом проверяем сессию: есть валидная — сразу в приложение, иначе гейт.
-bootScreen((API_BASE || '') + '/health').then(async () => {
+// Boot-экран ждёт пробуждения бэкенда (/health), а затем — пока оверлей ещё
+// виден — прогоняет bootPrepare: проверяет сессию и грузит снимок базы. Всё,
+// что раньше «доподгружалось» уже в приложении (и мигало), теперь готово к
+// моменту скрытия лоадера. Строки лога показывают реальный прогресс.
+async function bootPrepare(log) {
+    const authLine = log.line('Authenticating session...');
     try {
         const me = await apiFetch('/api/auth/me');
         currentUser = me.user;
-        enterApp();
+        log.set(authLine, 'Authenticating session... OK');
     } catch {
+        log.set(authLine, 'No active session — login required');
+        return { authed: false };
+    }
+    const dbLine = log.line('Loading vehicle database...');
+    try {
+        const snap = await loadSnapshot();
+        log.set(dbLine, `Vehicle database loaded — ${snap.cars.length} entries`);
+    } catch {
+        log.set(dbLine, 'Vehicle database unavailable — will retry in app');
+    }
+    return { authed: true };
+}
+
+bootScreen((API_BASE || '') + '/health', { prepare: bootPrepare }).then(async (result) => {
+    if (result && result.authed) {
+        enterApp();
+    } else if (result && result.authed === false) {
         showGate();
+    } else {
+        // Skip-путь: юзер нажал «Continue» до пробуждения сервера — как раньше.
+        try {
+            const me = await apiFetch('/api/auth/me');
+            currentUser = me.user;
+            enterApp();
+        } catch {
+            showGate();
+        }
     }
 });
