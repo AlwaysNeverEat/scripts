@@ -41,8 +41,12 @@ const USER_LOGIN = userIdx >= 0 ? args[userIdx + 1] : null;
 // прогонах (цикл доливки) такие машины пропускаются без запросов к БД.
 const stateIdx = args.indexOf('--state');
 const STATE_FILE = stateIdx >= 0 ? path.resolve(ROOT, args[stateIdx + 1]) : null;
-const fileArg = args.find((a, i) =>
-    !a.startsWith('--') && i !== limitIdx + 1 && i !== userIdx + 1 && i !== stateIdx + 1);
+// Позиционный аргумент = файл. Индексы значений флагов исключаем только
+// если флаг реально передан (иначе idx+1 === 0 «съедал» сам путь к файлу,
+// и импортёр молча брал дефолтный файл).
+const flagValueIdx = new Set(
+    [limitIdx, userIdx, stateIdx].filter(i => i >= 0).map(i => i + 1));
+const fileArg = args.find((a, i) => !a.startsWith('--') && !flagValueIdx.has(i));
 const IN_FILE = path.resolve(ROOT, fileArg || 'data/import/motul-cars.json');
 
 // ── Доступ к БД: pg напрямую или SQL через Supabase Management API ──────────
@@ -132,7 +136,7 @@ const createdBy = importUser ? importUser.display_name : 'import';
 
 const importedKeys = STATE_FILE ? new Set(readJson(STATE_FILE, [])) : null;
 
-let inserted = 0, existing = 0, invalid = 0, skippedByState = 0;
+let inserted = 0, existing = 0, invalid = 0, skippedByState = 0, updatedApprovals = 0;
 const invalidReport = [];
 
 for (const car of cars.slice(0, LIMIT)) {
@@ -173,6 +177,9 @@ for (const car of cars.slice(0, LIMIT)) {
         car.engine_volume, car.year_from, car.year_to);
     const svTokens = synonymTokens.flatMap(s => s.split(/\s+/)).filter(Boolean).join(' ');
 
+    // Конфликт = машина уже в базе. Ручные записи не трогаем НИКОГДА;
+    // единственное исключение — наша же импортированная запись без допусков,
+    // которой пришли непустые допуски: дозаписываем только их (+notes).
     let sql =
         `INSERT INTO cars (brand, model, generation, engine_code, engine_volume,
                            year_from, year_to, kw, bhp, fuel_type,
@@ -184,8 +191,14 @@ for (const car of cars.slice(0, LIMIT)) {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
                  $19,$20,$21,to_tsvector('simple', $22),$23)
          ON CONFLICT (lower(brand), lower(model), lower(coalesce(engine_code,'')), coalesce(engine_volume,0), year_from)
-         DO NOTHING
-         RETURNING id`;
+         DO UPDATE SET
+           car_approvals = EXCLUDED.car_approvals,
+           notes         = EXCLUDED.notes,
+           updated_at    = now()
+         WHERE cars.notes LIKE '⚠ Импортировано%'
+           AND jsonb_array_length(cars.car_approvals) = 0
+           AND jsonb_array_length(EXCLUDED.car_approvals) > 0
+         RETURNING id, (xmax = 0) AS inserted`;
     const params =
         [car.brand, car.model, car.generation ?? null, car.engine_code ?? null,
          car.engine_volume ?? null, car.year_from, car.year_to ?? null,
@@ -198,17 +211,24 @@ for (const car of cars.slice(0, LIMIT)) {
 
     if (importUser) {
         // Событие 'added' — по нему сайт считает топ и ачивки автора.
-        sql = `WITH ins AS (${sql})
-               INSERT INTO car_events (car_id, user_id, type)
-               SELECT id, $24, 'added' FROM ins
-               RETURNING car_id AS id`;
+        // Только для настоящих вставок: дозапись допусков событий не плодит.
+        sql = `WITH ins AS (${sql}),
+               ev AS (INSERT INTO car_events (car_id, user_id, type)
+                      SELECT id, $24, 'added' FROM ins WHERE inserted)
+               SELECT id, inserted FROM ins`;
         params.push(importUser.id);
     }
 
     const r = await query(sql, params);
-    if (r.rows.length) inserted++; else existing++;
+    if (!r.rows.length) existing++;
+    else if (r.rows[0].inserted === true || r.rows[0].inserted === 't') inserted++;
+    else updatedApprovals++;
 
-    if (importedKeys && car._type_key) {
+    // В стейт — только «финально» обработанные: с допусками, либо когда
+    // обогащение уже прошло и допусков точно нет (_rolf есть в записи).
+    // Машины без допусков и без _rolf ждут дозаписи следующим циклом.
+    const enrichedDone = (car.car_approvals && car.car_approvals.length) || car._rolf !== undefined;
+    if (importedKeys && car._type_key && enrichedDone) {
         importedKeys.add(car._type_key);
         writeJson(STATE_FILE, [...importedKeys]);
     }
@@ -218,6 +238,7 @@ console.log(`${DRY_RUN ? '[dry-run] ' : ''}Импорт из ${path.relative(ROO
 console.log(`  ${DRY_RUN ? 'будет добавлено' : 'добавлено'}: ${inserted}`);
 console.log(`  уже в базе (пропущено): ${existing}`);
 console.log(`  битых записей: ${invalid}`);
+if (updatedApprovals) console.log(`  дозаписаны допуски: ${updatedApprovals}`);
 if (skippedByState) console.log(`  пропущено по стейту (залиты ранее): ${skippedByState}`);
 if (invalidReport.length) {
     console.log('\nБитые записи:');
