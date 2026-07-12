@@ -34,6 +34,12 @@ function argValue(name, fallback) {
     return i >= 0 && args[i + 1] != null ? args[i + 1] : fallback;
 }
 const IN_FILE = path.resolve(ROOT, argValue('--in', 'data/import/motul-cars.json'));
+// --out: писать обогащённые машины в ОТДЕЛЬНЫЙ файл (не трогая входной).
+// Нужно, когда scrape-motul.js ещё дописывает входной файл: два процесса,
+// пишущие один JSON, затирали бы правки друг друга. Вход читается снапшотом
+// (writeJson атомарен), выход докапливается по _type_key.
+const OUT_FILE = path.resolve(ROOT, argValue('--out', path.relative(ROOT, IN_FILE)));
+const SEPARATE_OUT = OUT_FILE !== IN_FILE;
 const FORCE = args.includes('--force');
 const LIMIT = parseInt(argValue('--limit', '0')) || Infinity;
 const CACHE_DIR = path.resolve(ROOT, 'data/import/cache/upec');
@@ -200,17 +206,38 @@ function engineVolumeOf(liquids) {
 }
 
 // ── Основной цикл ────────────────────────────────────────────────────────────
-const cars = readJson(IN_FILE, null);
-if (!cars) {
+const input = readJson(IN_FILE, null);
+if (!input) {
     console.error(`Нет файла ${IN_FILE} — сначала запусти scrape-motul.js`);
     process.exit(1);
+}
+
+// При раздельном выходе: уже обогащённые машины берём из OUT_FILE,
+// из входа обрабатываем только новые (по _type_key).
+let cars, outCars;
+if (SEPARATE_OUT) {
+    outCars = readJson(OUT_FILE, []);
+    const done = new Set(outCars.map(c => c._type_key).filter(Boolean));
+    cars = input.filter(c => !done.has(c._type_key));
+    console.log(`Вход: ${input.length}, уже обогащено: ${outCars.length}, новых: ${cars.length}`);
+} else {
+    cars = input;
+    outCars = null;
+}
+
+function checkpoint() {
+    writeJson(OUT_FILE, SEPARATE_OUT ? outCars : cars);
 }
 
 let enriched = 0, missed = 0, skipped = 0, processed = 0;
 
 for (const car of cars) {
     if (processed >= LIMIT) break;
-    if (!FORCE && (car.car_approvals.length || car._rolf)) { skipped++; continue; }
+    if (!FORCE && (car.car_approvals.length || car._rolf !== undefined)) {
+        if (SEPARATE_OUT) outCars.push(car);
+        skipped++;
+        continue;
+    }
     processed++;
 
     const queries = [];
@@ -231,7 +258,8 @@ for (const car of cars) {
         car._rolf = null;
         pushWarning(car, 'ROLF: модификация не найдена');
         console.log(`  ✗ ${label}: не найдено`);
-        writeJson(IN_FILE, cars);
+        if (SEPARATE_OUT) outCars.push(car);
+        checkpoint();
         continue;
     }
 
@@ -249,8 +277,11 @@ for (const car of cars) {
 
     enriched++;
     console.log(`  ✓ ${label}: ${approvals.length} допусков (${car._rolf.matched})`);
-    writeJson(IN_FILE, cars);
+    if (SEPARATE_OUT) outCars.push(car);
+    checkpoint();
 }
+
+checkpoint();
 
 function pushWarning(car, w) {
     car._warnings = car._warnings || [];

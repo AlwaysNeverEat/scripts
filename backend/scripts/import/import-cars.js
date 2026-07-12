@@ -26,7 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildNameFields } from '../../../shared/translit.js';
 import { buildSourceKeys, cleanSourceLinks } from '../../../shared/sourceLinks.js';
-import { readJson } from './http.js';
+import { readJson, writeJson } from './http.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -37,8 +37,12 @@ const limitIdx = args.indexOf('--limit');
 const LIMIT = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) || Infinity : Infinity;
 const userIdx = args.indexOf('--user');
 const USER_LOGIN = userIdx >= 0 ? args[userIdx + 1] : null;
+// --state <файл>: локальный список уже залитых _type_key — при повторных
+// прогонах (цикл доливки) такие машины пропускаются без запросов к БД.
+const stateIdx = args.indexOf('--state');
+const STATE_FILE = stateIdx >= 0 ? path.resolve(ROOT, args[stateIdx + 1]) : null;
 const fileArg = args.find((a, i) =>
-    !a.startsWith('--') && i !== limitIdx + 1 && i !== userIdx + 1);
+    !a.startsWith('--') && i !== limitIdx + 1 && i !== userIdx + 1 && i !== stateIdx + 1);
 const IN_FILE = path.resolve(ROOT, fileArg || 'data/import/motul-cars.json');
 
 // ── Доступ к БД: pg напрямую или SQL через Supabase Management API ──────────
@@ -65,19 +69,29 @@ function sqlLiteral(v) {
 
 async function supabaseHttpQuery(text, params = []) {
     const sql = text.replace(/\$(\d+)/g, (_, n) => sqlLiteral(params[Number(n) - 1]));
-    const res = await fetch(`https://api.supabase.com/v1/projects/${SB_REF}/database/query`, {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${SB_TOKEN}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: sql }),
-    });
-    const body = await res.text();
-    if (!res.ok) throw new Error(`Supabase API HTTP ${res.status}: ${body.slice(0, 300)}`);
-    let rows;
-    try { rows = JSON.parse(body); } catch { rows = []; }
-    return { rows: Array.isArray(rows) ? rows : [] };
+    for (let attempt = 1; ; attempt++) {
+        const res = await fetch(`https://api.supabase.com/v1/projects/${SB_REF}/database/query`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${SB_TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: sql }),
+        });
+        const body = await res.text();
+        // 429/5xx — временное: ждём и повторяем (запрос идемпотентен,
+        // ON CONFLICT DO NOTHING переживает повтор).
+        if ((res.status === 429 || res.status >= 500) && attempt < 6) {
+            const ms = 3000 * 2 ** (attempt - 1);
+            console.warn(`  Supabase API ${res.status}, ретрай через ${ms / 1000}с…`);
+            await new Promise(r => setTimeout(r, ms));
+            continue;
+        }
+        if (!res.ok) throw new Error(`Supabase API HTTP ${res.status}: ${body.slice(0, 300)}`);
+        let rows;
+        try { rows = JSON.parse(body); } catch { rows = []; }
+        return { rows: Array.isArray(rows) ? rows : [] };
+    }
 }
 
 const NOTES_BASE = '⚠ Импортировано автоматически (Motul + ROLF), не проверено';
@@ -116,10 +130,16 @@ if (USER_LOGIN) {
 }
 const createdBy = importUser ? importUser.display_name : 'import';
 
-let inserted = 0, existing = 0, invalid = 0;
+const importedKeys = STATE_FILE ? new Set(readJson(STATE_FILE, [])) : null;
+
+let inserted = 0, existing = 0, invalid = 0, skippedByState = 0;
 const invalidReport = [];
 
 for (const car of cars.slice(0, LIMIT)) {
+    if (importedKeys && car._type_key && importedKeys.has(car._type_key)) {
+        skippedByState++;
+        continue;
+    }
     const label = [car.brand, car.model, car.engine_code, car.year_from].filter(Boolean).join(' ');
     const problems = validate(car);
     if (problems.length) {
@@ -187,12 +207,18 @@ for (const car of cars.slice(0, LIMIT)) {
 
     const r = await query(sql, params);
     if (r.rows.length) inserted++; else existing++;
+
+    if (importedKeys && car._type_key) {
+        importedKeys.add(car._type_key);
+        writeJson(STATE_FILE, [...importedKeys]);
+    }
 }
 
 console.log(`${DRY_RUN ? '[dry-run] ' : ''}Импорт из ${path.relative(ROOT, IN_FILE)}:`);
 console.log(`  ${DRY_RUN ? 'будет добавлено' : 'добавлено'}: ${inserted}`);
 console.log(`  уже в базе (пропущено): ${existing}`);
 console.log(`  битых записей: ${invalid}`);
+if (skippedByState) console.log(`  пропущено по стейту (залиты ранее): ${skippedByState}`);
 if (invalidReport.length) {
     console.log('\nБитые записи:');
     for (const line of invalidReport.slice(0, 30)) console.log('  - ' + line);
