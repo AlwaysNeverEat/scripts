@@ -400,7 +400,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
     // МКПП: Motul требует 70W / 75W-85 / 80W-90 / LS, либо продуктов нет вовсе
     // (product not found) — предложить нечего, вместо масел только варн.
     if (calc.mkppWarn) {
-        parts.push(`<div class="warn-box">⚠ ${esc(manualWarnText(calc.mkppWarn))}</div>`);
+        parts.push(`<div class="warn-box">${esc(manualWarnText(calc.mkppWarn))}</div>`);
     }
 
     // Engine: flush formula box
@@ -450,7 +450,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                 : '';
 
             const pickHint = canPick
-                ? `<div class="oil-pick-hint">${isPickerOpen ? '▴ скрыть список' : `⇄ выбрать другое масло (${allCandidates.length})`}</div>`
+                ? `<div class="oil-pick-hint">${isPickerOpen ? '▴ скрыть список' : `▾ выбрать другое масло (${allCandidates.length})`}</div>`
                 : '';
 
             return `

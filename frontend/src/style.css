@@ -390,8 +390,6 @@ input, button, select, textarea { font-family: inherit; }
   font-size: 12px;
   color: var(--sub);
 }
-/* «#» перед словом — сразу видно, что это тег, а не случайный текст */
-.head-tag::before { content: '#'; opacity: .55; margin-right: 2px; }
 /* ── Страницы машины (сурс-ссылки) ──────────────────────────────── */
 .head-sources {
   display: flex;

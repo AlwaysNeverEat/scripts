@@ -61,7 +61,7 @@ function renderView(record, ctx) {
     const flags = activeFlags(record.service_flags);
     const flagsHtml = flags.length
         ? `<div class="head-flags">${flags.map(f =>
-            `<span class="head-flag${f.warn ? ' head-flag-warn' : ''}">${f.warn ? '⚠ ' : ''}${esc(f.label)}</span>`).join('')}</div>`
+            `<span class="head-flag${f.warn ? ' head-flag-warn' : ''}">${esc(f.label)}</span>`).join('')}</div>`
         : '';
 
     const notesHtml = record.notes
@@ -104,7 +104,7 @@ function renderView(record, ctx) {
                 ${section('Страницы машины', sourcesHtml)}
                 ${section('Особенности обслуживания', flagsHtml)}
                 ${section('Заметка', notesHtml)}
-                ${section('Теги', tagsHtml)}
+                ${section('Теги для поиска', tagsHtml)}
                 ${section('История', recHtml)}
             </div>
         </div>
