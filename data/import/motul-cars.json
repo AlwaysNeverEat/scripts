@@ -16405,5 +16405,3361 @@
   "_type_label": "Grandeur 3.0 GDI (2011 - 2017)",
   "_type_key": "333281:3310863:33090482",
   "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Equus",
+  "generation": null,
+  "engine_code": "Lambda",
+  "engine_name": "Equus 3.8",
+  "engine_volume": 3.8,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Equus (2010 - 2016) · Equus 3.8 (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.2,
+    "volumeType": "plain",
+    "label": "Двигатель Lambda",
+    "rawText": "Объем : Oбъем 5,2 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 8.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI",
+     "MULTI ATF",
+     "TRANS ATF"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 8.2,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 8,2 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=9565a035e8e4100029171b2caf859a12"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Equus (2010 - 2016)",
+  "_type_label": "Equus 3.8 (2010 - 2015)",
+  "_type_key": "333281:3310847:33090412",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Equus",
+  "generation": null,
+  "engine_code": "Lambda",
+  "engine_name": "Equus 3.8",
+  "engine_volume": 3.8,
+  "year_from": 2015,
+  "year_to": 2016,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Equus (2010 - 2016) · Equus 3.8 (2015 - 2016)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "2000 PROTECT 20W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.7,
+    "volumeType": "plain",
+    "label": "Двигатель Lambda",
+    "rawText": "Объем : Oбъем 5,7 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50"
+   },
+   "automatic": {
+    "volume": 10.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 10.1,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 10,1 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=881228ce10716aaaff12d41545779d51"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Equus (2010 - 2016)",
+  "_type_label": "Equus 3.8 (2015 - 2016)",
+  "_type_key": "333281:3310847:33115260",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Equus",
+  "generation": null,
+  "engine_code": "Tau",
+  "engine_name": "Equus 4.6",
+  "engine_volume": 4.6,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Equus (2010 - 2016) · Equus 4.6 (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 6.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.5,
+    "volumeType": "plain",
+    "label": "Двигатель Tau",
+    "rawText": "Объем : Oбъем 6,5 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 9.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI",
+     "MULTI ATF",
+     "TRANS ATF"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 9.2,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 9,2 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=bb778abc212bee731f6279462abb4936"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Equus (2010 - 2016)",
+  "_type_label": "Equus 4.6 (2010 - 2015)",
+  "_type_key": "333281:3310847:33090413",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Equus",
+  "generation": null,
+  "engine_code": "Tau 5.0 GDI",
+  "engine_name": "Equus 5.0",
+  "engine_volume": 5,
+  "year_from": 2015,
+  "year_to": 2016,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Equus (2010 - 2016) · Equus 5.0 (2015 - 2016)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 7.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "2000 PROTECT 20W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.2,
+    "volumeType": "plain",
+    "label": "Двигатель Tau 5.0 GDI",
+    "rawText": "Объем : Oбъем 7,2 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50"
+   },
+   "automatic": {
+    "volume": 10.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 10.1,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 10,1 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=810bc87296bb47faeb0779d861b70fff"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Equus (2010 - 2016)",
+  "_type_label": "Equus 5.0 (2015 - 2016)",
+  "_type_key": "333281:3310847:33115262",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Veloster",
+  "generation": null,
+  "engine_code": "Gamma",
+  "engine_name": "Veloster 1.6 MPI",
+  "engine_volume": 1.6,
+  "year_from": 2011,
+  "year_to": 2022,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Veloster (2011 - 2022) · Veloster 1.6 MPI (2011 - 2022)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 3.3,
+    "filterVolume": 0.3,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 3.3,
+    "volumeTotal": 3.7,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель Gamma",
+    "rawText": "Объем : Oбъем 3,3 л Сервисный : Oбъем 3,7 л Общий объём : Объем фильтра 0,3 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30"
+   },
+   "automatic": {
+    "volume": 7.3,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.3,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,3 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.9,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8-1,9 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=2274b1d7fd6e9b5a7048335fe9d552bf"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Veloster (2011 - 2022)",
+  "_type_label": "Veloster 1.6 MPI (2011 - 2022)",
+  "_type_key": "333281:3310869:33090518",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Genesis",
+  "generation": "BH",
+  "engine_code": "Lambda",
+  "engine_name": "Genesis 3.8",
+  "engine_volume": 3.8,
+  "year_from": 2008,
+  "year_to": 2013,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Genesis, BH (2008 - 2013) · Genesis 3.8 (2008 - 2013)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.2,
+    "volumeType": "plain",
+    "label": "Двигатель Lambda",
+    "rawText": "Объем : Oбъем 5,2 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30"
+   },
+   "automatic": {
+    "volume": 8.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI",
+     "MULTI ATF",
+     "TRANS ATF"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 8.2,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 8,2 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI : MULTI ATF : TRANS ATF"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=3f4a159e90dc1747b76afa319162c39f"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Genesis, BH (2008 - 2013)",
+  "_type_label": "Genesis 3.8 (2008 - 2013)",
+  "_type_key": "333281:3310848:33090414",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Genesis",
+  "generation": "DH",
+  "engine_code": "Lambda",
+  "engine_name": "Genesis 3.8",
+  "engine_volume": 3.8,
+  "year_from": 2013,
+  "year_to": 2016,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Genesis, DH (2013 - 2020) · Genesis 3.8 (2013 - 2016)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 6.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.9,
+    "volumeType": "plain",
+    "label": "Двигатель Lambda",
+    "rawText": "Объем : Oбъем 6,9 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 10.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 10.5,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 10,5 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=67314b7a66f9dde728a69777630b73ea"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Genesis, DH (2013 - 2020)",
+  "_type_label": "Genesis 3.8 (2013 - 2016)",
+  "_type_key": "333281:3313576:33116286",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Genesis Coupé",
+  "generation": null,
+  "engine_code": "Theta Turbo",
+  "engine_name": "Genesis Coupé 2.0T",
+  "engine_volume": 2,
+  "year_from": 2011,
+  "year_to": 2013,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Genesis Coupé (2011 - 2013) · Genesis Coupé 2.0T (2011 - 2013)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "2000 PROTECT 20W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый",
+     "Только первая замена"
+    ],
+    "interval": "Замена 5000 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.4,
+    "volumeType": "plain",
+    "label": "Двигатель Theta Turbo",
+    "rawText": "Объем : Oбъем 5,4 л Режим : Нормальный Интервалы : Замена 8000 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50 Режим : Тяжелый Интервалы : Замена 5000 км/ 3 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50 Режим : Только первая замена Интервалы : Замена 5000 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50"
+   },
+   "automatic": {
+    "volume": 9.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 9.6,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 5/1",
+    "rawText": "Объем : Oбъем 9,6 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 30000 км/ 24 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 24 мес./ 30000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 30000 км/ 24 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=5a923d4bb082337f0a8d37acb2403714"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Genesis Coupé (2011 - 2013)",
+  "_type_label": "Genesis Coupé 2.0T (2011 - 2013)",
+  "_type_key": "333281:3310849:33090416",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Genesis Coupé",
+  "generation": null,
+  "engine_code": "Lambda",
+  "engine_name": "Genesis Coupé 3.8",
+  "engine_volume": 3.8,
+  "year_from": 2011,
+  "year_to": 2013,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Genesis Coupé (2011 - 2013) · Genesis Coupé 3.8 (2011 - 2013)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "2000 PROTECT 20W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.7,
+    "volumeType": "plain",
+    "label": "Двигатель Lambda",
+    "rawText": "Объем : Oбъем 5,7 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50"
+   },
+   "automatic": {
+    "volume": 9.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 9.6,
+    "volumeType": "plain",
+    "label": "Коробка передач, автоматическая 5/1",
+    "rawText": "Объем : Oбъем 9,6 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "diffRear": {
+    "volume": 1.4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 30000 км/ 24 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.4,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 1,4 л Режим : Нормальный Интервалы : Контроль 24 мес./ 30000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 30000 км/ 24 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=e3592aa2226de395120b06f1f50fc561"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Genesis Coupé (2011 - 2013)",
+  "_type_label": "Genesis Coupé 3.8 (2011 - 2013)",
+  "_type_key": "333281:3310849:33090418",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Creta / ix25",
+  "generation": null,
+  "engine_code": "Gamma",
+  "engine_name": "Creta 1.6 MPI",
+  "engine_volume": 1.6,
+  "year_from": 2014,
+  "year_to": 2021,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Creta / ix25 (2014 - ) · Creta 1.6 MPI (2014 - 2021)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 3.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 3.6,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель Gamma",
+    "rawText": "Объем : Oбъем 3,6 л Сервисный Режим : Нормальный Интервалы : Контроль 500 км : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 7.3,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.3,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,3 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER LV 70W"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR POWER LV 70W Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR POWER LV 70W"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=76e1d94374c92f3649ea64980c09220d"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Creta / ix25 (2014 - )",
+  "_type_label": "Creta 1.6 MPI (2014 - 2021)",
+  "_type_key": "333281:3313427:33115217",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Creta / ix25",
+  "generation": null,
+  "engine_code": "Nu",
+  "engine_name": "Creta 2.0 MPI",
+  "engine_volume": 2,
+  "year_from": 2014,
+  "year_to": 2021,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Creta / ix25 (2014 - ) · Creta 2.0 MPI (2014 - 2021)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "2000 PROTECT 20W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 500 км",
+    "volumeService": 4,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель Nu",
+    "rawText": "Объем : Oбъем 4 л Сервисный Режим : Нормальный Интервалы : Контроль 500 км : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50 Режим : Тяжелый Интервалы : Контроль 500 км : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50"
+   },
+   "automatic": {
+    "volume": 7.3,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.3,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,3 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=a049e37dbf450bb00ac5b334415e96c3"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Creta / ix25 (2014 - )",
+  "_type_label": "Creta 2.0 MPI (2014 - 2021)",
+  "_type_key": "333281:3313427:33115239",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Creta / ix25",
+  "generation": null,
+  "engine_code": "Nu",
+  "engine_name": "Creta 2.0 MPI AWD",
+  "engine_volume": 2,
+  "year_from": 2014,
+  "year_to": 2021,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Creta / ix25 (2014 - ) · Creta 2.0 MPI AWD (2014 - 2021)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 PROTEC 10W-30",
+     "4100 PROTEC 15W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4100 SYN-NERGY 15W-50",
+     "4000 MOTION 10W-30",
+     "4000 MOTION 15W-40",
+     "2000 PROTECT 20W-50"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 500 км",
+    "volumeService": 4,
+    "volumeTotal": 0,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель Nu",
+    "rawText": "Объем : Oбъем 4 л Сервисный Режим : Нормальный Интервалы : Контроль 500 км : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50 Режим : Тяжелый Интервалы : Контроль 500 км : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 PROTEC 10W-30 : 4100 PROTEC 15W-40 : 4100 SYN-NERGY 15W-40 : 4100 SYN-NERGY 15W-50 : 4000 MOTION 10W-30 : 4000 MOTION 15W-40 : 2000 PROTECT 20W-50"
+   },
+   "automatic": {
+    "volume": 7.3,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.3,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,3 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "transfer": {
+    "volume": 0.3,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.3,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,3 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.5,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 60000 км/ 48 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.5,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,5 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=4325e352b46bca8c09511e075cc9f3c7"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Creta / ix25 (2014 - )",
+  "_type_label": "Creta 2.0 MPI AWD (2014 - 2021)",
+  "_type_key": "333281:3313427:33115240",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix35",
+  "generation": "EL",
+  "engine_code": "Nu",
+  "engine_name": "ix35 2.0 MPI 2WD",
+  "engine_volume": 2,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · ix35, EL (2010 - 2015) · ix35 2.0 MPI 2WD (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.1,
+    "filterVolume": 0.3,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 4.1,
+    "volumeTotal": 4.7,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель Nu",
+    "rawText": "Объем : Oбъем 4,1 л Сервисный : Oбъем 4,7 л Общий объём : Объем фильтра 0,3 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30"
+   },
+   "automatic": {
+    "volume": 7.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.1,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF1 6/1",
+    "rawText": "Объем : Oбъем 7,1 л Режим : Нормальный Интервалы : Контроль 24 мес./ 30000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 2.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.1,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 5/1",
+    "rawText": "Объем : Oбъем 2,1 л Режим : Нормальный Интервалы : Контроль 60000 км/ 30 мес. Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=cbed70e2c64e0b0bd99a87306fcc254b"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix35, EL (2010 - 2015)",
+  "_type_label": "ix35 2.0 MPI 2WD (2010 - 2015)",
+  "_type_key": "333281:3310865:33090495",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix35",
+  "generation": "EL",
+  "engine_code": "Nu",
+  "engine_name": "ix35 2.0 MPI 4WD",
+  "engine_volume": 2,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · ix35, EL (2010 - 2015) · ix35 2.0 MPI 4WD (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.1,
+    "filterVolume": 0.3,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-MAX 0W-40",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 4.1,
+    "volumeTotal": 4.7,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель Nu",
+    "rawText": "Объем : Oбъем 4,1 л Сервисный : Oбъем 4,7 л Общий объём : Объем фильтра 0,3 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-MAX 0W-40 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30"
+   },
+   "automatic": {
+    "volume": 7.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.1,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF1 6/1",
+    "rawText": "Объем : Oбъем 7,1 л Режим : Нормальный Интервалы : Контроль 24 мес./ 30000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 2.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2.1,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 5/1",
+    "rawText": "Объем : Oбъем 2,1 л Режим : Нормальный Интервалы : Контроль 60000 км/ 30 мес. Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   },
+   "transfer": {
+    "volume": 0.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.6,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,6 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.65,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.65,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,65 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=0bf79a1e82bebebb967bd4ed635fcc8e"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix35, EL (2010 - 2015)",
+  "_type_label": "ix35 2.0 MPI 4WD (2010 - 2015)",
+  "_type_key": "333281:3310865:33090496",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix35",
+  "generation": "EL",
+  "engine_code": "(серия R)",
+  "engine_name": "ix35 2.0 CRDi 2WD",
+  "engine_volume": 2,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix35, EL (2010 - 2015) · ix35 2.0 CRDi 2WD (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 8,
+    "filterVolume": 0.7,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-CESS 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 8,
+    "volumeTotal": 9.6,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 8 л Сервисный : Oбъем 9,6 л Общий объём : Объем фильтра 0,7 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40"
+   },
+   "automatic": {
+    "volume": 7.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF1 6/1",
+    "rawText": "Объем : Oбъем 7,8 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8 л Режим : Нормальный Интервалы : Контроль 60000 км/ 30 мес. Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=823609c056e4c8035d21509d65bbfeed"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix35, EL (2010 - 2015)",
+  "_type_label": "ix35 2.0 CRDi 2WD (2010 - 2015)",
+  "_type_key": "333281:3310865:33090497",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix35",
+  "generation": "EL",
+  "engine_code": "(серия R)",
+  "engine_name": "ix35 2.0 CRDi 2WD + DPF",
+  "engine_volume": 2,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix35, EL (2010 - 2015) · ix35 2.0 CRDi 2WD + DPF (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 8,
+    "filterVolume": 0.7,
+    "motulProducts": [
+     "8100 X-CLEAN+ EFE 0W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 8,
+    "volumeTotal": 9.6,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 8 л Сервисный : Oбъем 9,6 л Общий объём : Объем фильтра 0,7 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30"
+   },
+   "automatic": {
+    "volume": 7.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF1 6/1",
+    "rawText": "Объем : Oбъем 7,8 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8 л Режим : Нормальный Интервалы : Контроль 60000 км/ 30 мес. Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=7396af71432920211565994e62541eea"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix35, EL (2010 - 2015)",
+  "_type_label": "ix35 2.0 CRDi 2WD + DPF (2010 - 2015)",
+  "_type_key": "333281:3310865:33090498",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix35",
+  "generation": "EL",
+  "engine_code": "(серия R)",
+  "engine_name": "ix35 2.0 CRDi 4WD",
+  "engine_volume": 2,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix35, EL (2010 - 2015) · ix35 2.0 CRDi 4WD (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 8,
+    "filterVolume": 0.7,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-CESS 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 8,
+    "volumeTotal": 9.6,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 8 л Сервисный : Oбъем 9,6 л Общий объём : Объем фильтра 0,7 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40"
+   },
+   "automatic": {
+    "volume": 7.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF1 6/1",
+    "rawText": "Объем : Oбъем 7,8 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8 л Режим : Нормальный Интервалы : Контроль 60000 км/ 30 мес. Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   },
+   "transfer": {
+    "volume": 0.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.6,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,6 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffFront": {
+    "volume": 0.65,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.65,
+    "volumeType": "plain",
+    "label": "Дифференциал, передний",
+    "rawText": "Объем : Oбъем 0,65 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=4eca577dbd3de58048e0d412eb3d83bf"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix35, EL (2010 - 2015)",
+  "_type_label": "ix35 2.0 CRDi 4WD (2010 - 2015)",
+  "_type_key": "333281:3310865:33090499",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix35",
+  "generation": "EL",
+  "engine_code": "(серия R)",
+  "engine_name": "ix35 2.0 CRDi 4WD + DPF",
+  "engine_volume": 2,
+  "year_from": 2010,
+  "year_to": 2015,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix35, EL (2010 - 2015) · ix35 2.0 CRDi 4WD + DPF (2010 - 2015)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 8,
+    "filterVolume": 0.7,
+    "motulProducts": [
+     "8100 X-CLEAN+ EFE 0W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 8,
+    "volumeTotal": 9.6,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 8 л Сервисный : Oбъем 9,6 л Общий объём : Объем фильтра 0,7 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30"
+   },
+   "automatic": {
+    "volume": 7.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF1 6/1",
+    "rawText": "Объем : Oбъем 7,8 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 100000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8 л Режим : Нормальный Интервалы : Контроль 60000 км/ 30 мес. Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   },
+   "transfer": {
+    "volume": 0.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.6,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,6 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffFront": {
+    "volume": 0.65,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.65,
+    "volumeType": "plain",
+    "label": "Дифференциал, передний",
+    "rawText": "Объем : Oбъем 0,65 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=995bfb237f71a60ff92204e75e4c68e5"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix35, EL (2010 - 2015)",
+  "_type_label": "ix35 2.0 CRDi 4WD + DPF (2010 - 2015)",
+  "_type_key": "333281:3310865:33090500",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Santa Fe",
+  "generation": null,
+  "engine_code": "Theta II",
+  "engine_name": "Santa Fe 2.4 MPI 2WD",
+  "engine_volume": 2.4,
+  "year_from": 2012,
+  "year_to": 2018,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Santa Fe (2012 - 2018) · Santa Fe 2.4 MPI 2WD (2012 - 2018)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.6,
+    "volumeType": "plain",
+    "label": "Двигатель Theta II",
+    "rawText": "Объем : Oбъем 4,6 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 7.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.1,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF2, A6LF2 6/1",
+    "rawText": "Объем : Oбъем 7,1 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.9,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8-1,9 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=3f646183d5ea36202612569995a3b785"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Santa Fe (2012 - 2018)",
+  "_type_label": "Santa Fe 2.4 MPI 2WD (2012 - 2018)",
+  "_type_key": "333281:3310867:33090513",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Santa Fe",
+  "generation": null,
+  "engine_code": "Theta II",
+  "engine_name": "Santa Fe 2.4 MPI 4WD",
+  "engine_volume": 2.4,
+  "year_from": 2012,
+  "year_to": 2018,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · Santa Fe (2012 - 2018) · Santa Fe 2.4 MPI 4WD (2012 - 2018)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 4.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 POWER 5W-40",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CLEAN GEN2 5W-40",
+     "8100 X-CLEAN 5W-40",
+     "8100 X-CESS 5W-30",
+     "8100 X-CESS GEN2 5W-40",
+     "8100 X-CESS 5W-40",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-40",
+     "6100 SYN-CLEAN 5W-40",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYN-NERGY SPEC 5W-40",
+     "6100 SYN-NERGY 5W-40",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 4.6,
+    "volumeType": "plain",
+    "label": "Двигатель Theta II",
+    "rawText": "Объем : Oбъем 4,6 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 POWER 5W-40 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CLEAN GEN2 5W-40 : 8100 X-CLEAN 5W-40 : 8100 X-CESS 5W-30 : 8100 X-CESS GEN2 5W-40 : 8100 X-CESS 5W-40 : NGEN 6 5W-30 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-CLEAN SPEC 5W-40 : 6100 SYN-CLEAN 5W-40 : 6100 SYN-NERGY 5W-30 : 6100 SYN-NERGY SPEC 5W-40 : 6100 SYN-NERGY 5W-40 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 7.1,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.1,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A6MF2, A6LF2 6/1",
+    "rawText": "Объем : Oбъем 7,1 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "manual": {
+    "volume": 1.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 1.9,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая 6/1",
+    "rawText": "Объем : Oбъем 1,8-1,9 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   },
+   "transfer": {
+    "volume": 0.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.6,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,6 л Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.53,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.53,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,53 л Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=59f9b6d104efb69f974374a14f1717a7"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Santa Fe (2012 - 2018)",
+  "_type_label": "Santa Fe 2.4 MPI 4WD (2012 - 2018)",
+  "_type_key": "333281:3310867:33090509",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Santa Fe",
+  "generation": null,
+  "engine_code": "(серия R)",
+  "engine_name": "Santa Fe 2.2 CRDi 2WD",
+  "engine_volume": 2.2,
+  "year_from": 2012,
+  "year_to": 2018,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · Santa Fe (2012 - 2018) · Santa Fe 2.2 CRDi 2WD (2012 - 2018)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 6.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-CESS 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Нормальные условия, топливо согласно стандарту EN 590"
+    ],
+    "interval": "Замена 15000 км/ 12 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.7,
+    "volumeType": "plain",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 6,7 л Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 Режим : Нормальные условия, топливо согласно стандарту EN 590 Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40"
+   },
+   "automatic": {
+    "volume": 7.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,7 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=ca96bae5ba268938a770b017001085e7"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Santa Fe (2012 - 2018)",
+  "_type_label": "Santa Fe 2.2 CRDi 2WD (2012 - 2018)",
+  "_type_key": "333281:3310867:33090511",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Santa Fe",
+  "generation": null,
+  "engine_code": "(серия R)",
+  "engine_name": "Santa Fe 2.2 CRDi 2WD DPF",
+  "engine_volume": 2.2,
+  "year_from": 2012,
+  "year_to": 2018,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · Santa Fe (2012 - 2018) · Santa Fe 2.2 CRDi 2WD DPF (2012 - 2018)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 6.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-CLEAN+ EFE 0W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Нормальные условия, топливо согласно стандарту EN 590"
+    ],
+    "interval": "Замена 15000 км/ 12 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.7,
+    "volumeType": "plain",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 6,7 л Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 Режим : Нормальные условия, топливо согласно стандарту EN 590 Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30"
+   },
+   "automatic": {
+    "volume": 7.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,7 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=9a005d5b86ed78a9cec63ec2ca74e438"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Santa Fe (2012 - 2018)",
+  "_type_label": "Santa Fe 2.2 CRDi 2WD DPF (2012 - 2018)",
+  "_type_key": "333281:3310867:33090514",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Santa Fe",
+  "generation": null,
+  "engine_code": "(серия R)",
+  "engine_name": "Santa Fe 2.2 CRDi 4WD",
+  "engine_volume": 2.2,
+  "year_from": 2012,
+  "year_to": 2018,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · Santa Fe (2012 - 2018) · Santa Fe 2.2 CRDi 4WD (2012 - 2018)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 6.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-CESS 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Нормальные условия, топливо согласно стандарту EN 590"
+    ],
+    "interval": "Замена 15000 км/ 12 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.7,
+    "volumeType": "plain",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 6,7 л Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 Режим : Нормальные условия, топливо согласно стандарту EN 590 Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40"
+   },
+   "automatic": {
+    "volume": 7.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,7 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "transfer": {
+    "volume": 0.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.6,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,6 л Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.53,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.53,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,53 л Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=277e9a95cc1ae87e395603384be29005"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Santa Fe (2012 - 2018)",
+  "_type_label": "Santa Fe 2.2 CRDi 4WD (2012 - 2018)",
+  "_type_key": "333281:3310867:33090512",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "Santa Fe",
+  "generation": null,
+  "engine_code": "(серия R)",
+  "engine_name": "Santa Fe 2.2 CRDi 4WD DPF",
+  "engine_volume": 2.2,
+  "year_from": 2012,
+  "year_to": 2018,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · Santa Fe (2012 - 2018) · Santa Fe 2.2 CRDi 4WD DPF (2012 - 2018)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 6.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-CLEAN+ EFE 0W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Нормальные условия, топливо согласно стандарту EN 590"
+    ],
+    "interval": "Замена 15000 км/ 12 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.7,
+    "volumeType": "plain",
+    "label": "Двигатель (серия R)",
+    "rawText": "Объем : Oбъем 6,7 л Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 Режим : Нормальные условия, топливо согласно стандарту EN 590 Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30"
+   },
+   "automatic": {
+    "volume": 7.7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "NGEN MATIC ATF VI",
+     "ATF VI",
+     "TRANS ATF VI"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 90000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая 6/1",
+    "rawText": "Объем : Oбъем 7,7 л Режим : Нормальный Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI Режим : Тяжелый Интервалы : Замена 90000 км Продукты : NGEN MATIC ATF VI : ATF VI : TRANS ATF VI"
+   },
+   "transfer": {
+    "volume": 0.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.6,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,6 л Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.53,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.53,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,53 л Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=b147caf06493ae5377dd4f53bc6e0fb0"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "Santa Fe (2012 - 2018)",
+  "_type_label": "Santa Fe 2.2 CRDi 4WD DPF (2012 - 2018)",
+  "_type_key": "333281:3310867:33090515",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix55 / Veracruz",
+  "generation": null,
+  "engine_code": "G6DA",
+  "engine_name": "ix55 / Veracruz 3.8 V6",
+  "engine_volume": 3.8,
+  "year_from": 2010,
+  "year_to": 2012,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · ix55 / Veracruz (2010 - 2012) · ix55 / Veracruz 3.8 V6 (2010 - 2012)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.2,
+    "volumeType": "plain",
+    "label": "Двигатель G6DA",
+    "rawText": "Объем : Oбъем 5,2 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая F21 6/1",
+    "rawText": "Объем : Oбъем 7 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Тяжелый Интервалы : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=7ad14c8b8f90e5df5222ca3e6ef32206"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix55 / Veracruz (2010 - 2012)",
+  "_type_label": "ix55 / Veracruz 3.8 V6 (2010 - 2012)",
+  "_type_key": "333281:3310866:33090502",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix55 / Veracruz",
+  "generation": null,
+  "engine_code": "G6DA",
+  "engine_name": "ix55 / Veracruz 3.8 V6 4WD",
+  "engine_volume": 3.8,
+  "year_from": 2010,
+  "year_to": 2012,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Hyundai (RUS) · ix55 / Veracruz (2010 - 2012) · ix55 / Veracruz 3.8 V6 4WD (2010 - 2012)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 5.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 7500 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 5.2,
+    "volumeType": "plain",
+    "label": "Двигатель G6DA",
+    "rawText": "Объем : Oбъем 5,2 л Режим : Нормальный Интервалы : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая F21 6/1",
+    "rawText": "Объем : Oбъем 7 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Тяжелый Интервалы : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   },
+   "transfer": {
+    "volume": 0.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.8,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,8 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.9,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,9 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=40950b62e91da1606a7e521e489e1093"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix55 / Veracruz (2010 - 2012)",
+  "_type_label": "ix55 / Veracruz 3.8 V6 4WD (2010 - 2012)",
+  "_type_key": "333281:3310866:33090503",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix55 / Veracruz",
+  "generation": null,
+  "engine_code": null,
+  "engine_name": "ix55 / Veracruz 3.0 CRDi",
+  "engine_volume": 3,
+  "year_from": 2010,
+  "year_to": 2012,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix55 / Veracruz (2010 - 2012) · ix55 / Veracruz 3.0 CRDi (2010 - 2012)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 7.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-CESS 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 5000 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.2,
+    "volumeType": "plain",
+    "label": "Двигатель",
+    "rawText": "Объем : Oбъем 7,2 л Режим : Нормальный Интервалы : Замена 10000 км/ 12 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 Режим : Тяжелый Интервалы : Замена 5000 км/ 6 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40"
+   },
+   "automatic": {
+    "volume": 7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая F21 6/1",
+    "rawText": "Объем : Oбъем 7 л Режим : Нормальный Интервалы : Контроль 60000 км/ 36 мес. Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Тяжелый Интервалы : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=649b58295c1ed11e253912af7be1d714"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix55 / Veracruz (2010 - 2012)",
+  "_type_label": "ix55 / Veracruz 3.0 CRDi (2010 - 2012)",
+  "_type_key": "333281:3310866:33090504",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix55 / Veracruz",
+  "generation": null,
+  "engine_code": null,
+  "engine_name": "ix55 / Veracruz 3.0 CRDi DPF",
+  "engine_volume": 3,
+  "year_from": 2010,
+  "year_to": 2012,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix55 / Veracruz (2010 - 2012) · ix55 / Veracruz 3.0 CRDi DPF (2010 - 2012)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 7.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-CLEAN+ EFE 0W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 5000 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.2,
+    "volumeType": "plain",
+    "label": "Двигатель",
+    "rawText": "Объем : Oбъем 7,2 л Режим : Нормальный Интервалы : Замена 10000 км/ 12 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 Режим : Тяжелый Интервалы : Замена 5000 км/ 6 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30"
+   },
+   "automatic": {
+    "volume": 7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая F21 6/1",
+    "rawText": "Объем : Oбъем 7 л Режим : Нормальный Интервалы : Контроль 60000 км/ 36 мес. Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Тяжелый Интервалы : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=a698707cd5d4b3d15ef80195fc910f66"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix55 / Veracruz (2010 - 2012)",
+  "_type_label": "ix55 / Veracruz 3.0 CRDi DPF (2010 - 2012)",
+  "_type_key": "333281:3310866:33090506",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix55 / Veracruz",
+  "generation": null,
+  "engine_code": null,
+  "engine_name": "ix55 / Veracruz 3.0 CRDi 4WD",
+  "engine_volume": 3,
+  "year_from": 2010,
+  "year_to": 2012,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix55 / Veracruz (2010 - 2012) · ix55 / Veracruz 3.0 CRDi 4WD (2010 - 2012)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 7.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-MAX 0W-30",
+     "8100 X-CESS 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 5000 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.2,
+    "volumeType": "plain",
+    "label": "Двигатель",
+    "rawText": "Объем : Oбъем 7,2 л Режим : Нормальный Интервалы : Замена 10000 км/ 12 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 Режим : Тяжелый Интервалы : Замена 5000 км/ 6 мес. Продукты : 8100 X-MAX 0W-30 : 8100 X-CESS 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40"
+   },
+   "automatic": {
+    "volume": 7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая F21 6/1",
+    "rawText": "Объем : Oбъем 7 л Режим : Нормальный Интервалы : Контроль 60000 км/ 36 мес. Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Тяжелый Интервалы : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   },
+   "transfer": {
+    "volume": 0.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.8,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,8 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.9,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,9 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=a915a8de1b1c143c5eddf85d8ea90c06"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix55 / Veracruz (2010 - 2012)",
+  "_type_label": "ix55 / Veracruz 3.0 CRDi 4WD (2010 - 2012)",
+  "_type_key": "333281:3310866:33090505",
+  "_warnings": []
+ },
+ {
+  "brand": "HYUNDAI",
+  "model": "ix55 / Veracruz",
+  "generation": null,
+  "engine_code": null,
+  "engine_name": "ix55 / Veracruz 3.0 CRDi 4WD DPF",
+  "engine_volume": 3,
+  "year_from": 2010,
+  "year_to": 2012,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "05",
+  "motul_name": "Hyundai (RUS) · ix55 / Veracruz (2010 - 2012) · ix55 / Veracruz 3.0 CRDi 4WD DPF (2010 - 2012)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 7.2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 X-CLEAN+ EFE 0W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 5000 км/ 6 мес.",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7.2,
+    "volumeType": "plain",
+    "label": "Двигатель",
+    "rawText": "Объем : Oбъем 7,2 л Режим : Нормальный Интервалы : Замена 10000 км/ 12 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 Режим : Тяжелый Интервалы : Замена 5000 км/ 6 мес. Продукты : 8100 X-CLEAN+ EFE 0W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30"
+   },
+   "automatic": {
+    "volume": 7,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 100000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 7,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая F21 6/1",
+    "rawText": "Объем : Oбъем 7 л Режим : Нормальный Интервалы : Контроль 60000 км/ 36 мес. Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Тяжелый Интервалы : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   },
+   "transfer": {
+    "volume": 0.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.8,
+    "volumeType": "plain",
+    "label": "Раздаточная коробка",
+    "rawText": "Объем : Oбъем 0,8 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   },
+   "diffRear": {
+    "volume": 0.9,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-90"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Замена 120000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 0.9,
+    "volumeType": "plain",
+    "label": "Дифференциал, задний",
+    "rawText": "Объем : Oбъем 0,9 л Режим : Нормальный Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90 Режим : Тяжелый Интервалы : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-90"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=731448c549e4850c9b565b49f1e9157b"
+  },
+  "_make_label": "Hyundai (RUS)",
+  "_model_label": "ix55 / Veracruz (2010 - 2012)",
+  "_type_label": "ix55 / Veracruz 3.0 CRDi 4WD DPF (2010 - 2012)",
+  "_type_key": "333281:3310866:33090507",
+  "_warnings": []
+ },
+ {
+  "brand": "KIA",
+  "model": "Rio",
+  "generation": "QBR",
+  "engine_code": "G4FA",
+  "engine_name": "Rio 1.4 CVVT",
+  "engine_volume": 1.4,
+  "year_from": 2011,
+  "year_to": 2014,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Kia (RUS) · Rio, QBR (2011 - 2017) · Rio 1.4 CVVT (2011 - 2014)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 3.3,
+    "filterVolume": 0.3,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 500 км",
+    "volumeService": 3.3,
+    "volumeTotal": 3.7,
+    "volumePlain": 0,
+    "volumeType": "service",
+    "label": "Двигатель G4FA",
+    "rawText": "Объем : Oбъем 3,3 л Сервисный : Oбъем 3,7 л Общий объём : Объем фильтра 0,3 л Режим : Нормальный Интервалы : Контроль 500 км : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Контроль 500 км : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 6.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Заполнено на все время эксплуатации"
+    ],
+    "interval": "Контроль 48 мес./ 60000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A4CF1 4/1",
+    "rawText": "Объем : Oбъем 6,8 л Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Заполнено на все время эксплуатации Интервалы : Контроль 48 мес./ 60000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   },
+   "manual": {
+    "volume": 2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR 300 75W-90",
+     "MOTYLGEAR 75W-85"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Заполнено на все время эксплуатации"
+    ],
+    "interval": "Контроль 48 мес./ 60000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая M6CF1 6/1",
+    "rawText": "Объем : Oбъем 1,9-2 л Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85 Режим : Заполнено на все время эксплуатации Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR 300 75W-90 : MOTYLGEAR 75W-85"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=82efeb404ff732ef8be7bfbc91437381"
+  },
+  "_make_label": "Kia (RUS)",
+  "_model_label": "Rio, QBR (2011 - 2017)",
+  "_type_label": "Rio 1.4 CVVT (2011 - 2014)",
+  "_type_key": "333540:3312626:33107502",
+  "_warnings": []
+ },
+ {
+  "brand": "KIA",
+  "model": "Rio",
+  "generation": "QBR",
+  "engine_code": "G4FA",
+  "engine_name": "Rio 1.4 CVVT",
+  "engine_volume": 1.4,
+  "year_from": 2014,
+  "year_to": 2017,
+  "kw": null,
+  "bhp": null,
+  "fuel_type": "01",
+  "motul_name": "Kia (RUS) · Rio, QBR (2011 - 2017) · Rio 1.4 CVVT (2014 - 2017)",
+  "fluid_capacities": {
+   "engine": {
+    "volume": 3.6,
+    "filterVolume": 0,
+    "motulProducts": [
+     "8100 POWER 5W-30",
+     "8100 ECO-CLEAN 5W-30",
+     "8100 ECO-LITE 5W-20",
+     "8100 ECO-LITE 5W-30",
+     "8100 ECO-NERGY 5W-30",
+     "8100 X-CLEAN+ 5W-30",
+     "8100 X-CLEAN EFE 5W-30",
+     "8100 X-CLEAN FE 5W-30",
+     "8100 X-CESS 5W-30",
+     "NGEN 6 5W-30",
+     "ASIAN IMPORT 5W-20",
+     "ASIAN IMPORT 5W-30",
+     "6100 SAVE-CLEAN+ 5W-30",
+     "6100 SAVE-CLEAN 5W-30",
+     "6100 SAVE-LITE 5W-20",
+     "6100 SAVE-LITE 5W-30",
+     "6100 SAVE-NERGY 5W-30",
+     "6100 SYN-CLEAN FE 5W-30",
+     "6100 SYN-CLEAN SPEC 5W-30",
+     "6100 SYN-NERGY 5W-30",
+     "6100 SYNERGIE+ 10W-40",
+     "NGEN 4 10W-40",
+     "4100 SYN-NERGY SPEC 10W-40",
+     "4100 TURBOLIGHT 10W-40",
+     "4100 SYN-NERGY 15W-40",
+     "4000 MOTION 15W-40"
+    ],
+    "modes": [
+     "Нормальный",
+     "Тяжелый"
+    ],
+    "interval": "Контроль 500 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 3.6,
+    "volumeType": "plain",
+    "label": "Двигатель G4FA",
+    "rawText": "Объем : Oбъем 3,6 л Режим : Нормальный Интервалы : Контроль 500 км : Замена 15000 км/ 12 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40 Режим : Тяжелый Интервалы : Контроль 500 км : Замена 7500 км/ 6 мес. Продукты : 8100 POWER 5W-30 : 8100 ECO-CLEAN 5W-30 : 8100 ECO-LITE 5W-20 : 8100 ECO-LITE 5W-30 : 8100 ECO-NERGY 5W-30 : 8100 X-CLEAN+ 5W-30 : 8100 X-CLEAN EFE 5W-30 : 8100 X-CLEAN FE 5W-30 : 8100 X-CESS 5W-30 : NGEN 6 5W-30 : ASIAN IMPORT 5W-20 : ASIAN IMPORT 5W-30 : 6100 SAVE-CLEAN+ 5W-30 : 6100 SAVE-CLEAN 5W-30 : 6100 SAVE-LITE 5W-20 : 6100 SAVE-LITE 5W-30 : 6100 SAVE-NERGY 5W-30 : 6100 SYN-CLEAN FE 5W-30 : 6100 SYN-CLEAN SPEC 5W-30 : 6100 SYN-NERGY 5W-30 : 6100 SYNERGIE+ 10W-40 : NGEN 4 10W-40 : 4100 SYN-NERGY SPEC 10W-40 : 4100 TURBOLIGHT 10W-40 : 4100 SYN-NERGY 15W-40 : 4000 MOTION 15W-40"
+   },
+   "automatic": {
+    "volume": 6.8,
+    "filterVolume": 0,
+    "motulProducts": [
+     "MULTI ATF",
+     "TRANS ATF",
+     "ATF III"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Заполнено на все время эксплуатации"
+    ],
+    "interval": "Контроль 48 мес./ 60000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 6.8,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, автоматическая A4CF1 4/1",
+    "rawText": "Объем : Oбъем 6,8 л Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 100000 км Продукты : MULTI ATF : TRANS ATF : ATF III Режим : Заполнено на все время эксплуатации Интервалы : Контроль 48 мес./ 60000 км Продукты : MULTI ATF : TRANS ATF : ATF III"
+   },
+   "manual": {
+    "volume": 2,
+    "filterVolume": 0,
+    "motulProducts": [
+     "GEAR POWER LV 70W"
+    ],
+    "modes": [
+     "Тяжелый",
+     "Заполнено на все время эксплуатации"
+    ],
+    "interval": "Контроль 48 мес./ 60000 км",
+    "volumeService": 0,
+    "volumeTotal": 0,
+    "volumePlain": 2,
+    "volumeType": "plain",
+    "label": "Коробка передач в блоке с главной передачей, механическая M5CF1-1 5/1",
+    "rawText": "Объем : Oбъем 1,9-2 л Режим : Тяжелый Интервалы : Контроль 60000 км/ 48 мес. : Замена 120000 км Продукты : GEAR POWER LV 70W Режим : Заполнено на все время эксплуатации Интервалы : Контроль 48 мес./ 60000 км Продукты : GEAR POWER LV 70W"
+   }
+  },
+  "car_approvals": [],
+  "source_links": {
+   "motul": "https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus&type=278fe785f7aaf6a47d4ead71d68c6a3d"
+  },
+  "_make_label": "Kia (RUS)",
+  "_model_label": "Rio, QBR (2011 - 2017)",
+  "_type_label": "Rio 1.4 CVVT (2014 - 2017)",
+  "_type_key": "333540:3312626:33113069",
+  "_warnings": []
  }
 ]
