@@ -20,6 +20,7 @@ build/
 data/import/cache/
 data/import/.imported-keys.json
 data/import/.filters-applied.json
+data/import/logs/
 
 # ── Logs ────────────────────────────────────────────────────────
 *.log

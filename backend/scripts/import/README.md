@@ -97,6 +97,44 @@ node scripts/import/apply-filters.js --user gtrixoff      # дозапись в 
 задел под fallback-скрейперы LYNX/GoodWill/BIG (в основном нужны китайцам:
 Geely/Haval у Mann почти не покрыты).
 
+## Конвейер целиком (pipeline.sh)
+
+```bash
+cd backend
+chmod +x scripts/import/pipeline.sh
+nohup ./scripts/import/pipeline.sh > /dev/null 2>&1 &     # запуск в фоне
+```
+
+Крутит все этапы циклами (пауза 10 мин), сам перезапускает упавший скрейпер
+Motul, останавливается когда всё собрано и долито. Доступ к БД: `DATABASE_URL`
+из `backend/.env`, либо `SUPABASE_ACCESS_TOKEN=sbp_...` +
+`SUPABASE_PROJECT_REF=<ref>` (через HTTPS — нужно, если прямой Postgres
+недоступен: хост db.*.supabase.co только IPv6). Переменные: `IMPORT_USER`
+(логин на сайте, по умолчанию gtrixoff), `PIPELINE_SLEEP` (пауза цикла, сек),
+`SNAPSHOT_PUSH=1` (коммитить данные после цикла).
+
+### Дебаг
+
+```bash
+tail -f ../data/import/logs/pipeline.log          # что делает конвейер
+tail -f ../data/import/logs/scrape-motul.log      # прогресс скрейпера Motul
+pgrep -af "scripts/import"                        # какие процессы живы
+pkill -f "scripts/import"                         # остановить всё
+python3 -c "import json; f=lambda p: len(json.load(open(p))); \
+  print('собрано:', f('../data/import/motul-cars.json'), \
+        '| обогащено:', f('../data/import/cars-enriched.json'))"
+```
+
+Сколько уже в базе (SQL в Supabase → SQL Editor):
+
+```sql
+SELECT count(*) AS всего,
+       count(*) FILTER (WHERE jsonb_array_length(car_approvals) > 0) AS с_допусками,
+       count(*) FILTER (WHERE coalesce(filter_part_numbers->'vf'->>'part','') <> '') AS с_фильтрами,
+       count(*) FILTER (WHERE kw IS NOT NULL) AS с_квт
+FROM cars;
+```
+
 ## Технические детали
 
 - Частота запросов — 1/сек (`SCRAPE_INTERVAL_MS` меняет), ретраи с бэкоффом.
