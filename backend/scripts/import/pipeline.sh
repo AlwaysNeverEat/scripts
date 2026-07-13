@@ -56,21 +56,23 @@ while true; do
     fi
     PREV_COUNT=$COUNT
 
+    # Вывод этапов — И в консоль (видно прогресс живьём), И в лог (tee),
+    # иначе долгий тихий этап выглядит как зависание.
     say "этап: допуски ROLF"
     node scripts/import/scrape-rolf.js \
         --in data/import/motul-cars.json \
-        --out data/import/cars-enriched.json >> "$LOG" 2>&1
+        --out data/import/cars-enriched.json 2>&1 | tee -a "$LOG"
 
     say "этап: заливка машин в БД"
     node scripts/import/import-cars.js data/import/cars-enriched.json \
-        --user "$IMPORT_USER" --state data/import/.imported-keys.json >> "$LOG" 2>&1
+        --user "$IMPORT_USER" --state data/import/.imported-keys.json 2>&1 | tee -a "$LOG"
 
     say "этап: подбор фильтров Mann"
     SCRAPE_INTERVAL_MS="${SCRAPE_INTERVAL_MS:-500}" \
-        node scripts/import/scrape-filters.js >> "$LOG" 2>&1
+        node scripts/import/scrape-filters.js 2>&1 | tee -a "$LOG"
 
     say "этап: дозапись фильтров/мощности/ссылок"
-    node scripts/import/apply-filters.js --user "$IMPORT_USER" >> "$LOG" 2>&1
+    node scripts/import/apply-filters.js --user "$IMPORT_USER" 2>&1 | tee -a "$LOG"
 
     # SNAPSHOT_PUSH=1 — коммитить свежие данные на ветку после цикла.
     # Жмём gzip'ом: несжатые JSON перевалили за лимиты GitHub (50+ МБ).
