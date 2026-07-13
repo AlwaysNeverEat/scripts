@@ -32,8 +32,9 @@ if [ -f .env ]; then set -a; . ./.env; set +a; fi
 say() { echo "── $(date '+%d.%m %H:%M') $*" >> "$LOG"; }
 
 motul_alive() { pgrep -f "node scripts/import/scrape-motul.js" > /dev/null; }
+# Счёт машин через node (без python — паритет с pipeline.ps1, одна зависимость).
 car_count() {
-    python3 -c "import json;print(len(json.load(open('$ROOT/data/import/motul-cars.json'))))" 2>/dev/null || echo 0
+    node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('$ROOT/data/import/motul-cars.json','utf8'));console.log(Array.isArray(d)?d.length:Object.keys(d).length)" 2>/dev/null || echo 0
 }
 
 say "конвейер запущен (юзер: $IMPORT_USER, pid $$)"
@@ -86,7 +87,7 @@ Claude-Session: https://claude.ai/code/session_016ABQiyHBxUB5kYjmGsgc1s" && git 
     fi
 
     IN=$(car_count)
-    OUT=$(python3 -c "import json;print(len(json.load(open('$ROOT/data/import/cars-enriched.json'))))" 2>/dev/null || echo -1)
+    OUT=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('$ROOT/data/import/cars-enriched.json','utf8'));console.log(Array.isArray(d)?d.length:Object.keys(d).length)" 2>/dev/null || echo -1)
     say "итог цикла: собрано=$IN обогащено=$OUT motul_done=$MOTUL_DONE"
 
     if [ "$MOTUL_DONE" = "1" ] && [ "$IN" = "$OUT" ]; then

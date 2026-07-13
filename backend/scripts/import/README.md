@@ -97,7 +97,23 @@ node scripts/import/apply-filters.js --user gtrixoff      # дозапись в 
 задел под fallback-скрейперы LYNX/GoodWill/BIG (в основном нужны китайцам:
 Geely/Haval у Mann почти не покрыты).
 
-## Конвейер целиком (pipeline.sh)
+## Конвейер целиком — Windows (для не-технического запуска)
+
+1. **Поставь Node.js** (один раз). В любом окне PowerShell/командной строке:
+   `winget install OpenJS.NodeJS.LTS` — либо скачай с https://nodejs.org (кнопка
+   LTS, дальше «Далее-Далее»). Перезагрузка не нужна, но окно закрой и открой.
+2. **Возьми свежий код**: `git pull` в папке проекта.
+3. **Двойной клик** по `backend\scripts\import\run-import.bat`.
+   - Первый раз спросит токен Supabase — возьми на
+     https://supabase.com/dashboard/account/tokens (Generate new token), вставь,
+     Enter. Сохранится в `C:\Users\<ты>\.cars-import.json`, больше не спросит.
+   - Дальше сам распакует данные, поставит зависимости и пойдёт циклами.
+
+Окно можно свернуть — пусть работает. Закрыть окно = остановить конвейер
+(перезапуск безопасен, продолжит с места). Логи — в `data\import\logs\`.
+Сбросить токен — удалить `C:\Users\<ты>\.cars-import.json`.
+
+## Конвейер целиком — Linux/Mac (pipeline.sh)
 
 ```bash
 cd backend
@@ -105,13 +121,14 @@ chmod +x scripts/import/pipeline.sh
 nohup ./scripts/import/pipeline.sh > /dev/null 2>&1 &     # запуск в фоне
 ```
 
-Крутит все этапы циклами (пауза 10 мин), сам перезапускает упавший скрейпер
-Motul, останавливается когда всё собрано и долито. Доступ к БД: `DATABASE_URL`
-из `backend/.env`, либо `SUPABASE_ACCESS_TOKEN=sbp_...` +
-`SUPABASE_PROJECT_REF=<ref>` (через HTTPS — нужно, если прямой Postgres
-недоступен: хост db.*.supabase.co только IPv6). Переменные: `IMPORT_USER`
-(логин на сайте, по умолчанию gtrixoff), `PIPELINE_SLEEP` (пауза цикла, сек),
-`SNAPSHOT_PUSH=1` (коммитить данные после цикла).
+Оба скрипта (`.sh` и `.ps1`) крутят все этапы циклами (пауза 10 мин), сами
+перезапускают упавший скрейпер Motul, останавливаются когда всё собрано и
+долито. Доступ к БД: `DATABASE_URL` из `backend/.env`, либо
+`SUPABASE_ACCESS_TOKEN=sbp_...` + `SUPABASE_PROJECT_REF=<ref>` (через HTTPS —
+нужно, если прямой Postgres недоступен: хост db.*.supabase.co только IPv6).
+Переменные: `IMPORT_USER` (логин на сайте, по умолчанию gtrixoff),
+`PIPELINE_SLEEP` (пауза цикла, сек), `SNAPSHOT_PUSH=1` (коммитить данные после
+цикла, только для .sh).
 
 ### Дебаг
 
@@ -120,10 +137,11 @@ tail -f ../data/import/logs/pipeline.log          # что делает конв
 tail -f ../data/import/logs/scrape-motul.log      # прогресс скрейпера Motul
 pgrep -af "scripts/import"                        # какие процессы живы
 pkill -f "scripts/import"                         # остановить всё
-python3 -c "import json; f=lambda p: len(json.load(open(p))); \
-  print('собрано:', f('../data/import/motul-cars.json'), \
-        '| обогащено:', f('../data/import/cars-enriched.json'))"
+node -e "const f=p=>{const d=JSON.parse(require('fs').readFileSync(p));return Array.isArray(d)?d.length:Object.keys(d).length};console.log('собрано:',f('../data/import/motul-cars.json'),'| обогащено:',f('../data/import/cars-enriched.json'))"
 ```
+
+На Windows логи смотреть так (PowerShell):
+`Get-Content data\import\logs\pipeline.log -Tail 20 -Wait`
 
 Сколько уже в базе (SQL в Supabase → SQL Editor):
 
