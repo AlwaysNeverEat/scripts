@@ -197,6 +197,9 @@ export function formatMannArticle(sku) {
     return `${m[1].toUpperCase()} ${segments.join('/')}`;
 }
 
+// ВАЖНО: семантика полей — по первым буквам, как у операторов:
+// vf = ВОЗДУШНЫЙ фильтр, mf = МАСЛЯНЫЙ, sf = салонный.
+// (Подписи в скобках на странице машины перепутаны — не верить им.)
 function extractFilters(items) {
     const out = {};
     const cabins = [];
@@ -205,9 +208,9 @@ function extractFilters(items) {
         if (!sku) continue;
         const article = formatMannArticle(sku);
         const type = it.product_type || '';
-        if (type === 'Масляный фильтр') {
+        if (type === 'Воздушный фильтр') {
             if (!out.vf) out.vf = article;
-        } else if (type === 'Воздушный фильтр') {
+        } else if (type === 'Масляный фильтр') {
             if (!out.mf) out.mf = article;
         } else if (type === 'Воздушный фильтр салона') {
             cabins.push(article);
