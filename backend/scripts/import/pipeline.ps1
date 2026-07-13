@@ -1,4 +1,4 @@
-# ─────────────────────────────────────────────────────────────────────────────
+﻿# -----------------------------------------------------------------------------
 # Конвейер импорта для Windows (PowerShell-зеркало pipeline.sh).
 # Этапы циклом: Motul (объёмы) → ROLF (допуски) → заливка → Mann (фильтры+
 # кВт/ЛС+ссылки) → дозапись. Сам перезапускает упавший скрейпер Motul,
@@ -10,7 +10,7 @@
 # Доступ к БД (Supabase Management API через HTTPS): токен и ref спрашиваются
 # один раз и сохраняются в %USERPROFILE%\.cars-import.json. Сбросить —
 # удалить этот файл.
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -29,12 +29,12 @@ $ImportUser = if ($env:IMPORT_USER) { $env:IMPORT_USER } else { 'gtrixoff' }
 $SleepSec   = if ($env:PIPELINE_SLEEP) { [int]$env:PIPELINE_SLEEP } else { 600 }
 
 function Say([string]$msg) {
-    $line = "── {0} {1}" -f (Get-Date -Format 'dd.MM HH:mm'), $msg
+    $line = "== {0} {1}" -f (Get-Date -Format 'dd.MM HH:mm'), $msg
     Write-Host $line
     Add-Content -Path $PipeLog -Value $line -Encoding UTF8
 }
 
-# ── Проверка Node ────────────────────────────────────────────────────────────
+# -- Проверка Node ------------------------------------------------------------
 try { $nodeVer = (& node --version) 2>$null } catch { $nodeVer = $null }
 if (-not $nodeVer) {
     Write-Host ''
@@ -49,13 +49,13 @@ if (-not $nodeVer) {
 }
 Say "Node $nodeVer, юзер: $ImportUser"
 
-# ── Зависимости ──────────────────────────────────────────────────────────────
+# -- Зависимости --------------------------------------------------------------
 if (-not (Test-Path (Join-Path $Backend 'node_modules'))) {
     Say 'ставлю зависимости (npm install)…'
     & npm install --no-audit --no-fund
 }
 
-# ── Распаковка снапшотов данных (.json.gz → .json), если сырых ещё нет ────────
+# -- Распаковка снапшотов данных (.json.gz → .json), если сырых ещё нет --------
 function Expand-Gzip([string]$gz, [string]$out) {
     $inS  = [System.IO.File]::OpenRead($gz)
     $outS = [System.IO.File]::Create($out)
@@ -71,7 +71,7 @@ foreach ($name in 'motul-cars','cars-enriched','filters') {
     }
 }
 
-# ── Конфиг БД (токен Supabase) ───────────────────────────────────────────────
+# -- Конфиг БД (токен Supabase) -----------------------------------------------
 $CfgPath = Join-Path $env:USERPROFILE '.cars-import.json'
 if ($env:SUPABASE_ACCESS_TOKEN -and $env:SUPABASE_PROJECT_REF) {
     # уже в окружении — ничего не спрашиваем
@@ -93,7 +93,7 @@ if ($env:SUPABASE_ACCESS_TOKEN -and $env:SUPABASE_PROJECT_REF) {
     Write-Host "Сохранил в $CfgPath (удали этот файл, чтобы сбросить)." -ForegroundColor Cyan
 }
 
-# ── Хелперы ──────────────────────────────────────────────────────────────────
+# -- Хелперы ------------------------------------------------------------------
 function Count-Json([string]$file) {
     if (-not (Test-Path $file)) { return 0 }
     try {
@@ -108,7 +108,7 @@ function Run-Stage([string]$title, [string[]]$argList) {
     & node @argList *>> $PipeLog
 }
 
-# ── Основной цикл ────────────────────────────────────────────────────────────
+# -- Основной цикл ------------------------------------------------------------
 Say "конвейер запущен"
 $motulProc  = $null
 $motulDone  = $false
