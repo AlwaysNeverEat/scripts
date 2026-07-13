@@ -102,10 +102,11 @@ function Count-Json([string]$file) {
     } catch { return 0 }
 }
 
-# Запуск одного этапа: node-скрипт, вывод дописываем в общий лог.
+# Запуск одного этапа: node-скрипт. Вывод идёт И в консоль (видно прогресс
+# живьём), И в лог-файл — иначе долгий тихий этап выглядит как зависание.
 function Run-Stage([string]$title, [string[]]$argList) {
     Say "этап: $title"
-    & node @argList *>> $PipeLog
+    & node @argList 2>&1 | Tee-Object -FilePath $PipeLog -Append
 }
 
 # -- Основной цикл ------------------------------------------------------------

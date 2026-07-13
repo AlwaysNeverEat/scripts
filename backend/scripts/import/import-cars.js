@@ -90,6 +90,28 @@ const createdBy = importUser ? importUser.display_name : 'import';
 
 const importedKeys = STATE_FILE ? new Set(readJson(STATE_FILE, [])) : null;
 
+// Ключ машины ровно как в уникальном индексе БД (для быстрого пропуска).
+const carKey = (brand, model, code, vol, yf) =>
+    `${String(brand).toLowerCase()}|${String(model).toLowerCase()}|${String(code || '').toLowerCase()}|${Number(vol ?? 0).toFixed(1)}|${yf}`;
+
+// Одним запросом забираем ключи уже существующих машин (+ есть ли допуски,
+// наша ли это импортная запись). Иначе на свежей машине это тысячи отдельных
+// запросов к API — медленно и упирается в лимиты.
+let dbKeys = null;
+if (!DRY_RUN) {
+    const r = await query(
+        `SELECT lower(brand)||'|'||lower(model)||'|'||lower(coalesce(engine_code,''))
+                  ||'|'||coalesce(engine_volume,0)::numeric(6,1)::text||'|'||year_from::text AS k,
+                (jsonb_array_length(car_approvals) > 0) AS has_appr,
+                (notes LIKE '⚠ Импортировано%') AS is_import
+         FROM cars`);
+    dbKeys = new Map(r.rows.map(x => [x.k, {
+        hasAppr: x.has_appr === true || x.has_appr === 't',
+        isImport: x.is_import === true || x.is_import === 't',
+    }]));
+    console.log(`в базе уже ${dbKeys.size} машин — трогаю только новые и недостающие`);
+}
+
 let inserted = 0, existing = 0, invalid = 0, skippedByState = 0, updatedApprovals = 0;
 const invalidReport = [];
 
@@ -104,6 +126,25 @@ for (const car of cars.slice(0, LIMIT)) {
         invalid++;
         invalidReport.push(`${label || '(пустая запись)'}: ${problems.join(', ')}`);
         continue;
+    }
+
+    // Быстрый пропуск без запроса к БД: машина уже есть и ей ничего не нужно
+    // (либо допуски уже есть, либо у нас их нет). Дозапись допусков нужна
+    // только нашей импортной записи без допусков, когда у нас они появились.
+    if (dbKeys) {
+        const ex = dbKeys.get(carKey(car.brand, car.model, car.engine_code, car.engine_volume, car.year_from));
+        if (ex) {
+            const needsBackfill = ex.isImport && !ex.hasAppr
+                && car.car_approvals && car.car_approvals.length > 0;
+            if (!needsBackfill) {
+                existing++;
+                if (importedKeys && car._type_key
+                    && ((car.car_approvals && car.car_approvals.length) || car._rolf !== undefined)) {
+                    importedKeys.add(car._type_key);
+                }
+                continue;
+            }
+        }
     }
 
     const notes = car.car_approvals && car.car_approvals.length
@@ -178,6 +219,11 @@ for (const car of cars.slice(0, LIMIT)) {
     else if (r.rows[0].inserted === true || r.rows[0].inserted === 't') inserted++;
     else updatedApprovals++;
 
+    // Прогресс каждые 100 записей — чтобы долгая заливка не выглядела зависшей.
+    if ((inserted + updatedApprovals) % 100 === 0 && (inserted + updatedApprovals) > 0) {
+        console.log(`  …добавлено ${inserted}, дозаписей ${updatedApprovals} (в работе)`);
+    }
+
     // В стейт — только «финально» обработанные: с допусками, либо когда
     // обогащение уже прошло и допусков точно нет (_rolf есть в записи).
     // Машины без допусков и без _rolf ждут дозаписи следующим циклом.
@@ -187,6 +233,11 @@ for (const car of cars.slice(0, LIMIT)) {
         writeJson(STATE_FILE, [...importedKeys]);
     }
 }
+
+// Финальная запись стейта: быстрые пропуски копились в памяти без записи
+// (иначе тысячи writeJson на диск). Один раз в конце — и следующий прогон
+// пролетит их мгновенно.
+if (importedKeys && STATE_FILE && !DRY_RUN) writeJson(STATE_FILE, [...importedKeys]);
 
 console.log(`${DRY_RUN ? '[dry-run] ' : ''}Импорт из ${path.relative(ROOT, IN_FILE)}:`);
 console.log(`  ${DRY_RUN ? 'будет добавлено' : 'добавлено'}: ${inserted}`);
