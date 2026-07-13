@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJson, writeJson } from './http.js';
 import { makeQuery } from './db.js';
+import { buildSourceKeys, cleanSourceLinks } from '../../../shared/sourceLinks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -55,12 +56,6 @@ if (USER_LOGIN) {
 const applied = new Set(readJson(STATE_FILE, []));
 const carByKey = new Map(cars.map(c => [c._type_key, c]));
 
-// Условие «фильтры пустые»: {} или объект без единого part/absent:true.
-const EMPTY_FPN = `NOT EXISTS (
-    SELECT 1 FROM jsonb_each(coalesce(c.filter_part_numbers, '{}'::jsonb)) AS f(k, v)
-    WHERE coalesce(v->>'part', '') <> '' OR coalesce(v->>'absent', 'false') = 'true'
-)`;
-
 function buildFpn(entry) {
     const mk = (part) => part
         ? { part, absent: false }
@@ -68,11 +63,21 @@ function buildFpn(entry) {
     return { vf: mk(entry.vf), mf: mk(entry.mf), sf: mk(entry.sf) };
 }
 
+// Пустые фильтры? ({} или объект без единого part/absent:true)
+function fpnIsEmpty(fpn) {
+    if (!fpn || typeof fpn !== 'object') return true;
+    return !Object.values(fpn).some(v =>
+        v && ((v.part && String(v.part).trim()) || v.absent === true));
+}
+
 let updated = 0, skippedState = 0, notEligible = 0, noCar = 0, processed = 0;
 
 for (const [typeKey, entry] of Object.entries(filters)) {
     if (processed >= LIMIT) break;
-    if (entry.source === 'none' || (!entry.vf && !entry.mf && !entry.sf)) continue;
+    if (entry.source === 'none') continue;
+    const hasParts = entry.vf || entry.mf || entry.sf;
+    const hasPower = entry.kw || entry.bhp;
+    if (!hasParts && !hasPower && !entry.mann_link) continue;
     if (applied.has(typeKey)) { skippedState++; continue; }
     const car = carByKey.get(typeKey);
     if (!car) { noCar++; continue; }
@@ -85,36 +90,68 @@ for (const [typeKey, entry] of Object.entries(filters)) {
     const keyParams = [car.brand, car.model, car.engine_code ?? null,
                        car.engine_volume ?? null, car.year_from];
 
-    if (DRY_RUN) {
-        const r = await query(
-            `SELECT 1 FROM cars c WHERE ${keyWhere} AND ${EMPTY_FPN}`, keyParams);
-        if (r.rows.length) updated++; else notEligible++;
+    // Сначала смотрим текущее состояние машины, изменения считаем в JS —
+    // так событие edited содержит ровно то, что реально поменялось.
+    const cur = await query(
+        `SELECT c.id, c.filter_part_numbers, c.kw, c.bhp, c.source_links FROM cars c WHERE ${keyWhere}`,
+        keyParams);
+    if (!cur.rows.length) { notEligible++; continue; }
+    const row = cur.rows[0];
+
+    const changes = {};   // field → { from, to } (формат diffChangedFields)
+    const sets = [];
+    const params = [];
+    const p = (v) => { params.push(v); return '$' + params.length; };
+
+    if (hasParts && fpnIsEmpty(row.filter_part_numbers)) {
+        const newFpn = buildFpn(entry);
+        changes.filter_part_numbers = { from: row.filter_part_numbers, to: newFpn };
+        sets.push(`filter_part_numbers = ${p(JSON.stringify(newFpn))}::jsonb`);
+    }
+    // ЛС/кВт доливаем ТОЛЬКО в пустые поля — заполненное не трогаем.
+    if (entry.kw && row.kw == null) {
+        changes.kw = { from: null, to: entry.kw };
+        sets.push(`kw = ${p(entry.kw)}`);
+    }
+    if (entry.bhp && row.bhp == null) {
+        changes.bhp = { from: null, to: entry.bhp };
+        sets.push(`bhp = ${p(entry.bhp)}`);
+    }
+    // Ссылка на страницу машины в каталоге Mann — только если её ещё нет
+    // (существующие ссылки не трогаем); source_keys пересчитываем той же
+    // функцией, что использует сайт.
+    const oldLinks = row.source_links || {};
+    if (entry.mann_link && !oldLinks.mann) {
+        const newLinks = cleanSourceLinks({ ...oldLinks, mann: entry.mann_link });
+        changes.source_links = { from: oldLinks, to: newLinks };
+        sets.push(`source_links = ${p(JSON.stringify(newLinks))}::jsonb`);
+        sets.push(`source_keys = ${p(JSON.stringify(buildSourceKeys(newLinks)))}::jsonb`);
+    }
+
+    if (!sets.length) {
+        // Нечего менять — машина полностью укомплектована, фиксируем в стейте.
+        applied.add(typeKey);
+        writeJson(STATE_FILE, [...applied]);
+        notEligible++;
         continue;
     }
 
-    const fpn = JSON.stringify(buildFpn(entry));
-    const comment = `фильтры подобраны автоматически (${entry.source === 'mann' ? 'MANN-FILTER' : entry.source})`;
+    if (DRY_RUN) { updated++; continue; }
 
-    let sql = `WITH old AS (
-            SELECT c.id, c.filter_part_numbers FROM cars c
-            WHERE ${keyWhere} AND ${EMPTY_FPN}
-        ),
-        upd AS (
-            UPDATE cars SET filter_part_numbers = $6::jsonb, updated_at = now()
-            WHERE id IN (SELECT id FROM old)
+    let sql = `WITH upd AS (
+            UPDATE cars SET ${sets.join(', ')}, updated_at = now()
+            WHERE id = ${p(row.id)}
             RETURNING id
         )`;
-    const params = [...keyParams, fpn];
-
     if (importUser) {
+        const comment = changes.filter_part_numbers
+            ? `фильтры подобраны автоматически (${entry.source === 'mann' ? 'MANN-FILTER' : entry.source})`
+            : 'мощность дозаписана автоматически (MANN-FILTER)';
         sql += `
         INSERT INTO car_events (car_id, user_id, type, comment, changed_fields)
-        SELECT o.id, $7, 'edited', $8,
-               jsonb_build_object('filter_part_numbers',
-                   jsonb_build_object('from', o.filter_part_numbers, 'to', $6::jsonb))
-        FROM old o
+        SELECT id, ${p(importUser.id)}, 'edited', ${p(comment)}, ${p(JSON.stringify(changes))}::jsonb
+        FROM upd
         RETURNING car_id AS id`;
-        params.push(importUser.id, comment);
     } else {
         sql += ` SELECT id FROM upd`;
     }
@@ -122,20 +159,24 @@ for (const [typeKey, entry] of Object.entries(filters)) {
     const r = await query(sql, params);
     if (r.rows.length) {
         updated++;
+        const what = [
+            changes.filter_part_numbers ? `vf=${entry.vf || '—'} mf=${entry.mf || '—'} sf=${entry.sf || '—'}` : '',
+            changes.kw ? `kw=${entry.kw}` : '',
+            changes.bhp ? `bhp=${entry.bhp}` : '',
+            changes.source_links ? '+mann-link' : '',
+        ].filter(Boolean).join(' ');
         const label = `${car.brand} ${car.model} ${car.engine_code || ''} ${car.year_from}`.replace(/\s+/g, ' ');
-        console.log(`  ✓ ${label}: vf=${entry.vf || '—'} mf=${entry.mf || '—'} sf=${entry.sf || '—'}`);
-        // В стейт — только успешные: «не подошло» может значить «машина ещё
-        // не залита» (дольётся следующим циклом конвейера) — не хороним её.
+        console.log(`  ✓ ${label}: ${what}`);
         applied.add(typeKey);
         writeJson(STATE_FILE, [...applied]);
     } else {
-        notEligible++; // машины нет в базе или фильтры уже заполнены
+        notEligible++;
     }
 }
 
-console.log(`${DRY_RUN ? '[dry-run] ' : ''}Фильтры:`);
+console.log(`${DRY_RUN ? '[dry-run] ' : ''}Фильтры/мощность:`);
 console.log(`  ${DRY_RUN ? 'будет обновлено' : 'обновлено'}: ${updated}`);
-console.log(`  не подошло (нет в базе / фильтры уже заполнены): ${notEligible}`);
+console.log(`  без изменений (нет в базе / уже заполнено): ${notEligible}`);
 if (skippedState) console.log(`  пропущено по стейту: ${skippedState}`);
 if (noCar) console.log(`  нет машины в JSON: ${noCar}`);
 process.exit(0);

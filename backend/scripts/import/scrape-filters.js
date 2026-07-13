@@ -126,7 +126,7 @@ async function findSeries(brandCandidates, model, generation, yearFrom) {
         const series = await loadAllSeries(brand.vehicle_brand_id);
         for (const s of series) {
             const score = scoreSeries(s, model, generation, yearFrom);
-            if (score >= 2) scored.push({ ...s, _score: score });
+            if (score >= 2) scored.push({ ...s, _score: score, _brand: brand });
         }
     }
     scored.sort((a, b) => b._score - a._score);
@@ -137,7 +137,7 @@ async function findType(seriesList, group) {
     for (const series of seriesList.slice(0, 3)) {
         const d = await gql(
             `{ modelTypeCollection(model_series_id:"${esc(series.model_series_id)}") {
-                 allModelTypes { model_type_id vehicle_name engine_code ccm kw
+                 allModelTypes { model_type_id vehicle_name engine_code ccm kw bhp
                                  vehicle_manufactured_from vehicle_manufactured_to } } }`,
             'types');
         const types = d.data.modelTypeCollection.allModelTypes || [];
@@ -232,7 +232,10 @@ const groups = new Map();
 for (const car of cars) {
     if (!car._type_key) continue;
     if (BRANDS.length && !BRANDS.some(b => car.brand.toLowerCase().includes(b))) continue;
-    if (filters[car._type_key]) continue; // уже подобрано
+    const done = filters[car._type_key];
+    // Пропускаем подобранные И промахи; записи без ключа kw — от старой версии
+    // скрипта, перепроходим их ради мощности (GraphQL-кэш смягчит сеть).
+    if (done && (done.source === 'none' || 'kw' in done)) continue;
     const key = [car.brand, car.model, car.generation || '', car.engine_code || '',
                  car.engine_volume || '', car.kw || ''].join('|').toLowerCase();
     if (!groups.has(key)) groups.set(key, { cars: [], sample: car });
@@ -278,8 +281,12 @@ for (const [key, group] of groups) {
         if (!parts.vf && !parts.mf && !parts.sf) { missNote(group, 'у Mann нет фильтров для модификации'); continue; }
 
         const matched = `${hit.series.model_series_name} ${hit.t.vehicle_name} ${hit.t.engine_code || ''}`.replace(/\s+/g, ' ').trim();
+        // кВт/ЛС модификации Mann — ими доливаются пустые kw/bhp машин.
+        const kw = parseInt(hit.t.kw) || null;
+        const bhp = parseInt(hit.t.bhp) || null;
+        const mannLink = buildMannLink(hit);
         for (const car of group.cars) {
-            filters[car._type_key] = { ...parts, source: 'mann', matched };
+            filters[car._type_key] = { ...parts, kw, bhp, mann_link: mannLink, source: 'mann', matched };
         }
         found++;
         console.log(`  ✓ ${label}: vf=${parts.vf || '—'} mf=${parts.mf || '—'} sf=${parts.sf || '—'} (${matched})`);
@@ -288,6 +295,22 @@ for (const [key, group] of groups) {
         failedGroups++;
         console.warn(`  ⚠ ${label}: ${e.message}`);
     }
+}
+
+// Ссылка на страницу машины в каталоге Mann — тот же формат, что у операторских
+// ссылок (shared/sourceLinks.test.js). Ключевое поле — vehicleTypeId: из него
+// sourceSignature() строит ключ «mann:type:<digits>» для нотификатора.
+function buildMannLink(hit) {
+    const q = new URLSearchParams({ mode: 'application' });
+    q.set('vehicleMake', hit.series._brand.vehicle_brand_name || '');
+    q.set('vehicleModel', hit.series.model_series_name || '');
+    q.set('vehicleModelId', hit.series.model_series_id || '');
+    q.set('vehicleTypeId', hit.t.model_type_id);
+    q.set('modelTypeId', hit.t.model_type_id);
+    if (hit.t.ccm) q.set('ccm', hit.t.ccm);
+    if (hit.t.kw) q.set('kw', hit.t.kw);
+    if (hit.t.engine_code) q.set('engineCode', hit.t.engine_code);
+    return 'https://www.mann-filter.com/ru-ru/catalog/search-results.html?' + q.toString();
 }
 
 function missNote(group, why) {
