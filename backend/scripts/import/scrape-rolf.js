@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { politeFetch, writeJson, readJson } from './http.js';
 import { normApproval } from '../../../shared/calculator.js';
+import { matchEngineCodes } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -80,16 +81,6 @@ async function api(pathname, params) {
 }
 
 // ── Сопоставление модификаций ────────────────────────────────────────────────
-// Порт matchEngineCodes из userscript/src/oil-calculator/app.js.
-function matchEngineCodes(a, b) {
-    if (!a || !b) return false;
-    const as = String(a).toUpperCase().split(/[,;/\s]+/).map(s => s.trim()).filter(Boolean);
-    const bs = String(b).toUpperCase().split(/[,;/\s]+/).map(s => s.trim()).filter(Boolean);
-    for (const x of as) for (const y of bs) {
-        if (x === y || x.includes(y) || y.includes(x)) return true;
-    }
-    return false;
-}
 
 function yearsOverlap(car, gen) {
     const years = (gen.years_array || []).map(Number).filter(Boolean);

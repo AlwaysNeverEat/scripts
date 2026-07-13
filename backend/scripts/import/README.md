@@ -72,6 +72,31 @@ DATABASE_URL=postgres://... node scripts/import/import-cars.js --user vasya   # 
 
 `--dry-run` показывает, сколько машин добавится/пропустится, без записи.
 
+## 4. Фильтры (артикулы MANN-FILTER)
+
+```bash
+node scripts/import/scrape-filters.js                     # подбор по всем машинам
+node scripts/import/scrape-filters.js --brands "skoda" --limit 20
+node scripts/import/apply-filters.js --user gtrixoff --dry-run
+node scripts/import/apply-filters.js --user gtrixoff      # дозапись в базу
+```
+
+`scrape-filters.js` ходит в открытый GraphQL-каталог mann-filter.com
+(бренд → серии моделей → модификации → фильтры), матчит по модели и
+двигателю (код двигателя главный, объём/мощность запасные, год мягкий),
+группирует одинаковые машины — один лукап на группу. Результат — отдельный
+`data/import/filters.json` (vf=масляный, mf=воздушный, sf=салонный; салонник
+с приоритетом CU > CUK > FP, как в юзерскрипте «Скопировать 3 артикула»).
+
+`apply-filters.js` дозаписывает фильтры ТОЛЬКО машинам с пустыми
+`filter_part_numbers` (заполненное руками неприкосновенно) и пишет событие
+`edited` в car_events на юзера из `--user` — на сайте это обычная правка,
+метрика edited её считает.
+
+Машины, не найденные на Mann, помечаются в filters.json `source:'none'` —
+задел под fallback-скрейперы LYNX/GoodWill/BIG (в основном нужны китайцам:
+Geely/Haval у Mann почти не покрыты).
+
 ## Технические детали
 
 - Частота запросов — 1/сек (`SCRAPE_INTERVAL_MS` меняет), ретраи с бэкоффом.

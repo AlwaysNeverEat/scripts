@@ -19,6 +19,7 @@ build/
 # ── Кэш скрейперов импорта (тысячи HTML/JSON, не для репозитория) ─
 data/import/cache/
 data/import/.imported-keys.json
+data/import/.filters-applied.json
 
 # ── Logs ────────────────────────────────────────────────────────
 *.log

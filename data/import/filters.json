@@ -1,0 +1,3670 @@
+{
+ "333708:3315782:33141957": {
+  "mf": "C 29 015",
+  "vf": "W 712/95",
+  "sf": "CU 26 006",
+  "source": "mann",
+  "matched": "Citigo (NF1) 1.0 CHYA"
+ },
+ "333708:3315782:33141958": {
+  "mf": "C 29 015",
+  "vf": "W 712/95",
+  "sf": "CU 26 006",
+  "source": "mann",
+  "matched": "Citigo (NF1) 1.0 CHYB"
+ },
+ "333708:3315773:33141869": {
+  "mf": "C 22 035",
+  "vf": "W 712/95",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.2 TSI CJZB, CYVA"
+ },
+ "333708:3315773:33141860": {
+  "mf": "C 27 009",
+  "vf": "W 712/95",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.2 TSI CJZA"
+ },
+ "333708:3315773:33141862": {
+  "mf": "C 27 009",
+  "vf": "W 712/95",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.4 TSI CHPA"
+ },
+ "333708:3315773:33141863": {
+  "mf": "C 27 009",
+  "vf": "W 712/95",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.4 TSI CHPB, CZDA"
+ },
+ "333708:3315773:33141864": {
+  "mf": "C 27 009",
+  "vf": "W 712/95",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.4 TSI CHPB, CZDA"
+ },
+ "333708:3315773:33141861": {
+  "mf": "C 21 014",
+  "vf": "W 712/95",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.6 MPI / SRE CWVA, DWYA"
+ },
+ "333708:3315773:33141865": {
+  "mf": "C 30 005",
+  "vf": "HU 6002 Z",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.8 TSI CJSA, CJSB"
+ },
+ "333708:3315773:33141866": {
+  "mf": "C 30 005",
+  "vf": "HU 6002 Z",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 1.8 TSI CJSA, CJSB"
+ },
+ "333708:3315773:33141867": {
+  "mf": "C 30 005",
+  "vf": "HU 7020 Z",
+  "sf": "CU 26 009",
+  "source": "mann",
+  "matched": "Octavia III 2.0 TDI CKFB, CRVC"
+ },
+ "333280:3309908:33080679": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 1.6 Hatchback (J305) LDE"
+ },
+ "333280:3309908:33080675": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 1.6 Hatchback (J305) LDE"
+ },
+ "333280:3313238:33113465": {
+  "mf": "C 30 012",
+  "vf": "HU 7030 Z",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.2 D 4WD"
+ },
+ "910070:9109581:91076586": {
+  "mf": "C 30 012",
+  "vf": "HU 7030 Z",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.2 D 4WD"
+ },
+ "910070:9109581:91076587": {
+  "mf": "C 30 012",
+  "vf": "HU 7030 Z",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.2 D 4WD"
+ },
+ "333269:3313220:33123830": {
+  "mf": "C 17 006",
+  "vf": "W 7008",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Fiesta VI / Fiesta Mk VII 1.6 TI-VCT"
+ },
+ "333269:3313220:33113270": {
+  "mf": "C 17 006",
+  "vf": "W 7008",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Fiesta VI / Fiesta Mk VII 1.6 Ti-VCT Zetec"
+ },
+ "333269:3313220:33123829": {
+  "mf": "C 17 006",
+  "vf": "W 7008",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Fiesta VI / Fiesta Mk VII 1.6 Ti-VCT HXJA, HXJB"
+ },
+ "333269:3309818:33115928": {
+  "mf": "C 16 134/1",
+  "vf": "W 7015",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Focus III 1.0 EcoBoost 10FDOX (Fox)"
+ },
+ "333269:3309818:33115932": {
+  "mf": "C 16 134/1",
+  "vf": "W 7015",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Focus III 1.0 EcoBoost 10FDOX (Fox) /M1DA, M1DC, M1DD"
+ },
+ "333269:3309818:33123855": {
+  "mf": "C 16 134/1",
+  "vf": "W 7008",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Focus III 1.5 EcoBoost M8DA, M8DB"
+ },
+ "333269:3309818:33115920": {
+  "mf": "C 28 122",
+  "vf": "W 7008",
+  "sf": "CU 2440",
+  "source": "mann",
+  "matched": "Focus Cabriolet 1.6 16V Duratec"
+ },
+ "333269:3309818:33115921": {
+  "mf": "C 28 122",
+  "vf": "W 7008",
+  "sf": "CU 2440",
+  "source": "mann",
+  "matched": "Focus Cabriolet 1.6 16V Duratec"
+ },
+ "333269:3309818:33079863": {
+  "mf": "C 28 122",
+  "vf": "W 7015",
+  "sf": "CU 2440",
+  "source": "mann",
+  "matched": "Focus Cabriolet 2.0 16V Duratec"
+ },
+ "333269:3309818:33069768": {
+  "mf": "C 28 122",
+  "vf": "W 7015",
+  "sf": "CU 2440",
+  "source": "mann",
+  "matched": "Focus Cabriolet 2.0 16V Duratec"
+ },
+ "333269:3313229:33113351": {
+  "mf": "C 30 161",
+  "vf": "W 7015",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Mondeo IV 2.0 EcoBoost SCTi TNBA"
+ },
+ "333269:3313229:33113359": {
+  "mf": "C 30 161",
+  "vf": "W 7015",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Mondeo IV 2.0 EcoBoost SCTi TNBA"
+ },
+ "333269:3313229:33132757": {
+  "mf": "C 30 161",
+  "vf": "W 7015",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Mondeo IV 2.0 EcoBoost SCTi TNBA"
+ },
+ "333269:3313229:33113353": {
+  "mf": "C 30 161",
+  "vf": "W 7015",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Mondeo IV 2.0 EcoBoost SCTi TPBA"
+ },
+ "333269:3313229:33113360": {
+  "mf": "C 30 161",
+  "vf": "W 7015",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Mondeo IV 2.0 EcoBoost SCTi TPBA"
+ },
+ "333269:3313229:33132762": {
+  "mf": "C 30 161",
+  "vf": "W 7015",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Mondeo IV 2.0 EcoBoost SCTi TPBA"
+ },
+ "333269:3313229:33123861": {
+  "mf": "C 25 008/1",
+  "vf": "W 7015",
+  "sf": "CUK 28 001",
+  "source": "mann",
+  "matched": "Mondeo V 2.5 C25HDEX"
+ },
+ "333269:3313229:33132768": {
+  "mf": "C 25 008/1",
+  "vf": "W 7015",
+  "sf": "CUK 28 001",
+  "source": "mann",
+  "matched": "Mondeo V 2.5 C25HDEX"
+ },
+ "333269:3312800:33109345": {
+  "mf": "C 17 006",
+  "vf": "W 7015",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Ecosport 1.0 EcoBoost 10FDOX (Fox)"
+ },
+ "333269:3312800:33109346": {
+  "mf": "C 17 006",
+  "vf": "W 7015",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Ecosport 1.0 EcoBoost YYJD, YYJF"
+ },
+ "333269:3312800:33109347": {
+  "mf": "C 17 006",
+  "vf": "W 7008",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Ecosport 1.5 Ti-VCT Duratec"
+ },
+ "333269:3312800:33109348": {
+  "mf": "C 17 006",
+  "vf": "W 7015",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Ecosport 1.6 16V Ti-VCT"
+ },
+ "333269:3312800:33109350": {
+  "vf": "W 7015",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Ecosport 2.0 16V C20HDEA"
+ },
+ "333269:3312800:33109352": {
+  "mf": "C 17 006",
+  "vf": "HU 716/2 X",
+  "sf": "CU 2436",
+  "source": "mann",
+  "matched": "Ecosport 1.5 TDCi 15DSOX"
+ },
+ "333269:3313231:33113372": {
+  "mf": "C 16 134/1",
+  "vf": "HU 711/51 X",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Kuga I 2.0 TDCi UFDA"
+ },
+ "333269:3313231:33113375": {
+  "mf": "C 16 134/1",
+  "vf": "HU 711/51 X",
+  "sf": "CU 2559",
+  "source": "mann",
+  "matched": "Kuga I 2.0 TDCi Duratorq DI 2.0"
+ },
+ "333269:3313232:33132856": {
+  "mf": "C 16 134/1",
+  "vf": "W 7008",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Kuga II 1.5 EcoBoost M9MA, M9MB, M9MC, M9MD"
+ },
+ "333269:3313232:33113413": {
+  "mf": "C 16 134/1",
+  "vf": "W 7008",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Kuga II 1.6 EcoBoost SCTi Sigma"
+ },
+ "333269:3313232:33113412": {
+  "mf": "C 16 134/1",
+  "vf": "W 7008",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Kuga II 1.6 EcoBoost SCTi Sigma"
+ },
+ "333269:3313232:33113409": {
+  "mf": "C 16 134/1",
+  "vf": "W 7008",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Kuga II 1.6 EcoBoost SCTi Sigma"
+ },
+ "333269:3313232:33113410": {
+  "mf": "C 21 102",
+  "vf": "W 7015",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Kuga II 2.5 YTMA"
+ },
+ "333716:3315872:33142627": {
+  "vf": "HU 8014 Z",
+  "source": "mann",
+  "matched": "Tugella 2.0T JLH-4G20TDB"
+ },
+ "333716:3315873:33142643": {
+  "vf": "W 719/45",
+  "source": "mann",
+  "matched": "Atlas 1.8 TD JLE-4G18TDB;JLE-4G18TDC"
+ },
+ "333716:3315884:33142715": {
+  "vf": "W 68/3",
+  "sf": "CU 2131",
+  "source": "mann",
+  "matched": "GC6 1,5 MR479QN"
+ },
+ "333716:3315894:33142744": {
+  "vf": "W 68/1",
+  "source": "mann",
+  "matched": "CK / CK2 / Echo / Otaka copy 1.6L MR481QA"
+ },
+ "333683:3315081:33137325": {
+  "vf": "W 610/3",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "H6 / Hover H6 / Haval H6 1.5 GW4G15B"
+ },
+ "333683:3315081:33137328": {
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "H6 / Hover H6 / Haval H6 2.0 TCI / TD GW4D20"
+ },
+ "333683:3315081:33144582": {
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "H6 / Hover H6 / Haval H6 2.0 TCI / TD GW4D20"
+ },
+ "333297:3309790:33079624": {
+  "mf": "C 2726",
+  "vf": "W 610/6",
+  "sf": "CU 2839",
+  "source": "mann",
+  "matched": "Accord + Coupé VII 1.8i F18B2"
+ },
+ "333297:3309790:33079627": {
+  "mf": "C 2726",
+  "vf": "W 610/6",
+  "sf": "CU 2839",
+  "source": "mann",
+  "matched": "Accord + Coupé VII 2.2i Type-R H22A7"
+ },
+ "333297:3309790:33079625": {
+  "vf": "W 610/6",
+  "source": "mann",
+  "matched": "Accord + Coupé IV 2.0 16V F20A6"
+ },
+ "333297:3309790:33079626": {
+  "vf": "W 610/6",
+  "source": "mann",
+  "matched": "Accord + Coupé IV 2.0 16V F20A6"
+ },
+ "333297:3309790:33079622": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.0 K20A"
+ },
+ "333297:3309790:33079623": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.0 K20A"
+ },
+ "333297:3309790:33079620": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.0 K20A"
+ },
+ "333297:3309790:33079618": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.0 K20A"
+ },
+ "333297:3309790:33079619": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.0 K20A"
+ },
+ "333297:3309790:33079621": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.4 K24A"
+ },
+ "333297:3309790:33079615": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.4 K24A"
+ },
+ "333297:3309790:33079617": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord VIII 2.4 K24A"
+ },
+ "333297:3309917:33080739": {
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Pilot 3.5 V6 J35Z4"
+ },
+ "333297:3309917:33080740": {
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Pilot 3.5 V6 J35Z4"
+ },
+ "333281:3310864:33090486": {
+  "mf": "C 2029",
+  "vf": "W 811/80",
+  "sf": "CU 2532",
+  "source": "mann",
+  "matched": "i30 + i30 cw (FD) 1.6 G4FC"
+ },
+ "333281:3310864:33090487": {
+  "mf": "C 26 022",
+  "vf": "W 8017",
+  "sf": "CU 24 013",
+  "source": "mann",
+  "matched": "i30 + i30cw (GD) 1.6 Gamma MPi G4FC"
+ },
+ "333281:3313134:33112547": {
+  "mf": "C 2562",
+  "vf": "W 811/80",
+  "sf": "CU 2628",
+  "source": "mann",
+  "matched": "Accent II (LC) 1.5i G4EC-G"
+ },
+ "333281:3310853:33090490": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310853:33116245": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310853:33090491": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310853:33116248": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310853:33090492": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310853:33116247": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310853:33090493": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310853:33116249": {
+  "mf": "C 26 008",
+  "vf": "HU 7001 X",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 1.7 CRDi D4FD"
+ },
+ "333281:3310863:33090482": {
+  "mf": "C 28 010",
+  "sf": "CU 26 017",
+  "source": "mann",
+  "matched": "Grandeur / Azera 3.0 G6DG"
+ },
+ "333281:3310866:33090502": {
+  "vf": "HU 7001 X",
+  "sf": "CU 26 001",
+  "source": "mann",
+  "matched": "ix55 (Veracruz) 3.8 V6 G6DA"
+ },
+ "333281:3310866:33090503": {
+  "vf": "HU 7001 X",
+  "sf": "CU 26 001",
+  "source": "mann",
+  "matched": "ix55 (Veracruz) 3.8 V6 G6DA"
+ },
+ "333540:3312626:33107502": {
+  "mf": "C 25 016",
+  "vf": "W 8017",
+  "sf": "CU 21 008",
+  "source": "mann",
+  "matched": "Rio III (UB) 1.4 G4FA"
+ },
+ "333540:3312626:33113069": {
+  "mf": "C 25 016",
+  "vf": "W 8017",
+  "sf": "CU 21 008",
+  "source": "mann",
+  "matched": "Rio III (UB) 1.4 G4FA"
+ },
+ "333540:3312626:33125820": {
+  "mf": "C 25 016",
+  "vf": "W 8017",
+  "sf": "CU 21 008",
+  "source": "mann",
+  "matched": "Rio III (UB) 1.4 G4FA"
+ },
+ "333540:3312626:33107503": {
+  "mf": "C 25 016",
+  "vf": "W 811/80",
+  "sf": "CU 21 008",
+  "source": "mann",
+  "matched": "Rio III (UB) 1.6 G4FC"
+ },
+ "333540:3312626:33113070": {
+  "mf": "C 25 016",
+  "vf": "W 811/80",
+  "sf": "CU 21 008",
+  "source": "mann",
+  "matched": "Rio III (UB) 1.6 G4FC"
+ },
+ "333540:3312626:33125821": {
+  "mf": "C 25 016",
+  "vf": "W 811/80",
+  "sf": "CU 21 008",
+  "source": "mann",
+  "matched": "Rio III (UB) 1.6 G4FC"
+ },
+ "333540:3314310:33125839": {
+  "mf": "C 28 035",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 1.6 T-GDI G4FJ"
+ },
+ "333540:3314310:33125840": {
+  "mf": "C 28 035",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 NU / G4NA"
+ },
+ "333540:3314310:33131546": {
+  "mf": "C 28 035",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 NU / G4NA"
+ },
+ "333540:3314310:33125841": {
+  "mf": "C 28 035",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 NU / G4NA"
+ },
+ "333540:3314310:33131547": {
+  "mf": "C 28 035",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 NU / G4NA"
+ },
+ "333540:3314310:33125842": {
+  "mf": "C 28 040",
+  "vf": "HU 7027 Z",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 CRDi D4HA"
+ },
+ "333540:3314310:33131551": {
+  "mf": "C 28 040",
+  "vf": "HU 7027 Z",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 CRDi D4HA"
+ },
+ "333540:3314310:33125845": {
+  "mf": "C 28 040",
+  "vf": "HU 7027 Z",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 CRDi D4HA"
+ },
+ "333540:3314310:33131552": {
+  "mf": "C 28 040",
+  "vf": "HU 7027 Z",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Sportage IV (QL, QLE) 2.0 CRDi D4HA"
+ },
+ "333540:3315914:33142936": {
+  "mf": "C 27 042",
+  "vf": "W 811/80",
+  "sf": "CU 26 017",
+  "source": "mann",
+  "matched": "Optima / K5 (TF) / Optima III 2.0 CVVT G4NA, G4ND"
+ },
+ "333540:3315915:33142943": {
+  "mf": "C 24 090",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Seltos (SP2, SP2I) 1.6 MPi G4FG"
+ },
+ "333540:3315922:33142972": {
+  "mf": "C 26 048",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Rio IV (FB, SC, YB) 1.6 G4FG"
+ },
+ "333540:3315922:33131518": {
+  "mf": "C 26 048",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Rio IV (FB, SC, YB) 1.6 G4FG"
+ },
+ "333540:3315922:33131517": {
+  "mf": "C 26 048",
+  "vf": "W 7023",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Rio IV (FB, SC, YB) 1.4 G4LC"
+ },
+ "333540:3315922:33142973": {
+  "mf": "C 26 048",
+  "vf": "W 7023",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Rio IV (FB, SC, YB) 1.4 G4LC"
+ },
+ "333540:3315924:33142977": {
+  "vf": "W 811/80",
+  "sf": "CU 24 017",
+  "source": "mann",
+  "matched": "Sorento III (UM) / Sorento Prime (UM) 2.4 G4KE"
+ },
+ "910064:9111990:91105063": {
+  "vf": "W 811/80",
+  "sf": "CU 24 017",
+  "source": "mann",
+  "matched": "Sorento III (UM) / Sorento Prime (UM) 2.4 G4KE"
+ },
+ "910064:9111990:91105062": {
+  "vf": "W 811/80",
+  "sf": "CU 24 017",
+  "source": "mann",
+  "matched": "Sorento III (UM) / Sorento Prime (UM) 2.4 G4KE"
+ },
+ "333540:3315925:33142978": {
+  "mf": "C 26 022",
+  "vf": "W 811/80",
+  "sf": "CU 24 013",
+  "source": "mann",
+  "matched": "Cerato III 1.6 G4FG"
+ },
+ "333540:3315925:33142980": {
+  "mf": "C 26 022",
+  "vf": "W 811/80",
+  "sf": "CU 24 013",
+  "source": "mann",
+  "matched": "Cerato III 1.6 G4FG"
+ },
+ "333540:3315926:33142982": {
+  "mf": "C 24 054",
+  "vf": "W 811/80",
+  "sf": "CU 23 019",
+  "source": "mann",
+  "matched": "Soul III (SK3) 1.6 MPi G4FG"
+ },
+ "333540:3315926:33142981": {
+  "mf": "C 26 033",
+  "vf": "W 811/80",
+  "sf": "CU 21 009",
+  "source": "mann",
+  "matched": "Soul II (PS) 2.0 MPI G4NA"
+ },
+ "333318:3315298:33138716": {
+  "mf": "C 33 006",
+  "vf": "W 75/3",
+  "sf": "CU 1829",
+  "source": "mann",
+  "matched": "Largus 1.6 K7M"
+ },
+ "333318:3315298:33138717": {
+  "mf": "C 1858/2",
+  "vf": "W 75/3",
+  "sf": "CU 1829",
+  "source": "mann",
+  "matched": "Largus 1.6 K4M"
+ },
+ "333318:3315298:33138718": {
+  "mf": "C 27 030",
+  "vf": "W 914/2(10)",
+  "sf": "CU 1829",
+  "source": "mann",
+  "matched": "Largus 1.6 VAZ-11189"
+ },
+ "333318:3315298:33138719": {
+  "mf": "C 27 030",
+  "vf": "W 914/2(10)",
+  "sf": "CU 1829",
+  "source": "mann",
+  "matched": "Largus 1.6 VAZ-11189"
+ },
+ "333318:3315299:33138722": {
+  "mf": "C 27 030",
+  "vf": "W 6025",
+  "sf": "CU 22 011",
+  "source": "mann",
+  "matched": "Vesta Cross, Vesta SW, Vesta SW Cross 1.6 H4M"
+ },
+ "333318:3315301:33138727": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 VAZ21126, VAZ-11186"
+ },
+ "333318:3315301:33138728": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 VAZ-21127"
+ },
+ "333318:3315301:33138729": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 21126"
+ },
+ "333667:3314744:33123042": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "IS (XE30) 200t 8AR-FTS"
+ },
+ "910061:9111279:91106710": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "IS (XE30) 200t 8AR-FTS"
+ },
+ "910061:9111279:91122956": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "IS (XE30) 200t 8AR-FTS"
+ },
+ "333667:3314745:33118901": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 200t 8AR-FTS"
+ },
+ "333667:3314745:33123046": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 200t 8AR-FTS"
+ },
+ "910061:9111786:91106801": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 200t 8AR-FTS"
+ },
+ "910061:9111786:91122961": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 200t 8AR-FTS"
+ },
+ "333667:3314745:33123048": {
+  "mf": "C 24 150",
+  "vf": "HU 7009 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 350 2GR-FSE"
+ },
+ "333667:3314745:33123047": {
+  "mf": "C 24 150",
+  "vf": "HU 7009 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 350 2GR-FSE"
+ },
+ "910061:9111786:91098841": {
+  "mf": "C 24 150",
+  "vf": "HU 7009 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 350 2GR-FSE"
+ },
+ "910061:9111786:91106797": {
+  "mf": "C 24 150",
+  "vf": "HU 7009 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 350 2GR-FSE"
+ },
+ "333667:3314745:33118902": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 5.0 F 2UR-GSE"
+ },
+ "910061:9111786:91098423": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 5.0 F 2UR-GSE"
+ },
+ "910061:9111786:91106989": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 5.0 F 2UR-GSE"
+ },
+ "910061:9111786:91138864": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 5.0 F 2UR-GSE"
+ },
+ "910061:9111786:91138868": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 5.0 F 2UR-GSE"
+ },
+ "910061:9111786:91138869": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "RC 5.0 F 2UR-GSE"
+ },
+ "333667:3314746:33118746": {
+  "mf": "C 16 136",
+  "vf": "HU 7019 Z",
+  "source": "mann",
+  "matched": "LC 500h 8GR-FXS"
+ },
+ "910061:9113836:91118722": {
+  "mf": "C 16 136",
+  "vf": "HU 7019 Z",
+  "source": "mann",
+  "matched": "LC 500h 8GR-FXS"
+ },
+ "910061:9113836:91138830": {
+  "mf": "C 16 136",
+  "vf": "HU 7019 Z",
+  "source": "mann",
+  "matched": "LC 500h 8GR-FXS"
+ },
+ "910061:9113836:91143726": {
+  "mf": "C 16 136",
+  "vf": "HU 7019 Z",
+  "source": "mann",
+  "matched": "LC 500h 8GR-FXS"
+ },
+ "333667:3314747:33118730": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "GS 200t 8AR-FTS"
+ },
+ "910061:9111280:91106624": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "GS 200t 8AR-FTS"
+ },
+ "910061:9111280:91122944": {
+  "mf": "C 24 150",
+  "vf": "HU 7019 Z",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "GS 200t 8AR-FTS"
+ },
+ "333667:3314747:33118731": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "GS 5.0 F 2UR-GSE"
+ },
+ "910061:9111280:91106629": {
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "GS 5.0 F 2UR-GSE"
+ },
+ "333667:3314748:33118904": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CUK 22 032",
+  "source": "mann",
+  "matched": "RX 200t 8AR-FTS"
+ },
+ "333667:3314748:33118905": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CUK 22 032",
+  "source": "mann",
+  "matched": "RX 200t 8AR-FTS"
+ },
+ "333667:3314748:33123049": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CUK 22 032",
+  "source": "mann",
+  "matched": "RX 200t 8AR-FTS"
+ },
+ "333667:3314748:33123050": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CUK 22 032",
+  "source": "mann",
+  "matched": "RX 200t 8AR-FTS"
+ },
+ "333667:3314748:33118906": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CUK 22 032",
+  "source": "mann",
+  "matched": "RX 350 2GR-FKS"
+ },
+ "333667:3314748:33147176": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CUK 22 032",
+  "source": "mann",
+  "matched": "RX 350 2GR-FKS"
+ },
+ "333667:3314748:33118907": {
+  "vf": "HU 7019 Z",
+  "sf": "CUK 22 032",
+  "source": "mann",
+  "matched": "RX 450h 2GR-FXS"
+ },
+ "333667:3314749:33103556": {
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "ES 200 6AR-FSE"
+ },
+ "333667:3314749:33126686": {
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "ES 200 6AR-FSE"
+ },
+ "333667:3314749:33098902": {
+  "mf": "C 30 009",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "ES 2.5L 250 2AR-FE"
+ },
+ "333667:3314749:33126739": {
+  "vf": "W 6031",
+  "sf": "CU 22 032",
+  "source": "mann",
+  "matched": "ES II (_Z10_) 250 A25A-FKS"
+ },
+ "333667:3314749:33098905": {
+  "mf": "C 26 003",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "ES 3.5L 2GR-FE"
+ },
+ "333667:3314749:33126743": {
+  "vf": "HU 7019 Z",
+  "sf": "CU 22 032",
+  "source": "mann",
+  "matched": "ES II (_Z10_) 350 2GR-FKS"
+ },
+ "333667:3314750:33098884": {
+  "mf": "C 24 005",
+  "vf": "HU 6006 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200 AWD 3ZR-FAE"
+ },
+ "333667:3314750:33098901": {
+  "mf": "C 24 005",
+  "vf": "HU 6006 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200 AWD 3ZR-FAE"
+ },
+ "333667:3314750:33118885": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "333667:3314750:33118886": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "333667:3314750:33123057": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "333667:3314750:33123053": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "910061:9111672:91101032": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "910061:9111672:91097087": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "910061:9111672:91122959": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "910061:9111672:91138837": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "910061:9111672:91122960": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "910061:9111672:91138838": {
+  "mf": "C 22 039",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 200t 8AR-FTS"
+ },
+ "333667:3314750:33118887": {
+  "mf": "C 22 009",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 300h 2AR-FXE"
+ },
+ "333667:3314750:33118888": {
+  "mf": "C 22 009",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 300h 2AR-FXE"
+ },
+ "910061:9111672:91097126": {
+  "mf": "C 22 009",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 300h 2AR-FXE"
+ },
+ "910061:9111672:91138839": {
+  "mf": "C 22 009",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 300h 2AR-FXE"
+ },
+ "910061:9111672:91097094": {
+  "mf": "C 22 009",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 300h 2AR-FXE"
+ },
+ "910061:9111672:91138840": {
+  "mf": "C 22 009",
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "NX 300h 2AR-FXE"
+ },
+ "333667:3314751:33118748": {
+  "mf": "C 32 014",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 5.7i V8 3UR-FE"
+ },
+ "910061:9111850:91099073": {
+  "mf": "C 32 014",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 5.7i V8 3UR-FE"
+ },
+ "910061:9111850:91100289": {
+  "mf": "C 32 014",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 5.7i V8 3UR-FE"
+ },
+ "910061:9111850:91100290": {
+  "mf": "C 32 014",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 5.7i V8 3UR-FE"
+ },
+ "910061:9111850:91100291": {
+  "mf": "C 32 014",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 5.7i V8 3UR-FE"
+ },
+ "910061:9111850:91106760": {
+  "mf": "C 32 014",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 5.7i V8 3UR-FE"
+ },
+ "333667:3314751:33118754": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 450d 1VD-FTV"
+ },
+ "333667:3314751:33118755": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 450d 1VD-FTV"
+ },
+ "910061:9111850:91106774": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 450d 1VD-FTV"
+ },
+ "910061:9111850:91106773": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LX 450d 1VD-FTV"
+ },
+ "333667:3314752:33118737": {
+  "mf": "C 32 011",
+  "vf": "HU 7009 Z",
+  "sf": "CU 2131",
+  "source": "mann",
+  "matched": "GX 460 1UR-FE"
+ },
+ "910061:9111851:91099076": {
+  "mf": "C 32 011",
+  "vf": "HU 7009 Z",
+  "sf": "CU 2131",
+  "source": "mann",
+  "matched": "GX 460 1UR-FE"
+ },
+ "910061:9111851:91100292": {
+  "mf": "C 32 011",
+  "vf": "HU 7009 Z",
+  "sf": "CU 2131",
+  "source": "mann",
+  "matched": "GX 460 1UR-FE"
+ },
+ "333667:3315377:33123043": {
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LS 500 8GR-FKS"
+ },
+ "910061:9114104:91122994": {
+  "vf": "HU 7019 Z",
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LS 500 8GR-FKS"
+ },
+ "333667:3315377:33123044": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LS 500 V35A-FTS"
+ },
+ "910061:9114104:91122996": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LS 500 V35A-FTS"
+ },
+ "910061:9114104:91138831": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LS 500 V35A-FTS"
+ },
+ "910061:9114104:91138832": {
+  "sf": "CU 1919",
+  "source": "mann",
+  "matched": "LS 500 V35A-FTS"
+ },
+ "333703:3315691:33086467": {
+  "mf": "C 27 003/1",
+  "vf": "W 610/3",
+  "sf": "CU 2141",
+  "source": "mann",
+  "matched": "Outlander II 2.4 MIVEC 4B12"
+ },
+ "333703:3315691:33121625": {
+  "mf": "C 27 003/1",
+  "vf": "W 610/3",
+  "sf": "CU 2141",
+  "source": "mann",
+  "matched": "Outlander II 2.4 MIVEC 4B12"
+ },
+ "333703:3315691:33129844": {
+  "mf": "C 27 003/1",
+  "vf": "W 610/3",
+  "sf": "CU 2141",
+  "source": "mann",
+  "matched": "Outlander II 2.4 MIVEC 4B12"
+ },
+ "333703:3316408:33147918": {
+  "mf": "C 2136/1",
+  "vf": "W 811/80",
+  "sf": "CUK 2231",
+  "source": "mann",
+  "matched": "Outlander I (Airtrek) 2.0 16V 4G63 (DOHC 16V)"
+ },
+ "333703:3316408:33147917": {
+  "mf": "C 2136/1",
+  "vf": "W 811/80",
+  "sf": "CUK 2231",
+  "source": "mann",
+  "matched": "Outlander I (Airtrek) 2.0 16V 4G63 (DOHC 16V)"
+ },
+ "333703:3316408:33147916": {
+  "mf": "C 2136/1",
+  "vf": "W 811/80",
+  "sf": "CUK 2231",
+  "source": "mann",
+  "matched": "Outlander I (Airtrek) 2.4 16V 4G69"
+ },
+ "333703:3316409:33147915": {
+  "mf": "C 27 003/1",
+  "vf": "W 610/3",
+  "sf": "CU 2141",
+  "source": "mann",
+  "matched": "Outlander II 3.0 AWD 6B31"
+ },
+ "333429:3312259:33103600": {
+  "mf": "C 2964",
+  "sf": "CU 2345",
+  "source": "mann",
+  "matched": "Almera Classic 1.6 QG16, QG16DE"
+ },
+ "333429:3311333:33093807": {
+  "mf": "C 1858/2",
+  "vf": "W 75/3",
+  "sf": "CU 1829",
+  "source": "mann",
+  "matched": "Almera (G15) 1.6 K4M"
+ },
+ "333429:3312929:33110506": {
+  "vf": "W 67/1",
+  "sf": "CU 22 003",
+  "source": "mann",
+  "matched": "Murano 3.5 VQ35DE"
+ },
+ "333429:3312935:33110516": {
+  "vf": "W 67/1",
+  "sf": "CU 2623",
+  "source": "mann",
+  "matched": "Pathfinder 3.5 4WD VQ35DE"
+ },
+ "333429:3312938:33110525": {
+  "mf": "C 2329",
+  "vf": "W 67/1",
+  "sf": "CU 1629",
+  "source": "mann",
+  "matched": "Sentra 1.6 HR16DE"
+ },
+ "333429:3312940:33110533": {
+  "mf": "C 2964",
+  "vf": "W 67/1",
+  "sf": "CU 29 001",
+  "source": "mann",
+  "matched": "Teana 2.5 V6 VQ25DE"
+ },
+ "333429:3312940:33110532": {
+  "vf": "W 67/1",
+  "sf": "CU 29 001",
+  "source": "mann",
+  "matched": "Teana 2.5 QR25DE"
+ },
+ "333429:3312940:33110534": {
+  "mf": "C 2964",
+  "vf": "W 67/1",
+  "sf": "CU 22 003",
+  "source": "mann",
+  "matched": "Teana 3.5 V6 VQ35DE"
+ },
+ "333429:3312941:33110536": {
+  "vf": "W 67/1",
+  "sf": "CU 29 001",
+  "source": "mann",
+  "matched": "Teana 2.5 QR25DE"
+ },
+ "333429:3312941:33110538": {
+  "mf": "C 2964",
+  "vf": "W 67/1",
+  "sf": "CU 29 001",
+  "source": "mann",
+  "matched": "Teana 3.5 V6 VQ35DE"
+ },
+ "333429:3312939:33110529": {
+  "mf": "C 1858/2",
+  "vf": "W 75/3",
+  "sf": "CU 1829",
+  "source": "mann",
+  "matched": "Terrano III (D10) 2.0 F4R"
+ },
+ "333429:3312936:33110520": {
+  "mf": "C 25 040",
+  "vf": "HU 10 002 Z",
+  "sf": "CU 25 003",
+  "source": "mann",
+  "matched": "Qashqai II 1.2 H5FT, HRA2DDT"
+ },
+ "333429:3312936:33110523": {
+  "mf": "C 25 040",
+  "vf": "W 67/1",
+  "sf": "CU 25 003",
+  "source": "mann",
+  "matched": "Qashqai II 2.0 MR20DD"
+ },
+ "333429:3312936:33110521": {
+  "mf": "C 25 040",
+  "vf": "W 67/1",
+  "sf": "CU 25 003",
+  "source": "mann",
+  "matched": "Qashqai II 2.0 MR20DD"
+ },
+ "333429:3312936:33110524": {
+  "mf": "C 2433/2",
+  "vf": "HU 618 X",
+  "sf": "CU 1936",
+  "source": "mann",
+  "matched": "Qashqai 1.6 dCi R9M"
+ },
+ "333429:3312933:33110513": {
+  "mf": "C 25 040",
+  "vf": "W 67/1",
+  "sf": "CU 25 012",
+  "source": "mann",
+  "matched": "X-Trail III (T32) 2.0 MR20DD"
+ },
+ "333429:3312933:33110512": {
+  "mf": "C 25 040",
+  "vf": "W 67/1",
+  "sf": "CU 25 012",
+  "source": "mann",
+  "matched": "X-Trail III (T32) 2.0 MR20DD"
+ },
+ "333429:3312933:33110514": {
+  "mf": "C 25 040",
+  "vf": "W 67/1",
+  "sf": "CU 25 012",
+  "source": "mann",
+  "matched": "X-Trail III (T32) 2.5 QR25DE"
+ },
+ "333429:3312933:33110515": {
+  "mf": "C 25 040",
+  "vf": "HU 6011 Z",
+  "sf": "CU 25 012",
+  "source": "mann",
+  "matched": "X-Trail III (T32) 1.6 dCi R9M"
+ },
+ "333295:3309648:33077689": {
+  "mf": "C 20 106",
+  "vf": "HU 712/8 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.0 12V Z10XEP"
+ },
+ "333295:3309648:33077700": {
+  "mf": "C 20 106",
+  "vf": "HU 712/8 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.0 Z10XEP, A10XEP"
+ },
+ "333295:3309648:33077690": {
+  "mf": "C 20 106",
+  "vf": "HU 712/8 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.2 16V Z12XEP"
+ },
+ "333295:3309648:33077698": {
+  "mf": "C 20 106",
+  "vf": "HU 712/8 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.2 16V Z12XEP"
+ },
+ "333295:3309648:33077701": {
+  "mf": "C 20 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.2 16V A12XEL"
+ },
+ "333295:3309648:33077702": {
+  "mf": "C 20 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.2 16V A12XER"
+ },
+ "333295:3309648:33077707": {
+  "mf": "C 20 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.2 16V A12XER"
+ },
+ "333295:3309648:33077691": {
+  "mf": "C 20 106",
+  "vf": "HU 712/8 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.4 16V Z14XEP"
+ },
+ "333295:3309648:33077699": {
+  "mf": "C 20 106",
+  "vf": "HU 712/8 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.4 16V Z14XEP"
+ },
+ "333295:3309648:33077703": {
+  "mf": "C 20 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.4 16V A14XEL"
+ },
+ "333295:3309648:33077708": {
+  "mf": "C 20 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.4 16V A14XEL"
+ },
+ "333295:3309648:33077704": {
+  "mf": "C 20 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.4 16V A14XER"
+ },
+ "333295:3309648:33077710": {
+  "mf": "C 20 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.4 16V A14XER"
+ },
+ "333295:3309648:33077696": {
+  "mf": "C 20 106/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.6 16V Turbo Z16LEL"
+ },
+ "333295:3309648:33077695": {
+  "mf": "C 20 106/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.6 16V Turbo Z16LER"
+ },
+ "333295:3309648:33077692": {
+  "mf": "C 20 106/1",
+  "vf": "HU 713/1 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.3 CDTI A13DTC, Z13DTJ"
+ },
+ "333295:3309648:33077712": {
+  "mf": "C 20 106/1",
+  "vf": "HU 713/1 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.3 CDTI A13DTC, Z13DTJ"
+ },
+ "333295:3309648:33077693": {
+  "mf": "C 20 106/1",
+  "vf": "HU 712/7 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.3 CDTI Z13DTH"
+ },
+ "333295:3309648:33077713": {
+  "mf": "C 20 106/1",
+  "vf": "HU 713/1 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.3 CDTI A13DTC, Z13DTJ"
+ },
+ "333295:3309648:33077697": {
+  "mf": "C 20 106/1",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.3 CDTi A13DTE, A13DTR, Z13DTE"
+ },
+ "333295:3309648:33077714": {
+  "mf": "C 20 106/1",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.3 CDTi A13DTE, A13DTR, Z13DTE"
+ },
+ "333295:3309648:33077694": {
+  "mf": "C 20 106/1",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.7 CDTI A17DTR, Z17DTR"
+ },
+ "333295:3309648:33077709": {
+  "mf": "C 20 106/1",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2243",
+  "source": "mann",
+  "matched": "Corsa-D 1.7 CDTI A17DTS"
+ },
+ "333295:3309652:33077804": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.4 16V A14XEL"
+ },
+ "333295:3309652:33077805": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.4 16V A14XER / B14XER"
+ },
+ "333295:3309652:33077813": {
+  "mf": "C 27 107",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.4 16V Turbo A14NEL"
+ },
+ "333295:3309652:33128853": {
+  "mf": "C 27 107",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.4 16V Turbo A14NEL"
+ },
+ "333295:3309652:33077806": {
+  "mf": "C 27 107",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.4 16V Turbo A14NET"
+ },
+ "333295:3309652:33128854": {
+  "mf": "C 27 107",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.4 16V Turbo A14NET"
+ },
+ "333295:3309652:33077807": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.6 16V A16XER / Z16XER"
+ },
+ "333295:3309652:33077817": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.6 16V A16XER / Z16XER"
+ },
+ "333295:3309652:33077808": {
+  "mf": "C 27 107",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.6 16V Turbo A16LET"
+ },
+ "333295:3309652:33128863": {
+  "mf": "C 27 107",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.6 16V Turbo A16LET"
+ },
+ "333295:3309652:33077809": {
+  "mf": "C 27 107",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.3 CDTi A13DTE"
+ },
+ "333295:3309652:33128864": {
+  "mf": "C 27 107",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.3 CDTi A13DTE"
+ },
+ "333295:3309652:33128866": {
+  "mf": "C 27 107",
+  "vf": "HU 6019 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.6 CDTI B16DTL"
+ },
+ "333295:3309652:33128868": {
+  "mf": "C 27 107",
+  "vf": "HU 6019 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.6 CDTI B16DTH"
+ },
+ "333295:3309652:33077810": {
+  "mf": "C 27 107",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.7 CDTi A17DTJ/Z17DTJ/A17DTC/A17DTE"
+ },
+ "333295:3309652:33077818": {
+  "mf": "C 27 107",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.7 CDTi A17DTJ/Z17DTJ/A17DTC/A17DTE"
+ },
+ "333295:3309652:33077811": {
+  "mf": "C 27 107",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.7 CDTi A17DTR"
+ },
+ "333295:3309652:33077819": {
+  "mf": "C 27 107",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 1.7 CDTi A17DTF, A17DTS"
+ },
+ "333295:3309652:33077812": {
+  "mf": "C 27 107",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 2.0 CDTi A20DTH"
+ },
+ "333295:3309652:33077820": {
+  "mf": "C 27 107",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Astra J / Astra J GTC 2.0 CDTi A20DTH"
+ },
+ "333295:3309660:33077953": {
+  "mf": "C 29 012",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.4 Turbo ecoFLEX A14NET"
+ },
+ "333295:3309660:33128888": {
+  "mf": "C 29 012",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.4 Turbo ecoFLEX A14NET"
+ },
+ "333295:3309660:33077939": {
+  "mf": "C 29 145",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.6 A16XER"
+ },
+ "333295:3309660:33128896": {
+  "mf": "C 29 145",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.6 A16XER"
+ },
+ "333295:3309660:33128900": {
+  "mf": "C 29 012",
+  "vf": "HU 6018 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.6 16V SIDI Turbo A16XHT, B16SHL"
+ },
+ "333295:3309660:33077941": {
+  "mf": "C 29 012",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.6 Turbo A16LET"
+ },
+ "333295:3309660:33128901": {
+  "mf": "C 29 012",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.6 Turbo A16LET"
+ },
+ "333295:3309660:33077940": {
+  "mf": "C 29 145",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.8 A18XER"
+ },
+ "333295:3309660:33128897": {
+  "mf": "C 29 145",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 1.8 A18XER"
+ },
+ "333295:3309660:33077942": {
+  "mf": "C 29 012",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 Turbo A20NHT"
+ },
+ "333295:3309660:33128911": {
+  "mf": "C 29 012",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 Turbo A20NHT"
+ },
+ "333295:3309660:33077943": {
+  "mf": "C 29 012",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 Turbo A20NHT"
+ },
+ "333295:3309660:33128915": {
+  "mf": "C 29 012",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 Turbo A20NHT"
+ },
+ "333295:3309660:33128916": {
+  "mf": "C 29 012",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 Turbo, SIDI Turbo A20NFT, A20NHT, B20NHT"
+ },
+ "333295:3309660:33128919": {
+  "mf": "C 29 012",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 Turbo, SIDI Turbo A20NFT, A20NHT, B20NHT"
+ },
+ "333295:3309660:33128920": {
+  "mf": "C 29 012",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 Turbo A20NHT"
+ },
+ "333295:3309660:33077944": {
+  "mf": "C 29 012",
+  "vf": "HU 69/3 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.8 V6 Turbo A28NET"
+ },
+ "333295:3309660:33128921": {
+  "mf": "C 29 012",
+  "vf": "HU 69/3 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.8 V6 Turbo A28NET"
+ },
+ "333295:3309660:33077950": {
+  "mf": "C 29 012",
+  "vf": "HU 69/3 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.8 V6 Turbo A28NER"
+ },
+ "333295:3309660:33128923": {
+  "mf": "C 29 012",
+  "vf": "HU 69/3 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.8 V6 Turbo A28NER"
+ },
+ "333295:3309660:33077945": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTC/DTL"
+ },
+ "333295:3309660:33128924": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTC/DTL"
+ },
+ "333295:3309660:33077946": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DT/DTJ"
+ },
+ "333295:3309660:33128926": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DT/DTJ"
+ },
+ "333295:3309660:33128927": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTE"
+ },
+ "333295:3309660:33077947": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTH"
+ },
+ "333295:3309660:33128928": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTH"
+ },
+ "333295:3309660:33077949": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTH"
+ },
+ "333295:3309660:33128929": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTH"
+ },
+ "333295:3309660:33128931": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTH"
+ },
+ "333295:3309660:33128930": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTH"
+ },
+ "333295:3309660:33077951": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTR"
+ },
+ "333295:3309660:33077952": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTR"
+ },
+ "333295:3309660:33128932": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTR"
+ },
+ "333295:3309660:33128933": {
+  "mf": "C 29 012",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Insignia 2.0 CDTI A20DTR"
+ },
+ "333295:3309651:33077782": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14XER, B14XER"
+ },
+ "333295:3309651:33077788": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14XER, B14XER"
+ },
+ "333295:3309651:33128838": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14XER, B14XER"
+ },
+ "333295:3309651:33077781": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NEL, B14NEL"
+ },
+ "333295:3309651:33128841": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NEL, B14NEL"
+ },
+ "333295:3309651:33128839": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NEL, B14NEL"
+ },
+ "333295:3309651:33077789": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NEL, B14NEL"
+ },
+ "333295:3309651:33128842": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NEL, B14NEL"
+ },
+ "333295:3309651:33077783": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NET, B14NET"
+ },
+ "333295:3309651:33077790": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NET, B14NET"
+ },
+ "333295:3309651:33128843": {
+  "mf": "C 21 136/1",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.4 A14NET, B14NET"
+ },
+ "333295:3309651:33077784": {
+  "mf": "C 21 136/1",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.3 CDTI A13DTC"
+ },
+ "333295:3309651:33077793": {
+  "mf": "C 21 136/1",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.3 CDTI A13DTC"
+ },
+ "333295:3309651:33077792": {
+  "mf": "C 21 136/1",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.3 CDTI A13DTE"
+ },
+ "333295:3309651:33077794": {
+  "mf": "C 21 136/1",
+  "vf": "HU 7004/1 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.3 CDTI A13DTE"
+ },
+ "333280:3311314:33093627": {
+  "mf": "C 24 028",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Aveo II 1.2 LWD"
+ },
+ "333280:3311314:33093626": {
+  "mf": "C 2324",
+  "vf": "W 67/2",
+  "sf": "CU 2330",
+  "source": "mann",
+  "matched": "Aveo 1.2 B12D1, LMU"
+ },
+ "333280:3311314:33093624": {
+  "mf": "C 24 028",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Aveo II 1.4 LDD"
+ },
+ "333280:3311314:33093642": {
+  "mf": "C 24 028",
+  "vf": "HU 6042 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Aveo II 1.4 Turbo LUJ"
+ },
+ "333280:3311314:33093623": {
+  "mf": "C 24 028",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Aveo II 1.6 LDE"
+ },
+ "333280:3309908:33113457": {
+  "mf": "C 27 107",
+  "vf": "HU 6042 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 1.4 LUJ"
+ },
+ "333280:3311312:33093605": {
+  "mf": "C 2214",
+  "vf": "W 67/2",
+  "sf": "CU 2012",
+  "source": "mann",
+  "matched": "Matiz (Spark) 0.8 F8CV"
+ },
+ "333280:3311312:33093604": {
+  "mf": "C 36 013",
+  "vf": "W 6021",
+  "sf": "CU 20 010",
+  "source": "mann",
+  "matched": "Spark 1.0"
+ },
+ "333280:3311312:33093602": {
+  "mf": "C 36 013",
+  "vf": "W 6021",
+  "sf": "CU 20 010",
+  "source": "mann",
+  "matched": "Spark 1.0"
+ },
+ "333280:3311312:33093603": {
+  "mf": "C 36 013",
+  "vf": "W 6021",
+  "sf": "CU 20 010",
+  "source": "mann",
+  "matched": "Spark 1.2"
+ },
+ "333280:3311314:33093609": {
+  "mf": "C 2324",
+  "vf": "W 67/2",
+  "sf": "CU 2330",
+  "source": "mann",
+  "matched": "Aveo 1.2 B12D1, LMU"
+ },
+ "333280:3311314:33093612": {
+  "mf": "C 2324",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2330",
+  "source": "mann",
+  "matched": "Aveo 1.4 16V"
+ },
+ "333280:3311314:33093634": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3311314:33093628": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3311330:33093788": {
+  "mf": "C 24 028",
+  "vf": "W 6021",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cobalt 1.5 L2C"
+ },
+ "333280:3309908:33080658": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 1.6 F16D3, LXT, LXV"
+ },
+ "333280:3309908:33080671": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 1.6 F16D3, LXT, LXV"
+ },
+ "333280:3309908:33080683": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3309908:33080692": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 1.8 2H0, F18D4"
+ },
+ "333280:3309908:33093674": {
+  "mf": "C 27 107",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 1.7 CDTi LUD"
+ },
+ "333280:3309908:33080697": {
+  "mf": "C 27 107",
+  "vf": "HU 7030 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 2.0 CDI Z20D1, LNP"
+ },
+ "333280:3309908:33080693": {
+  "mf": "C 27 107",
+  "vf": "HU 7030 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Cruze 2.0 CDI Z20D1, LNP"
+ },
+ "333280:3311316:33093656": {
+  "mf": "C 2740",
+  "vf": "HU 719/3 X",
+  "sf": "CU 3040",
+  "source": "mann",
+  "matched": "Epica 2.0 VDCI Diesel"
+ },
+ "333280:3311316:33093658": {
+  "mf": "C 2740",
+  "vf": "HU 719/3 X",
+  "sf": "CU 3040",
+  "source": "mann",
+  "matched": "Epica 2.0 VDCI Diesel"
+ },
+ "333280:3311316:33093657": {
+  "mf": "C 2743",
+  "sf": "CU 3040",
+  "source": "mann",
+  "matched": "Epica 2.5i 24V"
+ },
+ "333280:3310204:33084032": {
+  "mf": "C 3028",
+  "vf": "W 712/22",
+  "sf": "CU 1719",
+  "source": "mann",
+  "matched": "Lacetti 1.4 16V F14D3"
+ },
+ "333280:3310204:33084071": {
+  "mf": "C 3028",
+  "vf": "W 712/22",
+  "sf": "CU 1719",
+  "source": "mann",
+  "matched": "Lacetti 1.6 16V F16D3"
+ },
+ "333280:3310204:33084078": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910034:9100301:91001092": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910034:9100302:91001093": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910034:9100302:91001094": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3310204:33084079": {
+  "mf": "C 3028",
+  "vf": "W 712/22",
+  "sf": "CU 1719",
+  "source": "mann",
+  "matched": "Lacetti 1.8 16V T18SED"
+ },
+ "333280:3311328:33093759": {
+  "mf": "C 2229",
+  "vf": "W 712/22",
+  "sf": "CU 17 003",
+  "source": "mann",
+  "matched": "Lanos 1.4 A 14 SMS"
+ },
+ "333280:3311328:33093758": {
+  "mf": "C 2229",
+  "vf": "W 712/22",
+  "sf": "CU 17 003",
+  "source": "mann",
+  "matched": "Lanos 1.5 A 15 SMS"
+ },
+ "333280:3311328:33093760": {
+  "mf": "C 2229",
+  "vf": "W 712/22",
+  "sf": "CU 17 003",
+  "source": "mann",
+  "matched": "Lanos 1.6 16V A 16 DMS"
+ },
+ "333280:3311319:33093691": {
+  "mf": "C 2630",
+  "vf": "W 712/22",
+  "source": "mann",
+  "matched": "Rezzo (Tacuma) 1.6 A16DMS"
+ },
+ "333280:3311319:33093692": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3313239:33113467": {
+  "mf": "C 29 145",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Malibu 2.4 LE9"
+ },
+ "910070:9112310:91104101": {
+  "mf": "C 29 145",
+  "vf": "HU 6007 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Malibu 2.4 LE9"
+ },
+ "333280:3309916:33080720": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Niva 1.7"
+ },
+ "333280:3309916:33107443": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Niva 1.7"
+ },
+ "333280:3309916:33062894": {
+  "mf": "C 30 130",
+  "vf": "W 712/22",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Niva 1.8"
+ },
+ "333280:3313240:33113471": {
+  "mf": "C 27 107",
+  "vf": "HU 6042 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Orlando 1.4 Turbo LUJ"
+ },
+ "910070:9108824:91091469": {
+  "mf": "C 27 107",
+  "vf": "HU 6042 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Orlando 1.4 Turbo LUJ"
+ },
+ "333280:3313240:33113469": {
+  "mf": "C 26 106",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Orlando 1.8"
+ },
+ "333280:3313240:33113470": {
+  "mf": "C 27 107",
+  "vf": "HU 7030 Z",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Orlando 2.0 D"
+ },
+ "333280:3313237:33113459": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9105882:91045916": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9105882:91053995": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9105882:91066073": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9105882:91045917": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9105882:91053999": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9105882:91066075": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "333280:3313237:33113460": {
+  "mf": "C 29 008",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 3.2 V6 Z32SE"
+ },
+ "910070:9105882:91045918": {
+  "mf": "C 29 008",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 3.2 V6 Z32SE"
+ },
+ "910070:9105882:91054000": {
+  "mf": "C 29 008",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 3.2 V6 Z32SE"
+ },
+ "910070:9105882:91066077": {
+  "mf": "C 29 008",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 3.2 V6 Z32SE"
+ },
+ "333280:3313238:33113462": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9109581:91076584": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "910070:9109581:91076581": {
+  "mf": "C 29 008",
+  "vf": "W 712/22",
+  "sf": "CU 2622",
+  "source": "mann",
+  "matched": "Captiva 2.4 Z24SED"
+ },
+ "333280:3313238:33113463": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910070:9109581:91076585": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3313238:33113464": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910070:9109581:91076589": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910070:9109581:91076590": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3313242:33113484": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333280:3313242:33113486": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333280:3313242:33113487": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333280:3313243:33113488": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910070:9109584:91076629": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333280:3313245:33113492": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333280:3313245:33113491": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333280:3313244:33113490": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333269:3312800:33109349": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333269:3313231:33113368": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333269:3313232:33132859": {
+  "mf": "C 21 102",
+  "vf": "W 7015",
+  "sf": "CU 25 007",
+  "source": "mann",
+  "matched": "Kuga II 2.5"
+ },
+ "333269:3313234:33113418": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333269:3313234:33113415": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315873:33142630": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315873:33142641": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315873:33142642": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315876:33142648": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315876:33142654": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315878:33142656": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315878:33142655": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315880:33142681": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315880:33142682": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315881:33142688": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315885:33142699": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315885:33142703": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315887:33142702": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315887:33142711": {
+  "vf": "W 68/1",
+  "source": "mann",
+  "matched": "Emgrand EC7 / EC7-RV 1.5 JL4G15E"
+ },
+ "333716:3315889:33142743": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333716:3315894:33142745": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315894:33143046": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315897:33142770": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333716:3315897:33142771": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333683:3315082:33137329": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315082:33144578": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315072:33137306": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315072:33144588": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315075:33137307": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315075:33144583": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315075:33137318": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315075:33144584": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3315080:33137322": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3316113:33144623": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3316113:33144631": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333683:3316115:33144645": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333297:3309789:33079611": {
+  "mf": "C 3324",
+  "vf": "W 610/6",
+  "sf": "CU 1835",
+  "source": "mann",
+  "matched": "Jazz II / Fit II (GD) 1.3 iDSi L13A1"
+ },
+ "333297:3309789:33079612": {
+  "mf": "C 3324",
+  "vf": "W 610/6",
+  "sf": "CU 1835",
+  "source": "mann",
+  "matched": "Jazz II / Fit II (GD) 1.3 iDSi L13A1"
+ },
+ "333297:3309789:33079614": {
+  "mf": "C 1724",
+  "vf": "W 610/6",
+  "sf": "CU 1835",
+  "source": "mann",
+  "matched": "Jazz II / Fit II (GD) 1.5 L15A"
+ },
+ "333297:3309789:33079613": {
+  "mf": "C 1724",
+  "vf": "W 610/6",
+  "sf": "CU 1835",
+  "source": "mann",
+  "matched": "Jazz II / Fit II (GD) 1.5 L15A"
+ },
+ "333297:3309790:33079616": {
+  "mf": "C 3434",
+  "vf": "W 610/6",
+  "sf": "CU 2358",
+  "source": "mann",
+  "matched": "Accord IX 2.0 i"
+ },
+ "333297:3309791:33079628": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333297:3309791:33079629": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333297:3309792:33079630": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333297:3309792:33079631": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333297:3309793:33079632": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333297:3309793:33079633": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333297:3309793:33079634": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333297:3309793:33079636": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333297:3309793:33079635": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333297:3309793:33079637": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333281:3310864:33090484": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310846:33090410": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310846:33090411": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3313433:33115250": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910057:9112563:91107131": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3313433:33115251": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310853:33090429": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310853:33116250": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310853:33090489": {
+  "mf": "C 26 008",
+  "vf": "W 8017",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 2.0 GDI G4NC"
+ },
+ "333281:3310853:33116251": {
+  "mf": "C 26 008",
+  "vf": "W 8017",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "i40 2.0 GDI G4NC"
+ },
+ "333281:3310853:33090488": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310853:33116252": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3309921:33080754": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3309921:33110543": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3309921:33143421": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3309921:33080755": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3309921:33107587": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3309921:33143420": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310863:33090481": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310847:33090412": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310847:33115260": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310847:33090413": {
+  "vf": "HU 7001 X",
+  "source": "mann",
+  "matched": "Equus / Centennial 4.6 V8"
+ },
+ "333281:3310847:33115262": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310869:33090518": {
+  "mf": "C 25 016",
+  "vf": "W 811/80",
+  "sf": "CU 2336",
+  "source": "mann",
+  "matched": "Veloster 1.6 GDI Turbo"
+ },
+ "333281:3310848:33090414": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3313576:33116286": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310849:33090416": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310849:33090418": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3313427:33115217": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3313427:33115239": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3313427:33115240": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310865:33090495": {
+  "mf": "C 26 013",
+  "vf": "W 8017",
+  "sf": "CU 24 004",
+  "source": "mann",
+  "matched": "ix35 / Tucson 2.0 GDI"
+ },
+ "333281:3310865:33090496": {
+  "mf": "C 26 013",
+  "vf": "W 8017",
+  "sf": "CU 24 004",
+  "source": "mann",
+  "matched": "ix35 / Tucson 2.0 GDI"
+ },
+ "333281:3310865:33090497": {
+  "mf": "C 26 013",
+  "vf": "W 8017",
+  "sf": "CU 24 004",
+  "source": "mann",
+  "matched": "ix35 / Tucson 2.0 GDI"
+ },
+ "333281:3310865:33090498": {
+  "mf": "C 26 013",
+  "vf": "W 8017",
+  "sf": "CU 24 004",
+  "source": "mann",
+  "matched": "ix35 / Tucson 2.0 GDI"
+ },
+ "333281:3310865:33090499": {
+  "mf": "C 26 013",
+  "vf": "W 8017",
+  "sf": "CU 24 004",
+  "source": "mann",
+  "matched": "ix35 / Tucson 2.0 GDI"
+ },
+ "333281:3310865:33090500": {
+  "mf": "C 26 013",
+  "vf": "W 8017",
+  "sf": "CU 24 004",
+  "source": "mann",
+  "matched": "ix35 / Tucson 2.0 GDI"
+ },
+ "333281:3310867:33090513": {
+  "mf": "C 30 017",
+  "vf": "W 8017",
+  "sf": "CU 26 017",
+  "source": "mann",
+  "matched": "Santa Fé III / Grand Santa Fé 2.4 MPi Theta II"
+ },
+ "333281:3310867:33090509": {
+  "mf": "C 30 017",
+  "vf": "W 8017",
+  "sf": "CU 26 017",
+  "source": "mann",
+  "matched": "Santa Fé III / Grand Santa Fé 2.4 MPi Theta II"
+ },
+ "333281:3310867:33090511": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310867:33090514": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310867:33090512": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310867:33090515": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310866:33090504": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310866:33090506": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310866:33090505": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333281:3310866:33090507": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333540:3314310:33131562": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333540:3315252:33138228": {
+  "mf": "C 27 042",
+  "vf": "W 811/80",
+  "sf": "CU 26 017",
+  "source": "mann",
+  "matched": "Optima / K5 (TF) / Optima III 2.0 CVVT G4NA, G4ND"
+ },
+ "333540:3315252:33138226": {
+  "mf": "C 27 310",
+  "sf": "CU 23 024",
+  "source": "mann",
+  "matched": "Optima V / K5 2.5 G4KN"
+ },
+ "333540:3315923:33142976": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910064:9114572:91130474": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333318:3315297:33138710": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 VAZ21126"
+ },
+ "333318:3315297:33138711": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 VAZ21126"
+ },
+ "333318:3315297:33138712": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 VAZ21126, VAZ-11186"
+ },
+ "333318:3315297:33138713": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 VAZ21126, VAZ-11186"
+ },
+ "333318:3315297:33138714": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 21126"
+ },
+ "333318:3315297:33138715": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Granta 1.6 VAZ-21127"
+ },
+ "333318:3315304:33138747": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1500"
+ },
+ "333318:3315304:33138749": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1500"
+ },
+ "333318:3315304:33138751": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1500"
+ },
+ "333318:3315304:33138748": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1600 VAZ-11183"
+ },
+ "333318:3315304:33138750": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1600 VAZ-11183"
+ },
+ "333318:3315304:33138752": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1600 VAZ-11183"
+ },
+ "333318:3315305:33138753": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Kalina 1.6 VAZ-11186"
+ },
+ "333318:3315305:33138754": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Kalina 1.6 VAZ-21126"
+ },
+ "333318:3315305:33138755": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Kalina 1.6 VAZ-21127"
+ },
+ "333318:3315306:33138757": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1300 Kombi BA3 2105"
+ },
+ "333318:3315306:33138758": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1500 S"
+ },
+ "333318:3315308:33138759": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1200 Junior,L BA3 2101"
+ },
+ "333318:3315308:33138760": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1200 Junior,L BA3 2101"
+ },
+ "333318:3315308:33138761": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1300 Kombi BA3 2105"
+ },
+ "333318:3315308:33138762": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1300 Kombi BA3 2105"
+ },
+ "333318:3315308:33138763": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1500 S"
+ },
+ "333318:3315308:33138764": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1500 S"
+ },
+ "333318:3315309:33138765": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1300 Kombi BA3 2105"
+ },
+ "333318:3315309:33138766": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1500 S"
+ },
+ "333318:3315309:33138767": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1500 S"
+ },
+ "333318:3315309:33138768": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "2104/2105/2107 (Nova) 1600 BA3 2106"
+ },
+ "333318:3315310:33138771": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333318:3315310:33138772": {
+  "mf": "C 2443/1",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1100 BA3 21081 (KAT)"
+ },
+ "333318:3315310:33138773": {
+  "mf": "C 2443/1",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1300"
+ },
+ "333318:3315310:33138774": {
+  "mf": "C 2443/1",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Samara 1500 BA3 21083"
+ },
+ "333318:3315311:33138775": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2110 (110) 1.5"
+ },
+ "333318:3315311:33138776": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2110 (110) 1.5"
+ },
+ "333318:3315311:33138777": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2110 (110) 1.5"
+ },
+ "333318:3315311:33138778": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2110 (110) 1.5"
+ },
+ "333318:3315313:33138785": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2170 / 2172 (Priora) 1.6"
+ },
+ "333318:3315313:33138786": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2170 / 2172 (Priora) 1.6"
+ },
+ "333318:3315313:33138787": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2170 / 2172 (Priora) 1.6"
+ },
+ "333318:3315313:33138788": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CUK 21 006",
+  "source": "mann",
+  "matched": "2170 / 2172 (Priora) 1.6 VAZ-21127"
+ },
+ "333318:3315314:33138790": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315314:33138792": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315314:33138793": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315314:33138791": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315314:33138794": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315314:33138795": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315314:33138796": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315315:33138797": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315315:33138798": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315315:33138799": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315316:33138800": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315316:33138803": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315316:33138801": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315316:33138802": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315317:33138804": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "1118 + 1119 1.4"
+ },
+ "333318:3315317:33138805": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Kalina 1.6"
+ },
+ "333318:3315317:33138806": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "sf": "CU 26 004",
+  "source": "mann",
+  "matched": "Kalina 1.6 VAZ-21126"
+ },
+ "333318:3315318:33138807": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333318:3315318:33138808": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333318:3315298:33138720": {
+  "mf": "C 27 030",
+  "vf": "W 914/2(10)",
+  "sf": "CU 1829",
+  "source": "mann",
+  "matched": "Largus 1.6 16V"
+ },
+ "333318:3315299:33138721": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333318:3315299:33138723": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333318:3315300:33138724": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315300:33138725": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315300:33138726": {
+  "source": "none",
+  "why": "модель не найдена на Mann"
+ },
+ "333318:3315302:33138730": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Niva / 4x4 /Taiga 1.7i 21214 (E5)"
+ },
+ "333318:3315312:33138779": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333318:3315312:33138780": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "Niva / 4x4 /Taiga 1.6 BA3 2121"
+ },
+ "333318:3315312:33138781": {
+  "mf": "C 2443/1",
+  "vf": "W 920/21(10)",
+  "source": "mann",
+  "matched": "Niva / 4x4 /Taiga 1.6 BA3 2121"
+ },
+ "333318:3315312:33138782": {
+  "mf": "C 22 117",
+  "vf": "W 914/2(10)",
+  "source": "mann",
+  "matched": "Niva / 4x4 /Taiga 1.7 2123"
+ },
+ "333318:3315312:33138783": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333667:3314746:33118742": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910061:9113836:91118720": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910061:9113836:91138829": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910061:9113836:91138844": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910061:9113836:91143724": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910061:9113836:91143725": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333667:3314747:33118729": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "910061:9111280:91106623": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333703:3315689:33139740": {
+  "mf": "C 24 011",
+  "vf": "W 610/3",
+  "sf": "CUK 2231",
+  "source": "mann",
+  "matched": "Pajero Sport II / Montero Sport II (KH0) 3.0 6B31"
+ },
+ "333703:3315689:33139741": {
+  "mf": "C 16 148",
+  "vf": "WP 928/81",
+  "sf": "CU 2106-2",
+  "source": "mann",
+  "matched": "Pajero III (Shogun/Chall./Montero) 2.5 TD Classic 4 D 56 T"
+ },
+ "333429:3312929:33110480": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333429:3312935:33110517": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333429:3311788:33098445": {
+  "mf": "C 2420",
+  "vf": "W 67/1",
+  "sf": "CU 22 007",
+  "source": "mann",
+  "matched": "Tiida 1.6 16V HR16DE"
+ },
+ "333429:3312939:33110526": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333429:3312939:33110528": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333429:3314729:33068230": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333429:3314729:33110539": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333429:3314729:33110540": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333295:3309648:33077705": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333295:3309648:33077706": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333295:3309660:33128892": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333295:3309660:33128894": {
+  "source": "none",
+  "why": "модификация не найдена на Mann"
+ },
+ "333295:3309651:33128847": {
+  "mf": "C 21 136/1",
+  "vf": "HU 6019 Z",
+  "sf": "CUK 24 003",
+  "source": "mann",
+  "matched": "Meriva B 1.6 CDTI B16DTC"
+ },
+ "333295:3309651:33128850": {
+  "mf": "C 21 136/1",
+  "vf": "HU 6019 Z",
+  "sf": "CUK 24 003",
+  "source": "mann",
+  "matched": "Meriva B 1.6 CDTI B16DTL"
+ },
+ "333295:3309651:33077787": {
+  "mf": "C 21 136/1",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.7 CDTI A17DT"
+ },
+ "333295:3309651:33128851": {
+  "mf": "C 21 136/1",
+  "vf": "HU 6019 Z",
+  "sf": "CUK 24 003",
+  "source": "mann",
+  "matched": "Meriva B 1.6 CDTI B16DTH"
+ },
+ "333295:3309651:33077786": {
+  "mf": "C 21 136/1",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.7 CDTI A17DTC, A17DTI"
+ },
+ "333295:3309651:33077795": {
+  "mf": "C 21 136/1",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.7 CDTI A17DTC, A17DTI"
+ },
+ "333295:3309651:33077785": {
+  "mf": "C 21 136/1",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.7 CDTI A17DTS"
+ },
+ "333295:3309651:33077796": {
+  "mf": "C 21 136/1",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2442",
+  "source": "mann",
+  "matched": "Meriva B 1.7 CDTI A17DTS"
+ },
+ "333295:3309654:33077846": {
+  "mf": "C 30 130",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.6 Z16XER, A16XER"
+ },
+ "333295:3309654:33077854": {
+  "mf": "C 30 130",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.6 Z16XER, A16XER"
+ },
+ "333295:3309654:33077845": {
+  "mf": "C 30 130",
+  "vf": "W 712/75",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.6 CNG Z16YNG"
+ },
+ "333295:3309654:33077844": {
+  "mf": "C 30 138",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.6 CNG Turbo Z16XNT, A16XNT"
+ },
+ "333295:3309654:33128876": {
+  "mf": "C 30 138",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.6 CNG Turbo Z16XNT, A16XNT"
+ },
+ "333295:3309654:33077833": {
+  "mf": "C 30 130",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.8 Z18XER, A18XER"
+ },
+ "333295:3309654:33077878": {
+  "mf": "C 30 130",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.8 Z18XER, A18XER"
+ },
+ "333295:3309654:33077879": {
+  "mf": "C 30 130",
+  "vf": "HU 612/2 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.8 Z18XER, A18XER"
+ },
+ "333295:3309654:33077838": {
+  "mf": "C 30 130",
+  "vf": "W 712/75",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 2.0 Turbo Z20LER"
+ },
+ "333295:3309654:33077841": {
+  "mf": "C 30 130",
+  "vf": "W 712/75",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 2.0 Turbo OPC Z20LEH"
+ },
+ "333295:3309654:33077834": {
+  "mf": "C 30 138/1",
+  "vf": "HU 6007 X",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 2.2 Direct Z22YH"
+ },
+ "333295:3309654:33077839": {
+  "mf": "C 30 138",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.7 CDTi Z17DTJ, A17DTJ"
+ },
+ "333295:3309654:33077847": {
+  "mf": "C 30 138",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.7 CDTi Z17DTJ, A17DTJ"
+ },
+ "333295:3309654:33077840": {
+  "mf": "C 30 138",
+  "vf": "HU 820/1 Y",
+  "sf": "CU 2757",
+  "source": "mann",
+  "matched": "Zafira B 1.7 CDTi Z17DTR, A17DTR"
+ }
+}

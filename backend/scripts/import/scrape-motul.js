@@ -137,21 +137,32 @@ matchedMakes.sort((a, b) => Number(b.label.includes('(RUS)')) - Number(a.label.i
 console.log(`Совпало марок: ${matchedMakes.length} — ${matchedMakes.map(m => m.label).join(', ')}`);
 
 for (const make of matchedMakes) {
-    const makeResult = await postForm(catHtml, {
-        '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$lstMake',
-        'ctl00$ContentPlaceHolder1$lstMake': make.id,
-    });
+    // Сбой на уровне марки/модели (сеть, прокси) не должен ронять весь обход.
+    let makeResult;
+    try {
+        makeResult = await postForm(catHtml, {
+            '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$lstMake',
+            'ctl00$ContentPlaceHolder1$lstMake': make.id,
+        });
+    } catch (e) {
+        console.warn(`⚠ ${make.label}: ${e.message}`); failed++; continue;
+    }
     if (!makeResult.html) { console.warn(`⚠ ${make.label}: постбэк марки не вернул страницу`); failed++; continue; }
 
     const models = selectOptions(cheerio.load(makeResult.html), 'ctl00$ContentPlaceHolder1$lstModel');
     console.log(`\n${make.label}: ${models.length} моделей`);
 
     for (const model of models.slice(0, LIMIT_MODELS)) {
-        const modelResult = await postForm(makeResult.html, {
-            '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$lstModel',
-            'ctl00$ContentPlaceHolder1$lstMake': make.id,
-            'ctl00$ContentPlaceHolder1$lstModel': model.id,
-        });
+        let modelResult;
+        try {
+            modelResult = await postForm(makeResult.html, {
+                '__EVENTTARGET': 'ctl00$ContentPlaceHolder1$lstModel',
+                'ctl00$ContentPlaceHolder1$lstMake': make.id,
+                'ctl00$ContentPlaceHolder1$lstModel': model.id,
+            });
+        } catch (e) {
+            console.warn(`⚠ ${model.label}: ${e.message}`); failed++; continue;
+        }
         if (!modelResult.html) { console.warn(`⚠ ${model.label}: постбэк модели не вернул страницу`); failed++; continue; }
 
         const types = selectOptions(cheerio.load(modelResult.html), 'ctl00$ContentPlaceHolder1$lstType');
