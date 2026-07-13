@@ -41,8 +41,10 @@ async function supabaseHttpQuery(text, params = []) {
         });
         const body = await res.text();
         // 429/5xx — временное: ждём и повторяем (наши запросы идемпотентны).
-        if ((res.status === 429 || res.status >= 500) && attempt < 6) {
-            const ms = 3000 * 2 ** (attempt - 1);
+        // Бэкофф с потолком 30с и запасом попыток — чтобы жёсткий rate-limit
+        // Management API не ронял длинную заливку, а переживался.
+        if ((res.status === 429 || res.status >= 500) && attempt < 10) {
+            const ms = Math.min(30000, 2000 * 2 ** (attempt - 1));
             console.warn(`  Supabase API ${res.status}, ретрай через ${ms / 1000}с…`);
             await new Promise(r => setTimeout(r, ms));
             continue;

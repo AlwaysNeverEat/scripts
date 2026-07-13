@@ -56,6 +56,24 @@ if (USER_LOGIN) {
 const applied = new Set(readJson(STATE_FILE, []));
 const carByKey = new Map(cars.map(c => [c._type_key, c]));
 
+// Ключ машины как в уникальном индексе БД.
+const carDbKey = (b, m, c, v, y) =>
+    `${String(b).toLowerCase()}|${String(m).toLowerCase()}|${String(c || '').toLowerCase()}|${Number(v ?? 0).toFixed(1)}|${y}`;
+
+// Одним запросом — текущее состояние всех машин (id + поля, которые можем
+// менять). Иначе на свежей машине это тысячи отдельных SELECT'ов. Дальше
+// база трогается только для реальных апдейтов.
+const dbRows = new Map();
+{
+    const r = await query(
+        `SELECT lower(brand)||'|'||lower(model)||'|'||lower(coalesce(engine_code,''))
+                  ||'|'||coalesce(engine_volume,0)::numeric(6,1)::text||'|'||year_from::text AS k,
+                id, filter_part_numbers, kw, bhp, source_links
+         FROM cars`);
+    for (const row of r.rows) dbRows.set(row.k, row);
+    console.log(`в базе ${dbRows.size} машин — SELECT на каждую больше не нужен`);
+}
+
 function buildFpn(entry) {
     const mk = (part) => part
         ? { part, absent: false }
@@ -83,20 +101,11 @@ for (const [typeKey, entry] of Object.entries(filters)) {
     if (!car) { noCar++; continue; }
     processed++;
 
-    const keyWhere = `lower(c.brand) = lower($1) AND lower(c.model) = lower($2)
-        AND lower(coalesce(c.engine_code, '')) = lower(coalesce($3, ''))
-        AND coalesce(c.engine_volume, 0) = coalesce($4::numeric, 0)
-        AND c.year_from = $5`;
-    const keyParams = [car.brand, car.model, car.engine_code ?? null,
-                       car.engine_volume ?? null, car.year_from];
-
-    // Сначала смотрим текущее состояние машины, изменения считаем в JS —
-    // так событие edited содержит ровно то, что реально поменялось.
-    const cur = await query(
-        `SELECT c.id, c.filter_part_numbers, c.kw, c.bhp, c.source_links FROM cars c WHERE ${keyWhere}`,
-        keyParams);
-    if (!cur.rows.length) { notEligible++; continue; }
-    const row = cur.rows[0];
+    // Текущее состояние машины — из массового префетча (без запроса к БД).
+    // Изменения считаем в JS, чтобы событие edited содержало ровно то, что
+    // реально поменялось.
+    const row = dbRows.get(carDbKey(car.brand, car.model, car.engine_code, car.engine_volume, car.year_from));
+    if (!row) { notEligible++; continue; }
 
     const changes = {};   // field → { from, to } (формат diffChangedFields)
     const sets = [];
@@ -129,9 +138,9 @@ for (const [typeKey, entry] of Object.entries(filters)) {
     }
 
     if (!sets.length) {
-        // Нечего менять — машина полностью укомплектована, фиксируем в стейте.
+        // Нечего менять — машина полностью укомплектована, фиксируем в стейте
+        // (запись на диск — один раз в конце, не на каждую машину).
         applied.add(typeKey);
-        writeJson(STATE_FILE, [...applied]);
         notEligible++;
         continue;
     }
@@ -168,11 +177,13 @@ for (const [typeKey, entry] of Object.entries(filters)) {
         const label = `${car.brand} ${car.model} ${car.engine_code || ''} ${car.year_from}`.replace(/\s+/g, ' ');
         console.log(`  ✓ ${label}: ${what}`);
         applied.add(typeKey);
-        writeJson(STATE_FILE, [...applied]);
     } else {
         notEligible++;
     }
 }
+
+// Стейт на диск — один раз в конце (не тысячи записей в цикле).
+if (!DRY_RUN) writeJson(STATE_FILE, [...applied]);
 
 console.log(`${DRY_RUN ? '[dry-run] ' : ''}Фильтры/мощность:`);
 console.log(`  ${DRY_RUN ? 'будет обновлено' : 'обновлено'}: ${updated}`);
