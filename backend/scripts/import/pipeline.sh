@@ -71,10 +71,14 @@ while true; do
     say "этап: дозапись фильтров/мощности/ссылок"
     node scripts/import/apply-filters.js --user "$IMPORT_USER" >> "$LOG" 2>&1
 
-    # SNAPSHOT_PUSH=1 — коммитить свежие данные на ветку после цикла
+    # SNAPSHOT_PUSH=1 — коммитить свежие данные на ветку после цикла.
+    # Жмём gzip'ом: несжатые JSON перевалили за лимиты GitHub (50+ МБ).
     if [ "${SNAPSHOT_PUSH:-0}" = "1" ]; then
         ( cd "$ROOT" \
-          && git add data/import/motul-cars.json data/import/cars-enriched.json data/import/filters.json \
+          && for f in motul-cars cars-enriched filters; do
+                 gzip -c "data/import/$f.json" > "data/import/$f.json.gz" 2>/dev/null || true
+             done \
+          && git add data/import/*.json.gz \
           && { git diff --cached --quiet || { git commit -q -m "Импорт: снапшот данных (объёмы+допуски+фильтры)
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

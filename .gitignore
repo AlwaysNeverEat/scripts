@@ -37,3 +37,8 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ── Данные импорта: в репо только сжатые снапшоты ────────────────
+data/import/motul-cars.json
+data/import/cars-enriched.json
+data/import/filters.json
