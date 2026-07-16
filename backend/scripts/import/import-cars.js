@@ -36,6 +36,8 @@ const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
 const limitIdx = args.indexOf('--limit');
 const LIMIT = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) || Infinity : Infinity;
+const progressIdx = args.indexOf('--progress-every');
+const PROGRESS_EVERY = progressIdx >= 0 ? Math.max(1, parseInt(args[progressIdx + 1]) || 100) : 100;
 const userIdx = args.indexOf('--user');
 const USER_LOGIN = userIdx >= 0 ? args[userIdx + 1] : null;
 // --state <файл>: локальный список уже залитых _type_key — при повторных
@@ -46,11 +48,31 @@ const STATE_FILE = stateIdx >= 0 ? path.resolve(ROOT, args[stateIdx + 1]) : null
 // если флаг реально передан (иначе idx+1 === 0 «съедал» сам путь к файлу,
 // и импортёр молча брал дефолтный файл).
 const flagValueIdx = new Set(
-    [limitIdx, userIdx, stateIdx].filter(i => i >= 0).map(i => i + 1));
+    [limitIdx, progressIdx, userIdx, stateIdx].filter(i => i >= 0).map(i => i + 1));
 const fileArg = args.find((a, i) => !a.startsWith('--') && !flagValueIdx.has(i));
 const IN_FILE = path.resolve(ROOT, fileArg || 'data/import/motul-cars.json');
 
-const query = await makeQuery();
+const rawQuery = await makeQuery();
+
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+function isTransientDbError(error) {
+    const message = String(error?.message || error);
+    return /timeout|terminated|ECONN|ETIMEDOUT|ENET|EAI_AGAIN|429|5\d\d|rate/i.test(message);
+}
+
+async function query(text, params = [], { label = 'SQL', retries = 4 } = {}) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await rawQuery(text, params);
+        } catch (error) {
+            if (attempt >= retries || !isTransientDbError(error)) throw error;
+            const ms = Math.min(30000, 1500 * 2 ** (attempt - 1));
+            console.warn(`  ${label}: ${error.message}; ретрай ${attempt}/${retries - 1} через ${Math.round(ms / 1000)}с…`);
+            await sleep(ms);
+        }
+    }
+}
 
 const NOTES_BASE = '⚠ Импортировано автоматически (Motul + ROLF), не проверено';
 
@@ -59,6 +81,11 @@ if (!cars) {
     console.error(`Не читается ${IN_FILE} — сначала запусти scrape-motul.js`);
     process.exit(1);
 }
+if (!Array.isArray(cars)) {
+    console.error(`${IN_FILE} должен быть JSON-массивом машин`);
+    process.exit(1);
+}
+console.log(`прочитано ${cars.length} машин из ${path.relative(ROOT, IN_FILE)}`);
 
 // ── Валидация записи; возвращает список проблем ─────────────────────────────
 function validate(car) {
@@ -112,12 +139,24 @@ if (!DRY_RUN) {
     console.log(`в базе уже ${dbKeys.size} машин — трогаю только новые и недостающие`);
 }
 
-let inserted = 0, existing = 0, invalid = 0, skippedByState = 0, updatedApprovals = 0;
+let inserted = 0, existing = 0, invalid = 0, skippedByState = 0, updatedApprovals = 0, failed = 0;
 const invalidReport = [];
+const failedReport = [];
+const startedAt = Date.now();
+const workCars = cars.slice(0, LIMIT);
+const progress = (processed, force = false) => {
+    if (!force && processed % PROGRESS_EVERY !== 0) return;
+    const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+    const rate = (processed / seconds).toFixed(1);
+    console.log(`  прогресс ${processed}/${workCars.length}: добавлено=${inserted}, уже=${existing}, дозаписей=${updatedApprovals}, битых=${invalid}, ошибок=${failed}, стейт=${skippedByState}, ${rate}/с`);
+};
 
-for (const car of cars.slice(0, LIMIT)) {
+let processed = 0;
+for (const car of workCars) {
+    processed++;
     if (importedKeys && car._type_key && importedKeys.has(car._type_key)) {
         skippedByState++;
+        progress(processed);
         continue;
     }
     const label = [car.brand, car.model, car.engine_code, car.year_from].filter(Boolean).join(' ');
@@ -125,6 +164,7 @@ for (const car of cars.slice(0, LIMIT)) {
     if (problems.length) {
         invalid++;
         invalidReport.push(`${label || '(пустая запись)'}: ${problems.join(', ')}`);
+        progress(processed);
         continue;
     }
 
@@ -142,6 +182,7 @@ for (const car of cars.slice(0, LIMIT)) {
                     && ((car.car_approvals && car.car_approvals.length) || car._rolf !== undefined)) {
                     importedKeys.add(car._type_key);
                 }
+                progress(processed);
                 continue;
             }
         }
@@ -164,6 +205,7 @@ for (const car of cars.slice(0, LIMIT)) {
             [car.brand, car.model, car.engine_code, car.engine_volume, car.year_from],
         );
         if (r.rows.length) existing++; else inserted++;
+        progress(processed);
         continue;
     }
 
@@ -214,14 +256,17 @@ for (const car of cars.slice(0, LIMIT)) {
         params.push(importUser.id);
     }
 
-    const r = await query(sql, params);
-    if (!r.rows.length) existing++;
-    else if (r.rows[0].inserted === true || r.rows[0].inserted === 't') inserted++;
-    else updatedApprovals++;
-
-    // Прогресс каждые 100 записей — чтобы долгая заливка не выглядела зависшей.
-    if ((inserted + updatedApprovals) % 100 === 0 && (inserted + updatedApprovals) > 0) {
-        console.log(`  …добавлено ${inserted}, дозаписей ${updatedApprovals} (в работе)`);
+    try {
+        const r = await query(sql, params, { label });
+        if (!r.rows.length) existing++;
+        else if (r.rows[0].inserted === true || r.rows[0].inserted === 't') inserted++;
+        else updatedApprovals++;
+    } catch (error) {
+        failed++;
+        failedReport.push(`${label || '(пустая запись)'}: ${error.message}`);
+        console.error(`  ошибка записи: ${label || '(пустая запись)'} — ${error.message}`);
+        progress(processed, true);
+        continue;
     }
 
     // В стейт — только «финально» обработанные: с допусками, либо когда
@@ -232,6 +277,7 @@ for (const car of cars.slice(0, LIMIT)) {
         importedKeys.add(car._type_key);
         writeJson(STATE_FILE, [...importedKeys]);
     }
+    progress(processed);
 }
 
 // Финальная запись стейта: быстрые пропуски копились в памяти без записи
@@ -243,11 +289,18 @@ console.log(`${DRY_RUN ? '[dry-run] ' : ''}Импорт из ${path.relative(ROO
 console.log(`  ${DRY_RUN ? 'будет добавлено' : 'добавлено'}: ${inserted}`);
 console.log(`  уже в базе (пропущено): ${existing}`);
 console.log(`  битых записей: ${invalid}`);
+console.log(`  ошибок записи: ${failed}`);
 if (updatedApprovals) console.log(`  дозаписаны допуски: ${updatedApprovals}`);
 if (skippedByState) console.log(`  пропущено по стейту (залиты ранее): ${skippedByState}`);
+if (failedReport.length) {
+    console.log('\nОшибки записи (первые 30):');
+    for (const line of failedReport.slice(0, 30)) console.log('  - ' + line);
+    if (failedReport.length > 30) console.log(`  … и ещё ${failedReport.length - 30}`);
+}
 if (invalidReport.length) {
     console.log('\nБитые записи:');
     for (const line of invalidReport.slice(0, 30)) console.log('  - ' + line);
     if (invalidReport.length > 30) console.log(`  … и ещё ${invalidReport.length - 30}`);
 }
-process.exit(0);
+progress(processed, true);
+process.exit(failed ? 2 : 0);

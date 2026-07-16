@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import path from 'node:path';
 import tls from 'node:tls';
 import { fileURLToPath } from 'node:url';
@@ -102,5 +103,11 @@ export function writeJson(file, data) {
 }
 
 export function readJson(file, fallback) {
-    try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+    try {
+        const buf = fs.readFileSync(file);
+        const text = file.endsWith('.gz') ? zlib.gunzipSync(buf).toString('utf8') : buf.toString('utf8');
+        return JSON.parse(text);
+    } catch {
+        return fallback;
+    }
 }

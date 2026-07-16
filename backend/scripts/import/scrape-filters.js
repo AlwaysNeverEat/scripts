@@ -231,6 +231,92 @@ if (!cars) {
 }
 const filters = readJson(OUT_FILE, {});
 
+
+function filtersReusable(entry) {
+    return entry && entry.source === 'mann' && (entry.vf || entry.mf || entry.sf)
+        && (entry.kw || entry.bhp || entry.mann_link);
+}
+
+function obviousSiblingKey(car) {
+    // Без кода двигателя или объёма не копируем: по одному названию модели
+    // легко склеить разные моторы/поколения и получить неверные фильтры.
+    if (!car.engine_code || !car.engine_volume) return null;
+    return [car.brand, car.model, car.engine_code, Number(car.engine_volume).toFixed(1), car.kw || '', car.bhp || '']
+        .map(v => String(v).toLowerCase().trim())
+        .join('|');
+}
+
+function reusablePayload(entry) {
+    return {
+        vf: entry.vf || null,
+        mf: entry.mf || null,
+        sf: entry.sf || null,
+        kw: entry.kw || null,
+        bhp: entry.bhp || null,
+        mann_link: entry.mann_link || null,
+        matched: entry.matched || null,
+    };
+}
+
+function samePayload(a, b) {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function buildObviousSiblingIndex(cars, filters) {
+    const index = new Map();
+    for (const car of cars) {
+        if (!car._type_key) continue;
+        const entry = filters[car._type_key];
+        if (!filtersReusable(entry)) continue;
+        const key = obviousSiblingKey(car);
+        if (!key) continue;
+        const payload = reusablePayload(entry);
+        const current = index.get(key);
+        if (!current) {
+            index.set(key, { payload, conflict: false, from: car._type_key });
+        } else if (!samePayload(current.payload, payload)) {
+            // Если у одинаковой сигнатуры уже есть разные найденные варианты,
+            // это не «очевидное» совпадение. Такие машины пусть матчятся через
+            // Mann отдельно, без автокопирования.
+            current.conflict = true;
+        }
+    }
+    return index;
+}
+
+function copyObviousSiblingFilters(cars, filters) {
+    const index = buildObviousSiblingIndex(cars, filters);
+    let copied = 0;
+    let conflicts = 0;
+    for (const car of cars) {
+        if (!car._type_key) continue;
+        const existing = filters[car._type_key];
+        if (existing && existing.source !== 'none') continue;
+        const key = obviousSiblingKey(car);
+        if (!key) continue;
+        const hit = index.get(key);
+        if (!hit) continue;
+        if (hit.conflict) { conflicts++; continue; }
+        filters[car._type_key] = {
+            ...hit.payload,
+            source: 'mann',
+            copied_from: hit.from,
+            matched: hit.payload.matched ? `${hit.payload.matched} (скопировано по той же модели/двигателю)` : undefined,
+        };
+        copied++;
+    }
+    return { copied, conflicts };
+}
+
+const obvious = copyObviousSiblingFilters(cars, filters);
+if (obvious.copied) {
+    console.log(`Скопировано очевидных совпадений фильтров: ${obvious.copied}`);
+    writeJson(OUT_FILE, filters);
+}
+if (obvious.conflicts) {
+    console.log(`Конфликтных очевидных совпадений пропущено: ${obvious.conflicts}`);
+}
+
 const groups = new Map();
 for (const car of cars) {
     if (!car._type_key) continue;
@@ -240,7 +326,7 @@ for (const car of cars) {
     // скрипта, перепроходим их ради мощности (GraphQL-кэш смягчит сеть).
     if (done && (done.source === 'none' || 'kw' in done)) continue;
     const key = [car.brand, car.model, car.generation || '', car.engine_code || '',
-                 car.engine_volume || '', car.kw || ''].join('|').toLowerCase();
+                 car.engine_volume || '', car.kw || '', car.bhp || ''].join('|').toLowerCase();
     if (!groups.has(key)) groups.set(key, { cars: [], sample: car });
     groups.get(key).cars.push(car);
 }
