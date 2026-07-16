@@ -1,11 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// HTTP-хелпер для скрейперов импорта: вежливый fetch с ограничением частоты,
-// ретраями, поддержкой HTTPS_PROXY и кастомными CA.
-//
-// CA: podbor.upec.pro не отдаёт промежуточный сертификат GlobalSign, поэтому
-// он лежит рядом (certs/globalsign-alphassl-2025.pem) и добавляется к
-// системным корням. Если задан NODE_EXTRA_CA_CERTS (например, прокси с
-// подменой TLS) — его содержимое тоже подхватывается.
+// HTTP-хелпер для скрейперов импорта: ограничение частоты, тайм-ауты, ретраи,
+// поддержка HTTPS_PROXY и кастомных CA.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import fs from 'node:fs';
@@ -33,50 +28,62 @@ export const dispatcher = PROXY
     ? new ProxyAgent({ uri: PROXY, requestTls: { ca: CA } })
     : new Agent({ connect: { ca: CA } });
 
-// ── Ограничение частоты: не чаще одного запроса в RPS_INTERVAL мс ──────────
-const RPS_INTERVAL = Number(process.env.SCRAPE_INTERVAL_MS || 1000);
+const RPS_INTERVAL = Math.max(0, Number(process.env.SCRAPE_INTERVAL_MS || 1000));
+const DEFAULT_TIMEOUT_MS = Math.max(5000, Number(process.env.HTTP_TIMEOUT_MS || 45000));
 let lastRequestAt = 0;
 
 async function politePause() {
     const wait = lastRequestAt + RPS_INTERVAL - Date.now();
-    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
     lastRequestAt = Date.now();
 }
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 
-// Вежливый fetch: пауза между запросами + ретраи с бэкоффом на сетевые/5xx.
-// redirect: 'manual' — редиректы ASP.NET обрабатываем сами (нужен Location).
+// opts.attempts и opts.timeoutMs относятся к этому хелперу и не передаются
+// undici. Без явного signal каждый запрос обрывается по тайм-ауту, поэтому
+// Windows-конвейер больше не может бесконечно молчать на зависшем сайте.
 export async function politeFetch(url, opts = {}) {
-    const attempts = opts.attempts ?? 4;
+    const {
+        attempts = 4,
+        timeoutMs = DEFAULT_TIMEOUT_MS,
+        headers = {},
+        signal,
+        ...fetchOptions
+    } = opts;
+
     for (let attempt = 1; ; attempt++) {
         await politePause();
         try {
+            const requestSignal = signal || AbortSignal.timeout(Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
             const res = await fetch(url, {
                 dispatcher,
                 redirect: 'manual',
-                ...opts,
-                headers: { 'User-Agent': UA, ...(opts.headers || {}) },
+                ...fetchOptions,
+                signal: requestSignal,
+                headers: { 'User-Agent': UA, ...headers },
             });
-            if (res.status >= 500 && attempt < attempts) {
+            if ((res.status === 429 || res.status >= 500) && attempt < attempts) {
                 await backoff(attempt, `HTTP ${res.status} от ${new URL(url).host}`);
                 continue;
             }
             return res;
-        } catch (e) {
-            if (attempt >= attempts) throw e;
-            await backoff(attempt, e.message);
+        } catch (error) {
+            const reason = error?.name === 'TimeoutError'
+                ? `тайм-аут ${Math.round(timeoutMs / 1000)}с у ${new URL(url).host}`
+                : String(error?.message || error);
+            if (attempt >= attempts) throw new Error(`${reason} (попыток: ${attempts})`, { cause: error });
+            await backoff(attempt, reason);
         }
     }
 }
 
 async function backoff(attempt, reason) {
-    const ms = 2000 * 2 ** (attempt - 1);
-    console.warn(`  ретрай ${attempt} через ${ms / 1000}с: ${reason}`);
-    await new Promise(r => setTimeout(r, ms));
+    const ms = Math.min(30000, 2000 * 2 ** (attempt - 1));
+    console.warn(`  HTTP: ${reason}; повтор ${attempt} через ${Math.ceil(ms / 1000)}с`);
+    await new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// ── Примитивная cookie-банка на один хост (сессия ASP.NET у Motul) ─────────
 export class CookieJar {
     constructor() { this.cookies = new Map(); }
 
@@ -90,11 +97,10 @@ export class CookieJar {
     }
 
     header() {
-        return [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
+        return [...this.cookies].map(([key, value]) => `${key}=${value}`).join('; ');
     }
 }
 
-// Атомарная запись JSON (пишем во временный файл и переименовываем).
 export function writeJson(file, data) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = file + '.tmp';
