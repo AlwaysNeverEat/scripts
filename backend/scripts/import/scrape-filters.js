@@ -233,8 +233,7 @@ const filters = readJson(OUT_FILE, {});
 
 
 function filtersReusable(entry) {
-    return entry && entry.source === 'mann' && (entry.vf || entry.mf || entry.sf)
-        && (entry.kw || entry.bhp || entry.mann_link);
+    return entry && entry.source === 'mann' && (entry.vf || entry.mf || entry.sf);
 }
 
 function obviousSiblingKey(car) {

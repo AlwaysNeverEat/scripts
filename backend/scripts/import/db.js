@@ -49,19 +49,34 @@ export function sqlLiteral(v) {
     return `'${String(v).replace(/\0/g, '').replace(/'/g, "''")}'`;
 }
 
+function isTransientSupabaseError(error) {
+    const message = String(error?.message || error);
+    return /timeout|terminated|ECONN|ETIMEDOUT|ENET|EAI_AGAIN|UND_ERR|socket|network|fetch failed/i.test(message);
+}
+
 async function supabaseHttpQuery(text, params = []) {
     const sql = text.replace(/\$(\d+)/g, (_, n) => sqlLiteral(params[Number(n) - 1]));
     for (let attempt = 1; ; attempt++) {
         await throttleSupabaseQuery();
-        const res = await fetch(`https://api.supabase.com/v1/projects/${SB_REF}/database/query`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${SB_TOKEN}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ query: sql }),
-        });
-        const body = await res.text();
+        let res;
+        let body;
+        try {
+            res = await fetch(`https://api.supabase.com/v1/projects/${SB_REF}/database/query`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${SB_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: sql }),
+            });
+            body = await res.text();
+        } catch (error) {
+            if (attempt >= SB_MAX_ATTEMPTS || !isTransientSupabaseError(error)) throw error;
+            const ms = Math.min(120000, 2000 * 2 ** Math.min(attempt - 1, 6));
+            console.warn(`  Supabase API сеть: ${error.message}; ретрай ${attempt}/${SB_MAX_ATTEMPTS - 1} через ${Math.ceil(ms / 1000)}с…`);
+            await sleep(ms);
+            continue;
+        }
         // 429/5xx — временное: ждём и повторяем (наши запросы идемпотентны).
         // Management API режет частые UPDATE'ы, поэтому дополнительно уважаем
         // Retry-After и даём больше попыток: лучше переждать лимит, чем

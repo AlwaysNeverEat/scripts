@@ -109,8 +109,19 @@ function Count-Json([string]$file) {
 # живьём), И в лог-файл — иначе долгий тихий этап выглядит как зависание.
 function Run-Stage([string]$title, [string[]]$argList) {
     Say "этап: $title"
-    & node @argList 2>&1 | Tee-Object -FilePath $PipeLog -Append
-    $code = $LASTEXITCODE
+    # Node пишет ретраи/предупреждения в stderr. В Windows PowerShell stderr
+    # внешней команды в pipeline может стать NativeCommandError при
+    # `$ErrorActionPreference = 'Stop'`, хотя сам node ещё нормально работает.
+    # На время запуска этапа не даём stderr закрыть окно, но exit code всё равно
+    # проверяем сразу после команды.
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & node @argList 2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath $PipeLog -Append
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $oldEap
+    }
     if ($code -ne 0) {
         Say "ВНИМАНИЕ: этап '$title' завершился с кодом $code — продолжу следующий этап/цикл, чтобы не закрывать конвейер"
         return $false
