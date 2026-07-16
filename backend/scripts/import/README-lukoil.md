@@ -15,6 +15,10 @@ cd backend
 ./scripts/import/pipeline-lukoil.sh
 IMPORT_USER=vasya ./scripts/import/pipeline-lukoil.sh
 
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File .\scripts\import\pipeline-lukoil.ps1
+$env:IMPORT_USER='vasya'; powershell -ExecutionPolicy Bypass -File .\scripts\import\pipeline-lukoil.ps1
+
 # оркестратор напрямую (все легковые марки)
 node scripts/import/scrape-lukoil-all.js --import-new --with-filters --user gtrixoff
 
@@ -51,7 +55,8 @@ GET  /ru/lukoil/0?mid={mid}&session={req_tk}                → HTML реком�
 | `lukoil-parse.test.js` | юнит-тесты на фикстурах `__fixtures__/lukoil/` |
 | `scrape-lukoil.js` | сбор одной/нескольких марок → `data/import/lukoil-cars.json` (чекпоинт после каждой машины) |
 | `scrape-lukoil-all.js` | оркестратор: марка целиком → заливка в БД частями → фильтры по марке |
-| `pipeline-lukoil.sh` | конвейер циклами + лог + опц. снапшот |
+| `pipeline-lukoil.sh` | Linux/macOS-конвейер циклами + лог + опц. снапшот |
+| `pipeline-lukoil.ps1` | Windows PowerShell-конвейер с теми же переменными окружения и логом |
 | `log.js` | общий цветной логгер (уровни, `--debug`, `NO_COLOR`/`IMPORT_COLOR=0`) |
 
 Форма узлов совместима с Motul (`fluid_capacities = {engine, automatic, manual,
