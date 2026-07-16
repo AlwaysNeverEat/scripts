@@ -11,10 +11,11 @@
 # один раз и сохраняются в %USERPROFILE%\.cars-import.json. Сбросить —
 # удалить этот файл.
 # -----------------------------------------------------------------------------
-$ErrorActionPreference = 'Stop'
-if ($PSVersionTable.PSVersion.Major -ge 7) {
-    $PSNativeCommandUseErrorActionPreference = $false
-}
+# Windows PowerShell 5.1 превращает stderr от native-команд внутри pipeline
+# в NativeCommandError при ErrorActionPreference='Stop'. Node пишет ретраи
+# Supabase в stderr, поэтому для cmd/run-import.bat держим Continue, а ошибки
+# этапов скрипт отслеживает через `$LASTEXITCODE` там, где это поддерживается.
+$ErrorActionPreference = 'Continue'
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -109,24 +110,7 @@ function Count-Json([string]$file) {
 # живьём), И в лог-файл — иначе долгий тихий этап выглядит как зависание.
 function Run-Stage([string]$title, [string[]]$argList) {
     Say "этап: $title"
-    # Node пишет ретраи/предупреждения в stderr. В Windows PowerShell при
-    # $ErrorActionPreference='Stop' такой stderr внутри пайпа превращается в
-    # NativeCommandError и роняет весь .ps1 (как на фото с Supabase 429).
-    # На время этапа опускаем ErrorActionPreference, но реальный exit code
-    # всё равно проверяем и пишем в лог.
-    $oldErrorActionPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        & node @argList 2>&1 | Tee-Object -FilePath $PipeLog -Append
-        $code = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $oldErrorActionPreference
-    }
-    if ($code -ne 0) {
-        Say "ВНИМАНИЕ: этап '$title' завершился с кодом $code — продолжу следующий этап/цикл, чтобы не закрывать конвейер"
-        return $false
-    }
-    return $true
+    & node @argList 2>&1 | Tee-Object -FilePath $PipeLog -Append
 }
 
 # -- Основной цикл ------------------------------------------------------------
