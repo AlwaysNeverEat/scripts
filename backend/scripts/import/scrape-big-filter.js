@@ -84,19 +84,39 @@ function parseYear(text) {
     return { year_from: year(m[2]), year_to: m[4] ? year(m[4]) : null };
 }
 
+function collectTextLines($) {
+    const lines = [];
+    const root = $('body').get(0) || $.root().get(0);
+    function walk(node) {
+        if (!node) return;
+        if (node.type === 'text') {
+            for (const part of String(node.data || '').replace(/\u00a0/g, ' ').split(/[\r\n]+/)) {
+                const text = part.replace(/\s+/g, ' ').trim();
+                if (text) lines.push(text);
+            }
+            return;
+        }
+        for (const child of node.children || []) walk(child);
+    }
+    walk(root);
+    return lines;
+}
+
 function parsePage(html, brand, sourceLink) {
     const $ = cheerio.load(html);
-    const text = $('body').text().replace(/\u00a0/g, ' ');
-    const lines = text.split(/[\r\n]+/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const lines = collectTextLines($);
     const rows = [];
     let model = '';
     let current = null;
     let section = '';
+    let expect = '';
     const finish = () => {
         if (!current) return;
         for (const key of ['vf','mf','sf']) current[key] = current[key]?.[0] || null;
         if (current.model && (current.engine_code || current.engine_volume || current.kw)) rows.push(current);
         current = null;
+        section = '';
+        expect = '';
     };
     for (const line of lines) {
         if (new RegExp(`^${escRe(brand)}\\s+`, 'i').test(line) && !/Тип модели|Код двигателя|Мощность|Период/i.test(line)) {
@@ -105,14 +125,41 @@ function parsePage(html, brand, sourceLink) {
         if (/^Тип модели\s*\(объем двигателя\)/i.test(line)) {
             finish();
             const label = line.replace(/^Тип модели\s*\(объем двигателя\)\s*/i, '').trim();
+            if (!label) { expect = 'type'; continue; }
             const v = label.match(/\d+(?:[.,]\d+)?/);
-            current = { model, engine_name: label || null, engine_volume: v ? Number(v[0].replace(',', '.')) : null, engine_code: null, kw: null, bhp: null, year_from: null, year_to: null, vf: [], mf: [], sf: [], big_link: sourceLink };
+            current = { model, engine_name: label, engine_volume: v ? Number(v[0].replace(',', '.')) : null, engine_code: null, kw: null, bhp: null, year_from: null, year_to: null, vf: [], mf: [], sf: [], big_link: sourceLink };
+            continue;
+        }
+        if (expect === 'type') {
+            const v = line.match(/\d+(?:[.,]\d+)?/);
+            current = { model, engine_name: line, engine_volume: v ? Number(v[0].replace(',', '.')) : null, engine_code: null, kw: null, bhp: null, year_from: null, year_to: null, vf: [], mf: [], sf: [], big_link: sourceLink };
+            expect = '';
             continue;
         }
         if (!current) continue;
-        if (/^Код двигателя/i.test(line)) { current.engine_code = line.replace(/^Код двигателя\s*/i, '').trim() || null; continue; }
-        if (/^Мощность кВт/i.test(line)) { const m = line.match(/(\d{1,4})\s*\(\s*(\d{1,4})\s*\)/); if (m) { current.kw = Number(m[1]); current.bhp = Number(m[2]); } continue; }
-        if (/^Период выпуска/i.test(line)) { Object.assign(current, parseYear(line)); continue; }
+        if (/^Код двигателя/i.test(line)) {
+            const value = line.replace(/^Код двигателя\s*/i, '').trim();
+            if (value) current.engine_code = value === '.' ? null : value; else expect = 'code';
+            continue;
+        }
+        if (expect === 'code') { current.engine_code = line === '.' ? null : line; expect = ''; continue; }
+        if (/^Мощность кВт/i.test(line)) {
+            const m = line.match(/(\d{1,4})\s*\(\s*(\d{1,4})\s*\)/);
+            if (m) { current.kw = Number(m[1]); current.bhp = Number(m[2]); } else expect = 'power';
+            continue;
+        }
+        if (expect === 'power') {
+            const m = line.match(/(\d{1,4})\s*\(\s*(\d{1,4})\s*\)/);
+            if (m) { current.kw = Number(m[1]); current.bhp = Number(m[2]); }
+            expect = '';
+            continue;
+        }
+        if (/^Период выпуска/i.test(line)) {
+            const period = parseYear(line);
+            if (period.year_from) Object.assign(current, period); else expect = 'period';
+            continue;
+        }
+        if (expect === 'period') { Object.assign(current, parseYear(line)); expect = ''; continue; }
         if (/воздушн.*салон/i.test(line)) { section = 'sf'; continue; }
         if (/маслян.*фильтр/i.test(line)) { section = 'mf'; continue; }
         if (/воздушн.*фильтр/i.test(line)) { section = 'vf'; continue; }
