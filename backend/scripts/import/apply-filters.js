@@ -35,6 +35,41 @@ const STATE_FILE = path.resolve(ROOT, argValue('--state', 'data/import/.filters-
 
 const query = await makeQuery();
 
+const USE_COLOR = process.env.IMPORT_COLOR !== '0' && !process.env.NO_COLOR;
+const paint = (code, value) => USE_COLOR ? `\x1b[${code}m${value}\x1b[0m` : String(value);
+const color = {
+    ok: (s) => paint('32;1', s),
+    brand: (s) => paint('36;1', s),
+    model: (s) => paint('36', s),
+    engine: (s) => paint('35', s),
+    year: (s) => paint('33', s),
+    filter: (s) => paint('32', s),
+    power: (s) => paint('34', s),
+    link: (s) => paint('90', s),
+};
+
+function formatCarLabel(car) {
+    return [
+        color.brand(car.brand),
+        color.model(car.model),
+        car.engine_code ? color.engine(car.engine_code) : '',
+        car.year_from ? color.year(car.year_from) : '',
+    ].filter(Boolean).join(' ');
+}
+
+function formatChangeList(changes, entry) {
+    const out = [];
+    if (changes.filter_part_numbers) {
+        out.push(color.filter(`vf=${entry.vf || '—'}`));
+        out.push(color.filter(`mf=${entry.mf || '—'}`));
+        out.push(color.filter(`sf=${entry.sf || '—'}`));
+    }
+    if (changes.kw) out.push(color.power(`kw=${entry.kw}`));
+    if (changes.bhp) out.push(color.power(`bhp=${entry.bhp}`));
+    if (changes.source_links) out.push(color.link('+mann-link'));
+    return out.join(' ');
+}
+
 const filters = readJson(FILTERS_FILE, null);
 const cars = readJson(CARS_FILE, null);
 if (!filters || !cars) {
@@ -168,14 +203,8 @@ for (const [typeKey, entry] of Object.entries(filters)) {
     const r = await query(sql, params);
     if (r.rows.length) {
         updated++;
-        const what = [
-            changes.filter_part_numbers ? `vf=${entry.vf || '—'} mf=${entry.mf || '—'} sf=${entry.sf || '—'}` : '',
-            changes.kw ? `kw=${entry.kw}` : '',
-            changes.bhp ? `bhp=${entry.bhp}` : '',
-            changes.source_links ? '+mann-link' : '',
-        ].filter(Boolean).join(' ');
-        const label = `${car.brand} ${car.model} ${car.engine_code || ''} ${car.year_from}`.replace(/\s+/g, ' ');
-        console.log(`  ✓ ${label}: ${what}`);
+        const what = formatChangeList(changes, entry);
+        console.log(`  ${color.ok('✓')} ${formatCarLabel(car)}: ${what}`);
         applied.add(typeKey);
     } else {
         notEligible++;

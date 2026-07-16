@@ -12,6 +12,9 @@
 # удалить этот файл.
 # -----------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -106,7 +109,24 @@ function Count-Json([string]$file) {
 # живьём), И в лог-файл — иначе долгий тихий этап выглядит как зависание.
 function Run-Stage([string]$title, [string[]]$argList) {
     Say "этап: $title"
-    & node @argList 2>&1 | Tee-Object -FilePath $PipeLog -Append
+    # Node пишет ретраи/предупреждения в stderr. В Windows PowerShell при
+    # $ErrorActionPreference='Stop' такой stderr внутри пайпа превращается в
+    # NativeCommandError и роняет весь .ps1 (как на фото с Supabase 429).
+    # На время этапа опускаем ErrorActionPreference, но реальный exit code
+    # всё равно проверяем и пишем в лог.
+    $oldErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & node @argList 2>&1 | Tee-Object -FilePath $PipeLog -Append
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $oldErrorActionPreference
+    }
+    if ($code -ne 0) {
+        Say "ВНИМАНИЕ: этап '$title' завершился с кодом $code — продолжу следующий этап/цикл, чтобы не закрывать конвейер"
+        return $false
+    }
+    return $true
 }
 
 # -- Основной цикл ------------------------------------------------------------
