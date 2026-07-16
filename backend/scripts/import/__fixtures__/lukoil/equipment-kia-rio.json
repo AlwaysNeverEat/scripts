@@ -1,0 +1,86 @@
+[
+ {
+  "mid": "<mid>",
+  "model": "RIO Hatchback II 1.5 CRDi",
+  "engine_output_kw": 81,
+  "engine_output_hp": 110,
+  "year_from": 2005,
+  "year_to": 2011,
+  "fuel_type_name": "Дизель",
+  "fuel_type_name_en": "Diesel",
+  "generations": "JB",
+  "drive_types": [
+   "FWD"
+  ]
+ },
+ {
+  "mid": "<mid>",
+  "model": "RIO I 1.3",
+  "engine_output_kw": 55,
+  "engine_output_hp": 75,
+  "year_from": 2000,
+  "year_to": 2006,
+  "fuel_type_name": "Бензин",
+  "fuel_type_name_en": "Petrol",
+  "generations": "DC, BC",
+  "drive_types": [
+   "FWD"
+  ]
+ },
+ {
+  "mid": "<mid>",
+  "model": "RIO I 1.3",
+  "engine_output_kw": 60,
+  "engine_output_hp": 82,
+  "year_from": 2002,
+  "year_to": 2005,
+  "fuel_type_name": "Бензин",
+  "fuel_type_name_en": "Petrol",
+  "generations": "DC",
+  "drive_types": [
+   "FWD"
+  ]
+ },
+ {
+  "mid": "<mid>",
+  "model": "RIO I 1.5 16V",
+  "engine_output_kw": 72,
+  "engine_output_hp": 98,
+  "year_from": 2000,
+  "year_to": 2006,
+  "fuel_type_name": "Бензин",
+  "fuel_type_name_en": "Petrol",
+  "generations": "DC, BC",
+  "drive_types": [
+   "FWD"
+  ]
+ },
+ {
+  "mid": "<mid>",
+  "model": "RIO I 1.5 16V",
+  "engine_output_kw": 71,
+  "engine_output_hp": 96.5,
+  "year_from": 2000,
+  "year_to": 2006,
+  "fuel_type_name": "Бензин",
+  "fuel_type_name_en": "Petrol",
+  "generations": "DC, BC",
+  "drive_types": [
+   "FWD"
+  ]
+ },
+ {
+  "mid": "<mid>",
+  "model": "RIO II 1.4 16V",
+  "engine_output_kw": 70,
+  "engine_output_hp": 95,
+  "year_from": 2005,
+  "year_to": 2011,
+  "fuel_type_name": "Бензин",
+  "fuel_type_name_en": "Petrol",
+  "generations": "JB",
+  "drive_types": [
+   "FWD"
+  ]
+ }
+]

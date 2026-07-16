@@ -28,12 +28,22 @@ export const dispatcher = PROXY
     ? new ProxyAgent({ uri: PROXY, requestTls: { ca: CA } })
     : new Agent({ connect: { ca: CA } });
 
-const RPS_INTERVAL = Math.max(0, Number(process.env.SCRAPE_INTERVAL_MS || 1000));
+let RPS_INTERVAL = Math.max(0, Number(process.env.SCRAPE_INTERVAL_MS || 1000));
 const DEFAULT_TIMEOUT_MS = Math.max(5000, Number(process.env.HTTP_TIMEOUT_MS || 45000));
+let JITTER_MS = Math.max(0, Number(process.env.SCRAPE_JITTER_MS || 0));
 let lastRequestAt = 0;
 
+// Позволяет скрейперу задать свой вежливый темп в рантайме (у Лукойла большой
+// прогон без прокси — идём аккуратнее). SCRAPE_INTERVAL_MS в окружении всё равно
+// имеет приоритет, если задан явно.
+export function setScrapeInterval(ms, jitterMs) {
+    if (!process.env.SCRAPE_INTERVAL_MS && Number.isFinite(Number(ms))) RPS_INTERVAL = Math.max(0, Number(ms));
+    if (jitterMs != null && !process.env.SCRAPE_JITTER_MS) JITTER_MS = Math.max(0, Number(jitterMs) || 0);
+}
+
 async function politePause() {
-    const wait = lastRequestAt + RPS_INTERVAL - Date.now();
+    const jitter = JITTER_MS ? Math.floor(Math.random() * JITTER_MS) : 0;
+    const wait = lastRequestAt + RPS_INTERVAL + jitter - Date.now();
     if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
     lastRequestAt = Date.now();
 }

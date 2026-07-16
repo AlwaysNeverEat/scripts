@@ -1,0 +1,2727 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BrandSelector2</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf-param" content="authenticity_token" />
+<meta name="csrf-token" content="e8qQaZXDDK0J1wOE2tsZ0DqsS0pvFBFpvZSw1mn4hHJoAfpFo_FWZpLbNnkNywJgwSbHWvkd34WgYd23KR0wTA" />
+  
+  <link rel="stylesheet" href="/assets/tailwind-c170362a8487e7fbaa0069f086dbdcea1f02830055fa47b7aba12523b531babc.css" data-turbo-track="reload" />
+<link rel="stylesheet" href="/assets/inter-font-8c3e82affb176f4bca9616b838d906343d1251adc8408efe02cf2b1e4fcf2bc4.css" data-turbo-track="reload" />
+
+
+  <link rel="stylesheet" href="/assets/application-0dc53fdfb237641609b7f242759f1836cbc4663b03346cf9502f49a81a56962e.css" media="all" data-turbo-track="reload" />
+  <script src="/assets/application-08fdd8f0f31e13c48e00ea6c0e96d0e496425a3150c787910bba28fd6c65f460.js" media="all" data-turbo-track="reload" defer="defer"></script>
+
+</head>
+
+<body class="bg-white">
+<script>
+//<![CDATA[
+window.gon={};gon.locale="ru";gon.lubribase_url="https://api.lubribase.ru/";gon.site_symbol="lukoil";gon.req_tk="QmVhcmVyIGV5SmhiR2NpT2lKSVV6STFOaUo5LmV5SnpkV0lpT2pFeU1pd2la\nWGh3SWpveE56ZzBNak16TmpjMWZRLmVvVnFOZDhjTW9keWdZLU11cTc5WUZL\nSzdOM0pQUHJQOW9jck9CQlpvb1U=\n";gon.kw="кВт";gon.hp="л.с";gon.option_label_category_group="Выберите категорию...";gon.option_label_manufacturer="Выберите производителя...";gon.option_label_series="Выберите серию...";gon.option_label_engine_size="Выберите объем двигателя...";gon.option_label_model="Выберите модель...";gon.option_label_search="Быстрый поиск...";gon.incorrect_car_number="Некорректный номер автомобиля или VIN";gon.title_manufacturer="Производитель";gon.title_engine_volume="Объем двигателя";gon.title_engine_output_hp="Мощность";gon.title_fuel_type="Тип топлива";gon.title_drive_types="Типы привода";gon.title_body_model="Модель кузова";gon.title_years="Годы производства";gon.not_available=false;
+//]]>
+</script>
+
+
+
+
+<div class="m-2 flex flex-col mb-8 bg-white font-roboto">
+  <div id="modal_background" class="hidden relative z-20" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+
+  <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+  <div class="fixed z-10 inset-0 overflow-y-auto">
+    <div class="flex items-end sm:items-center justify-center min-h-full p-4 text-center sm:p-0">
+      <div class="relative bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-lg sm:w-full sm:p-6 md:max-w-3xl">
+        <div class="hidden sm:block absolute top-0 right-0 pt-4 pr-4">
+          <button type="button" id="modal_close_button" class="bg-white rounded-md text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <span class="sr-only">Close</span>
+            <!-- Heroicon name: outline/x -->
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="sm:flex items-center justify-center">
+          <img style="width:600px;" src="" id="modal_img_link">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+  <div id="lukoil_selectors_show_page"></div>
+  <div class="w-full mx-auto md:w-full">
+
+      <template id="equipment_item_template">
+
+  <div class="overflow-hidden rounded-xl border border-gray-200 w-96 m-2">
+    <a id="equipment_item_mid_link" href="#" class="">
+      <div class="flex items-center gap-x-4 border-b border-gray-900/5 bg-gray-50 p-3 justify-between">
+        <div><img id="equipment_item_image_300" src="/images/car_image_not_found_300.png" class="mx-auto block h-16">
+        </div>
+        <div id="equipment_item_model_name" class="text-sm/6 font-medium text-gray-900">Model name</div>
+
+      </div>
+      <dl class="-my-3 divide-y divide-gray-100 px-6 py-2 text-sm/6">
+        <div class="flex justify-between gap-x-4 py-2">
+          <dt class="text-gray-500" id="title_manufacturer">Manufacturer</dt>
+          <dd class="text-gray-700" id="equipment_item_manufacturer"></dd>
+        </div>
+        <div class="flex justify-between gap-x-4 py-2">
+          <dt class="text-gray-500" id="title_body_model">Generations</dt>
+          <dd class="text-gray-700" id="equipment_item_generations"></dd>
+        </div>
+        <div class="flex justify-between gap-x-4 py-2">
+          <dt class="text-gray-500" id="title_engine_volume">Engine volume</dt>
+          <dd class="text-gray-700" id="equipment_item_engine_volume"></dd>
+        </div>
+        <div class="flex justify-between gap-x-4 py-2">
+          <dt class="text-gray-500" id="title_engine_output_hp">engine_output_hp</dt>
+          <dd class="flex items-start gap-x-2" id="equipment_item_engine_output_hp">100 hp</dd>
+        </div>
+
+        <div class="flex justify-between gap-x-4 py-2">
+          <dt class="text-gray-500" id="title_drive_types">drive_types</dt>
+          <dd class="flex items-start gap-x-2" id="equipment_item_drive_types">drive_types</dd>
+        </div>
+        <div class="flex justify-between gap-x-4 py-2">
+          <dt class="text-gray-500" id="title_fuel_type">fuel type</dt>
+          <dd class="flex items-start gap-x-2" id="equipment_item_fuel_type">fuel type</dd>
+        </div>
+
+        <div class="flex justify-between gap-x-4 py-2">
+          <dt class="text-gray-500" id="title_years">Years</dt>
+          <dd class="flex items-start gap-x-2" id="equipment_item_years">year from - year to</dd>
+        </div>
+
+      </dl>
+    </a>
+  </div>
+
+</template>
+
+
+<template id="equipment_not_found_template">
+
+  <div class="text-center mt-3">
+    <p class="mt-1 text-sm text-gray-500">К сожалению, номер не найден в базе. Воспользуйтесь поиском по марке и модели автомобиля.</p>
+  </div>
+
+</template>
+
+
+<template id="car_lookup_blocked_template">
+
+  <div class="text-center py-10 mx-auto">
+    <!--    <svg class="mx-auto size-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">-->
+    <!--      <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>-->
+    <!--    </svg>-->
+    <!--    <h3 class="mt-2 text-sm font-semibold text-gray-900"></h3>-->
+    <p class="mt-1 text-sm text-gray-500">Приносим извинения, но количество запросов к серверу подбора по номеру автомобиля превышено</p>
+  </div>
+
+</template>
+
+<div id="carlookup_service_available" class="mb-5 opacity-0 pointer-events-none transition-opacity duration-200">
+  <div id="carlookup_service" class="flex place-items-center justify-center content-center w-full mt-5">
+
+    <div class="flex flex-col w-full rounded-md space-y-2">
+      <div class="flex gap-2">
+
+        <button
+          id="lukoil_car_lookup_mode_plate"
+          type="button"
+          class="flex rounded-lg  border-2 px-4 py-2 text-sm bg-lukoil_red text-white border-lukoil_red focus:border-white focus:outline-none"
+        >
+          Госномер
+        </button>
+
+
+        <button
+          id="lukoil_car_lookup_mode_vin"
+          type="button"
+          class="flex rounded-lg  border-2 px-4 py-2 text-sm bg-white text-lukoil_red border-lukoil_red"
+        >
+          VIN
+        </button>
+
+      </div>
+      <div class="flex flex-row space-x-2">
+        <div class="relative flex-1 bg-lukoil_red p-1 rounded-md">
+          <input
+            type="search"
+            id="lukoil_car_lookup_search_input"
+            placeholder="А 000 АА 000"
+            maxlength="12"
+            class="h-8 w-full border-white rounded-[0.2vw] focus:outline-none focus-visible:outline-none focus:ring-0 focus:ring-offset-0 focus:border-white px-2 py-0 text-md"
+            />
+          <div id="lukoil_car_lookup_error_message" class="absolute left-0 z-10 mt-2 origin-top-left text-gray-500 text-sm hidden bg-gray-100 p-2 rounded-b-lg border-b-4 border-x-4 border-totachi_gray_light space-y-2">
+            <div id="lukoil_plate_error">
+              <div class="font-semibold">Укажите госномер автомобиля</div>
+              <div class="mt-1">Формат: А 000 АА 000</div>
+            </div>
+            <div id="lukoil_vin_error" class="hidden">
+              <div class="font-semibold">Укажите VIN автомобиля</div>
+              <div class="mt-1">17 символов, только латинские буквы и цифры</div>
+            </div>
+          </div>
+        </div>
+        <div class="w-10 md:w-16">
+          <button
+            id="lukoil_car_lookup_search_button"
+            disabled
+            class="flex h-10 w-full items-center justify-center bg-lukoil_red text-white px-4 py-0 rounded-lg hover:text-black disabled:cursor-not-allowed border border-lukoil_red"
+          >
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+        </div>
+      </div>
+
+      <div
+        id="lukoil_vin_length_warning"
+        role="alert"
+        aria-hidden="true"
+        class="grid grid-rows-[0fr] opacity-0 transition-all duration-300 ease-in-out !mt-0"
+      >
+        <div class="min-h-0 overflow-hidden">
+          <div class="mt-2 flex items-start gap-2 rounded-md border border-lukoil_red/40 bg-lukoil_red/10 px-3 py-2 text-sm text-lukoil_red">
+            <i class="fa-regular fa-circle-exclamation mt-0.5"></i>
+            <div>
+              <div id="lukoil_vin_length_warning_text" class="font-medium">VIN должен содержать ровно 17 символов</div>
+              <div class="mt-0.5 text-xs opacity-80"><span id="lukoil_vin_length_count">0</span> / 17</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="result_roller" class="hidden">
+    <div id="carlookup_search_result" class="w-full flex flex-wrap justify-center"></div>
+    <div id="carlookup_search_not_found" class="w-full"></div>
+  </div>
+
+</div>
+
+
+
+<div class="bg-lukoil_red border-white rounded-md p-1">
+  <input id="selectors_search" class="h-8 w-full" placeholder="Быстрый поиск">
+</div>
+
+
+    <div class="grid grid-cols-2 gap-4 justify-items-stretch mt-10">
+
+      <div class="bg-white shadow overflow-hidden sm:rounded-lg align-middle mx-auto w-full justify-center">
+
+        <div class="flex flex-row items-center
+           justify-between
+          ">
+          <div class="mx-2">
+            <div class="px-4 py-5 sm:p-0 mt-5">
+              <dl class="">
+                <div class="py-1 flex justify-center">
+                    <img class="h-[50px] w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBcFFEIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--de4f6d769a205955944d4bade75e05d91a20f1b2/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJY0c1bkJqb0dSVlE2RkhKbGMybDZaVjkwYjE5c2FXMXBkRnNIYVdscGFRPT0iLCJleHAiOm51bGwsInB1ciI6InZhcmlhdGlvbiJ9fQ==--2e963221d9639a5e05a34f827d7cb20d45dd94b9/Kia%20Logo.png?disposition=attachment&amp;locale=ru" />
+                </div>
+
+
+                <div class="grid grid-cols-1 gap-4 place-items-center">
+                  <div class="text-center text-xl mx-5">RIO I 1.5 16V</div>
+                  <div class="text-gray-500 text-sm">2000 - 2006</div>
+                </div>
+              </dl>
+            </div>
+          </div>
+            <div class="mx-2">
+              <img class="h-[150px] w-full object-scale-down object-center" src="https://storage.yandexcloud.net/lubribase.ru/s9p3xup5tmocr8u86v27hjb33szp?response-content-disposition=inline%3B%20filename%3D%22result_1769470164.png%22%3B%20filename%2A%3DUTF-8%27%27result_1769470164.png&amp;response-content-type=image%2Fpng&amp;X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Credential=EWdhVU1ddYUBC-OAD7VB%2F20260716%2Fru-centre-1%2Fs3%2Faws4_request&amp;X-Amz-Date=20260716T195755Z&amp;X-Amz-Expires=604800&amp;X-Amz-SignedHeaders=host&amp;X-Amz-Signature=b4e871486d34c1911cc97f5b4a8c27a4d65c75551af7361a02bc5ab79b157d1b" />
+            </div>
+        </div>
+
+      </div>
+
+      <div class="bg-white shadow overflow-hidden sm:rounded-lg align-middle">
+
+        <div class="border-t border-gray-100 px-4 py-5 sm:p-0">
+          <dl class="sm:divide-y sm:divide-gray-200">
+
+            <div class="py-1 sm:py-1 ">
+              <div class="flex flex-row justify-center text-center font-bold text-lukoil_gray text-lg">
+                KIA RIO
+              </div>
+            </div>
+
+
+              <div class="py-1 sm:py-1 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Объем двигателя</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">1.5</dd>
+              </div>
+
+              <div class="py-1 sm:py-1 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Мощность</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  <div class="grid grid-cols-1 gap-2">
+                      <div>72 кВт</div>
+
+                      <div>98 л.с</div>
+                  </div>
+                </dd>
+              </div>
+
+            <div class="py-1 sm:py-1 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt class="text-sm font-medium text-gray-500">Тип топлива</dt>
+              <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">Бензин</dd>
+            </div>
+
+          </dl>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="flex justify-between my-4 space-x-4">
+      <div><a class="py-2 text-lukoil_gray hover:text-lukoil_red underline underline-offset-1" href="/ru/lukoil?category_group_id=2&amp;manufacturer_id=165&amp;series_id=2349&amp;engine_volume=1.5">НАЗАД</a></div>
+      <div><a class="py-2 text-lukoil_gray hover:text-lukoil_red underline underline-offset-1" href="/ru/lukoil">НОВЫЙ ПОИСК</a></div>
+    </div>
+
+    <div class="bg-white">
+      <div class="mx-auto">
+
+
+        <section aria-labelledby="cart-heading">
+
+
+
+            <a href="#" id="component_type_header_0" class="flex justify-between text-xl my-4 px-2 py-2 rounded-md border-2 hover:bg-lukoil_red hover:text-white hover:border-lukoil_red bg-lukoil_red text-white border-lukoil_red">
+              <div class="ml-8">Двигатель</div>
+              <div class="component_type_header_plus_minus_0">
+
+                  <i class="fa-regular fa-minus"></i>
+
+              </div>
+            </a>
+
+
+            <ul role="list" class=" mb-4" id="components_0">
+
+
+                <li class="flex">
+
+                  <div class="flex-1 flex flex-col">
+                    <div>
+                      <div>
+                        <div>
+                          <div>
+
+                            <div class="w-full mx-auto">
+                              <div class="space-y-16">
+                                <section aria-labelledby="4376-heading">
+
+                                  <div class="space-y-1 md:flex md:items-baseline md:space-y-0 md:space-x-4">
+                                    <div id="4376-heading" class="text-lg font-medium text-gray-900 md:flex-shrink-0">
+
+                                              <span class="text-base lg:ml-2 inline-flex items-center lg:px-2.5 py-0.5 rounded-md font-medium text-lukoil_gray">
+                                                Сервисный объем: 3,2 л
+                                              </span>
+
+                                    </div>
+
+                                    <div class="space-y-5 md:flex-1 md:min-w-0 sm:flex sm:items-baseline sm:justify-between sm:space-y-0">
+                                      <p class="font-medium text-gray-500">
+                                      </p>
+
+                                    </div>
+                                  </div>
+
+                                    <div class="border-b border-gray-200 px-4 pt-3 sm:px-6"></div>
+
+                                  <div class="mt-1 flow-root">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_0">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBdWd1IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--aa94769818092195fe69b66ecc235f52f2b79b7c/4_gnss_armor_hk_5w30_slcf_395x230.png?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=1069" target="_parent" class="underline underline-offset-1">
+              LUKOIL GENESIS ARMORTECH HK 5W-30
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=1069" target="_parent" class="underline underline-offset-1">
+            LUKOIL GENESIS ARMORTECH HK 5W-30
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Синтетическое моторное масло для современных бензиновых и дизельных двигателей легковых автомобилей, в том числе оборудованных турбонаддувом. Обладает повышенным показателем HTHS (High Temperature High Shear), что в сочетании с пониженной вязкостью обеспечивает высокую топливную экономию и гарантирует превосходную защиту от износа. Производится с применением передовой технологии DuraMax®</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_0">
+        <a id="lukoil_buy_main_0" href="https://ru.lukoil-shop.com/catalog/motornye_masla/legkovye_avtomobili/maslo_motornoe_lukoil_genesis_armortech_hk_sinteticheskoe_5w_30/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_0" href="https://b2b.lukoil-shop.ru/product/lukoil_genesis_armortech_nk_5w_30" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy3_0" href="https://ozon.ru/product/1656125261?hs=1&amp;utm_source=site&amp;utm_medium=cpc&amp;utm_campaign=vendor_org_1117555_%D0%9F%D0%BE%D0%B4%D0%B1%D0%BE%D1%80%D1%89%D0%B8%D0%BA" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_0" href="https://www.wildberries.ru/catalog/160844564/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_0" href="https://market.yandex.ru/cc/8zWLo9" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '0';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          <div class="flex justify-center my-4 w-full">
+                                            <button id="show_alternatives_0_0" class="show_alternative_products rounded-lg py-2 px-5 bg-white inline-block font-medium text-lukoil_gray border-2 border-lukoil_gray_light hover:shadow-sm hover:border-2 place-items-center place-self-center w-full" data-target="alternative_products_0_0">
+                                              <div class="flex flex-row justify-between w-full">
+                                                <div></div>
+                                                <div>Посмотреть еще варианты</div>
+                                                <div><i class="fa-solid fa-caret-down ml-2"></i></div>
+                                              </div>
+                                            </button>
+                                          </div>
+                                          <div id="alternative_products_0_0" style="display: none;">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_1">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBdVV1IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--1d20374862ff09447faf037209c5b64482ac1aa5/4_gnss_advanced_universal_5w30_slcf_395x230.png?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=1301" target="_parent" class="underline underline-offset-1">
+              LUKOIL GENESIS UNIVERSAL 5W-30
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=1301" target="_parent" class="underline underline-offset-1">
+            LUKOIL GENESIS UNIVERSAL 5W-30
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Моторное масло на основе синтетических технологий для бензиновых и дизельных двигателях пост гарантийных автомобилей. Производится с применением передовой технологии Synthactive®.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_1">
+        <a id="lukoil_buy_main_1" href="https://ru.lukoil-shop.com/catalog/motornye_masla/legkovye_avtomobili/maslo_motornoe_lukoil_genesis_universal_polusinteticheskoe_5w_30/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_1" href="https://b2b.lukoil-shop.ru/product/lukoyl_genesis_universal_5w_30/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy3_1" href="https://ozon.ru/product/1656125983?hs=1&amp;utm_source=site&amp;utm_medium=cpc&amp;utm_campaign=vendor_org_1117555_%D0%9F%D0%BE%D0%B4%D0%B1%D0%BE%D1%80%D1%89%D0%B8%D0%BA" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_1" href="https://www.wildberries.ru/catalog/180959136/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_1" href="https://market.yandex.ru/cc/8zQmwB" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '1';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_2">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBM0dYTXc9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--d7c6aabb26e56e550a7c558360880ca4bf1f7484/9703ef87843e9311b191478d4fde534c.png?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-genesis-armortech-dpfgpf-5w-30_1" target="_parent" class="underline underline-offset-1">
+              LUKOIL GENESIS ARMORTECH DPF/GPF 5W-30
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-genesis-armortech-dpfgpf-5w-30_1" target="_parent" class="underline underline-offset-1">
+            LUKOIL GENESIS ARMORTECH DPF/GPF 5W-30
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Синтетическое моторное масло класса "Mid-SAPS" с пониженным содержанием сульфатной золы, совместимое с современными бензиновыми и дизельными двигателями, в том числе оборудованными устройствами доочистки выхлопных газов (DPF, GPF, TWC и др.). Производится с применением передовой технологии DuraMax®</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_2">
+        <a id="lukoil_buy_main_2" href="https://ru.lukoil-shop.com/catalog/motornye_masla/legkovye_avtomobili/maslo_motornoe_lukoil_genesis_armortech_dpf_gpf_5w_30/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+
+
+
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '2';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          </div>
+                                  </div>
+                                </section>
+                              </div>
+                            </div>
+
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      <p class="mt-1 text-sm text-gray-500"></p>
+                    </div>
+
+                  </div>
+                </li>
+
+
+            </ul>
+
+
+
+            <a href="#" id="component_type_header_1" class="flex justify-between text-xl my-4 px-2 py-2 rounded-md border-2 hover:bg-lukoil_red hover:text-white hover:border-lukoil_red bg-white text-black border-lukoil_red">
+              <div class="ml-8">Механическая КПП</div>
+              <div class="component_type_header_plus_minus_1">
+
+                  <i class="fa-regular fa-plus"></i>
+
+              </div>
+            </a>
+
+
+            <ul role="list" class="hidden mb-4" id="components_1">
+
+
+                <li class="flex">
+
+                  <div class="flex-1 flex flex-col">
+                    <div>
+                      <div>
+                        <div>
+                          <div>
+
+                            <div class="w-full mx-auto">
+                              <div class="space-y-16">
+                                <section aria-labelledby="4376-heading">
+
+                                  <div class="space-y-1 md:flex md:items-baseline md:space-y-0 md:space-x-4">
+                                    <div id="4376-heading" class="text-lg font-medium text-gray-900 md:flex-shrink-0">
+
+                                              <span class="text-base lg:ml-2 inline-flex items-center lg:px-2.5 py-0.5 rounded-md font-medium text-lukoil_gray">
+                                                Сервисный объем: 2,8 л
+                                              </span>
+
+                                    </div>
+
+                                    <div class="space-y-5 md:flex-1 md:min-w-0 sm:flex sm:items-baseline sm:justify-between sm:space-y-0">
+                                      <p class="font-medium text-gray-500">
+                                      </p>
+
+                                    </div>
+                                  </div>
+
+                                    <div class="border-b border-gray-200 px-4 pt-3 sm:px-6"></div>
+
+                                  <div class="mt-1 flow-root">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_3">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBK1M3SkE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--5011b42afb1daa9245ad60cdb7f44bb363d63436/floqf3um5ed5u80xbaecarvt6mu81wnz.jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-gear-gl-45-75w-90" target="_parent" class="underline underline-offset-1">
+              LUKOIL GEAR GL-4/5 75W-90
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-gear-gl-45-75w-90" target="_parent" class="underline underline-offset-1">
+            LUKOIL GEAR GL-4/5 75W-90
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Универсальное трансмиссионное масло для механических коробок передач, дифференциалов и главных передач.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_3">
+        <a id="lukoil_buy_main_3" href="https://ru.lukoil-shop.com/catalog/transmissionnye_masla/legkovye_avtomobili/maslo_transmissionnoe_lukoil_gear_gl_4_5_75w_90/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_3" href="https://b2b.lukoil-shop.ru/product/lukoil_gear_gl_4_5_75w_90" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+
+
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '3';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          <div class="flex justify-center my-4 w-full">
+                                            <button id="show_alternatives_1_0" class="show_alternative_products rounded-lg py-2 px-5 bg-white inline-block font-medium text-lukoil_gray border-2 border-lukoil_gray_light hover:shadow-sm hover:border-2 place-items-center place-self-center w-full" data-target="alternative_products_1_0">
+                                              <div class="flex flex-row justify-between w-full">
+                                                <div></div>
+                                                <div>Посмотреть еще варианты</div>
+                                                <div><i class="fa-solid fa-caret-down ml-2"></i></div>
+                                              </div>
+                                            </button>
+                                          </div>
+                                          <div id="alternative_products_1_0" style="display: none;">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_4">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBNnk3SkE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--3a869e3af0108d22cf017bb31ec42fe7c39091e6/floqf3um5ed5u80xbaecarvt6mu81wnz.jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-gear-gl-4-75w-90" target="_parent" class="underline underline-offset-1">
+              LUKOIL GEAR GL-4 75W-90
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-gear-gl-4-75w-90" target="_parent" class="underline underline-offset-1">
+            LUKOIL GEAR GL-4 75W-90
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Высококачественное трансмиссионное масло для механических коробок передач и раздаточных коробок легковых, легких коммерческих и грузовых автомобилей.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_4">
+        <a id="lukoil_buy_main_4" href="https://ru.lukoil-shop.com/catalog/transmissionnye_masla/legkovye_avtomobili/maslo_transmissionnoe_lukoil_gear_gl_4_75w_90/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_4" href="https://b2b.lukoil-shop.ru/product/lukoil_gear_gl_4_75w_90" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy3_4" href="https://ozon.ru/product/1777059774?hs=1&amp;utm_source=site&amp;utm_medium=cpc&amp;utm_campaign=vendor_org_1117555_%D0%9F%D0%BE%D0%B4%D0%B1%D0%BE%D1%80%D1%89%D0%B8%D0%BA" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_4" href="https://www.wildberries.ru/catalog/240207422/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_4" href="https://market.yandex.ru/cc/8zRFV9" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '4';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          </div>
+                                  </div>
+                                </section>
+                              </div>
+                            </div>
+
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      <p class="mt-1 text-sm text-gray-500"></p>
+                    </div>
+
+                  </div>
+                </li>
+
+
+            </ul>
+
+
+
+            <a href="#" id="component_type_header_2" class="flex justify-between text-xl my-4 px-2 py-2 rounded-md border-2 hover:bg-lukoil_red hover:text-white hover:border-lukoil_red bg-white text-black border-lukoil_red">
+              <div class="ml-8">Автоматическая КПП</div>
+              <div class="component_type_header_plus_minus_2">
+
+                  <i class="fa-regular fa-plus"></i>
+
+              </div>
+            </a>
+
+
+            <ul role="list" class="hidden mb-4" id="components_2">
+
+
+                <li class="flex">
+
+                  <div class="flex-1 flex flex-col">
+                    <div>
+                      <div>
+                        <div>
+                          <div>
+
+                            <div class="w-full mx-auto">
+                              <div class="space-y-16">
+                                <section aria-labelledby="4376-heading">
+
+                                  <div class="space-y-1 md:flex md:items-baseline md:space-y-0 md:space-x-4">
+                                    <div id="4376-heading" class="text-lg font-medium text-gray-900 md:flex-shrink-0">
+
+                                              <span class="text-base lg:ml-2 inline-flex items-center lg:px-2.5 py-0.5 rounded-md font-medium text-lukoil_gray">
+                                                Сервисный объем: 5,9 л
+                                              </span>
+
+                                    </div>
+
+                                    <div class="space-y-5 md:flex-1 md:min-w-0 sm:flex sm:items-baseline sm:justify-between sm:space-y-0">
+                                      <p class="font-medium text-gray-500">
+                                      </p>
+
+                                    </div>
+                                  </div>
+
+                                    <div class="border-b border-gray-200 px-4 pt-3 sm:px-6"></div>
+
+                                  <div class="mt-1 flow-root">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_5">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBOW03SkE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--c07d13ed13258d935e508c2de8d1d3d9bded24bc/floqf3um5ed5u80xbaecarvt6mu81wnz.jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-atf-synth-asia" target="_parent" class="underline underline-offset-1">
+              LUKOIL ATF SYNTH ASIA
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-atf-synth-asia" target="_parent" class="underline underline-offset-1">
+            LUKOIL ATF SYNTH ASIA
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Высококачественная жидкость для автоматических трансмиссий легковых автомобилей, специально разработанная с учётом требований АКПП азиатских производителей трансмиссий (Jatco, Aisin Warner и др.).</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_5">
+        <a id="lukoil_buy_main_5" href="https://ru.lukoil-shop.com/catalog/transmissionnye_masla/legkovye_avtomobili/maslo_transmissionnoe_lukoil_atf_synth_asia/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+
+        <a id="lukoil_buy3_5" href="https://ozon.ru/product/3525314988" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_5" href="https://www.wildberries.ru/catalog/293518857/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_5" href="https://market.yandex.ru/cc/8zRJ7J" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '5';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          <div class="flex justify-center my-4 w-full">
+                                            <button id="show_alternatives_2_0" class="show_alternative_products rounded-lg py-2 px-5 bg-white inline-block font-medium text-lukoil_gray border-2 border-lukoil_gray_light hover:shadow-sm hover:border-2 place-items-center place-self-center w-full" data-target="alternative_products_2_0">
+                                              <div class="flex flex-row justify-between w-full">
+                                                <div></div>
+                                                <div>Посмотреть еще варианты</div>
+                                                <div><i class="fa-solid fa-caret-down ml-2"></i></div>
+                                              </div>
+                                            </button>
+                                          </div>
+                                          <div id="alternative_products_2_0" style="display: none;">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_6">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBNFdHTXc9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--098d89a895e9058da23471dbe38c4812e98709fe/%D1%81%D0%B8%D0%BD%D1%82%20%D0%BC%D1%83%D0%BB%D1%8C%D1%82%D0%B8.jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-shop.ru/catalog/legkovye_avtomobili/transmissionnye_masla/maslo_transmissionnoe_lukoyl_atf_synth_multi/" target="_parent" class="underline underline-offset-1">
+              LUKOIL ATF SYNTH MULTI
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-shop.ru/catalog/legkovye_avtomobili/transmissionnye_masla/maslo_transmissionnoe_lukoyl_atf_synth_multi/" target="_parent" class="underline underline-offset-1">
+            LUKOIL ATF SYNTH MULTI
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Универсальная жидкость для автоматических трансмиссий с удлинённым интервалом замены. Данная жидкость разработана для использования в широком диапазоне АКПП, учитывая жесткие требования ведущих мировых производителей оборудования. Может использоваться в автоматических трансмиссиях европейского и американского производства. Рекомендована для сервисного обслуживания импортных и отечественных автомобилей как в гарантийный, так и послегарантийный период эксплуатации.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_6">
+        <a id="lukoil_buy_main_6" href="https://ru.lukoil-shop.com/catalog/transmissionnye_masla/legkovye_avtomobili/maslo_transmissionnoe_lukoil_atf_synth_multi/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_6" href="https://b2b.lukoil-shop.ru/product/lukoil_atf_synth_multi" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy3_6" href="https://ozon.ru/product/3522360289?hs=1&amp;utm_source=site&amp;utm_medium=cpc&amp;utm_campaign=vendor_org_1117555_%D0%9F%D0%BE%D0%B4%D0%B1%D0%BE%D1%80%D1%89%D0%B8%D0%BA" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_6" href="https://www.wildberries.ru/catalog/293515398/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_6" href="https://market.yandex.ru/cc/8zRMQx" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '6';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_7">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBNWE4SkE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--45029be7f9e40cf78a8d8a5f61ab3cf212000d4a/photo_2026-01-19_11-17-19.jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-shop.ru/catalog/legkovye_avtomobili/transmissionnye_masla/maslo_transmissionnoe_lukoyl_atf_iiih/" target="_parent" class="underline underline-offset-1">
+              LUKOIL ATF IIIH
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-shop.ru/catalog/legkovye_avtomobili/transmissionnye_masla/maslo_transmissionnoe_lukoyl_atf_iiih/" target="_parent" class="underline underline-offset-1">
+            LUKOIL ATF IIIH
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Универсальная трансмиссионная жидкость на основе синтетических технологий, разработанная для применения в автоматических коробках переключения передач легковых, грузовых автомобилей и другой мобильной техники.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_7">
+        <a id="lukoil_buy_main_7" href="https://ru.lukoil-shop.com/catalog/transmissionnye_masla/legkovye_avtomobili/maslo_transmissionnoe_lukoil_atf_iiih/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+
+        <a id="lukoil_buy3_7" href="https://ozon.ru/product/3525409749" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_7" href="https://www.wildberries.ru/catalog/328058468/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_7" href="https://market.yandex.ru/cc/8zkFJz" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '7';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          </div>
+                                  </div>
+                                </section>
+                              </div>
+                            </div>
+
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      <p class="mt-1 text-sm text-gray-500"></p>
+                    </div>
+
+                  </div>
+                </li>
+
+
+            </ul>
+
+
+
+            <a href="#" id="component_type_header_3" class="flex justify-between text-xl my-4 px-2 py-2 rounded-md border-2 hover:bg-lukoil_red hover:text-white hover:border-lukoil_red bg-white text-black border-lukoil_red">
+              <div class="ml-8">Гидроусилитель руля</div>
+              <div class="component_type_header_plus_minus_3">
+
+                  <i class="fa-regular fa-plus"></i>
+
+              </div>
+            </a>
+
+
+            <ul role="list" class="hidden mb-4" id="components_3">
+
+
+                <li class="flex">
+
+                  <div class="flex-1 flex flex-col">
+                    <div>
+                      <div>
+                        <div>
+                          <div>
+
+                            <div class="w-full mx-auto">
+                              <div class="space-y-16">
+                                <section aria-labelledby="4376-heading">
+
+                                  <div class="space-y-1 md:flex md:items-baseline md:space-y-0 md:space-x-4">
+                                    <div id="4376-heading" class="text-lg font-medium text-gray-900 md:flex-shrink-0">
+
+                                              <span class="text-base lg:ml-2 inline-flex items-center lg:px-2.5 py-0.5 rounded-md font-medium text-lukoil_gray">
+                                                Сервисный объем: 0,8 л
+                                              </span>
+
+                                    </div>
+
+                                    <div class="space-y-5 md:flex-1 md:min-w-0 sm:flex sm:items-baseline sm:justify-between sm:space-y-0">
+                                      <p class="font-medium text-gray-500">
+                                      </p>
+
+                                    </div>
+                                  </div>
+
+                                    <div class="border-b border-gray-200 px-4 pt-3 sm:px-6"></div>
+
+                                  <div class="mt-1 flow-root">
+
+                                      <div class="py-6 sm:flex bg-gray-100 rounded-lg px-4 mb-4">
+                                        <div class="flex space-x-4 sm:min-w-0 sm:flex-1 sm:space-x-6 lg:space-x-8">
+
+                                          <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+                                            <h3 class="text-sm font-medium text-gray-900">
+                                              <div>Для более точного подбора масла свяжитесь с нашими экспертами технической поддержки: masla-support@lukoil.com</div>
+                                            </h3>
+                                            <p class="text-sm text-gray-500 truncate"></p>
+                                          </div>
+                                        </div>
+                                        <div class="mt-6 space-y-4 sm:mt-0 sm:ml-6 sm:flex-none sm:w-40">
+                                        </div>
+                                      </div>
+
+                                  </div>
+                                </section>
+                              </div>
+                            </div>
+
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      <p class="mt-1 text-sm text-gray-500"></p>
+                    </div>
+
+                  </div>
+                </li>
+
+
+            </ul>
+
+
+
+            <a href="#" id="component_type_header_4" class="flex justify-between text-xl my-4 px-2 py-2 rounded-md border-2 hover:bg-lukoil_red hover:text-white hover:border-lukoil_red bg-white text-black border-lukoil_red">
+              <div class="ml-8">Система охлаждения</div>
+              <div class="component_type_header_plus_minus_4">
+
+                  <i class="fa-regular fa-plus"></i>
+
+              </div>
+            </a>
+
+
+            <ul role="list" class="hidden mb-4" id="components_4">
+
+
+                <li class="flex">
+
+                  <div class="flex-1 flex flex-col">
+                    <div>
+                      <div>
+                        <div>
+                          <div>
+
+                            <div class="w-full mx-auto">
+                              <div class="space-y-16">
+                                <section aria-labelledby="4376-heading">
+
+                                  <div class="space-y-1 md:flex md:items-baseline md:space-y-0 md:space-x-4">
+                                    <div id="4376-heading" class="text-lg font-medium text-gray-900 md:flex-shrink-0">
+
+                                              <span class="text-base lg:ml-2 inline-flex items-center lg:px-2.5 py-0.5 rounded-md font-medium text-lukoil_gray">
+                                                Сервисный объем: 6 л
+                                              </span>
+
+                                    </div>
+
+                                    <div class="space-y-5 md:flex-1 md:min-w-0 sm:flex sm:items-baseline sm:justify-between sm:space-y-0">
+                                      <p class="font-medium text-gray-500">
+                                      </p>
+
+                                    </div>
+                                  </div>
+
+                                    <div class="border-b border-gray-200 px-4 pt-3 sm:px-6"></div>
+
+                                  <div class="mt-1 flow-root">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_8">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBaDh2IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--f385fd5df93e4831ea42470f7adc5268092499d6/5kg_antifreeze_redg12_395_%20(1).png?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=87" target="_parent" class="underline underline-offset-1">
+              ЛУКОЙЛ АНТИФРИЗ G12 RED
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=87" target="_parent" class="underline underline-offset-1">
+            ЛУКОЙЛ АНТИФРИЗ G12 RED
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Современная охлаждающая низкозамерзающая жидкость, разработанная по карбоксилатной технологии. Тонкий защитный слой образуется непосредственно в местах появления коррозии, способствуя более эффективному теплообмену.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_8">
+        <a id="lukoil_buy_main_8" href="https://ru.lukoil-shop.com/catalog/okhlazhdayushchie_zhidkosti/legkovye_avtomobili/antifriz_lukoyl_g12_red/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_8" href="https://b2b.lukoil-shop.ru/product/lukoyl_antifriz_g12_red" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy3_8" href="https://ozon.ru/product/1744889027?hs=1&amp;utm_source=site&amp;utm_medium=cpc&amp;utm_campaign=vendor_org_1117555_%D0%9F%D0%BE%D0%B4%D0%B1%D0%BE%D1%80%D1%89%D0%B8%D0%BA" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_8" href="https://www.wildberries.ru/catalog/421776385/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '8';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                  </div>
+                                </section>
+                              </div>
+                            </div>
+
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      <p class="mt-1 text-sm text-gray-500"></p>
+                    </div>
+
+                  </div>
+                </li>
+
+
+            </ul>
+
+
+
+            <a href="#" id="component_type_header_5" class="flex justify-between text-xl my-4 px-2 py-2 rounded-md border-2 hover:bg-lukoil_red hover:text-white hover:border-lukoil_red bg-white text-black border-lukoil_red">
+              <div class="ml-8">Тормозная система</div>
+              <div class="component_type_header_plus_minus_5">
+
+                  <i class="fa-regular fa-plus"></i>
+
+              </div>
+            </a>
+
+
+            <ul role="list" class="hidden mb-4" id="components_5">
+
+
+                <li class="flex">
+
+                  <div class="flex-1 flex flex-col">
+                    <div>
+                      <div>
+                        <div>
+                          <div>
+
+                            <div class="w-full mx-auto">
+                              <div class="space-y-16">
+                                <section aria-labelledby="4376-heading">
+
+                                  <div class="space-y-1 md:flex md:items-baseline md:space-y-0 md:space-x-4">
+                                    <div id="4376-heading" class="text-lg font-medium text-gray-900 md:flex-shrink-0">
+
+                                              <span class="text-base lg:ml-2 inline-flex items-center lg:px-2.5 py-0.5 rounded-md font-medium text-lukoil_gray">
+                                                Сервисный объем: 1 л
+                                              </span>
+
+                                    </div>
+
+                                    <div class="space-y-5 md:flex-1 md:min-w-0 sm:flex sm:items-baseline sm:justify-between sm:space-y-0">
+                                      <p class="font-medium text-gray-500">
+                                      </p>
+
+                                    </div>
+                                  </div>
+
+                                    <div class="border-b border-gray-200 px-4 pt-3 sm:px-6"></div>
+
+                                  <div class="mt-1 flow-root">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_9">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBeHR2SlE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--97374a3e682e89ce4bb765314908c0077afe0693/photo_2026-01-19_11-17-19.jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-dot-4-class-6" target="_parent" class="underline underline-offset-1">
+              ЛУКОЙЛ DOT 4 class 6
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-dot-4-class-6" target="_parent" class="underline underline-offset-1">
+            ЛУКОЙЛ DOT 4 class 6
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Высококачественная тормозная жидкость с улучшенными эксплуатационными свойствами для автомобилей оборудованных современными тормозными системами. Не оказывает отрицательного воздействия на детали тормозной системы и обладает повышенной термической стабильностью.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_9">
+        <a id="lukoil_buy_main_9" href="https://ru.lukoil-shop.com/catalog/tormoznye_zhidkosti/legkovye_avtomobili/lukoyl_tormoznaya_zhidkost_dot_4_klass_6/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_9" href="https://b2b.lukoil-shop.ru/product/lukoyl_tormoznaya_zhidkost_dot_4" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy3_9" href="https://ozon.ru/product/1744976480?hs=1&amp;utm_source=site&amp;utm_medium=cpc&amp;utm_campaign=vendor_org_1117555_%D0%9F%D0%BE%D0%B4%D0%B1%D0%BE%D1%80%D1%89%D0%B8%D0%BA" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_9" href="https://www.wildberries.ru/catalog/421718887/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_9" href="https://market.yandex.ru/cc/8zVBmq" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '9';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          <div class="flex justify-center my-4 w-full">
+                                            <button id="show_alternatives_5_0" class="show_alternative_products rounded-lg py-2 px-5 bg-white inline-block font-medium text-lukoil_gray border-2 border-lukoil_gray_light hover:shadow-sm hover:border-2 place-items-center place-self-center w-full" data-target="alternative_products_5_0">
+                                              <div class="flex flex-row justify-between w-full">
+                                                <div></div>
+                                                <div>Посмотреть еще варианты</div>
+                                                <div><i class="fa-solid fa-caret-down ml-2"></i></div>
+                                              </div>
+                                            </button>
+                                          </div>
+                                          <div id="alternative_products_5_0" style="display: none;">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_10">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBMEJ6SlE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--55cd712159b7f7c331cad75727a7d495f501620e/photo_2026-01-19_11-17-19.jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=95" target="_parent" class="underline underline-offset-1">
+              ЛУКОЙЛ DOT 4
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard?product=95" target="_parent" class="underline underline-offset-1">
+            ЛУКОЙЛ DOT 4
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Тормозная жидкость, предназначенная для использования в гидроприводах тормозных систем и сцеплений автомобилей отечественного и зарубежного производства. Не оказывает отрицательного воздействия на детали тормозной системы и обладает высокой термической стабильностью.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_10">
+        <a id="lukoil_buy_main_10" href="https://ru.lukoil-shop.com/catalog/tormoznye_zhidkosti/legkovye_avtomobili/zhidkost_tormoznaya_lukoyl_dot_4/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy_bulk_10" href="https://b2b.lukoil-shop.ru/product/lukoyl_tormoznaya_zhidkost_dot_4" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0" style="display:none">
+          Купить в интернет-магазине
+        </a>
+
+        <a id="lukoil_buy3_10" href="https://ozon.ru/product/1744957625?hs=1&amp;utm_source=site&amp;utm_medium=cpc&amp;utm_campaign=vendor_org_1117555_%D0%9F%D0%BE%D0%B4%D0%B1%D0%BE%D1%80%D1%89%D0%B8%D0%BA" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/ozon_logo_48.png" />
+        </a>
+
+        <a id="lukoil_buy4_10" href="https://www.wildberries.ru/catalog/421748731/detail.aspx?targetUrl=GP&amp;utm_source=Сайт&amp;utm_medium=CPC&amp;utm_campaign=26712-id-Подборщик" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/wb_logo.svg" />
+        </a>
+
+        <a id="lukoil_buy5_10" href="https://market.yandex.ru/cc/8zVAQd" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-0">
+          <img class="h-5 w-auto object-contain" src="/images/yandex_market_logo.png" />
+        </a>
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '10';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          </div>
+                                  </div>
+                                </section>
+                              </div>
+                            </div>
+
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      <p class="mt-1 text-sm text-gray-500"></p>
+                    </div>
+
+                  </div>
+                </li>
+
+
+            </ul>
+
+
+
+            <a href="#" id="component_type_header_6" class="flex justify-between text-xl my-4 px-2 py-2 rounded-md border-2 hover:bg-lukoil_red hover:text-white hover:border-lukoil_red bg-white text-black border-lukoil_red">
+              <div class="ml-8">Жидкость стеклоомывателя</div>
+              <div class="component_type_header_plus_minus_6">
+
+                  <i class="fa-regular fa-plus"></i>
+
+              </div>
+            </a>
+
+
+            <ul role="list" class="hidden mb-4" id="components_6">
+
+
+                <li class="flex">
+
+                  <div class="flex-1 flex flex-col">
+                    <div>
+                      <div>
+                        <div>
+                          <div>
+
+                            <div class="w-full mx-auto">
+                              <div class="space-y-16">
+                                <section aria-labelledby="4376-heading">
+
+                                  <div class="space-y-1 md:flex md:items-baseline md:space-y-0 md:space-x-4">
+                                    <div id="4376-heading" class="text-lg font-medium text-gray-900 md:flex-shrink-0">
+
+
+                                    </div>
+
+                                    <div class="space-y-5 md:flex-1 md:min-w-0 sm:flex sm:items-baseline sm:justify-between sm:space-y-0">
+                                      <p class="font-medium text-gray-500">
+                                      </p>
+
+                                    </div>
+                                  </div>
+
+
+                                  <div class="mt-1 flow-root">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_11">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBMzVTUFE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--6f446c5540337aec3e8df3a1cb83bb72105c7bf1/456x342%20(1).jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://ru.lukoil-shop.com/catalog/other/stekloomyvayushchaya_zhidkost/stekloomyvayushchaya_zhidkost_letnyaya_lukoyl_s_neytralnym_aromatom/" target="_parent" class="underline underline-offset-1">
+              Стеклоомывающая жидкость летняя ЛУКОЙЛ с нейтральным ароматом
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://ru.lukoil-shop.com/catalog/other/stekloomyvayushchaya_zhidkost/stekloomyvayushchaya_zhidkost_letnyaya_lukoyl_s_neytralnym_aromatom/" target="_parent" class="underline underline-offset-1">
+            Стеклоомывающая жидкость летняя ЛУКОЙЛ с нейтральным ароматом
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Представляет собой композицию на основе деминерализованной воды или водного раствора изопропилового спирта с добавлением функциональных присадок, отдушки (ароматизатора) и красителя. Входящие в состав жидкости современные синтетические поверхностно-активные вещества (ПАВ) эффективно очищают стекла от жиров, грязи и других органических соединений. Также не содержит в своем составе метиловый и этиловый спирты.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_11">
+
+
+
+
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '11';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://ru.lukoil-shop.com/catalog/other/stekloomyvayushchaya_zhidkost/stekloomyvayushchaya_zhidkost_letnyaya_lukoyl_s_neytralnym_aromatom/" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Где купить
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          <div class="flex justify-center my-4 w-full">
+                                            <button id="show_alternatives_6_0" class="show_alternative_products rounded-lg py-2 px-5 bg-white inline-block font-medium text-lukoil_gray border-2 border-lukoil_gray_light hover:shadow-sm hover:border-2 place-items-center place-self-center w-full" data-target="alternative_products_6_0">
+                                              <div class="flex flex-row justify-between w-full">
+                                                <div></div>
+                                                <div>Посмотреть еще варианты</div>
+                                                <div><i class="fa-solid fa-caret-down ml-2"></i></div>
+                                              </div>
+                                            </button>
+                                          </div>
+                                          <div id="alternative_products_6_0" style="display: none;">
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_12">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBM1pTUFE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--177571ba70976335d8d1d46ee04918faf0162946/456x342%20(1).jpg?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-stekloomyvaiushchaia-zhidkost--10-degc-black" target="_parent" class="underline underline-offset-1">
+              Стеклоомывающая жидкость летняя LUKOIL Black Edition
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-stekloomyvaiushchaia-zhidkost--10-degc-black" target="_parent" class="underline underline-offset-1">
+            Стеклоомывающая жидкость летняя LUKOIL Black Edition
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Стеклоомывающая жидкость представляет собой композицию на основе деминерализованной воды с добавлением функциональных присадок, отдушки (ароматизатора) и красителя. Современные синтетические поверхностно-активные вещества (ПАВ) эффективно очищают стекла от жиров, грязи, насекомых и других органических соединений.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_12">
+        <a id="lukoil_buy_main_12" href="https://ru.lukoil-shop.com/catalog/other/stekloomyvayushchaya_zhidkost/lukoyl_stekloomyvayushchaya_zhidkost_10_s_black_edition/" target="_parent" class="inline-flex items-center justify-center bg-lukoil_red hover:bg-lukoil_red py-2 px-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:text-black focus:outline-none focus:ring-0">
+          Купить в интернет-магазине
+        </a>
+
+
+
+
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '12';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Другие точки продаж
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+                                        
+
+
+
+
+<div class="py-6 md:grid grid-cols-5 gap-4  rounded-lg px-4 mb-4">
+  <div class="col-span-2 flex justify-center">
+
+    <div class="flex space-x-4 wrap product_img_link w-full">
+
+      <a href="#" class="flex items-center justify-center cursor-default flex-1">
+        <div class="relative" id="product_image_container_13">
+          <img class="h-[250px] product_img_link w-full object-scale-down object-center" src="https://api.lubribase.ru//rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBeDRnUFE9PSIsImV4cCI6bnVsbCwicHVyIjoiYmxvYl9pZCJ9fQ==--cf9bec4ea977fb9d245562debc49c4095c3534f4/3610100.png?disposition=attachment&amp;locale=ru" />
+        </div>
+      </a>
+
+      <div class="flex min-w-[40%] shrink-0 md:hidden flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+        <div class="text-xl font-medium text-gray-900 my-5">
+            <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-stekloomyvaiushchaia-zhidkost--20deg-s-aromatom" target="_parent" class="underline underline-offset-1">
+              ЛУКОЙЛ СТЕКЛООМЫВАЮЩАЯ ЖИДКОСТЬ ЗИМНЯЯ -10 С АРОМАТОМ ЛАЙМА
+            </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-3">
+
+    <div class="hidden md:flex flex-col pt-1.5 min-w-0 flex-1 sm:pt-0 space-x-2">
+
+
+      <div class="text-xl font-medium text-gray-900 my-5">
+          <a href="https://lukoil-masla.ru/ru/products/ProductCard/lukoil-stekloomyvaiushchaia-zhidkost--20deg-s-aromatom" target="_parent" class="underline underline-offset-1">
+            ЛУКОЙЛ СТЕКЛООМЫВАЮЩАЯ ЖИДКОСТЬ ЗИМНЯЯ -10 С АРОМАТОМ ЛАЙМА
+          </a>
+      </div>
+
+    </div>
+
+
+    <div class="pt-1.5 min-w-0 flex-1 sm:pt-0">
+      <h3 class="text-sm font-medium text-gray-900">
+        <div>Представляет собой композицию на основе деминерализованной воды или водного раствора изопропилового спирта с добавлением функциональных присадок, отдушки (ароматизатора) и красителя. Входящие в состав жидкости современные синтетические поверхностно-активные вещества (ПАВ) эффективно очищают стекла от жиров, грязи и других органических соединений, а также обеспечивают экологическую безопасность продукта. Также не содержит в своем составе метиловый и этиловый спирты.</div>
+      </h3>
+      <p class="text-sm text-gray-500 truncate"></p>
+    </div>
+
+
+    <div class="flex flex-row mt-6 gap-4" id="lukoil_shop_links_13">
+
+
+
+
+    </div>
+
+    <script>
+        (function () {
+            var hiddenDomains = ['b2b.lukoil-shop.ru', 'ru.lukoil-shop.com'];
+            var idx = '13';
+
+            // Для отладки: раскомментируйте и укажите нужный домен для имитации
+            // var debugDomain = 'b2b.lukoil-shop.ru';
+            // var debugDomain = 'ru.lukoil-shop.com';
+            var debugDomain = null;
+
+            function checkAndHide(origin) {
+                var isB2b = origin.indexOf('b2b.lukoil-shop.ru') !== -1;
+                var shouldHide = hiddenDomains.some(function (domain) {
+                    return origin.indexOf(domain) !== -1;
+                });
+
+                if (isB2b) {
+                    // Для b2b: скрываем обычные ссылки и маркетплейсы, показываем только bulk
+                    ['lukoil_buy_main_', 'lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                    var bulkEl = document.getElementById('lukoil_buy_bulk_' + idx);
+                    if (bulkEl) bulkEl.style.display = '';
+                } else if (shouldHide) {
+                    // Для остальных доменов из списка: скрываем только маркетплейсы
+                    ['lukoil_buy3_', 'lukoil_buy4_', 'lukoil_buy5_'].forEach(function (prefix) {
+                        var el = document.getElementById(prefix + idx);
+                        if (el) el.style.display = 'none';
+                    });
+                }
+            }
+
+            // Основной метод: ancestorOrigins содержит оригины всех родительских фреймов
+            // (тот же источник данных, что использует браузер для проверки CSP frame-ancestors)
+            var detectedOrigin;
+            if (debugDomain) {
+                detectedOrigin = debugDomain;
+            } else if (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0) {
+                detectedOrigin = window.location.ancestorOrigins[0];
+            } else {
+                // Fallback для Firefox: document.referrer
+                detectedOrigin = document.referrer || '';
+            }
+            checkAndHide(detectedOrigin);
+        })();
+    </script>
+
+
+    <div class="flex flex-row mt-6 gap-4">
+
+
+        <a href="https://lukoil-masla.ru/ru/consumers/wheretobuylubricants" target="_parent" class="inline-flex items-center justify-center bg-white py-2 px-2.5 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-0">
+            Где купить
+        </a>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+                                          </div>
+                                  </div>
+                                </section>
+                              </div>
+                            </div>
+
+
+                          </div>
+
+                        </div>
+
+                      </div>
+
+                      <p class="mt-1 text-sm text-gray-500"></p>
+                    </div>
+
+                  </div>
+                </li>
+
+
+            </ul>
+
+        </section>
+
+      </div>
+    </div>
+
+    <div class="flex flex-row items-center justify-center my-6 space-x-5">
+      <div class=""><i class="fa-regular fa-circle-exclamation fa-2x text-lukoil_red"></i></div>
+
+      <div class="text-lukoil_gray">
+        <p class="font-semibold text-lukoil_red mr-1 inline">Внимание!</p>
+        Инструмент подбора носит исключительно ознакомительный характер, для более точного подбора масла под конкретную марку и модель Вашего автомобиля всегда следуйте рекомендациям, указанным в руководстве по эксплуатации.
+      </div>
+
+    </div>
+
+    <div class="flex justify-between my-4 space-x-4">
+      <div><a class="py-2 text-lukoil_gray hover:text-lukoil_red underline underline-offset-1" href="/ru/lukoil?category_group_id=2&amp;manufacturer_id=165&amp;series_id=2349&amp;engine_volume=1.5">НАЗАД</a></div>
+      <div><a class="py-2 text-lukoil_gray hover:text-lukoil_red underline underline-offset-1" href="/ru/lukoil">НОВЫЙ ПОИСК</a></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  (function() {
+    function sendHeight() {
+      var height = document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: 'resize', height: height }, '*');
+    }
+
+    sendHeight();
+
+    var observer = new MutationObserver(sendHeight);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
+    window.addEventListener('resize', sendHeight);
+  })();
+</script>
+</body>
+</html>

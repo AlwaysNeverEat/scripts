@@ -19,6 +19,7 @@ build/
 # ── Кэш скрейперов импорта (тысячи HTML/JSON, не для репозитория) ─
 data/import/cache/
 data/import/batches/
+data/import/batches-lukoil/
 data/import/.imported-keys.json
 data/import/.filters-applied.json
 data/import/.mann-retry-state.json
@@ -45,3 +46,6 @@ data/import/motul-cars.json
 data/import/cars-enriched.json
 data/import/cars-workset.json
 data/import/filters.json
+data/import/lukoil-cars.json
+data/import/lukoil-workset.json
+data/import/lukoil-filters.json
