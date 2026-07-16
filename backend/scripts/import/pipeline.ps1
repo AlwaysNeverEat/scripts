@@ -12,6 +12,9 @@
 # удалить этот файл.
 # -----------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -107,6 +110,12 @@ function Count-Json([string]$file) {
 function Run-Stage([string]$title, [string[]]$argList) {
     Say "этап: $title"
     & node @argList 2>&1 | Tee-Object -FilePath $PipeLog -Append
+    $code = $LASTEXITCODE
+    if ($code -ne 0) {
+        Say "ВНИМАНИЕ: этап '$title' завершился с кодом $code — продолжу следующий этап/цикл, чтобы не закрывать конвейер"
+        return $false
+    }
+    return $true
 }
 
 # -- Основной цикл ------------------------------------------------------------

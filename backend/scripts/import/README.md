@@ -138,8 +138,10 @@ nohup ./scripts/import/pipeline.sh > /dev/null 2>&1 &     # запуск в фо
 `SUPABASE_ACCESS_TOKEN=sbp_...` + `SUPABASE_PROJECT_REF=<ref>` (через HTTPS —
 нужно, если прямой Postgres недоступен: хост db.*.supabase.co только IPv6).
 Переменные: `IMPORT_USER` (логин на сайте, по умолчанию gtrixoff),
-`PIPELINE_SLEEP` (пауза цикла, сек), `SNAPSHOT_PUSH=1` (коммитить данные после
-цикла, только для .sh).
+`PIPELINE_SLEEP` (пауза цикла, сек), `SUPABASE_QUERY_INTERVAL_MS` (пауза между
+SQL-запросами через Supabase Management API, по умолчанию 350 мс, помогает не
+упираться в HTTP 429), `SUPABASE_QUERY_ATTEMPTS` (число ретраев 429/5xx, по
+умолчанию 30), `SNAPSHOT_PUSH=1` (коммитить данные после цикла, только для .sh).
 
 ### Дебаг
 

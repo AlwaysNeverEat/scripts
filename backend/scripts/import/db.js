@@ -7,6 +7,27 @@
 
 const SB_TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 const SB_REF = process.env.SUPABASE_PROJECT_REF;
+const SB_QUERY_INTERVAL_MS = Math.max(0, Number(process.env.SUPABASE_QUERY_INTERVAL_MS || 350));
+const SB_MAX_ATTEMPTS = Math.max(1, Number(process.env.SUPABASE_QUERY_ATTEMPTS || 30));
+let lastSupabaseQueryAt = 0;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function throttleSupabaseQuery() {
+    if (!SB_QUERY_INTERVAL_MS) return;
+    const wait = lastSupabaseQueryAt + SB_QUERY_INTERVAL_MS - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastSupabaseQueryAt = Date.now();
+}
+
+function retryAfterMs(res, fallbackMs) {
+    const retryAfter = res.headers.get('retry-after');
+    if (!retryAfter) return fallbackMs;
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) return Math.max(fallbackMs, seconds * 1000);
+    const date = Date.parse(retryAfter);
+    return Number.isFinite(date) ? Math.max(fallbackMs, date - Date.now()) : fallbackMs;
+}
 
 // Возвращает функцию query(text, params) → { rows }.
 export async function makeQuery() {
@@ -31,6 +52,7 @@ export function sqlLiteral(v) {
 async function supabaseHttpQuery(text, params = []) {
     const sql = text.replace(/\$(\d+)/g, (_, n) => sqlLiteral(params[Number(n) - 1]));
     for (let attempt = 1; ; attempt++) {
+        await throttleSupabaseQuery();
         const res = await fetch(`https://api.supabase.com/v1/projects/${SB_REF}/database/query`, {
             method: 'POST',
             headers: {
@@ -41,12 +63,14 @@ async function supabaseHttpQuery(text, params = []) {
         });
         const body = await res.text();
         // 429/5xx — временное: ждём и повторяем (наши запросы идемпотентны).
-        // Бэкофф с потолком 30с и запасом попыток — чтобы жёсткий rate-limit
-        // Management API не ронял длинную заливку, а переживался.
-        if ((res.status === 429 || res.status >= 500) && attempt < 10) {
-            const ms = Math.min(30000, 2000 * 2 ** (attempt - 1));
-            console.warn(`  Supabase API ${res.status}, ретрай через ${ms / 1000}с…`);
-            await new Promise(r => setTimeout(r, ms));
+        // Management API режет частые UPDATE'ы, поэтому дополнительно уважаем
+        // Retry-After и даём больше попыток: лучше переждать лимит, чем
+        // закрыть окно конвейера после нескольких часов работы.
+        if ((res.status === 429 || res.status >= 500) && attempt < SB_MAX_ATTEMPTS) {
+            const fallback = Math.min(120000, 2000 * 2 ** Math.min(attempt - 1, 6));
+            const ms = retryAfterMs(res, fallback);
+            console.warn(`  Supabase API ${res.status}, ретрай ${attempt}/${SB_MAX_ATTEMPTS - 1} через ${Math.ceil(ms / 1000)}с…`);
+            await sleep(ms);
             continue;
         }
         if (!res.ok) throw new Error(`Supabase API HTTP ${res.status}: ${body.slice(0, 300)}`);
