@@ -47,6 +47,8 @@ node scripts/import/scrape-rolf.js --force    # пересобрать даже 
 DATABASE_URL=postgres://... node scripts/import/import-cars.js --dry-run
 DATABASE_URL=postgres://... node scripts/import/import-cars.js
 DATABASE_URL=postgres://... node scripts/import/import-cars.js --limit 100
+DATABASE_URL=postgres://... node scripts/import/import-cars.js data/import/cars-enriched.json.gz
+DATABASE_URL=postgres://... node scripts/import/import-cars.js --progress-every 25
 DATABASE_URL=postgres://... node scripts/import/import-cars.js --user vasya   # начислить машины на юзера
 ```
 
@@ -71,6 +73,12 @@ DATABASE_URL=postgres://... node scripts/import/import-cars.js --user vasya   # 
 - поисковые поля через `buildNameFields` — машины сразу ищутся на сайте.
 
 `--dry-run` показывает, сколько машин добавится/пропустится, без записи.
+Импортёр умеет читать как обычные `.json`, так и сжатые `.json.gz` снапшоты,
+пишет heartbeat-прогресс каждые 100 записей (или значение `--progress-every N`)
+и ретраит временные сбои БД/Management API. Если отдельная машина всё равно
+падает на записи, она попадает в итоговый список ошибок, а скрипт продолжает
+доливать оставшиеся записи и завершится кодом `2`, чтобы конвейер/лог явно
+показал проблему.
 
 ## 4. Фильтры (артикулы MANN-FILTER)
 
@@ -84,7 +92,10 @@ node scripts/import/apply-filters.js --user gtrixoff      # дозапись в 
 `scrape-filters.js` ходит в открытый GraphQL-каталог mann-filter.com
 (бренд → серии моделей → модификации → фильтры), матчит по модели и
 двигателю (код двигателя главный, объём/мощность запасные, год мягкий),
-группирует одинаковые машины — один лукап на группу. Результат — отдельный
+группирует одинаковые машины — один лукап на группу. Перед новыми запросами
+он также безопасно копирует уже найденные Mann-фильтры на очевидные совпадения
+(та же марка/модель/код двигателя/объём/кВт/л.с.), но только если среди уже
+найденных записей нет конфликтующих вариантов. Результат — отдельный
 `data/import/filters.json` (vf=воздушный, mf=масляный, sf=салонный (по первым буквам; подписи в скобках на странице машины перепутаны); салонник
 с приоритетом CU > CUK > FP, как в юзерскрипте «Скопировать 3 артикула»).
 
@@ -127,8 +138,10 @@ nohup ./scripts/import/pipeline.sh > /dev/null 2>&1 &     # запуск в фо
 `SUPABASE_ACCESS_TOKEN=sbp_...` + `SUPABASE_PROJECT_REF=<ref>` (через HTTPS —
 нужно, если прямой Postgres недоступен: хост db.*.supabase.co только IPv6).
 Переменные: `IMPORT_USER` (логин на сайте, по умолчанию gtrixoff),
-`PIPELINE_SLEEP` (пауза цикла, сек), `SNAPSHOT_PUSH=1` (коммитить данные после
-цикла, только для .sh).
+`PIPELINE_SLEEP` (пауза цикла, сек), `SUPABASE_QUERY_INTERVAL_MS` (пауза между
+SQL-запросами через Supabase Management API, по умолчанию 350 мс, помогает не
+упираться в HTTP 429), `SUPABASE_QUERY_ATTEMPTS` (число ретраев 429/5xx, по
+умолчанию 30), `SNAPSHOT_PUSH=1` (коммитить данные после цикла, только для .sh).
 
 ### Дебаг
 
