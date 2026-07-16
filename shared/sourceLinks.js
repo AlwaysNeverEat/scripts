@@ -12,13 +12,14 @@
 // Порядок = порядок кнопок «Страницы машины» на сайте.
 // ROLF не храним: у них поиск внутри виджета, ссылка всегда одна и та же
 // (rolfoil.ru/podbor) — привязать её к конкретной машине нельзя.
-export const SOURCE_SITES = ['mann', 'lynx', 'ravenol', 'motul'];
+export const SOURCE_SITES = ['mann', 'lynx', 'ravenol', 'motul', 'lukoil'];
 
 export const SOURCE_LABELS = {
     mann:    'Mann-Filter',
     lynx:    'LYNXauto',
     ravenol: 'Ravenol',
     motul:   'Motul',
+    lukoil:  'ЛУКОЙЛ',
 };
 
 // Определяет сайт по URL. null — чужой/нераспознанный.
@@ -30,6 +31,7 @@ export function detectSite(url) {
     if (h.includes('lynxauto.info'))              return 'lynx';
     if (h.includes('ravenol.ru'))                 return 'ravenol';
     if (h.includes('motul.lubricantadvisor.com')) return 'motul';
+    if (h.includes('lukoil.lubribase.ru'))        return 'lukoil';
     return null;
 }
 
@@ -76,6 +78,13 @@ export function sourceSignature(url) {
         // Путь /1-cars/<make>/.../<model>/ стабилен для конкретной машины.
         const path = normPart(u.pathname);
         return path ? 'ravenol:' + path : null;
+    }
+
+    if (site === 'lukoil') {
+        // Стабильный deep-link выбора: manufacturer_id + engine_volume.
+        const parts = [p.get('manufacturer_id'), p.get('engine_volume')]
+            .map(normPart).filter(Boolean);
+        return parts.length ? 'lukoil:' + parts.join(':') : null;
     }
 
     return null; // motul — только справочная ссылка, не ключ матча

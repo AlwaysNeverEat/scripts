@@ -44,11 +44,27 @@ const USER_LOGIN = userIdx >= 0 ? args[userIdx + 1] : null;
 // прогонах (цикл доливки) такие машины пропускаются без запросов к БД.
 const stateIdx = args.indexOf('--state');
 const STATE_FILE = stateIdx >= 0 ? path.resolve(ROOT, args[stateIdx + 1]) : null;
+// --overwrite: перезаписывать ВСЕ совпавшие строки oil/тех-данными из источника
+//   (в т.ч. ручные). Бережём при этом допуски, фильтры и авторство.
+// --allow-no-volume: не отбраковывать запись без объёма масла двигателя
+//   (у Лукойла у части агрегатов объёма нет — импортируем с пометкой).
+// --source <name>: влияет на маркер notes ('lukoil' → «(ЛУКОЙЛ)»).
+// --pace-size N / --pace-pause-ms M: после каждых N записей в БД пауза M мс
+//   (нужный пользователю темп «25 машин раз в 30 секунд»).
+const OVERWRITE = args.includes('--overwrite');
+const ALLOW_NO_VOLUME = args.includes('--allow-no-volume');
+const sourceIdx = args.indexOf('--source');
+const SOURCE = sourceIdx >= 0 ? String(args[sourceIdx + 1] || '').toLowerCase() : 'motul';
+const paceSizeIdx = args.indexOf('--pace-size');
+const PACE_SIZE = paceSizeIdx >= 0 ? Math.max(0, parseInt(args[paceSizeIdx + 1]) || 0) : 0;
+const pacePauseIdx = args.indexOf('--pace-pause-ms');
+const PACE_PAUSE_MS = pacePauseIdx >= 0 ? Math.max(0, parseInt(args[pacePauseIdx + 1]) || 0) : 0;
 // Позиционный аргумент = файл. Индексы значений флагов исключаем только
 // если флаг реально передан (иначе idx+1 === 0 «съедал» сам путь к файлу,
 // и импортёр молча брал дефолтный файл).
 const flagValueIdx = new Set(
-    [limitIdx, progressIdx, userIdx, stateIdx].filter(i => i >= 0).map(i => i + 1));
+    [limitIdx, progressIdx, userIdx, stateIdx, sourceIdx, paceSizeIdx, pacePauseIdx]
+        .filter(i => i >= 0).map(i => i + 1));
 const fileArg = args.find((a, i) => !a.startsWith('--') && !flagValueIdx.has(i));
 const IN_FILE = path.resolve(ROOT, fileArg || 'data/import/motul-cars.json');
 
@@ -74,7 +90,9 @@ async function query(text, params = [], { label = 'SQL', retries = 4 } = {}) {
     }
 }
 
-const NOTES_BASE = '⚠ Импортировано автоматически (Motul + ROLF), не проверено';
+const NOTES_BASE = SOURCE === 'lukoil'
+    ? '⚠ Импортировано автоматически (ЛУКОЙЛ), не проверено'
+    : '⚠ Импортировано автоматически (Motul + ROLF), не проверено';
 
 const cars = readJson(IN_FILE, null);
 if (!cars) {
@@ -93,9 +111,11 @@ function validate(car) {
     if (!car.brand) problems.push('нет brand');
     if (!car.model) problems.push('нет model');
     if (!car.year_from) problems.push('нет year_from');
-    const e = car.fluid_capacities && car.fluid_capacities.engine;
-    const vol = e && (e.volumeService || e.volumeTotal || e.volumePlain || e.volume);
-    if (!vol) problems.push('нет объёма масла двигателя');
+    if (!ALLOW_NO_VOLUME) {
+        const e = car.fluid_capacities && car.fluid_capacities.engine;
+        const vol = e && (e.volumeService || e.volumeTotal || e.volumePlain || e.volume);
+        if (!vol) problems.push('нет объёма масла двигателя');
+    }
     return problems;
 }
 
@@ -124,8 +144,10 @@ const carKey = (brand, model, code, vol, yf) =>
 // Одним запросом забираем ключи уже существующих машин (+ есть ли допуски,
 // наша ли это импортная запись). Иначе на свежей машине это тысячи отдельных
 // запросов к API — медленно и упирается в лимиты.
+// В режиме --overwrite префетч ключей не нужен: мы апсертим каждую строку
+// (в т.ч. существующие), поэтому быстрый пропуск не применяется.
 let dbKeys = null;
-if (!DRY_RUN) {
+if (!DRY_RUN && !OVERWRITE) {
     const r = await query(
         `SELECT lower(brand)||'|'||lower(model)||'|'||lower(coalesce(engine_code,''))
                   ||'|'||coalesce(engine_volume,0)::numeric(6,1)::text||'|'||year_from::text AS k,
@@ -140,6 +162,7 @@ if (!DRY_RUN) {
 }
 
 let inserted = 0, existing = 0, invalid = 0, skippedByState = 0, updatedApprovals = 0, failed = 0;
+let dbWrites = 0; // для темпа --pace-size / --pace-pause-ms
 const invalidReport = [];
 const failedReport = [];
 const startedAt = Date.now();
@@ -188,9 +211,11 @@ for (const car of workCars) {
         }
     }
 
-    const notes = car.car_approvals && car.car_approvals.length
+    const notes = SOURCE === 'lukoil'
         ? NOTES_BASE
-        : NOTES_BASE + '; допуски на ROLF не нашлись';
+        : (car.car_approvals && car.car_approvals.length
+            ? NOTES_BASE
+            : NOTES_BASE + '; допуски на ROLF не нашлись');
 
     const sourceLinks = cleanSourceLinks(car.source_links);
     const sourceKeys = buildSourceKeys(sourceLinks);
@@ -214,10 +239,14 @@ for (const car of workCars) {
         car.engine_volume, car.year_from, car.year_to);
     const svTokens = synonymTokens.flatMap(s => s.split(/\s+/)).filter(Boolean).join(' ');
 
-    // Конфликт = машина уже в базе. Ручные записи не трогаем НИКОГДА;
-    // единственное исключение — наша же импортированная запись без допусков,
-    // которой пришли непустые допуски: дозаписываем только их (+notes).
-    let sql =
+    // Конфликт = машина уже в базе.
+    //   • обычный режим: ручные записи не трогаем НИКОГДА; единственное
+    //     исключение — наша же импортная запись без допусков, которой пришли
+    //     непустые допуски (дозаписываем только их + notes);
+    //   • --overwrite: перезаписываем oil/тех-поля на ВСЕХ совпавших строках
+    //     (в т.ч. ручных), но БЕРЕЖЁМ допуски, фильтры и авторство — их источник
+    //     не поставляет (иначе стёрли бы результат обогащения ROLF/MANN).
+    const insertCols =
         `INSERT INTO cars (brand, model, generation, engine_code, engine_volume,
                            year_from, year_to, kw, bhp, fuel_type,
                            motul_name, engine_name,
@@ -226,7 +255,32 @@ for (const car of workCars) {
                            name_normalized, name_cyrillic, name_translit, search_vector,
                            created_by)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-                 $19,$20,$21,to_tsvector('simple', $22),$23)
+                 $19,$20,$21,to_tsvector('simple', $22),$23)`;
+
+    let sql = OVERWRITE
+        ? `${insertCols}
+         ON CONFLICT (lower(brand), lower(model), lower(coalesce(engine_code,'')), coalesce(engine_volume,0), year_from)
+         DO UPDATE SET
+           generation      = EXCLUDED.generation,
+           engine_name     = EXCLUDED.engine_name,
+           kw              = EXCLUDED.kw,
+           bhp             = EXCLUDED.bhp,
+           fuel_type       = EXCLUDED.fuel_type,
+           motul_name      = EXCLUDED.motul_name,
+           fluid_capacities = EXCLUDED.fluid_capacities,
+           notes           = EXCLUDED.notes,
+           source_links    = COALESCE(cars.source_links, '{}'::jsonb) || EXCLUDED.source_links,
+           source_keys     = (SELECT COALESCE(jsonb_agg(DISTINCT e), '[]'::jsonb)
+                              FROM jsonb_array_elements(
+                                     COALESCE(cars.source_keys, '[]'::jsonb)
+                                     || COALESCE(EXCLUDED.source_keys, '[]'::jsonb)) e),
+           name_normalized = EXCLUDED.name_normalized,
+           name_cyrillic   = EXCLUDED.name_cyrillic,
+           name_translit   = EXCLUDED.name_translit,
+           search_vector   = EXCLUDED.search_vector,
+           updated_at      = now()
+         RETURNING id, (xmax = 0) AS inserted`
+        : `${insertCols}
          ON CONFLICT (lower(brand), lower(model), lower(coalesce(engine_code,'')), coalesce(engine_volume,0), year_from)
          DO UPDATE SET
            car_approvals = EXCLUDED.car_approvals,
@@ -256,17 +310,27 @@ for (const car of workCars) {
         params.push(importUser.id);
     }
 
+    let wrote = false;
     try {
         const r = await query(sql, params, { label });
         if (!r.rows.length) existing++;
-        else if (r.rows[0].inserted === true || r.rows[0].inserted === 't') inserted++;
-        else updatedApprovals++;
+        else if (r.rows[0].inserted === true || r.rows[0].inserted === 't') { inserted++; wrote = true; }
+        else { updatedApprovals++; wrote = true; }
     } catch (error) {
         failed++;
         failedReport.push(`${label || '(пустая запись)'}: ${error.message}`);
         console.error(`  ошибка записи: ${label || '(пустая запись)'} — ${error.message}`);
         progress(processed, true);
         continue;
+    }
+
+    // Темп «N машин раз в M мс»: пауза после каждых PACE_SIZE фактических записей.
+    if (wrote && PACE_SIZE && PACE_PAUSE_MS) {
+        dbWrites++;
+        if (dbWrites % PACE_SIZE === 0) {
+            console.log(`  ⏸ записано ${dbWrites}; пауза ${Math.round(PACE_PAUSE_MS / 1000)}с (темп ${PACE_SIZE}/${Math.round(PACE_PAUSE_MS / 1000)}с)`);
+            await sleep(PACE_PAUSE_MS);
+        }
     }
 
     // В стейт — только «финально» обработанные: с допусками, либо когда
@@ -290,7 +354,7 @@ console.log(`  ${DRY_RUN ? 'будет добавлено' : 'добавлено
 console.log(`  уже в базе (пропущено): ${existing}`);
 console.log(`  битых записей: ${invalid}`);
 console.log(`  ошибок записи: ${failed}`);
-if (updatedApprovals) console.log(`  дозаписаны допуски: ${updatedApprovals}`);
+if (updatedApprovals) console.log(`  ${OVERWRITE ? 'перезаписано существующих' : 'дозаписаны допуски'}: ${updatedApprovals}`);
 if (skippedByState) console.log(`  пропущено по стейту (залиты ранее): ${skippedByState}`);
 if (failedReport.length) {
     console.log('\nОшибки записи (первые 30):');
