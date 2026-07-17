@@ -83,7 +83,7 @@ function sourceName(entry) {
     const names = Array.isArray(entry.sources) && entry.sources.length
         ? entry.sources
         : String(entry.source || 'catalog').split('+').filter(Boolean);
-    return names.map(x => x === 'mann' ? 'MANN-FILTER' : x === 'big' ? 'BIG FILTER' : x).join(' + ');
+    return names.map(x => x === 'mann' ? 'MANN-FILTER' : x === 'big' ? 'BIG FILTER' : x === 'lynx' ? 'LYNX' : x).join(' + ');
 }
 
 let processed = 0, updated = 0, noCar = 0, noRow = 0, unchanged = 0, failed = 0;

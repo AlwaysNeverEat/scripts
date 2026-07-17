@@ -38,6 +38,16 @@ const limitIdx = args.indexOf('--limit');
 const LIMIT = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) || Infinity : Infinity;
 const progressIdx = args.indexOf('--progress-every');
 const PROGRESS_EVERY = progressIdx >= 0 ? Math.max(1, parseInt(args[progressIdx + 1]) || 100) : 100;
+// --allow-no-volume: не считать битой машину без объёма масла двигателя.
+// Нужно для Liqui Moly: у части машин источник объём не даёт — сохраняем запись
+// с пометкой service_flags.noSourceVolume вместо выбрасывания.
+const ALLOW_NO_VOLUME = args.includes('--allow-no-volume');
+// Кадэнс отправки в БД: после каждых --batch-size реальных записей ждём
+// --batch-interval-ms. Дефолт выключен; конвейер задаёт «25 раз в 30 сек».
+const batchSizeIdx = args.indexOf('--batch-size');
+const BATCH_SIZE = batchSizeIdx >= 0 ? Math.max(0, parseInt(args[batchSizeIdx + 1]) || 0) : 0;
+const batchIntervalIdx = args.indexOf('--batch-interval-ms');
+const BATCH_INTERVAL_MS = batchIntervalIdx >= 0 ? Math.max(0, parseInt(args[batchIntervalIdx + 1]) || 0) : 30000;
 const userIdx = args.indexOf('--user');
 const USER_LOGIN = userIdx >= 0 ? args[userIdx + 1] : null;
 // --state <файл>: локальный список уже залитых _type_key — при повторных
@@ -52,18 +62,21 @@ const STATE_FILE = stateIdx >= 0 ? path.resolve(ROOT, args[stateIdx + 1]) : null
 // --pace-size N / --pace-pause-ms M: после каждых N записей в БД пауза M мс
 //   (нужный пользователю темп «25 машин раз в 30 секунд»).
 const OVERWRITE = args.includes('--overwrite');
-const ALLOW_NO_VOLUME = args.includes('--allow-no-volume');
 const sourceIdx = args.indexOf('--source');
 const SOURCE = sourceIdx >= 0 ? String(args[sourceIdx + 1] || '').toLowerCase() : 'motul';
 const paceSizeIdx = args.indexOf('--pace-size');
 const PACE_SIZE = paceSizeIdx >= 0 ? Math.max(0, parseInt(args[paceSizeIdx + 1]) || 0) : 0;
 const pacePauseIdx = args.indexOf('--pace-pause-ms');
 const PACE_PAUSE_MS = pacePauseIdx >= 0 ? Math.max(0, parseInt(args[pacePauseIdx + 1]) || 0) : 0;
+// Единый кадэнс: --pace-size/--pace-pause-ms (ЛУКОЙЛ) и --batch-size/
+// --batch-interval-ms (Liqui Moly) — синонимы; берём заданный.
+const CAD_SIZE = PACE_SIZE || BATCH_SIZE;
+const CAD_PAUSE = PACE_PAUSE_MS || BATCH_INTERVAL_MS;
 // Позиционный аргумент = файл. Индексы значений флагов исключаем только
 // если флаг реально передан (иначе idx+1 === 0 «съедал» сам путь к файлу,
 // и импортёр молча брал дефолтный файл).
 const flagValueIdx = new Set(
-    [limitIdx, progressIdx, userIdx, stateIdx, sourceIdx, paceSizeIdx, pacePauseIdx]
+    [limitIdx, progressIdx, userIdx, stateIdx, batchSizeIdx, batchIntervalIdx, sourceIdx, paceSizeIdx, pacePauseIdx]
         .filter(i => i >= 0).map(i => i + 1));
 const fileArg = args.find((a, i) => !a.startsWith('--') && !flagValueIdx.has(i));
 const IN_FILE = path.resolve(ROOT, fileArg || 'data/import/motul-cars.json');
@@ -90,9 +103,23 @@ async function query(text, params = [], { label = 'SQL', retries = 4 } = {}) {
     }
 }
 
-const NOTES_BASE = SOURCE === 'lukoil'
-    ? '⚠ Импортировано автоматически (ЛУКОЙЛ), не проверено'
-    : '⚠ Импортировано автоматически (Motul + ROLF), не проверено';
+// Заметка зависит от источника: ЛУКОЙЛ и Liqui Moly не дают допусков ROLF, зато
+// у них бывает «источник не дал объём» — фиксируем это прямо в notes, чтобы на
+// сайте было видно, почему у агрегата пусто.
+function buildNotes(car) {
+    const isLM = SOURCE === 'liquimoly' || (car.source_links && car.source_links.liquimoly);
+    const isLukoil = SOURCE === 'lukoil';
+    let notes;
+    if (isLukoil) notes = '⚠ Импортировано автоматически (ЛУКОЙЛ), не проверено';
+    else if (isLM) notes = '⚠ Импортировано автоматически (Liqui Moly), не проверено';
+    else notes = '⚠ Импортировано автоматически (Motul + ROLF), не проверено';
+    if (!isLukoil && !isLM && !(car.car_approvals && car.car_approvals.length)) {
+        notes += '; допуски на ROLF не нашлись';
+    }
+    const noVol = car.service_flags && car.service_flags.noSourceVolume;
+    if (Array.isArray(noVol) && noVol.length) notes += `; источник не дал объём: ${noVol.join(', ')}`;
+    return notes;
+}
 
 const cars = readJson(IN_FILE, null);
 if (!cars) {
@@ -162,7 +189,7 @@ if (!DRY_RUN && !OVERWRITE) {
 }
 
 let inserted = 0, existing = 0, invalid = 0, skippedByState = 0, updatedApprovals = 0, failed = 0;
-let dbWrites = 0; // для темпа --pace-size / --pace-pause-ms
+let dbWrites = 0;  // реальные записи в БД — по ним выдерживаем кадэнс
 const invalidReport = [];
 const failedReport = [];
 const startedAt = Date.now();
@@ -211,11 +238,7 @@ for (const car of workCars) {
         }
     }
 
-    const notes = SOURCE === 'lukoil'
-        ? NOTES_BASE
-        : (car.car_approvals && car.car_approvals.length
-            ? NOTES_BASE
-            : NOTES_BASE + '; допуски на ROLF не нашлись');
+    const notes = buildNotes(car);
 
     const sourceLinks = cleanSourceLinks(car.source_links);
     const sourceKeys = buildSourceKeys(sourceLinks);
@@ -253,9 +276,9 @@ for (const car of workCars) {
                            fluid_capacities, filter_part_numbers, car_approvals,
                            notes, source_links, source_keys,
                            name_normalized, name_cyrillic, name_translit, search_vector,
-                           created_by)
+                           created_by, service_flags)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
-                 $19,$20,$21,to_tsvector('simple', $22),$23)`;
+                 $19,$20,$21,to_tsvector('simple', $22),$23,$24)`;
 
     let sql = OVERWRITE
         ? `${insertCols}
@@ -298,14 +321,15 @@ for (const car of workCars) {
          JSON.stringify(car.fluid_capacities), JSON.stringify({}),
          JSON.stringify(car.car_approvals || []),
          notes, JSON.stringify(sourceLinks), JSON.stringify(sourceKeys),
-         nameNormalized, nameCyrillic, nameTranslit, svTokens, createdBy];
+         nameNormalized, nameCyrillic, nameTranslit, svTokens, createdBy,
+         JSON.stringify(car.service_flags || {})];
 
     if (importUser) {
         // Событие 'added' — по нему сайт считает топ и ачивки автора.
         // Только для настоящих вставок: дозапись допусков событий не плодит.
         sql = `WITH ins AS (${sql}),
                ev AS (INSERT INTO car_events (car_id, user_id, type)
-                      SELECT id, $24, 'added' FROM ins WHERE inserted)
+                      SELECT id, $25, 'added' FROM ins WHERE inserted)
                SELECT id, inserted FROM ins`;
         params.push(importUser.id);
     }
@@ -324,12 +348,13 @@ for (const car of workCars) {
         continue;
     }
 
-    // Темп «N машин раз в M мс»: пауза после каждых PACE_SIZE фактических записей.
-    if (wrote && PACE_SIZE && PACE_PAUSE_MS) {
+    // Кадэнс «N записей → пауза M мс» после каждой фактической записи в БД.
+    // CAD_* объединяет --pace-* (ЛУКОЙЛ) и --batch-* (Liqui Moly).
+    if (wrote && CAD_SIZE && CAD_PAUSE) {
         dbWrites++;
-        if (dbWrites % PACE_SIZE === 0) {
-            console.log(`  ⏸ записано ${dbWrites}; пауза ${Math.round(PACE_PAUSE_MS / 1000)}с (темп ${PACE_SIZE}/${Math.round(PACE_PAUSE_MS / 1000)}с)`);
-            await sleep(PACE_PAUSE_MS);
+        if (dbWrites % CAD_SIZE === 0) {
+            console.log(`  ⏳ записано ${dbWrites}; пауза ${Math.round(CAD_PAUSE / 1000)}с (темп ${CAD_SIZE}/${Math.round(CAD_PAUSE / 1000)}с)`);
+            await sleep(CAD_PAUSE);
         }
     }
 
