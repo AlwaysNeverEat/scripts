@@ -3,9 +3,10 @@
 // Обогащение motul-cars.json допусками масла из виджета ROLF/UPEC
 // (podbor.upec.pro — тот самый виджет с rolfoil.ru/podbor, который операторы
 // парсят юзерскриптом). Для каждой машины ищем модификацию по коду двигателя,
-// сверяем код/объём/мощность/годы и берём объединение meets_requirements
-// всех предложенных для двигателя масел — ровно то, что собирает
-// watchForRolfTags() в userscript/src/oil-calculator/app.js.
+// сверяем код/объём/мощность/годы и берём допуска ПЕРВОГО (основного
+// рекомендованного) масла двигателя — ровно то, что собирает
+// watchForRolfTags() в userscript/src/oil-calculator/app.js (один блок тегов,
+// а не свалка meets_requirements со всех масел).
 //
 // Запуск:  node scripts/import/scrape-rolf.js [--in файл] [--force] [--limit N]
 //
@@ -178,15 +179,18 @@ function dedupeApprovals(tags) {
 }
 
 function extractApprovals(liquids) {
-    const tags = new Set();
     const products = liquids && liquids.products && liquids.products.data || [];
-    for (const p of products) {
-        const req = p.meets_requirements || '';
-        for (const piece of req.split(/[;\n]+/)) {
-            const t = piece.replace(/\s+/g, ' ').trim();
-            if (!t || t.length < 3 || t.length > 80) continue;
-            for (const norm of normalizeTag(t)) tags.add(norm);
-        }
+    // ВАЖНО: берём допуска только ПЕРВОГО (основного рекомендованного) масла
+    // двигателя — ровно как watchForRolfTags() в юзерскрипте читает один блок
+    // тегов виджета. Объединение meets_requirements всех 15 масел давало свалку
+    // из ~50 допусков вперемешку (у каждого масла свой набор OEM-спек).
+    const primary = products.find(p => (p.meets_requirements || '').trim());
+    if (!primary) return [];
+    const tags = new Set();
+    for (const piece of String(primary.meets_requirements).split(/[;\n]+/)) {
+        const t = piece.replace(/\s+/g, ' ').trim();
+        if (!t || t.length < 3 || t.length > 80) continue;
+        for (const norm of normalizeTag(t)) tags.add(norm);
     }
     return dedupeApprovals([...tags]);
 }

@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJson, writeJson } from './http.js';
 import { makeQuery } from './db.js';
+import { completePower } from './power.js';
 import { buildSourceKeys, cleanSourceLinks } from '../../../shared/sourceLinks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -148,14 +149,18 @@ for (const [typeKey, entry] of Object.entries(filters)) {
         changes.filter_part_numbers = { from: row.filter_part_numbers, to: newFpn };
         sets.push(`filter_part_numbers = ${p(JSON.stringify(newFpn))}::jsonb`);
     }
-    // ЛС/кВт доливаем ТОЛЬКО в пустые поля — заполненное не трогаем.
-    if (entry.kw && row.kw == null) {
-        changes.kw = { from: null, to: entry.kw };
-        sets.push(`kw = ${p(entry.kw)}`);
+    // ЛС/кВт доливаем ТОЛЬКО в пустые поля — заполненное не трогаем. Пару
+    // kw↔bhp дополняем пересчётом из значения источника или уже имеющегося.
+    const effKw = row.kw != null ? row.kw : entry.kw;
+    const effBhp = row.bhp != null ? row.bhp : entry.bhp;
+    const fullPower = completePower(effKw, effBhp);
+    if (fullPower.kw != null && row.kw == null) {
+        changes.kw = { from: null, to: fullPower.kw };
+        sets.push(`kw = ${p(fullPower.kw)}`);
     }
-    if (entry.bhp && row.bhp == null) {
-        changes.bhp = { from: null, to: entry.bhp };
-        sets.push(`bhp = ${p(entry.bhp)}`);
+    if (fullPower.bhp != null && row.bhp == null) {
+        changes.bhp = { from: null, to: fullPower.bhp };
+        sets.push(`bhp = ${p(fullPower.bhp)}`);
     }
     // Ссылка на страницу машины в каталоге Mann — только если её ещё нет
     // (существующие ссылки не трогаем); source_keys пересчитываем той же
