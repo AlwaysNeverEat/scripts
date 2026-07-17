@@ -167,21 +167,58 @@ function matchModification(car, mods) {
     return scored[0];
 }
 
-// Артикулы фильтров с HTML-страницы подбора: LF→mf, LA→vf, LC→sf.
+// Тип фильтра по слову-подписи строки (list_showtable-name2): «Фильтр
+// воздушный/салонный/масляный/топливный/АКПП…». Классифицируем СТРОГО по слову —
+// префиксы артикулов у LYNX плавают. Топливные и АКПП пропускаем.
+function classifyByWord(name) {
+    const n = String(name || '').toLowerCase();
+    if (/воздуш/.test(n)) return 'vf';
+    if (/салон/.test(n)) return 'sf';   // в т.ч. «салонный угольный»
+    if (/масл/.test(n)) return 'mf';
+    return null;                        // топливный, АКПП, ГУР и т.п. — не наши слоты
+}
+
+// Запасная классификация по префиксу, если слова-подписи нет:
+// LA→воздушный, LAC→салонный, LC/LO→масляный. LF (топливный) и LT (АКПП) — мимо.
+function classifyByCode(code) {
+    const c = String(code || '').toUpperCase();
+    if (/^LAC/.test(c)) return 'sf';
+    if (/^LA/.test(c)) return 'vf';
+    if (/^L[CO]/.test(c)) return 'mf';
+    return null;
+}
+
+// Артикулы фильтров: пара «код (list_showtable-code) ↔ слово-тип
+// (list_showtable-name2)» в одной строке. Салонный без «угольный» приоритетнее.
 function parseArticles(html) {
     const $ = cheerio.load(html);
     const out = { vf: null, mf: null, sf: null };
-    const codes = new Set();
-    $('.list_showtable-code, .main-menu-category-product-info-model, [class*="product-info-model"]').each((_, el) => {
-        const t = $(el).text().replace(/\s+/g, ' ').trim();
-        for (const m of t.matchAll(/\bL([FAC])-?(\d{3,5}[A-Z]?)\b/gi)) codes.add(`L${m[1].toUpperCase()}-${m[2].toUpperCase()}`);
+    const sfPlain = { sf: false };  // уже ли занят простым (не угольным) салонным
+    $('.list_showtable-code').each((_, el) => {
+        const code = $(el).text().replace(/\s+/g, ' ').trim();
+        if (!/[A-Za-z].*\d/.test(code)) return;
+        let name = '';
+        let node = $(el);
+        for (let i = 0; i < 5 && !name; i++) {
+            node = node.parent();
+            name = node.find('.list_showtable-name2').first().text().replace(/\s+/g, ' ').trim();
+        }
+        const slot = classifyByWord(name) || classifyByCode(code);
+        if (!slot) return;
+        if (slot === 'sf') {
+            const isCarbon = /уголь/i.test(name);
+            if (!out.sf || (sfPlain.sf === false && !isCarbon)) { out.sf = code; sfPlain.sf = !isCarbon; }
+        } else if (!out[slot]) {
+            out[slot] = code;
+        }
     });
-    // на случай иной вёрстки — пройтись по всему тексту
-    if (!codes.size) for (const m of html.matchAll(/\bL([FAC])-(\d{3,5}[A-Z]?)\b/gi)) codes.add(`L${m[1].toUpperCase()}-${m[2].toUpperCase()}`);
-    for (const c of codes) {
-        if (/^LF-/.test(c) && !out.mf) out.mf = c;
-        else if (/^LA-/.test(c) && !out.vf) out.vf = c;
-        else if (/^LC-/.test(c) && !out.sf) out.sf = c;
+    // Запасной путь: код без строковой вёрстки — классифицируем по префиксу.
+    if (!out.vf && !out.mf && !out.sf) {
+        for (const m of html.matchAll(/\bL[A-Z]{1,2}-?\d{3,5}[A-Z]?\b/gi)) {
+            const code = m[0].toUpperCase().replace(/^L([A-Z]{1,2})/, 'L$1');
+            const slot = classifyByCode(code);
+            if (slot && !out[slot]) out[slot] = code;
+        }
     }
     return out;
 }
