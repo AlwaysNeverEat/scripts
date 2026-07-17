@@ -103,6 +103,28 @@ if (-not (Run-Stage 'состояние базы ДО запуска' @('scripts
     exit 2
 }
 
+# ── ФАЗА LM. Liqui Moly в основе ──────────────────────────────────────────────
+# Объёмы по агрегатам + кВт + л.с. Идём по одной марке; существующие машины
+# пополняются недостающими объёмами (недеструктивно), новые добавляются кадэнсом
+# 25 записей / 30 сек. LM_SKIP=1 — пропустить; LM_ONLY=1 — только LM; LM_BRANDS —
+# ограничить марками; LM_LIMIT_BRANDS — числом марок.
+if ($env:LM_SKIP -ne '1') {
+    $lmDone = $false
+    while (-not $lmDone) {
+        Say 'ФАЗА LM: Liqui Moly по одной марке. Кадэнс в БД 25/30с; существующие пополняются, новые добавляются.'
+        $lmArgs = @('scripts/import/scrape-liquimoly-all.js','--import-new','--user',$ImportUser)
+        if ($env:LM_BRANDS) { $lmArgs += @('--brands',$env:LM_BRANDS) }
+        if ($env:LM_LIMIT_BRANDS) { $lmArgs += @('--limit-brands',$env:LM_LIMIT_BRANDS) }
+        $lmDone = Run-Stage 'полный сбор Liqui Moly + запись в БД (кадэнс 25/30с)' $lmArgs
+        Run-Stage 'состояние базы ПОСЛЕ прохода Liqui Moly' @('scripts/import/show-import-status.js') | Out-Null
+        if (-not $lmDone) {
+            Say "ФАЗА LM не закончена (возможно, сайт притормозил — обходить не будем). Повтор через $SleepSec секунд."
+            Start-Sleep -Seconds $SleepSec
+        }
+    }
+    if ($env:LM_ONLY -eq '1') { Say 'LM_ONLY=1: Liqui Moly собран, остальные источники отключены.'; exit 0 }
+}
+
 # ── ФАЗА 1. Только наполнение базы ────────────────────────────────────────────
 $motulDone = $false
 while (-not $motulDone) {
