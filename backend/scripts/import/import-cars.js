@@ -62,6 +62,11 @@ const STATE_FILE = stateIdx >= 0 ? path.resolve(ROOT, args[stateIdx + 1]) : null
 // --pace-size N / --pace-pause-ms M: после каждых N записей в БД пауза M мс
 //   (нужный пользователю темп «25 машин раз в 30 секунд»).
 const OVERWRITE = args.includes('--overwrite');
+// --overwrite-approvals: перезаписывать car_approvals на АВТО-записях (по метке
+// notes '⚠ Импортировано%'), даже если допуски там уже есть. Нужно после фикса
+// scrape-rolf — старую свалку из ~50 меняем на правильный набор по двигателю.
+// Ручные записи (без метки) не затрагиваются.
+const OVERWRITE_APPROVALS = args.includes('--overwrite-approvals');
 const sourceIdx = args.indexOf('--source');
 const SOURCE = sourceIdx >= 0 ? String(args[sourceIdx + 1] || '').toLowerCase() : 'motul';
 const paceSizeIdx = args.indexOf('--pace-size');
@@ -204,12 +209,18 @@ const progress = (processed, force = false) => {
 let processed = 0;
 for (const car of workCars) {
     processed++;
-    if (importedKeys && car._type_key && importedKeys.has(car._type_key)) {
+    // Стейт-пропуск отключаем в режиме перезаписи допусков — иначе уже залитые
+    // машины не получат исправленный набор.
+    if (importedKeys && car._type_key && importedKeys.has(car._type_key) && !OVERWRITE_APPROVALS) {
         skippedByState++;
         progress(processed);
         continue;
     }
     const label = [car.brand, car.model, car.engine_code, car.year_from].filter(Boolean).join(' ');
+    // Предохранитель: нереальный объём двигателя (>20 л) — почти всегда мусор,
+    // выдранный источником из кода модели/поколения (напр. Лукойл «X290»→290.7).
+    // Обнуляем, чтобы в БД не попал «290.7 л».
+    if (car.engine_volume != null && Number(car.engine_volume) > 20) car.engine_volume = null;
     const problems = validate(car);
     if (problems.length) {
         invalid++;
@@ -224,8 +235,11 @@ for (const car of workCars) {
     if (dbKeys) {
         const ex = dbKeys.get(carKey(car.brand, car.model, car.engine_code, car.engine_volume, car.year_from));
         if (ex) {
-            const needsBackfill = ex.isImport && !ex.hasAppr
-                && car.car_approvals && car.car_approvals.length > 0;
+            // В обычном режиме дозаписываем допуски только импортной записи без
+            // них; в режиме --overwrite-approvals — любой импортной записи с
+            // новыми допусками (перезаписываем старую свалку). Ручные не трогаем.
+            const needsBackfill = ex.isImport && car.car_approvals && car.car_approvals.length > 0
+                && (!ex.hasAppr || OVERWRITE_APPROVALS);
             if (!needsBackfill) {
                 existing++;
                 if (importedKeys && car._type_key
@@ -310,7 +324,7 @@ for (const car of workCars) {
            notes         = EXCLUDED.notes,
            updated_at    = now()
          WHERE cars.notes LIKE '⚠ Импортировано%'
-           AND jsonb_array_length(cars.car_approvals) = 0
+           ${OVERWRITE_APPROVALS ? '' : 'AND jsonb_array_length(cars.car_approvals) = 0'}
            AND jsonb_array_length(EXCLUDED.car_approvals) > 0
          RETURNING id, (xmax = 0) AS inserted`;
     const params =
