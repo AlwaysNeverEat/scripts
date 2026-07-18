@@ -282,6 +282,9 @@ for (const [brand, brandCars] of byBrand) {
         }
         const merged = { ...current };
         for (const k of ['vf', 'mf', 'sf']) if (!merged[k] && articles[k]) merged[k] = articles[k];
+        // Мощность модификации LYNX — тоже дозаписываем (apply-* льют её в пустые kw/bhp).
+        if (modHit.pw.kw && !merged.kw) merged.kw = modHit.pw.kw;
+        if (modHit.pw.bhp && !merged.bhp) merged.bhp = modHit.pw.bhp;
         const sources = new Set(Array.isArray(merged.sources) ? merged.sources : String(merged.source || '').split('+').filter(x => x && x !== 'none'));
         sources.add('lynx');
         merged.sources = [...sources];

@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as cheerio from 'cheerio';
+import { completePower } from './power.js';
 
 export function parseMotulAdvice(html) {
     const $ = cheerio.load(html);
@@ -151,6 +152,12 @@ export function parseTypeLabel(label) {
 
     const vol = rest.match(/(\d+\.\d+)/);
     if (vol) out.volume = parseFloat(vol[1]);
+
+    // Если в подписи было только «(NNN кВт)» (или только ЛС) — сразу добиваем
+    // вторую величину пересчётом, чтобы у машины были оба поля.
+    const full = completePower(out.kw, out.bhp);
+    out.kw = full.kw;
+    out.bhp = full.bhp;
 
     out.engineName = rest;
     return out;
