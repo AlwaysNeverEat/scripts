@@ -1244,8 +1244,51 @@ input[data-edit-filter-absent]:checked::after {
 }
 .top-avatar img, .event-avatar img, .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .top-avatar-default, .event-avatar-default, .profile-avatar-default { font-size: 18px; opacity: .7; }
-.top-name { flex: 1; font-size: 13.5px; font-weight: 600; }
-.top-count { font-weight: 700; color: var(--accent); font-size: 14px; }
+.top-name { flex: 1; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+/* правая колонка: сумма (машины + записи) крупно, под ней разбивка */
+.top-count { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.top-score { font-weight: 700; color: var(--accent); font-size: 15px; }
+.top-breakdown { font-size: 11px; color: var(--sub); font-weight: 600; cursor: help; }
+
+/* Служебная строка (автоимпорт) — серая, вне рейтинга, притоплена вниз */
+.top-row-muted {
+  opacity: .55;
+  cursor: default;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.top-row-muted:hover { filter: none; opacity: .8; }
+.top-row-muted .top-score { color: var(--sub); }
+
+/* «?»-подсказка сбоку: кружок с выпадашкой по наведению/фокусу */
+.top-help {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; margin-left: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--sub); background: var(--bg2);
+  font-size: 11px; font-weight: 700; line-height: 1;
+  cursor: help; flex: none;
+}
+.top-help-pop {
+  position: absolute; bottom: calc(100% + 8px); right: -4px;
+  width: 220px; max-width: 60vw; padding: 8px 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+  color: var(--text); font-size: 12px; font-weight: 500; line-height: 1.35;
+  text-align: left; white-space: normal;
+  opacity: 0; visibility: hidden; transform: translateY(4px);
+  transition: opacity .12s, transform .12s;
+  z-index: 5; pointer-events: none;
+}
+.top-help:hover .top-help-pop,
+.top-help:focus .top-help-pop,
+.top-help:focus-visible .top-help-pop {
+  opacity: 1; visibility: visible; transform: translateY(0);
+}
 
 .top-row-gold {
   background: linear-gradient(90deg, oklch(0.3 0.06 83 / .25), oklch(0.76 0.18 83 / .18), oklch(0.3 0.06 83 / .25));
