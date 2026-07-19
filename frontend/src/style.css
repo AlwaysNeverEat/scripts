@@ -1556,6 +1556,12 @@ input[data-edit-filter-absent]:checked::after {
   font-weight: 600;
 }
 
+/* ── Остаток на станции (данные панели CRM на карточках масел) ────── */
+.oil-stock { margin-top: 4px; font-size: 11.5px; color: var(--green); }
+.oil-stock-none { color: var(--red); }
+.oil-pick-stock { font-size: 10.5px; color: var(--green); }
+.oil-pick-stock.none { color: var(--red); }
+
 /* ── Панель «Наличие на станции» (CRM) ───────────────────────────── */
 .crm-panel { margin-top: 10px; }
 .crm-station-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -1622,7 +1628,7 @@ input[data-edit-filter-absent]:checked::after {
 }
 .crm-other-toggle:hover { color: var(--accent); }
 .crm-other { border-left: 2px solid var(--bg3); margin-left: 4px; }
-.crm-apply-btn { margin-top: 8px; font-size: 12px; }
+.crm-auto-note { margin-top: 8px; font-size: 11.5px; color: var(--green); }
 .crm-retry { margin-left: 8px; font-size: 11px; }
 .crm-need-note { margin-top: 8px; }
 

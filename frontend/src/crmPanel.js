@@ -33,7 +33,9 @@ export function initCrmPanel(record, { apiFetch }) {
         loggingIn: false,
         stations: null,          // [{id, name}] | null пока грузится
         stationId: localStorage.getItem(STATION_KEY) || '',
-        visc: defaultViscosity(record),
+        // Стартуем с вязкости калькулятора (он инициализируется раньше) —
+        // тогда первая же автопроверка сможет подставить масло в расчёт
+        visc: currentCalcViscosity() || defaultViscosity(record),
         loading: false,
         error: null,             // { code, message }
         results: null,           // ответ /availability
@@ -43,14 +45,27 @@ export function initCrmPanel(record, { apiFetch }) {
     render();
     checkStatus();
 
+    // Калькулятор сменил вязкость (чипы пробега) — перепроверяем наличие сами
+    window.__zmCrmSetVisc = (v) => {
+        if (!VISCOSITIES.includes(v) || v === state.visc) return;
+        state.visc = v;
+        if (state.stationId && state.crmAuth === true) runCheck(); else render();
+    };
+
     // ── Данные ────────────────────────────────────────────────────────────────
+
+    // Результаты больше не актуальны — чистим и остатки в калькуляторе
+    function dropResults() {
+        state.results = null;
+        if (typeof window.__zmClearAvailability === 'function') window.__zmClearAvailability();
+    }
 
     // Ошибки CRM-авторизации переводят панель в состояние «нужен вход»
     function handleCrmError(e, note) {
         if (e.code === 'crm_auth_required') {
             state.crmAuth = false;
             state.authNote = note || 'Сессия CRM завершена — войди заново.';
-            state.results = null;
+            dropResults();
             state.error = null;
             return true;
         }
@@ -90,7 +105,7 @@ export function initCrmPanel(record, { apiFetch }) {
         try { await apiFetch('/api/crm/logout', { method: 'POST', body: {} }); } catch { /* куки чистятся и так */ }
         state.crmAuth = false;
         state.authNote = '';
-        state.results = null;
+        dropResults();
         state.error = null;
         render();
     }
@@ -129,14 +144,32 @@ export function initCrmPanel(record, { apiFetch }) {
                 method: 'POST',
                 body: { stationId: state.stationId, items },
             });
+            pushToCalculator();
         } catch (e) {
-            state.results = null;
+            dropResults();
             if (!handleCrmError(e)) {
                 state.error = { code: e.code || 'network', message: e.message };
             }
         }
         state.loading = false;
         render();
+    }
+
+    // Автоприменение: сразу после проверки фильтры и наличие масел уходят в
+    // калькулятор — оператор ничего не нажимает. Калькулятор сам вставит цены
+    // фильтров, переключит масло на имеющееся и покажет остатки на карточках.
+    function pushToCalculator() {
+        if (typeof window.__zmApplyAvailability !== 'function' || !state.results) return;
+        const byKey = {};
+        for (const r of state.results.results || []) byKey[r.key] = r;
+        const { matched } = matchOilRows(byKey.oil?.rows);
+        const stock = {};
+        for (const [k, e] of matched) stock[k] = +e.liters.toFixed(1);
+        window.__zmApplyAvailability({
+            visc: state.visc,
+            stock,
+            filtersText: buildFiltersText(byKey),
+        });
     }
 
     // ── Рендер ────────────────────────────────────────────────────────────────
@@ -236,8 +269,8 @@ export function initCrmPanel(record, { apiFetch }) {
             applicable.push(slot.key);
             parts.push(`<div class="crm-slot">${label} <b>${esc(fp.part)}</b>${typeWarn}${rowsHtml}</div>`);
         }
-        if (applicable.length && typeof window.__zmApplyFilters === 'function') {
-            parts.push('<button class="btn btn-sec crm-apply-btn" id="crm-apply-filters">→ подставить лучшие цены в расчёт</button>');
+        if (applicable.length) {
+            parts.push('<div class="crm-auto-note">✓ лучшие цены автоматически подставлены в расчёт</div>');
         }
         return `<div class="crm-filters">${parts.join('')}</div>`;
     }
@@ -256,17 +289,12 @@ export function initCrmPanel(record, { apiFetch }) {
 
     // ── Масла ─────────────────────────────────────────────────────────────────
 
-    function renderOils(oilRes) {
-        const parts = [`<div class="crm-sub-title">Масло ${esc(state.visc)}</div>`];
-        const rows = oilRes?.rows || [];
+    // строки CRM → масла каталога; фасовки одного масла суммируем
+    function matchOilRows(rows) {
         const shopOils = getShopOils();
-        const carApprovals = Array.isArray(record.car_approvals) ? record.car_approvals : [];
-        const need = engineNeedLiters(record);
-
-        // строки CRM → масла каталога; фасовки одного масла суммируем
         const matched = new Map(); // 'b_n' → { oil, liters, priceRaw, rows }
         const unmatched = [];
-        for (const r of rows) {
+        for (const r of rows || []) {
             const m = matchCrmOilRow(r.name, shopOils);
             if (!m) { unmatched.push(r); continue; }
             const k = m.oil.b + '_' + m.oil.n;
@@ -276,6 +304,16 @@ export function initCrmPanel(record, { apiFetch }) {
             cur.rows.push(r);
             matched.set(k, cur);
         }
+        return { matched, unmatched };
+    }
+
+    function renderOils(oilRes) {
+        const parts = [`<div class="crm-sub-title">Масло ${esc(state.visc)}</div>`];
+        const rows = oilRes?.rows || [];
+        const shopOils = getShopOils();
+        const carApprovals = Array.isArray(record.car_approvals) ? record.car_approvals : [];
+        const need = engineNeedLiters(record);
+        const { matched, unmatched } = matchOilRows(rows);
 
         const fits = (oil) => {
             if (!carApprovals.length) return true;
@@ -364,7 +402,7 @@ export function initCrmPanel(record, { apiFetch }) {
         const sel = root.querySelector('#crm-station');
         if (sel) sel.onchange = () => {
             state.stationId = sel.value;
-            state.results = null;
+            dropResults();
             if (state.stationId) localStorage.setItem(STATION_KEY, state.stationId);
             else localStorage.removeItem(STATION_KEY);
             if (state.stationId) runCheck(); else render();
@@ -376,26 +414,25 @@ export function initCrmPanel(record, { apiFetch }) {
         root.querySelectorAll('[data-crm-visc]').forEach(b => {
             b.onclick = () => {
                 state.visc = b.dataset.crmVisc;
+                // калькулятор следует за выбранной вязкостью (режим пробега)
+                if (typeof window.__zmSetMileageForVisc === 'function') {
+                    window.__zmSetMileageForVisc(state.visc);
+                }
                 if (state.stationId) runCheck(); else render();
             };
         });
         const toggle = root.querySelector('#crm-other-toggle');
         if (toggle) toggle.onclick = () => { state.showOther = !state.showOther; render(); };
-        const apply = root.querySelector('#crm-apply-filters');
-        if (apply) apply.onclick = () => {
-            const byKey = {};
-            for (const r of state.results?.results || []) byKey[r.key] = r;
-            const text = buildFiltersText(byKey);
-            if (text && typeof window.__zmApplyFilters === 'function') {
-                window.__zmApplyFilters(text);
-                apply.textContent = '✓ подставлено';
-                setTimeout(() => { apply.textContent = '→ подставить лучшие цены в расчёт'; }, 1500);
-            }
-        };
     }
 }
 
 // ── Хелперы ──────────────────────────────────────────────────────────────────
+
+// Вязкость, выбранная сейчас в калькуляторе (он инициализируется раньше панели)
+function currentCalcViscosity() {
+    const v = typeof window.__zmCalcVisc === 'function' ? window.__zmCalcVisc() : null;
+    return v && VISCOSITIES.includes(v) ? v : null;
+}
 
 function filterItems(record) {
     const items = [];
