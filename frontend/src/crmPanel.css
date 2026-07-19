@@ -1,0 +1,40 @@
+/* Компактная форма входа в CRM: на широком экране поля не растягиваются
+   на всю ширину страницы, на узком — аккуратно перестраиваются. */
+.crm-login-form {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) max-content;
+  gap: 8px;
+  align-items: center;
+  width: min(100%, 640px);
+}
+
+.crm-login-form .crm-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.crm-login-form .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .crm-login-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .crm-login-form .btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .crm-login-form {
+    grid-template-columns: 1fr;
+  }
+
+  .crm-login-form .btn {
+    grid-column: auto;
+  }
+}

@@ -10,23 +10,42 @@
 //
 // Env (всё необязательное): CRM_BASE_URL — база CRM; CRM_LOGIN_PATH /
 // CRM_LOGIN_FIELD / CRM_PASSWORD_FIELD — переопределения, если форма логина
-// CRM не распознаётся автоматически.
+// CRM не распознаётся автоматически; CRM_FETCH_TIMEOUT_MS — таймаут запроса.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { query } from '../db/client.js';
 import { parseAnalyseFree } from '../../../shared/crmAnalyse.js';
 
 const BASE = (process.env.CRM_BASE_URL || 'https://crm.zamena-masla-spot.ru').replace(/\/$/, '');
+const BASE_URL = new URL(`${BASE}/`);
+const CRM_ORIGIN = BASE_URL.origin;
 const THROTTLE_MS = 400;
+const FETCH_TIMEOUT_MS = Math.max(1_000, Number(process.env.CRM_FETCH_TIMEOUT_MS) || 15_000);
 
 export class CrmError extends Error {
     constructor(code, message) {
         super(message || code);
         // crm_auth_required — нет живой сессии CRM (не залогинен / разлогинен);
         // crm_auth_failed — CRM не приняла логин/пароль;
-        // crm_unavailable — сеть/5xx.
+        // crm_unavailable — сеть/таймаут/5xx/сломанный redirect.
         this.code = code;
     }
+}
+
+// Любые относительные и абсолютные ссылки CRM приводим к URL через URL API,
+// а не склеиваем строками. Второй аргумент нужен для корректного разрешения
+// относительных Location/action относительно текущей страницы CRM.
+export function resolveCrmUrl(path, base = BASE_URL) {
+    const value = path instanceof URL ? path.href : String(path || '');
+    const baseUrl = base instanceof URL ? base : new URL(String(base || ''), BASE_URL);
+    const url = new URL(value, baseUrl);
+    if (url.origin !== CRM_ORIGIN) {
+        throw new CrmError(
+            'crm_unavailable',
+            `CRM перенаправила запрос на другой хост: ${url.origin}`,
+        );
+    }
+    return url;
 }
 
 // ── Хранилище кук: БД + кэш в памяти ─────────────────────────────────────────
@@ -74,31 +93,55 @@ function storeSetCookies(res, jar) {
     }
 }
 
+function networkErrorDetail(err) {
+    if (err?.name === 'AbortError') return `таймаут ${FETCH_TIMEOUT_MS} мс`;
+    const code = err?.cause?.code || err?.code || err?.name;
+    const message = err?.cause?.message || err?.message || 'неизвестная ошибка сети';
+    return code && !String(message).includes(code) ? `${code}: ${message}` : String(message);
+}
+
 async function rawFetch(path, jar, opts = {}) {
+    const target = resolveCrmUrl(path);
     const cookie = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     let res;
     try {
-        res = await fetch(BASE + path, {
+        res = await fetch(target, {
             redirect: 'manual',
             ...opts,
+            signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (site-crm-proxy)',
                 ...(cookie ? { Cookie: cookie } : {}),
                 ...(opts.headers || {}),
             },
         });
-    } catch (e) {
-        throw new CrmError('crm_unavailable', `CRM недоступна: ${e.message}`);
+    } catch (err) {
+        throw new CrmError(
+            'crm_unavailable',
+            `CRM недоступна (${target.host}): ${networkErrorDetail(err)}`,
+        );
+    } finally {
+        clearTimeout(timeout);
     }
+
     storeSetCookies(res, jar);
+    if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
+        throw new CrmError('crm_unavailable', `CRM ответила HTTP ${res.status}`);
+    }
     return res;
 }
 
-async function followRedirects(res, jar, hops = 3) {
+async function followRedirects(res, jar, hops = 5) {
+    const maxHops = hops;
     while (hops-- > 0 && res.status >= 300 && res.status < 400) {
         const loc = res.headers.get('location');
         if (!loc) break;
-        res = await rawFetch(loc.startsWith('http') ? loc.replace(BASE, '') : loc, jar);
+        res = await rawFetch(resolveCrmUrl(loc, res.url || BASE_URL), jar);
+    }
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+        throw new CrmError('crm_unavailable', `CRM зациклила перенаправления (>${maxHops})`);
     }
     return res;
 }
@@ -164,7 +207,7 @@ export async function crmLogin(userId, login, password) {
             throw new CrmError('crm_auth_failed', 'не удалось распознать форму логина CRM');
         }
         const actionPath = form?.action
-            ? (form.action.startsWith('http') ? form.action.replace(BASE, '') : form.action)
+            ? resolveCrmUrl(form.action, res.url || BASE_URL)
             : entryPath;
 
         const body = new URLSearchParams({
@@ -172,7 +215,7 @@ export async function crmLogin(userId, login, password) {
             [loginField]: login,
             [passwordField]: password,
         });
-        const post = await rawFetch(actionPath || entryPath, jar, {
+        const post = await rawFetch(actionPath, jar, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: body.toString(),
@@ -200,8 +243,10 @@ export async function crmLogout(userId) {
                 const html = res.status >= 300 ? '' : await res.text();
                 const href = findLogoutHref(html);
                 if (href) {
-                    const path = href.startsWith('http') ? href.replace(BASE, '') : href;
-                    await followRedirects(await rawFetch(path, jar), jar);
+                    await followRedirects(
+                        await rawFetch(resolveCrmUrl(href, res.url || BASE_URL), jar),
+                        jar,
+                    );
                 }
             });
         } catch {

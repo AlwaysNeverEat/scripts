@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLoginForm, findLogoutHref, buildAnalyseFreePath } from './client.js';
+import {
+    parseLoginForm, findLogoutHref, buildAnalyseFreePath, resolveCrmUrl,
+} from './client.js';
 
 test('parseLoginForm: action, поля логина/пароля и hidden (CSRF)', () => {
     const html = `<html><form action="/site/login" method="POST">
@@ -30,6 +32,28 @@ test('findLogoutHref находит ссылку выхода', () => {
     assert.equal(findLogoutHref('<a href="/site/logout">Выход</a>'), '/site/logout');
     assert.equal(findLogoutHref('<a class="x" href="/user/signout?x=1">exit</a>'), '/user/signout?x=1');
     assert.equal(findLogoutHref('<a href="/home">Главная</a>'), null);
+});
+
+test('resolveCrmUrl корректно обрабатывает относительные и абсолютные URL CRM', () => {
+    assert.equal(
+        resolveCrmUrl('/site/login').href,
+        'https://crm.zamena-masla-spot.ru/site/login',
+    );
+    assert.equal(
+        resolveCrmUrl('https://crm.zamena-masla-spot.ru/analyse/free?x=1').href,
+        'https://crm.zamena-masla-spot.ru/analyse/free?x=1',
+    );
+    assert.equal(
+        resolveCrmUrl('login', 'https://crm.zamena-masla-spot.ru/analyse/free').href,
+        'https://crm.zamena-masla-spot.ru/analyse/login',
+    );
+});
+
+test('resolveCrmUrl не отправляет CRM-куки на другой хост', () => {
+    assert.throws(
+        () => resolveCrmUrl('https://example.com/login'),
+        err => err?.code === 'crm_unavailable' && /другой хост/.test(err.message),
+    );
 });
 
 test('buildAnalyseFreePath кодирует станцию и запрос', () => {

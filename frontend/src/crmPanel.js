@@ -9,6 +9,7 @@
 // отсюда получит crm_auth_required, и панель снова покажет форму входа.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import './crmPanel.css';
 import { getShopOils } from '../../shared/oils.js';
 import { splitOilApprovals } from '../../shared/calculator.js';
 import {
@@ -190,7 +191,7 @@ export function initCrmPanel(record, { apiFetch }) {
     function renderError() {
         const texts = {
             crm_auth_failed: 'CRM не приняла логин или пароль.',
-            crm_unavailable: 'CRM недоступна. Попробуйте ещё раз.',
+            crm_unavailable: state.error.message || 'CRM недоступна. Попробуйте ещё раз.',
             parse_failed: 'CRM ответила в неожиданном формате — возможно, изменилась разметка.',
         };
         return `<div class="warn-box">${esc(texts[state.error.code] || state.error.message || 'Ошибка')}
