@@ -85,6 +85,14 @@ export function initCalculator(dbRecord) {
 
     updateReport(calcState, data, car, carApprovals);
     window.__zmRerender = rerender;
+    // Вставка фильтров извне (панель «Наличие на станции») — тот же путь,
+    // что и ручная вставка текста в textarea
+    window.__zmApplyFilters = (text) => {
+        applyFiltersInput(calcState, text);
+        calcState.showFiltersInput = false;
+        saveFilters(calcState);
+        rerender();
+    };
 }
 
 // ── Report update ─────────────────────────────────────────────────────────────
@@ -424,6 +432,14 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
         const allCandidates = agg.allCandidates || [];
         const isPickerOpen = calcState.showOilPicker === agg.key;
 
+        // Свойства SPOT-масла не дублируем на соседних карточках — как в
+        // userscript-калькуляторе: у остальных масел показываем только то,
+        // чего нет у SPOT
+        const spotCost = calc.costs.find(x => x.oil.isSpot);
+        const spotAddsLower = spotCost
+            ? new Set((spotCost.oil.ad || []).map(normalizeAdditive))
+            : new Set();
+
         parts.push(displayedCosts.map((c, i) => {
             // Первое (не-SPOT) масло двс — сама карточка открывает выбор замены
             const canPick = agg.group === 'engine' && i === 0 && !c.oil.isSpot &&
@@ -442,6 +458,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                     ${headBadges}${headBadges && otherBadges ? ' ' : ''}${showOilAppr ? otherBadges : (others.length ? `<span class="appr-more" data-oil-appr="${agg.key}_${i}">+${others.length} ещё</span>` : '')}
                 </div>
             ` : '';
+            const oilAdsHtml = renderOilAds(c.oil, spotAddsLower);
 
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
@@ -458,6 +475,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                     <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
                     <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b>${sumpSuffix}</div>
                     ${oilApprHtml}
+                    ${oilAdsHtml}
                     ${pickHint}
                 </div>
             `;
@@ -483,7 +501,8 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                             if (rk && rk.classMiss) {
                                 hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">не ${esc(rk.classMiss)}</span>`;
                             }
-                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}">${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
+                            const adsTip = (oil.ad || []).length ? ` title="${esc(oil.ad.join(', '))}"` : '';
+                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}"${adsTip}>${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
                         }).join('')}
                         <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
                     </div>
@@ -823,4 +842,22 @@ function dbArticlesFromRecord(rec) {
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ── Свойства масел (ad-плашки) ────────────────────────────────────────────────
+// «износ» и «масло-угар»/«маслоугар» должны считаться одним и тем же свойством
+function normalizeAdditive(s) {
+    return String(s || '').toLowerCase().replace(/[ёе]/g, 'е').replace(/[\s\-/]+/g, '').trim();
+}
+
+// Плашки свойств масла под карточкой; у не-SPOT масел скрываем то,
+// что уже есть у SPOT (spotAddsLower — нормализованные свойства SPOT-масла)
+function renderOilAds(oil, spotAddsLower) {
+    let ads = oil.ad || [];
+    if (!oil.isSpot && spotAddsLower && spotAddsLower.size) {
+        ads = ads.filter(a => !spotAddsLower.has(normalizeAdditive(a)));
+    }
+    if (!ads.length) return '';
+    return `<div class="oil-ads">${ads.map(a =>
+        `<span class="oil-ad-pill${oil.isSpot ? ' oil-ad-pill-spot' : ''}">${esc(a)}</span>`).join('')}</div>`;
 }

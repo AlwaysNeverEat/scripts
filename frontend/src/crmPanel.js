@@ -1,0 +1,335 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Панель «Наличие на станции»: выбираешь адрес — сайт сам проверяет в CRM
+// (через бэкенд-прокси /api/crm) наличие фильтров машины по артикулам и
+// моторных масел по вязкости. Масла: остаток в литрах (CRM хранит «в десятых»),
+// предупреждение, когда остатка меньше двух заправок этой машины.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { getShopOils } from '../../shared/oils.js';
+import { splitOilApprovals } from '../../shared/calculator.js';
+import {
+    decodeOilLiters, crmOilPricePerLiter, matchCrmOilRow,
+    cleanFilterName, detectFilterType, FILTER_SLOTS, extractViscosity,
+} from '../../shared/crmAnalyse.js';
+
+const STATION_KEY = 'zm_crm_station';
+const VISCOSITIES = ['0W-20', '0W-30', '5W-30', '5W-40', '10W-40'];
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+export function initCrmPanel(record, { apiFetch }) {
+    const root = document.getElementById('crm-panel');
+    if (!root) return;
+
+    const state = {
+        stations: null,          // [{id, name}] | null пока грузится
+        stationId: localStorage.getItem(STATION_KEY) || '',
+        visc: defaultViscosity(record),
+        loading: false,
+        error: null,             // { code, message }
+        results: null,           // ответ /availability
+        showOther: false,        // развёрнут ли блок «ещё в наличии»
+    };
+
+    render();
+    loadStations();
+
+    // ── Данные ────────────────────────────────────────────────────────────────
+
+    async function loadStations() {
+        try {
+            const { stations } = await apiFetch('/api/crm/stations');
+            state.stations = stations;
+            state.error = null;
+            // сохранённая станция ещё существует → проверяем сразу, как и просили:
+            // «выбрал адрес — дальше он сам»
+            if (state.stationId && stations.some(s => s.id === state.stationId)) {
+                runCheck();
+            } else {
+                state.stationId = '';
+                render();
+            }
+        } catch (e) {
+            state.stations = [];
+            state.error = { code: e.code || 'network', message: e.message };
+            render();
+        }
+    }
+
+    async function runCheck() {
+        if (!state.stationId) return;
+        const items = filterItems(record);
+        items.push({ key: 'oil', query: state.visc.toLowerCase() });
+        state.loading = true;
+        state.error = null;
+        render();
+        try {
+            state.results = await apiFetch('/api/crm/availability', {
+                method: 'POST',
+                body: { stationId: state.stationId, items },
+            });
+        } catch (e) {
+            state.results = null;
+            state.error = { code: e.code || 'network', message: e.message };
+        }
+        state.loading = false;
+        render();
+    }
+
+    // ── Рендер ────────────────────────────────────────────────────────────────
+
+    function render() {
+        root.innerHTML = `
+            <div class="ctrl-section crm-panel">
+                <div class="sec-title">Наличие на станции</div>
+                ${renderStationRow()}
+                ${state.error ? renderError() : ''}
+                ${state.loading ? '<div class="crm-loading">Проверяю наличие в CRM…</div>' : ''}
+                ${!state.loading && state.results ? renderResults() : ''}
+            </div>
+        `;
+        bind();
+    }
+
+    function renderStationRow() {
+        if (state.stations === null) return '<div class="crm-loading">Загружаю список станций…</div>';
+        if (!state.stations.length && state.error) return '';
+        const opts = ['<option value="">— станция не выбрана —</option>']
+            .concat(state.stations.map(s =>
+                `<option value="${esc(s.id)}"${s.id === state.stationId ? ' selected' : ''}>${esc(s.name)}</option>`));
+        const chips = VISCOSITIES.map(v =>
+            `<button class="chip${v === state.visc ? ' active' : ''}" data-crm-visc="${v}">${v}</button>`).join('');
+        return `
+            <div class="crm-station-row">
+                <select id="crm-station" class="crm-station-select">${opts.join('')}</select>
+                <button class="btn btn-sec" id="crm-refresh" ${state.stationId ? '' : 'disabled'}>↻ проверить</button>
+            </div>
+            <div class="crm-visc-row"><span class="ctrl-lbl">Масло:</span><div class="seg">${chips}</div></div>
+        `;
+    }
+
+    function renderError() {
+        const texts = {
+            crm_not_configured: 'CRM-учётка не настроена на сервере (env CRM_LOGIN / CRM_PASSWORD).',
+            crm_auth_failed: 'Сервер не смог войти в CRM — проверьте служебную учётку.',
+            crm_unavailable: 'CRM недоступна. Попробуйте ещё раз.',
+            parse_failed: 'CRM ответила в неожиданном формате — возможно, изменилась разметка.',
+        };
+        return `<div class="warn-box">${esc(texts[state.error.code] || state.error.message || 'Ошибка')}
+            <button class="btn btn-sec crm-retry" id="crm-retry">повторить</button></div>`;
+    }
+
+    function renderResults() {
+        const byKey = {};
+        for (const r of state.results.results || []) byKey[r.key] = r;
+        return renderFilters(byKey) + renderOils(byKey.oil);
+    }
+
+    // ── Фильтры ───────────────────────────────────────────────────────────────
+
+    function renderFilters(byKey) {
+        const parts = ['<div class="crm-sub-title">Фильтры</div>'];
+        const applicable = [];
+        for (const slot of FILTER_SLOTS) {
+            const fp = record.filter_part_numbers?.[slot.key];
+            const label = `<span class="crm-slot-label">${slot.label}</span>`;
+            if (!fp || fp.absent || !fp.part) {
+                parts.push(`<div class="crm-slot">${label} <span class="crm-dim">${!fp || fp.absent ? 'отсутствует у машины' : 'артикул не заполнен'}</span></div>`);
+                continue;
+            }
+            const res = byKey[slot.key];
+            const rows = res?.rows || [];
+            if (!rows.length) {
+                parts.push(`<div class="crm-slot">${label} <b>${esc(fp.part)}</b> — <span class="crm-none">не найдено в CRM</span></div>`);
+                continue;
+            }
+            // все найденные позиции — другого типа? артикул мог совпасть с чужим товаром
+            const types = rows.map(r => detectFilterType(r.name)).filter(Boolean);
+            const typeWarn = types.length && types.every(t => t !== slot.crmType)
+                ? ' <span class="crm-type-warn" title="По названию найденное не похоже на этот тип фильтра">тип?</span>' : '';
+            const rowsHtml = rows.slice(0, 5).map((r, i) => `
+                <div class="crm-row${i === 0 ? ' crm-best' : ''}">
+                    ${i === 0 ? '<span class="crm-best-star" title="лучшая цена">★</span>' : ''}
+                    <span class="crm-row-name">${esc(cleanFilterName(r.name))}</span>
+                    <span class="crm-row-count">${r.count} шт</span>
+                    <span class="crm-row-price">${Math.round(r.priceRaw)}₽</span>
+                </div>`).join('');
+            applicable.push(slot.key);
+            parts.push(`<div class="crm-slot">${label} <b>${esc(fp.part)}</b>${typeWarn}${rowsHtml}</div>`);
+        }
+        if (applicable.length && typeof window.__zmApplyFilters === 'function') {
+            parts.push('<button class="btn btn-sec crm-apply-btn" id="crm-apply-filters">→ подставить лучшие цены в расчёт</button>');
+        }
+        return `<div class="crm-filters">${parts.join('')}</div>`;
+    }
+
+    function buildFiltersText(byKey) {
+        // строки в формате вставки калькулятора: «вф <имя> - <цена>р»
+        // (аббревиатуры сайта: vf=вф масляный, mf=мф воздушный, sf=сф салонный)
+        const abbr = { vf: 'вф', mf: 'мф', sf: 'сф' };
+        const lines = [];
+        for (const slot of FILTER_SLOTS) {
+            const best = byKey[slot.key]?.rows?.[0];
+            if (best) lines.push(`${abbr[slot.key]} ${cleanFilterName(best.name)} - ${Math.round(best.priceRaw)}р`);
+        }
+        return lines.join('\n');
+    }
+
+    // ── Масла ─────────────────────────────────────────────────────────────────
+
+    function renderOils(oilRes) {
+        const parts = [`<div class="crm-sub-title">Масло ${esc(state.visc)}</div>`];
+        const rows = oilRes?.rows || [];
+        const shopOils = getShopOils();
+        const carApprovals = Array.isArray(record.car_approvals) ? record.car_approvals : [];
+        const need = engineNeedLiters(record);
+
+        // строки CRM → масла каталога; фасовки одного масла суммируем
+        const matched = new Map(); // 'b_n' → { oil, liters, priceRaw, rows }
+        const unmatched = [];
+        for (const r of rows) {
+            const m = matchCrmOilRow(r.name, shopOils);
+            if (!m) { unmatched.push(r); continue; }
+            const k = m.oil.b + '_' + m.oil.n;
+            const cur = matched.get(k) || { oil: m.oil, liters: 0, priceRaw: null, rows: [] };
+            cur.liters += decodeOilLiters(r.count);
+            if (cur.priceRaw === null || r.priceRaw < cur.priceRaw) cur.priceRaw = r.priceRaw;
+            cur.rows.push(r);
+            matched.set(k, cur);
+        }
+
+        const fits = (oil) => {
+            if (!carApprovals.length) return true;
+            const { matched: hit, hier } = splitOilApprovals(oil.a || [], carApprovals);
+            return hit.length > 0 || (hier || []).length > 0;
+        };
+
+        const entries = [...matched.values()].map(e => ({ ...e, fits: fits(e.oil), liters: +e.liters.toFixed(1) }));
+        // подходящие по допускам сверху, внутри группы — дешевле сначала
+        entries.sort((a, b) => (b.fits - a.fits) || ((a.priceRaw ?? 1e9) - (b.priceRaw ?? 1e9)));
+
+        // рекомендованные калькулятором масла этой вязкости, которых нет на станции
+        const missing = shopOils.filter(o =>
+            extractViscosity(o.v) === state.visc && fits(o) && !o.isSpot &&
+            !matched.has(o.b + '_' + o.n));
+
+        if (!entries.length && !rows.length) {
+            parts.push('<div class="crm-none">Ничего не найдено в CRM по этой вязкости.</div>');
+        }
+
+        for (const e of entries) {
+            parts.push(renderOilRow(e, need, carApprovals));
+        }
+        for (const o of missing) {
+            parts.push(`
+                <div class="crm-row crm-oil-missing">
+                    <span class="crm-row-name">${esc(o.b)} ${esc(o.n)}</span>
+                    <span class="crm-none">нет в наличии</span>
+                </div>`);
+        }
+        if (unmatched.length) {
+            const items = unmatched.map(r => `
+                <div class="crm-row">
+                    <span class="crm-row-name">${esc(r.name)}</span>
+                    <span class="crm-row-count">${decodeOilLiters(r.count)} л</span>
+                    <span class="crm-row-price">≈${crmOilPricePerLiter(r.priceRaw)}₽/л</span>
+                </div>`).join('');
+            parts.push(`
+                <button class="crm-other-toggle" id="crm-other-toggle">${state.showOther ? '▾' : '▸'} Ещё в наличии (${unmatched.length})</button>
+                ${state.showOther ? `<div class="crm-other">${items}</div>` : ''}`);
+        }
+        if (need) {
+            parts.push(`<div class="crm-dim crm-need-note">Заправка этой машины ≈ ${need} л; предупреждаем, если остаток меньше ${+(need * 2).toFixed(1)} л (две заправки).</div>`);
+        }
+        return `<div class="crm-oils">${parts.join('')}</div>`;
+    }
+
+    function renderOilRow(e, need, carApprovals) {
+        const pricePerL = crmOilPricePerLiter(e.priceRaw);
+        // цена в CRM за 0.1 л; если после ×10 она дико расходится с каталожной —
+        // не доверяем пересчёту молча, показываем сырое значение
+        const catalogPrice = e.oil.price || 0;
+        const priceOff = catalogPrice && Math.abs(pricePerL - catalogPrice) / catalogPrice > 0.3;
+        const priceHtml = priceOff
+            ? `<span class="crm-price-warn" title="Пересчёт ×10 расходится с ценой каталога (${catalogPrice}₽/л) — в CRM указано ${esc(String(e.priceRaw))}">⚠ ${esc(String(e.priceRaw))} в CRM</span>`
+            : `<span class="crm-row-price">≈${pricePerL}₽/л</span>`;
+        const low = need && e.liters < need * 2;
+        const lowHtml = e.liters <= 0
+            ? '<div class="crm-low-warn">нет в наличии</div>'
+            : low ? `<div class="crm-low-warn">⚠ масла осталось очень мало: ${e.liters} л (машине нужно ~${need} л)</div>` : '';
+        const fitsBadge = carApprovals.length
+            ? (e.fits ? '<span class="crm-fit" title="Подходит машине по допускам">✓ допуски</span>'
+                      : '<span class="crm-nofit" title="Допуски машины не подтверждены у этого масла">не по допускам</span>')
+            : '';
+        return `
+            <div class="crm-row crm-oil-row${low ? ' crm-oil-low' : ''}">
+                <span class="crm-row-name">${e.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(e.oil.b)} ${esc(e.oil.n)} ${fitsBadge}</span>
+                <span class="crm-row-count"><b>${e.liters} л</b></span>
+                ${priceHtml}
+                ${lowHtml}
+            </div>`;
+    }
+
+    // ── События ───────────────────────────────────────────────────────────────
+
+    function bind() {
+        const sel = root.querySelector('#crm-station');
+        if (sel) sel.onchange = () => {
+            state.stationId = sel.value;
+            state.results = null;
+            if (state.stationId) localStorage.setItem(STATION_KEY, state.stationId);
+            else localStorage.removeItem(STATION_KEY);
+            if (state.stationId) runCheck(); else render();
+        };
+        const refresh = root.querySelector('#crm-refresh');
+        if (refresh) refresh.onclick = () => runCheck();
+        const retry = root.querySelector('#crm-retry');
+        if (retry) retry.onclick = () => (state.stations === null || !state.stations.length) ? loadStations() : runCheck();
+        root.querySelectorAll('[data-crm-visc]').forEach(b => {
+            b.onclick = () => {
+                state.visc = b.dataset.crmVisc;
+                if (state.stationId) runCheck(); else render();
+            };
+        });
+        const toggle = root.querySelector('#crm-other-toggle');
+        if (toggle) toggle.onclick = () => { state.showOther = !state.showOther; render(); };
+        const apply = root.querySelector('#crm-apply-filters');
+        if (apply) apply.onclick = () => {
+            const byKey = {};
+            for (const r of state.results?.results || []) byKey[r.key] = r;
+            const text = buildFiltersText(byKey);
+            if (text && typeof window.__zmApplyFilters === 'function') {
+                window.__zmApplyFilters(text);
+                apply.textContent = '✓ подставлено';
+                setTimeout(() => { apply.textContent = '→ подставить лучшие цены в расчёт'; }, 1500);
+            }
+        };
+    }
+}
+
+// ── Хелперы ──────────────────────────────────────────────────────────────────
+
+function filterItems(record) {
+    const items = [];
+    for (const slot of FILTER_SLOTS) {
+        const fp = record.filter_part_numbers?.[slot.key];
+        if (fp && !fp.absent && fp.part) items.push({ key: slot.key, query: fp.part });
+    }
+    return items;
+}
+
+// Стартовая вязкость: из снапшота рекомендаций машины, иначе 5W-30
+function defaultViscosity(record) {
+    const rec = Array.isArray(record.recommended_oils)
+        ? record.recommended_oils.find(r => r.key === 'engine') : null;
+    const v = rec?.oil1?.v && extractViscosity(rec.oil1.v);
+    return v && VISCOSITIES.includes(v) ? v : '5W-30';
+}
+
+// Объём заправки двигателя в литрах (для порога «меньше двух заправок»)
+function engineNeedLiters(record) {
+    const eng = record.fluid_capacities?.engine;
+    const v = parseFloat(eng?.volumeService) || parseFloat(eng?.volumeTotal) || 0;
+    return v > 0 ? v : null;
+}

@@ -7,6 +7,7 @@ import authRouter from './routes/auth.js';
 import profileRouter from './routes/profile.js';
 import topRouter from './routes/top.js';
 import usersRouter from './routes/users.js';
+import crmRouter from './routes/crm.js';
 import { requireSession } from './auth/middleware.js';
 import { startBot } from './bot/index.js';
 
@@ -54,6 +55,7 @@ app.use('/api/cars', requireSession, carsRouter);
 app.use('/api/profile', requireSession, profileRouter);
 app.use('/api/top', requireSession, topRouter);
 app.use('/api/users', requireSession, usersRouter);
+app.use('/api/crm', requireSession, crmRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

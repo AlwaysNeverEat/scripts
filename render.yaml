@@ -26,3 +26,7 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_KEY # Project Settings → API → service_role (не anon!)
         sync: false
+      - key: CRM_LOGIN            # служебная учётка CRM для проверки наличия
+        sync: false
+      - key: CRM_PASSWORD         # пароль той же учётки; пусто = наличие выключено
+        sync: false
