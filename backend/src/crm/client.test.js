@@ -43,6 +43,10 @@ test('resolveCrmUrl корректно обрабатывает относите
         resolveCrmUrl('https://crm.zamena-masla-spot.ru/analyse/free?x=1').href,
         'https://crm.zamena-masla-spot.ru/analyse/free?x=1',
     );
+    assert.equal(
+        resolveCrmUrl('login', 'https://crm.zamena-masla-spot.ru/analyse/free').href,
+        'https://crm.zamena-masla-spot.ru/analyse/login',
+    );
 });
 
 test('resolveCrmUrl не отправляет CRM-куки на другой хост', () => {
