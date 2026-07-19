@@ -47,6 +47,12 @@ Telegram-бот стартует в том же backend-процессе (не �
    - `ADMIN_TELEGRAM_ID` — твой Telegram user id (узнать у
      [@userinfobot](https://t.me/userinfobot)); дефолт `691442300`.
    - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` — из шага 1.5.
+   - `CRM_LOGIN`, `CRM_PASSWORD` — служебная учётка внутренней CRM
+     (crm.zamena-masla-spot.ru) для панели «Наличие на станции» на странице
+     машины. Пусто — панель скажет «CRM не настроена», остальной сайт
+     работает как раньше. Необязательные переопределения на случай смены
+     разметки CRM: `CRM_BASE_URL`, `CRM_LOGIN_PATH`, `CRM_LOGIN_FIELD`,
+     `CRM_PASSWORD_FIELD`.
 3. Дождись деплоя, открой `https://<имя-сервиса>.onrender.com/health` —
    должно ответить `{"ok":true}`. Запомни этот URL.
 4. **Важно**: напиши своему боту `/start` в Telegram хотя бы один раз —

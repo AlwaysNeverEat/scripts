@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { initCalculator } from './calculator.js';
+import { initCrmPanel } from './crmPanel.js';
 import { checkAchievementsNow } from './achievements.js';
 import { activeFlags, SERVICE_FLAGS } from '../../shared/serviceFlags.js';
 import { getShopOils } from '../../shared/oils.js';
@@ -19,6 +20,7 @@ export function initCarPage(record, { apiFetch, onChanged, user }) {
     editMode = false;
     renderHead(record, { apiFetch, onChanged, user });
     initCalculator(record);
+    initCrmPanel(record, { apiFetch });
     renderEvents(record.id, { apiFetch, user });
 }
 

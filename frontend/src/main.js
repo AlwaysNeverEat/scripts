@@ -56,7 +56,14 @@ export async function apiFetch(path, { method = 'GET', body, isMultipart = false
     }
 
     const json = await res.json().catch(() => null);
-    if (!res.ok) throw new Error((json && json.error) || `API ${res.status}`);
+    if (!res.ok) {
+        // error бывает строкой (старые роуты) или объектом {code, message} (CRM-прокси)
+        const errVal = json && json.error;
+        const isObj = errVal && typeof errVal === 'object';
+        const err = new Error((isObj ? (errVal.message || errVal.code) : errVal) || `API ${res.status}`);
+        if (isObj && errVal.code) err.code = errVal.code;
+        throw err;
+    }
     return json;
 }
 
@@ -165,6 +172,7 @@ async function renderRoute() {
             document.getElementById('car-head').innerHTML =
                 `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
             document.getElementById('calc-main').innerHTML = '';
+            document.getElementById('crm-panel').innerHTML = '';
         }
     } else {
         pageProfile.classList.add('hidden');
