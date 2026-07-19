@@ -33,11 +33,12 @@ export class CrmError extends Error {
 }
 
 // Любые относительные и абсолютные ссылки CRM приводим к URL через URL API,
-// а не склеиваем строками. Иначе абсолютный Location от CRM превращался в
-// «https://crm...https://crm.../login» и fetch падал как network error.
-export function resolveCrmUrl(path) {
+// а не склеиваем строками. Второй аргумент нужен для корректного разрешения
+// относительных Location/action относительно текущей страницы CRM.
+export function resolveCrmUrl(path, base = BASE_URL) {
     const value = path instanceof URL ? path.href : String(path || '');
-    const url = new URL(value, BASE_URL);
+    const baseUrl = base instanceof URL ? base : new URL(String(base || ''), BASE_URL);
+    const url = new URL(value, baseUrl);
     if (url.origin !== CRM_ORIGIN) {
         throw new CrmError(
             'crm_unavailable',
@@ -137,7 +138,7 @@ async function followRedirects(res, jar, hops = 5) {
     while (hops-- > 0 && res.status >= 300 && res.status < 400) {
         const loc = res.headers.get('location');
         if (!loc) break;
-        res = await rawFetch(resolveCrmUrl(loc), jar);
+        res = await rawFetch(resolveCrmUrl(loc, res.url || BASE_URL), jar);
     }
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
         throw new CrmError('crm_unavailable', `CRM зациклила перенаправления (>${maxHops})`);
@@ -205,7 +206,9 @@ export async function crmLogin(userId, login, password) {
             // для пустого jar) или CRM сменила разметку
             throw new CrmError('crm_auth_failed', 'не удалось распознать форму логина CRM');
         }
-        const actionPath = form?.action ? resolveCrmUrl(form.action) : entryPath;
+        const actionPath = form?.action
+            ? resolveCrmUrl(form.action, res.url || BASE_URL)
+            : entryPath;
 
         const body = new URLSearchParams({
             ...(form?.hidden || {}),
@@ -240,7 +243,10 @@ export async function crmLogout(userId) {
                 const html = res.status >= 300 ? '' : await res.text();
                 const href = findLogoutHref(html);
                 if (href) {
-                    await followRedirects(await rawFetch(href, jar), jar);
+                    await followRedirects(
+                        await rawFetch(resolveCrmUrl(href, res.url || BASE_URL), jar),
+                        jar,
+                    );
                 }
             });
         } catch {
