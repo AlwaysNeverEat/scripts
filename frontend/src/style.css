@@ -6,22 +6,28 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* Нативные виджеты (select-попапы, скроллбары, спиннеры) — в тёмной теме
+     во всех браузерах, иначе Firefox рисует их белыми. */
+  color-scheme: dark;
+
+  /* Контраст между слоями поднят: фон/карточка/бордер должны различаться
+     и на слабых/старых мониторах, а не только на откалиброванных. */
   --bg:       oklch(0.11 0.022 252);
-  --card:     oklch(0.14 0.022 252);
-  --bg2:      oklch(0.18 0.025 252);
-  --bg3:      oklch(0.20 0.03 252);
-  --border:   oklch(0.25 0.025 252 / 0.6);
-  --accent:   oklch(0.76 0.18 83);
-  --accent-dim: oklch(0.76 0.18 83 / 0.15);
+  --card:     oklch(0.16 0.024 252);
+  --bg2:      oklch(0.22 0.027 252);
+  --bg3:      oklch(0.27 0.03 252);
+  --border:   oklch(0.36 0.03 252 / 0.8);
+  --accent:   oklch(0.80 0.17 83);
+  --accent-dim: oklch(0.80 0.17 83 / 0.2);
   --accent-fg: oklch(0.12 0.02 252);
-  --text:     oklch(0.91 0.01 252);
-  --sub:      oklch(0.55 0.015 252);
-  --green:    oklch(0.72 0.17 148);
-  --green-dim: oklch(0.72 0.17 148 / 0.14);
-  --blue:     oklch(0.72 0.12 250);
-  --blue-dim: oklch(0.72 0.12 250 / 0.14);
-  --red:      oklch(0.62 0.2 25);
-  --red-dim:  oklch(0.52 0.2 25 / 0.16);
+  --text:     oklch(0.95 0.01 252);
+  --sub:      oklch(0.68 0.02 252);
+  --green:    oklch(0.76 0.17 148);
+  --green-dim: oklch(0.76 0.17 148 / 0.18);
+  --blue:     oklch(0.76 0.12 250);
+  --blue-dim: oklch(0.76 0.12 250 / 0.18);
+  --red:      oklch(0.67 0.2 25);
+  --red-dim:  oklch(0.55 0.2 25 / 0.2);
   --radius:   10px;
   --chip-act: var(--accent);
 }
@@ -48,8 +54,10 @@ input, button, select, textarea { font-family: inherit; }
   font-weight: 400;
 }
 
-/* Notable — только названия масел (кириллица тоже падает в Unbounded) */
-.oil-name { font-family: "Notable", "Unbounded", Inter, sans-serif; }
+/* Russo One — только названия масел. В отличие от прежнего Notable он
+   поддерживает кириллицу и остаётся читаемым на слабых/старых мониторах:
+   открытые формы букв, без декоративного сжатого капса. */
+.oil-name { font-family: "Russo One", "Unbounded", Inter, sans-serif; letter-spacing: 0.02em; }
 
 /* ── Секционные заголовки (капсом, как в макете) ────────────────── */
 .sec-title {
@@ -129,7 +137,7 @@ input, button, select, textarea { font-family: inherit; }
   box-shadow: 0 0 0 1px rgba(212,160,23,0.08), 0 8px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
   transition: border-color .15s, box-shadow .15s;
 }
-#search-input::placeholder { color: rgba(107,114,128,0.6); }
+#search-input::placeholder { color: rgba(148,163,184,0.75); }
 #search-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px oklch(0.76 0.18 83 / 0.18), 0 8px 32px rgba(0,0,0,0.55);
@@ -204,7 +212,7 @@ input, button, select, textarea { font-family: inherit; }
   box-shadow: 0 0 0 1px rgba(212,160,23,0.08), 0 8px 32px rgba(0,0,0,0.55);
   transition: border-color .15s, box-shadow .15s;
 }
-.tag-combo-input::placeholder { color: rgba(107,114,128,0.7); }
+.tag-combo-input::placeholder { color: rgba(148,163,184,0.75); }
 .tag-combo-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px oklch(0.76 0.18 83 / 0.18), 0 8px 32px rgba(0,0,0,0.55);
@@ -470,7 +478,7 @@ input, button, select, textarea { font-family: inherit; }
   appearance: none;
   width: 34px; height: 19px;
   border-radius: 19px;
-  background: oklch(0.28 0.02 252);
+  background: oklch(0.34 0.025 252);
   position: relative;
   cursor: pointer;
   transition: background .15s;
@@ -687,7 +695,7 @@ input[data-edit-filter-absent]:checked::after {
 .oil-option.selected { border-color: var(--accent); }
 /* Первая карточка двс сама открывает выбор замены масла */
 .oil-option-pick { cursor: pointer; }
-.oil-option-pick:hover { border-color: oklch(0.4 0.03 252); }
+.oil-option-pick:hover { border-color: oklch(0.5 0.03 252); }
 .oil-pick-hint {
   margin-top: 9px;
   padding-top: 8px;
@@ -696,8 +704,8 @@ input[data-edit-filter-absent]:checked::after {
   color: var(--sub);
 }
 .oil-option-pick:hover .oil-pick-hint { color: var(--accent); }
-/* Notable существует только в 400 — жирность не синтезируем */
-.oil-name  { font-size: 13.5px; font-weight: 400; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* Russo One существует только в 400 — жирность не синтезируем */
+.oil-name  { font-size: 14px; font-weight: 400; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .visc-pill {
   font-size: 10px;
   background: var(--bg3); border: 1px solid var(--border);
@@ -1066,9 +1074,75 @@ input[data-edit-filter-absent]:checked::after {
 }
 
 /* ── Скроллбары ─────────────────────────────────────────────────── */
+/* Стандартные свойства понимают и Firefox, и Chrome 121+ — вид одинаковый.
+   ::-webkit-* остаются фолбэком для старых Chromium (там scrollbar-color
+   не поддержан, поэтому конфликтовать они не будут). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.35 0.03 252) transparent;
+}
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Кроссбраузерная нормализация контролов ─────────────────────── */
+/* Спиннеры у number-инпутов: Firefox показывает их всегда, Chrome — по
+   ховеру. Прячем в обоих, значения тут правят с клавиатуры. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Крестик очистки у type=search есть только в Chrome — убираем, чтобы
+   поисковая строка выглядела одинаково. */
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/* Range-бегунок (зум в кропере аватарки): без своих стилей Firefox рисует
+   системный виджет, непохожий на Chrome. Красим трек и ручку в обоих. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg3);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px; height: 16px;
+  margin-top: -5px; /* центрирует ручку на 6px-треке */
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  transition: transform .1s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg3);
+}
+input[type="range"]::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  transition: transform .1s;
+}
+input[type="range"]::-moz-range-thumb:hover { transform: scale(1.12); }
+input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
 
 /* ── Гейт входа/регистрации ──────────────────────────────────────── */
 #page-auth {
