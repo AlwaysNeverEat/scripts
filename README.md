@@ -232,7 +232,7 @@ below) — sessions expire for everyone at midnight Moscow time.
 | `POST`   | `/api/profile/avatar` | Upload avatar (multipart, `avatar` field) → Supabase Storage |
 | `GET`    | `/api/profile/stats` | `{added, edited}` counts for the current user |
 | `GET`    | `/api/profile/achievements` | Empty extensible placeholder feed |
-| `GET`    | `/api/top` | Top users by cars added, ranked |
+| `GET`    | `/api/top` | Top users ranked by (cars added + cars edited); `{rows, excluded}` |
 
 ### Аутентификация
 
