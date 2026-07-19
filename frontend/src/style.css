@@ -1625,3 +1625,29 @@ input[data-edit-filter-absent]:checked::after {
 .crm-apply-btn { margin-top: 8px; font-size: 12px; }
 .crm-retry { margin-left: 8px; font-size: 11px; }
 .crm-need-note { margin-top: 8px; }
+
+/* ── CRM: вход/выход ─────────────────────────────────────────────── */
+.crm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.crm-logout {
+  background: none;
+  border: none;
+  color: var(--sub);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline dotted;
+  padding: 0;
+}
+.crm-logout:hover { color: var(--red); }
+.crm-login-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.crm-input {
+  flex: 1;
+  min-width: 130px;
+  background: var(--bg2);
+  color: inherit;
+  border: 1px solid var(--bg3);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+}
+.crm-input:focus { outline: none; border-color: var(--accent); }

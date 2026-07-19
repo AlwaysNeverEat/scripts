@@ -1,50 +1,85 @@
 import { Router } from 'express';
-import { crmGetHtml, crmConfigured, buildAnalyseFreePath, CrmError } from '../crm/client.js';
+import {
+    crmLogin, crmLogout, crmHasSession, crmGetHtml, buildAnalyseFreePath, CrmError,
+} from '../crm/client.js';
 import { parseStations, parseAnalyseFree } from '../../../shared/crmAnalyse.js';
 
 const router = Router();
 
-// Прокси к CRM /analyse/free: сайт спрашивает наличие фильтров/масел на станции,
-// бэкенд ходит в CRM под служебной учёткой (env) и возвращает разобранный JSON.
-// Разбор HTML — shared/crmAnalyse.js, доменная логика (литры, цены, матчинг
-// с каталогом) — на фронте.
+// Прокси к CRM /analyse/free под ПЕРСОНАЛЬНОЙ сессией работника: каждый входит
+// в CRM через сайт своей учёткой (пароль не хранится — только куки, см.
+// backend/src/crm/client.js). Разбор HTML — shared/crmAnalyse.js, доменная
+// логика (литры, цены, матчинг с каталогом) — на фронте.
+//
+// Важно: ошибки CRM-авторизации отдаём как 403, НЕ 401 — 401 фронт трактует
+// как «сессия САЙТА истекла» и выкидывает на гейт (apiFetch в main.js).
 
 const STATIONS_TTL_MS = 24 * 60 * 60 * 1000;
 const AVAIL_TTL_MS = 5 * 60 * 1000;
 const MAX_ITEMS = 8; // 3 фильтра + масло с запасом; больше — похоже на злоупотребление
 
-let stationsCache = null; // { at, data }
-const availCache = new Map(); // `${stationId}|${query}` → { at, rows }
+let stationsCache = null; // { at, data } — список станций общий для всех
+const availCache = new Map(); // `${stationId}|${query}` → { at, rows } — остатки тоже общие
 
 function sendCrmError(res, err) {
-  if (err instanceof CrmError) {
-    const status = err.code === 'crm_not_configured' ? 503
-      : err.code === 'crm_auth_failed' ? 502
-      : 502;
-    return res.status(status).json({ error: { code: err.code, message: err.message } });
-  }
-  console.error('CRM proxy', err);
-  return res.status(502).json({ error: { code: 'parse_failed', message: 'не удалось разобрать ответ CRM' } });
+    if (err instanceof CrmError) {
+        const status = err.code === 'crm_auth_required' ? 403
+            : err.code === 'crm_auth_failed' ? 403
+            : 502;
+        return res.status(status).json({ error: { code: err.code, message: err.message } });
+    }
+    console.error('CRM proxy', err);
+    return res.status(502).json({ error: { code: 'parse_failed', message: 'не удалось разобрать ответ CRM' } });
 }
+
+// ── Вход/выход/статус ─────────────────────────────────────────────────────────
+
+router.post('/login', async (req, res) => {
+    const login = String(req.body?.login || '').trim();
+    const password = String(req.body?.password || '');
+    if (!login || !password) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'нужны login и password' } });
+    }
+    try {
+        await crmLogin(req.user.id, login, password);
+        res.json({ ok: true });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
+
+router.post('/logout', async (req, res) => {
+    try {
+        await crmLogout(req.user.id);
+        res.json({ ok: true });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
+
+router.get('/status', async (req, res) => {
+    try {
+        res.json({ loggedIn: await crmHasSession(req.user.id) });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
 
 // ── GET /api/crm/stations ─────────────────────────────────────────────────────
 
-router.get('/stations', async (_req, res) => {
-  if (!crmConfigured()) {
-    return res.status(503).json({ error: { code: 'crm_not_configured', message: 'CRM-учётка не настроена на сервере' } });
-  }
-  if (stationsCache && Date.now() - stationsCache.at < STATIONS_TTL_MS) {
-    return res.json({ stations: stationsCache.data });
-  }
-  try {
-    const html = await crmGetHtml('/analyse/free');
-    const stations = parseStations(html);
-    if (!stations.length) throw new Error('пустой список станций');
-    stationsCache = { at: Date.now(), data: stations };
-    res.json({ stations });
-  } catch (err) {
-    sendCrmError(res, err);
-  }
+router.get('/stations', async (req, res) => {
+    if (stationsCache && Date.now() - stationsCache.at < STATIONS_TTL_MS) {
+        return res.json({ stations: stationsCache.data });
+    }
+    try {
+        const html = await crmGetHtml(req.user.id, '/analyse/free');
+        const stations = parseStations(html);
+        if (!stations.length) throw new Error('пустой список станций');
+        stationsCache = { at: Date.now(), data: stations };
+        res.json({ stations });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
 });
 
 // ── POST /api/crm/availability ────────────────────────────────────────────────
@@ -52,44 +87,41 @@ router.get('/stations', async (_req, res) => {
 // query — артикул фильтра или вязкость масла («5w-30»).
 
 router.post('/availability', async (req, res) => {
-  if (!crmConfigured()) {
-    return res.status(503).json({ error: { code: 'crm_not_configured', message: 'CRM-учётка не настроена на сервере' } });
-  }
-  const stationId = String(req.body?.stationId || '').trim();
-  const items = Array.isArray(req.body?.items) ? req.body.items : [];
-  if (!/^\d+$/.test(stationId) || !items.length || items.length > MAX_ITEMS) {
-    return res.status(400).json({ error: { code: 'bad_request', message: 'нужны stationId и 1–8 items' } });
-  }
-  for (const it of items) {
-    if (!it || typeof it.key !== 'string' || typeof it.query !== 'string' || !it.query.trim()) {
-      return res.status(400).json({ error: { code: 'bad_request', message: 'каждый item: { key, query }' } });
+    const stationId = String(req.body?.stationId || '').trim();
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!/^\d+$/.test(stationId) || !items.length || items.length > MAX_ITEMS) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'нужны stationId и 1–8 items' } });
     }
-  }
-
-  try {
-    const results = [];
     for (const it of items) {
-      const query = it.query.trim();
-      const cacheKey = `${stationId}|${query.toLowerCase()}`;
-      const cached = availCache.get(cacheKey);
-      if (cached && Date.now() - cached.at < AVAIL_TTL_MS) {
-        results.push({ key: it.key, query, rows: cached.rows });
-        continue;
-      }
-      const html = await crmGetHtml(buildAnalyseFreePath(stationId, query));
-      const { rows } = parseAnalyseFree(html, stationId);
-      availCache.set(cacheKey, { at: Date.now(), rows });
-      results.push({ key: it.key, query, rows });
+        if (!it || typeof it.key !== 'string' || typeof it.query !== 'string' || !it.query.trim()) {
+            return res.status(400).json({ error: { code: 'bad_request', message: 'каждый item: { key, query }' } });
+        }
     }
-    // не даём кэшу расти бесконечно
-    if (availCache.size > 500) {
-      const cutoff = Date.now() - AVAIL_TTL_MS;
-      for (const [k, v] of availCache) if (v.at < cutoff) availCache.delete(k);
+
+    try {
+        const results = [];
+        for (const it of items) {
+            const searchQuery = it.query.trim();
+            const cacheKey = `${stationId}|${searchQuery.toLowerCase()}`;
+            const cached = availCache.get(cacheKey);
+            if (cached && Date.now() - cached.at < AVAIL_TTL_MS) {
+                results.push({ key: it.key, query: searchQuery, rows: cached.rows });
+                continue;
+            }
+            const html = await crmGetHtml(req.user.id, buildAnalyseFreePath(stationId, searchQuery));
+            const { rows } = parseAnalyseFree(html, stationId);
+            availCache.set(cacheKey, { at: Date.now(), rows });
+            results.push({ key: it.key, query: searchQuery, rows });
+        }
+        // не даём кэшу расти бесконечно
+        if (availCache.size > 500) {
+            const cutoff = Date.now() - AVAIL_TTL_MS;
+            for (const [k, v] of availCache) if (v.at < cutoff) availCache.delete(k);
+        }
+        res.json({ stationId, results });
+    } catch (err) {
+        sendCrmError(res, err);
     }
-    res.json({ stationId, results });
-  } catch (err) {
-    sendCrmError(res, err);
-  }
 });
 
 export default router;

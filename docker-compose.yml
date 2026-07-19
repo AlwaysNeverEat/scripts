@@ -33,10 +33,6 @@ services:
       ADMIN_TELEGRAM_ID: '691442300'
       SUPABASE_URL: ''
       SUPABASE_SERVICE_KEY: ''
-      # Учётка CRM для панели «Наличие на станции»; пусто = панель сообщит,
-      # что CRM не настроена. Задать через .env или окружение хоста.
-      CRM_LOGIN: '${CRM_LOGIN:-}'
-      CRM_PASSWORD: '${CRM_PASSWORD:-}'
     ports:
       - '3001:3001'
     depends_on:

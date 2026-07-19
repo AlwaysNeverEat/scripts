@@ -1,51 +1,81 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Клиент внутренней CRM (crm.zamena-masla-spot.ru): логин по учёткам из env,
-// сессионная кука в памяти процесса, последовательная очередь запросов с
-// троттлингом (не долбить CRM), single-flight логин с backoff после неудачи.
+// Клиент внутренней CRM (crm.zamena-masla-spot.ru) с ПЕРСОНАЛЬНЫМИ сессиями:
+// каждый работник логинится через сайт под своей учёткой CRM, пароль нигде
+// не хранится — только куки сессии (таблица crm_sessions, переживает рестарты
+// бэкенда). Выход в самой CRM завершает сессию везде → куки протухают, при
+// первом же запросе клиент это видит, чистит их и просит войти заново.
 //
-// Env: CRM_LOGIN, CRM_PASSWORD — обязательные; CRM_BASE_URL — база CRM;
-// CRM_LOGIN_PATH / CRM_LOGIN_FIELD / CRM_PASSWORD_FIELD — переопределения на
-// случай нестандартной формы логина (по умолчанию форма ищется на странице,
-// которую CRM отдаёт незалогиненным).
+// Запросы ко CRM идут через общую последовательную очередь с троттлингом
+// 400 мс (как в проверенном SPOT-скрипте) — CRM не заваливаем.
+//
+// Env (всё необязательное): CRM_BASE_URL — база CRM; CRM_LOGIN_PATH /
+// CRM_LOGIN_FIELD / CRM_PASSWORD_FIELD — переопределения, если форма логина
+// CRM не распознаётся автоматически.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { query } from '../db/client.js';
 import { parseAnalyseFree } from '../../../shared/crmAnalyse.js';
 
 const BASE = (process.env.CRM_BASE_URL || 'https://crm.zamena-masla-spot.ru').replace(/\/$/, '');
-const THROTTLE_MS = 400;          // как в проверенном SPOT-скрипте поиска цен
-const LOGIN_BACKOFF_MS = 60_000;  // после неудачного логина не пробуем минуту
+const THROTTLE_MS = 400;
 
 export class CrmError extends Error {
     constructor(code, message) {
         super(message || code);
-        this.code = code; // crm_not_configured | crm_auth_failed | crm_unavailable
+        // crm_auth_required — нет живой сессии CRM (не залогинен / разлогинен);
+        // crm_auth_failed — CRM не приняла логин/пароль;
+        // crm_unavailable — сеть/5xx.
+        this.code = code;
     }
 }
 
-export function crmConfigured() {
-    return Boolean(process.env.CRM_LOGIN && process.env.CRM_PASSWORD);
+// ── Хранилище кук: БД + кэш в памяти ─────────────────────────────────────────
+
+const jarCache = new Map(); // userId → Map(name → value) | null (точно нет)
+
+async function loadJar(userId) {
+    if (jarCache.has(userId)) return jarCache.get(userId);
+    const r = await query('SELECT cookies FROM crm_sessions WHERE user_id = $1', [userId]);
+    const jar = r.rows[0] ? new Map(Object.entries(r.rows[0].cookies || {})) : null;
+    jarCache.set(userId, jar);
+    return jar;
 }
 
-// ── Кука сессии ──────────────────────────────────────────────────────────────
+async function saveJar(userId, jar) {
+    jarCache.set(userId, jar);
+    await query(
+        `INSERT INTO crm_sessions (user_id, cookies, updated_at)
+         VALUES ($1, $2, now())
+         ON CONFLICT (user_id) DO UPDATE SET cookies = $2, updated_at = now()`,
+        [userId, Object.fromEntries(jar)],
+    );
+}
 
-let cookies = new Map(); // name → value
+async function dropJar(userId) {
+    jarCache.set(userId, null);
+    await query('DELETE FROM crm_sessions WHERE user_id = $1', [userId]);
+}
 
-function storeSetCookies(res) {
+export async function crmHasSession(userId) {
+    const jar = await loadJar(userId);
+    return Boolean(jar && jar.size);
+}
+
+// ── HTTP со сбором Set-Cookie в переданный jar ───────────────────────────────
+
+function storeSetCookies(res, jar) {
     const list = typeof res.headers.getSetCookie === 'function'
         ? res.headers.getSetCookie()
         : (res.headers.get('set-cookie') ? [res.headers.get('set-cookie')] : []);
     for (const line of list) {
         const [pair] = line.split(';');
         const eq = pair.indexOf('=');
-        if (eq > 0) cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+        if (eq > 0) jar.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
     }
 }
 
-function cookieHeader() {
-    return [...cookies.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-}
-
-async function rawFetch(path, opts = {}) {
+async function rawFetch(path, jar, opts = {}) {
+    const cookie = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
     let res;
     try {
         res = await fetch(BASE + path, {
@@ -53,20 +83,29 @@ async function rawFetch(path, opts = {}) {
             ...opts,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (site-crm-proxy)',
-                ...(cookieHeader() ? { Cookie: cookieHeader() } : {}),
+                ...(cookie ? { Cookie: cookie } : {}),
                 ...(opts.headers || {}),
             },
         });
     } catch (e) {
         throw new CrmError('crm_unavailable', `CRM недоступна: ${e.message}`);
     }
-    storeSetCookies(res);
+    storeSetCookies(res, jar);
     return res;
 }
 
-// ── Логин ────────────────────────────────────────────────────────────────────
+async function followRedirects(res, jar, hops = 3) {
+    while (hops-- > 0 && res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get('location');
+        if (!loc) break;
+        res = await rawFetch(loc.startsWith('http') ? loc.replace(BASE, '') : loc, jar);
+    }
+    return res;
+}
 
-// Разбор формы логина из HTML: action + имя полей логина/пароля + hidden-поля
+// ── Форма логина ─────────────────────────────────────────────────────────────
+
+// Разбор формы логина из HTML: action + имена полей логина/пароля + hidden-поля
 // (CSRF и т.п.). Форма CRM заранее неизвестна, поэтому парсер общий, а поля
 // можно переопределить через env.
 export function parseLoginForm(html) {
@@ -99,108 +138,116 @@ export function parseLoginForm(html) {
     return { action, loginField, passwordField, hidden };
 }
 
-let loginInFlight = null;
-let loginFailedAt = 0;
+// Ссылка «выход» на странице CRM — чтобы наша кнопка «Выйти из CRM»
+// завершала сессию и на стороне CRM, а не только чистила куки у нас.
+export function findLogoutHref(html) {
+    const m = String(html || '').match(/href=["']([^"']*(?:logout|signout|выход)[^"']*)["']/i);
+    return m ? m[1] : null;
+}
 
-async function login() {
-    if (loginInFlight) return loginInFlight;
-    if (Date.now() - loginFailedAt < LOGIN_BACKOFF_MS) {
-        throw new CrmError('crm_auth_failed', 'логин в CRM недавно не удался, повтор позже');
-    }
-    loginInFlight = (async () => {
-        cookies = new Map();
+// ── Вход / выход / запросы ───────────────────────────────────────────────────
+
+// Логин под учёткой работника. Пароль используется однократно и не сохраняется.
+export async function crmLogin(userId, login, password) {
+    const jar = new Map();
+    await enqueue(async () => {
         const entryPath = process.env.CRM_LOGIN_PATH || '/analyse/free';
-        let res = await rawFetch(entryPath);
-        // незалогиненных CRM обычно редиректит на страницу логина
-        for (let hops = 0; hops < 3 && res.status >= 300 && res.status < 400; hops++) {
-            const loc = res.headers.get('location');
-            if (!loc) break;
-            res = await rawFetch(loc.startsWith('http') ? loc.replace(BASE, '') : loc);
-        }
+        let res = await followRedirects(await rawFetch(entryPath, jar), jar);
         const html = await res.text();
         const form = parseLoginForm(html);
 
         const loginField = process.env.CRM_LOGIN_FIELD || form?.loginField;
         const passwordField = process.env.CRM_PASSWORD_FIELD || form?.passwordField;
         if (!loginField || !passwordField) {
+            // формы нет — возможно, эта пара кук уже залогинена (маловероятно
+            // для пустого jar) или CRM сменила разметку
             throw new CrmError('crm_auth_failed', 'не удалось распознать форму логина CRM');
         }
         const actionPath = form?.action
             ? (form.action.startsWith('http') ? form.action.replace(BASE, '') : form.action)
-            : (res.url ? new URL(res.url).pathname : entryPath);
+            : entryPath;
 
         const body = new URLSearchParams({
             ...(form?.hidden || {}),
-            [loginField]: process.env.CRM_LOGIN,
-            [passwordField]: process.env.CRM_PASSWORD,
+            [loginField]: login,
+            [passwordField]: password,
         });
-        const post = await rawFetch(actionPath || entryPath, {
+        const post = await rawFetch(actionPath || entryPath, jar, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: body.toString(),
         });
-        // успешный логин — редирект внутрь CRM или страница без формы пароля
         if (post.status >= 400) {
             throw new CrmError('crm_auth_failed', `CRM ответила ${post.status} на логин`);
         }
-        const check = await rawFetch('/analyse/free');
+        const check = await followRedirects(await rawFetch('/analyse/free', jar), jar);
         const checkHtml = check.status >= 300 ? '' : await check.text();
         if (!checkHtml || parseAnalyseFree(checkHtml).loginPage) {
-            throw new CrmError('crm_auth_failed', 'CRM не приняла логин/пароль');
+            throw new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
         }
-        return checkHtml;
-    })();
-    try {
-        const html = await loginInFlight;
-        loginFailedAt = 0;
-        return html;
-    } catch (e) {
-        if (e instanceof CrmError && e.code === 'crm_auth_failed') loginFailedAt = Date.now();
-        throw e;
-    } finally {
-        loginInFlight = null;
-    }
+    });
+    await saveJar(userId, jar);
 }
 
-// ── Публичный вход: последовательная очередь с троттлингом ───────────────────
+// Выход: пробуем дёрнуть ссылку «выход» в самой CRM (завершает сессию везде),
+// после чего в любом случае забываем куки.
+export async function crmLogout(userId) {
+    const jar = await loadJar(userId);
+    if (jar && jar.size) {
+        try {
+            await enqueue(async () => {
+                const res = await followRedirects(await rawFetch('/analyse/free', jar), jar);
+                const html = res.status >= 300 ? '' : await res.text();
+                const href = findLogoutHref(html);
+                if (href) {
+                    const path = href.startsWith('http') ? href.replace(BASE, '') : href;
+                    await followRedirects(await rawFetch(path, jar), jar);
+                }
+            });
+        } catch {
+            // CRM недоступна — не страшно, куки всё равно выбрасываем
+        }
+    }
+    await dropJar(userId);
+}
 
+// GET страницы CRM под сессией работника. Если CRM отдала страницу логина —
+// сессию завершили (напр., «выход» в самой CRM) → чистим куки и просим войти.
+export async function crmGetHtml(userId, path) {
+    const jar = await loadJar(userId);
+    if (!jar || !jar.size) {
+        throw new CrmError('crm_auth_required', 'нет сессии CRM — войдите');
+    }
+    return enqueue(async () => {
+        const res = await followRedirects(await rawFetch(path, jar), jar);
+        const html = res.status >= 300 ? '' : await res.text();
+        if (!html || parseAnalyseFree(html).loginPage) {
+            await dropJar(userId);
+            throw new CrmError('crm_auth_required', 'сессия CRM завершена — войдите заново');
+        }
+        return html;
+    });
+}
+
+// Последовательная очередь + троттлинг: одна на процесс, чтобы N работников
+// суммарно не превращались в шквал запросов к CRM.
 let queue = Promise.resolve();
 let lastRequestAt = 0;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// GET страницы CRM с гарантией залогиненности: если пришла страница логина —
-// логинимся и повторяем один раз.
-export function crmGetHtml(path) {
-    if (!crmConfigured()) {
-        return Promise.reject(new CrmError('crm_not_configured', 'CRM_LOGIN/CRM_PASSWORD не заданы'));
-    }
+function enqueue(fn) {
     const run = queue.then(async () => {
         const wait = lastRequestAt + THROTTLE_MS - Date.now();
         if (wait > 0) await sleep(wait);
         lastRequestAt = Date.now();
-
-        let res = await rawFetch(path);
-        let html = res.status >= 300 && res.status < 400 ? '' : await res.text();
-        if (!html || parseAnalyseFree(html).loginPage) {
-            await login();
-            lastRequestAt = Date.now();
-            res = await rawFetch(path);
-            if (res.status >= 300) throw new CrmError('crm_auth_failed', 'CRM снова требует логин');
-            html = await res.text();
-            if (parseAnalyseFree(html).loginPage) {
-                throw new CrmError('crm_auth_failed', 'CRM снова требует логин');
-            }
-        }
-        return html;
+        return fn();
     });
-    // очередь не должна ломаться от ошибки предыдущего запроса
     queue = run.catch(() => {});
     return run;
 }
 
-export function buildAnalyseFreePath(stationId, query) {
+export function buildAnalyseFreePath(stationId, searchQuery) {
     const station = stationId ? `stations%5B%5D=${encodeURIComponent(stationId)}&` : '';
-    return `/analyse/free?${station}stationsColumns=&withCatalogItems=${encodeURIComponent(query)}`
+    return `/analyse/free?${station}stationsColumns=&withCatalogItems=${encodeURIComponent(searchQuery)}`
         + '&selectionPeriod=&orderByField=price&orderByOrder=ASC';
 }
