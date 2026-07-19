@@ -1,8 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Панель «Наличие на станции»: выбираешь адрес — сайт сам проверяет в CRM
-// (через бэкенд-прокси /api/crm) наличие фильтров машины по артикулам и
-// моторных масел по вязкости. Масла: остаток в литрах (CRM хранит «в десятых»),
-// предупреждение, когда остатка меньше двух заправок этой машины.
+// Панель «Наличие на станции»: работник входит в CRM через сайт под СВОЕЙ
+// учёткой (пароль бэкенд не хранит — только куки сессии), выбирает адрес —
+// сайт сам проверяет в CRM наличие фильтров машины по артикулам и моторных
+// масел по вязкости. Остаток масла декодируется «÷10 в литры», предупреждаем,
+// когда остатка меньше двух заправок этой машины.
+//
+// Если выйти в самой CRM — она завершает сессию везде; первый же запрос
+// отсюда получит crm_auth_required, и панель снова покажет форму входа.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { getShopOils } from '../../shared/oils.js';
@@ -23,6 +27,9 @@ export function initCrmPanel(record, { apiFetch }) {
     if (!root) return;
 
     const state = {
+        crmAuth: null,           // null = выясняем, true = в CRM, false = нужен вход
+        authNote: '',            // пояснение над формой входа («сессия завершена…»)
+        loggingIn: false,
         stations: null,          // [{id, name}] | null пока грузится
         stationId: localStorage.getItem(STATION_KEY) || '',
         visc: defaultViscosity(record),
@@ -33,9 +40,59 @@ export function initCrmPanel(record, { apiFetch }) {
     };
 
     render();
-    loadStations();
+    checkStatus();
 
     // ── Данные ────────────────────────────────────────────────────────────────
+
+    // Ошибки CRM-авторизации переводят панель в состояние «нужен вход»
+    function handleCrmError(e, note) {
+        if (e.code === 'crm_auth_required') {
+            state.crmAuth = false;
+            state.authNote = note || 'Сессия CRM завершена — войди заново.';
+            state.results = null;
+            state.error = null;
+            return true;
+        }
+        return false;
+    }
+
+    async function checkStatus() {
+        try {
+            const { loggedIn } = await apiFetch('/api/crm/status');
+            state.crmAuth = loggedIn;
+            if (loggedIn) return loadStations();
+        } catch (e) {
+            state.crmAuth = false;
+            state.authNote = '';
+        }
+        render();
+    }
+
+    async function doLogin(login, password) {
+        state.loggingIn = true;
+        state.error = null;
+        render();
+        try {
+            await apiFetch('/api/crm/login', { method: 'POST', body: { login, password } });
+            state.crmAuth = true;
+            state.authNote = '';
+            state.loggingIn = false;
+            await loadStations();
+        } catch (e) {
+            state.loggingIn = false;
+            state.error = { code: e.code || 'network', message: e.message };
+            render();
+        }
+    }
+
+    async function doLogout() {
+        try { await apiFetch('/api/crm/logout', { method: 'POST', body: {} }); } catch { /* куки чистятся и так */ }
+        state.crmAuth = false;
+        state.authNote = '';
+        state.results = null;
+        state.error = null;
+        render();
+    }
 
     async function loadStations() {
         try {
@@ -51,8 +108,10 @@ export function initCrmPanel(record, { apiFetch }) {
                 render();
             }
         } catch (e) {
-            state.stations = [];
-            state.error = { code: e.code || 'network', message: e.message };
+            if (!handleCrmError(e)) {
+                state.stations = [];
+                state.error = { code: e.code || 'network', message: e.message };
+            }
             render();
         }
     }
@@ -71,7 +130,9 @@ export function initCrmPanel(record, { apiFetch }) {
             });
         } catch (e) {
             state.results = null;
-            state.error = { code: e.code || 'network', message: e.message };
+            if (!handleCrmError(e)) {
+                state.error = { code: e.code || 'network', message: e.message };
+            }
         }
         state.loading = false;
         render();
@@ -82,14 +143,31 @@ export function initCrmPanel(record, { apiFetch }) {
     function render() {
         root.innerHTML = `
             <div class="ctrl-section crm-panel">
-                <div class="sec-title">Наличие на станции</div>
-                ${renderStationRow()}
+                <div class="crm-head">
+                    <div class="sec-title">Наличие на станции</div>
+                    ${state.crmAuth === true ? '<button class="crm-logout" id="crm-logout" title="Забыть сессию CRM на сайте">выйти из CRM</button>' : ''}
+                </div>
+                ${state.crmAuth === null ? '<div class="crm-loading">Проверяю сессию CRM…</div>' : ''}
+                ${state.crmAuth === false ? renderLoginForm() : ''}
+                ${state.crmAuth === true ? renderStationRow() : ''}
                 ${state.error ? renderError() : ''}
                 ${state.loading ? '<div class="crm-loading">Проверяю наличие в CRM…</div>' : ''}
-                ${!state.loading && state.results ? renderResults() : ''}
+                ${state.crmAuth === true && !state.loading && state.results ? renderResults() : ''}
             </div>
         `;
         bind();
+    }
+
+    function renderLoginForm() {
+        return `
+            ${state.authNote ? `<div class="warn-box">${esc(state.authNote)}</div>` : ''}
+            <div class="crm-dim" style="margin-bottom:6px">Войди своей учёткой CRM — пароль на сайте не хранится.</div>
+            <form id="crm-login-form" class="crm-login-form" autocomplete="off">
+                <input type="text" id="crm-login" class="crm-input" placeholder="логин CRM" autocomplete="username" ${state.loggingIn ? 'disabled' : ''}/>
+                <input type="password" id="crm-password" class="crm-input" placeholder="пароль CRM" autocomplete="current-password" ${state.loggingIn ? 'disabled' : ''}/>
+                <button class="btn" type="submit" ${state.loggingIn ? 'disabled' : ''}>${state.loggingIn ? 'вхожу…' : 'Войти в CRM'}</button>
+            </form>
+        `;
     }
 
     function renderStationRow() {
@@ -111,13 +189,12 @@ export function initCrmPanel(record, { apiFetch }) {
 
     function renderError() {
         const texts = {
-            crm_not_configured: 'CRM-учётка не настроена на сервере (env CRM_LOGIN / CRM_PASSWORD).',
-            crm_auth_failed: 'Сервер не смог войти в CRM — проверьте служебную учётку.',
+            crm_auth_failed: 'CRM не приняла логин или пароль.',
             crm_unavailable: 'CRM недоступна. Попробуйте ещё раз.',
             parse_failed: 'CRM ответила в неожиданном формате — возможно, изменилась разметка.',
         };
         return `<div class="warn-box">${esc(texts[state.error.code] || state.error.message || 'Ошибка')}
-            <button class="btn btn-sec crm-retry" id="crm-retry">повторить</button></div>`;
+            ${state.crmAuth === true ? '<button class="btn btn-sec crm-retry" id="crm-retry">повторить</button>' : ''}</div>`;
     }
 
     function renderResults() {
@@ -274,6 +351,15 @@ export function initCrmPanel(record, { apiFetch }) {
     // ── События ───────────────────────────────────────────────────────────────
 
     function bind() {
+        const form = root.querySelector('#crm-login-form');
+        if (form) form.onsubmit = (ev) => {
+            ev.preventDefault();
+            const login = root.querySelector('#crm-login')?.value.trim();
+            const password = root.querySelector('#crm-password')?.value;
+            if (login && password) doLogin(login, password);
+        };
+        const logout = root.querySelector('#crm-logout');
+        if (logout) logout.onclick = () => doLogout();
         const sel = root.querySelector('#crm-station');
         if (sel) sel.onchange = () => {
             state.stationId = sel.value;
