@@ -6,6 +6,7 @@ import {
     splitOilApprovals, matchOilToReglament, manualWarnText,
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
+import { extractViscosity } from '../../shared/crmAnalyse.js';
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ export function initCalculator(dbRecord) {
         carId: dbRecord.id,
         showFiltersInput: false,
         totals: [],
+        crmStock: null,          // { visc, stock: {'b_n': литры} } — наличие с панели CRM
         data,
         car,
     };
@@ -85,14 +87,67 @@ export function initCalculator(dbRecord) {
 
     updateReport(calcState, data, car, carApprovals);
     window.__zmRerender = rerender;
-    // Вставка фильтров извне (панель «Наличие на станции») — тот же путь,
-    // что и ручная вставка текста в textarea
-    window.__zmApplyFilters = (text) => {
-        applyFiltersInput(calcState, text);
-        calcState.showFiltersInput = false;
-        saveFilters(calcState);
+    // Автоприменение результатов панели «Наличие на станции»: панель зовёт это
+    // после каждой проверки — фильтры вставляются в расчёт сразу (тот же путь,
+    // что и ручная вставка текста), масло ДВС переключается на лучшее из
+    // имеющихся, остатки в литрах показываются на карточках масел.
+    window.__zmApplyAvailability = ({ visc, stock, filtersText }) => {
+        if (filtersText) {
+            applyFiltersInput(calcState, filtersText);
+            calcState.showFiltersInput = false;
+            saveFilters(calcState);
+        }
+        calcState.crmStock = { visc, stock: stock || {} };
+        autoPickAvailableOil(data, calcState, carApprovals);
         rerender();
     };
+    // Наличие устарело (сменилась/сбросилась станция, ошибка CRM, выход) —
+    // убираем остатки с карточек, чтобы не показывать данные чужой станции
+    window.__zmClearAvailability = () => {
+        if (!calcState.crmStock) return;
+        calcState.crmStock = null;
+        rerender();
+    };
+    // Текущая вязкость ДВС — панель CRM стартует с неё и держит синхрон
+    window.__zmCalcVisc = () => viscForMileage(calcState.mileage);
+    // Панель сменила вязкость — переключаем режим пробега на соответствующий
+    window.__zmSetMileageForVisc = (v) => {
+        const m = Object.keys(MILEAGE_VISC).find(k => MILEAGE_VISC[k] === v);
+        if (m && calcState.mileage !== m) { calcState.mileage = m; rerender(); }
+    };
+}
+
+// ── Наличие на станции (CRM) ──────────────────────────────────────────────────
+
+const MILEAGE_VISC = { '<100': '5W-30', '>=100': '5W-40', '>=200': '10W-40', '0w20': '0W-20', '0w30': '0W-30' };
+
+function viscForMileage(m) {
+    return MILEAGE_VISC[m] || '5W-30';
+}
+
+// Остаток масла на станции: null — данных нет (проверка была на другую
+// вязкость либо ещё не выполнялась), число — литры (0 = нет в наличии).
+function stockLiters(calcState, oil) {
+    const st = calcState.crmStock;
+    if (!st || extractViscosity(oil.v) !== st.visc) return null;
+    return st.stock[oil.b + '_' + oil.n] || 0;
+}
+
+// Автовыбор масла ДВС по наличию: первое из рейтинга калькулятора (допуски →
+// цена), которое реально есть на станции. Масла без требуемого класса ACEA
+// не автоподставляем (защита от DPF и т.п.). Если по этой вязкости ничего
+// нет — выбор не трогаем, панель и карточки покажут «нет на станции».
+function autoPickAvailableOil(data, calcState, carApprovals) {
+    const st = calcState.crmStock;
+    if (!st) return;
+    const agg = getAggregates(data).find(a => a.key === 'engine');
+    if (!agg) return;
+    calcForAggregate(agg, calcState, carApprovals); // заполняет allCandidates/ranked
+    const cands = agg.allCandidates || [];
+    if (!cands.length || extractViscosity(cands[0].v) !== st.visc) return;
+    const ordered = agg.ranked ? agg.ranked.filter(r => !r.classMiss).map(r => r.oil) : cands;
+    const best = ordered.find(o => (st.stock[o.b + '_' + o.n] || 0) > 0);
+    if (best) calcState.oilOverride[agg.key + '_mid'] = best.b + '_' + best.n;
 }
 
 // ── Report update ─────────────────────────────────────────────────────────────
@@ -460,6 +515,11 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             ` : '';
             const oilAdsHtml = renderOilAds(c.oil, spotAddsLower);
 
+            const stockL = agg.group === 'engine' ? stockLiters(calcState, c.oil) : null;
+            const stockHtml = stockL === null ? '' : (stockL > 0
+                ? `<div class="oil-stock">на станции: <b>${stockL} л</b></div>`
+                : '<div class="oil-stock oil-stock-none">нет на станции</div>');
+
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
                     ? ` + 550₽ (картер) = <b>${c.total + 550}₽</b>`
@@ -476,6 +536,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                     <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b>${sumpSuffix}</div>
                     ${oilApprHtml}
                     ${oilAdsHtml}
+                    ${stockHtml}
                     ${pickHint}
                 </div>
             `;
@@ -502,7 +563,11 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                                 hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">не ${esc(rk.classMiss)}</span>`;
                             }
                             const adsTip = (oil.ad || []).length ? ` title="${esc(oil.ad.join(', '))}"` : '';
-                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}"${adsTip}>${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л</button>`;
+                            const sL = stockLiters(calcState, oil);
+                            const sHtml = sL === null ? '' : (sL > 0
+                                ? ` <span class="oil-pick-stock">${sL} л</span>`
+                                : ' <span class="oil-pick-stock none">нет</span>');
+                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}"${adsTip}>${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л${sHtml}</button>`;
                         }).join('')}
                         <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
                     </div>
@@ -583,9 +648,15 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         if (el) el.textContent = text;
     }
 
-    // Mileage chips
+    // Mileage chips — вязкость изменилась, панель CRM перепроверит наличие сама
     container.querySelectorAll('[data-mileage]').forEach(b => {
-        b.onclick = () => { calcState.mileage = b.dataset.mileage; rerender(); };
+        b.onclick = () => {
+            calcState.mileage = b.dataset.mileage;
+            rerender();
+            if (typeof window.__zmCrmSetVisc === 'function') {
+                window.__zmCrmSetVisc(viscForMileage(calcState.mileage));
+            }
+        };
     });
 
     // Flush chips
