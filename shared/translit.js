@@ -181,6 +181,14 @@ for (const group of SYNONYMS) {
   }
 }
 
+// Longest phrases first to avoid partial matches; sorted once at module load
+// (expandQuery is called per keystroke and per car during import/augment).
+const SORTED_SYNONYMS = SYNONYMS.slice().sort((a, b) => {
+  const maxA = Math.max(...a.map(w => w.length));
+  const maxB = Math.max(...b.map(w => w.length));
+  return maxB - maxA;
+});
+
 // Character-level Cyrillic → Latin table (for arbitrary words not in dictionary)
 const CYR_TO_LAT = {
   'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh',
@@ -233,17 +241,13 @@ export function normalize(s) {
  */
 export function expandQuery(q) {
   const base = normalize(q);
+  const cached = EXPAND_CACHE.get(base);
+  if (cached) return cached.slice();
+
   const variants = new Set([base]);
 
   // Try to replace known brand/model tokens in the query with all their synonyms
-  // Iterate SYNONYMS (longest phrases first to avoid partial matches)
-  const sortedSynonyms = SYNONYMS.slice().sort((a, b) => {
-    const maxA = Math.max(...a.map(w => w.length));
-    const maxB = Math.max(...b.map(w => w.length));
-    return maxB - maxA;
-  });
-
-  for (const group of sortedSynonyms) {
+  for (const group of SORTED_SYNONYMS) {
     for (const word of group) {
       const w = word.toLowerCase();
       if (base.includes(w)) {
@@ -265,8 +269,16 @@ export function expandQuery(q) {
     variants.add(latToCyr(base));
   }
 
-  return [...variants].filter(Boolean);
+  const result = [...variants].filter(Boolean);
+  if (EXPAND_CACHE.size >= EXPAND_CACHE_MAX) EXPAND_CACHE.clear();
+  EXPAND_CACHE.set(base, result);
+  return result.slice();
 }
+
+// Typing "ford focus" hits expandQuery once per keystroke with overlapping
+// prefixes; augment/import call it once per car. Small memo, wiped when full.
+const EXPAND_CACHE = new Map();
+const EXPAND_CACHE_MAX = 200;
 
 /**
  * Build the tsvector value for a car record.

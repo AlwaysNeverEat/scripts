@@ -7,7 +7,7 @@ import { initPublicProfilePage } from './publicProfile.js';
 import { initTopModal } from './top.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
-import { rankCars, augmentCars } from '../../shared/carSearch.js';
+import { rankCars, prepareCars } from '../../shared/carSearch.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -196,10 +196,11 @@ function loadSnapshot(force = false) {
     if (!snapshotPromise) {
         snapshotPromise = apiFetch('/api/cars/index')
             .then(data => {
-                // augmentCars досчитывает search_text (синонимы/транслит имени) —
-                // один раз на снимок, а не на каждый ввод.
-                snapshot = { version: data.version, cars: augmentCars(data.cars || []) };
+                // Храним сырые машины: search_text и триграммы досчитывает воркер
+                // (или ленивый fallback) — главный поток снимок не обсчитывает.
+                snapshot = { version: data.version, cars: data.cars || [] };
                 snapshotFetchedAt = Date.now();
+                postSnapshotToWorker();
                 return snapshot;
             })
             .finally(() => { snapshotPromise = null; });
@@ -215,14 +216,64 @@ window.addEventListener('focus', () => { if (unlocked) loadSnapshot(); });
 const searchInput   = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
 
+// Скоринг ~15к машин живёт в воркере — главный поток не блокируется даже на
+// слабом железе. Если воркер не поднялся (старый браузер), работает синхронный
+// fallback по prepared-снимку + дебаунс.
+const MIN_QUERY_LEN = 2;        // 1 символ — самый дорогой и бессмысленный запрос
+const SEARCH_DEBOUNCE_MS = 150;
+let searchDebounceTimer = 0;
+let searchGen = 0;              // растёт на каждый ввод; рендерим только свежее
+let pendingQuery = null;        // запрос, пришедший пока воркер готовит снимок
+
+let searchWorker = null;
+let workerReady = false;        // воркер получил и подготовил текущий снимок
+let workerPostedVersion = null;
+let preparedFallback = null;    // ленивый prepareCars для пути без воркера
+let preparedFallbackVersion = null;
+
+try {
+    searchWorker = new Worker(new URL('./searchWorker.js', import.meta.url), { type: 'module' });
+    searchWorker.onmessage = (e) => {
+        const msg = e.data;
+        if (msg.type === 'ready') {
+            workerReady = true;
+            if (pendingQuery) { const q = pendingQuery; pendingQuery = null; runLocalSearch(q); }
+        } else if (msg.type === 'results') {
+            // Устаревший ответ (ввод уже изменился) молча выбрасываем.
+            if (msg.gen !== searchGen || searchInput.value.trim() !== msg.q) return;
+            renderResults(msg.cars);
+        }
+    };
+    searchWorker.onerror = () => {
+        searchWorker = null;
+        workerReady = false;
+        const q = searchInput.value.trim();
+        if (q.length >= MIN_QUERY_LEN) runLocalSearch(q);
+    };
+} catch { searchWorker = null; }
+
+function postSnapshotToWorker() {
+    if (!searchWorker || !snapshot.cars.length) return;
+    if (snapshot.version != null && snapshot.version === workerPostedVersion) return;
+    workerPostedVersion = snapshot.version;
+    workerReady = false;
+    searchWorker.postMessage({ type: 'snapshot', version: snapshot.version, cars: snapshot.cars });
+}
+
 searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim();
+    clearTimeout(searchDebounceTimer);
+    searchGen++;          // всё, что сейчас в полёте, устарело
+    pendingQuery = null;
     if (!q) { searchResults.innerHTML = ''; return; }
-    runLocalSearch(q);
+    if (q.length < MIN_QUERY_LEN) {
+        searchResults.innerHTML = '<div class="search-empty">Введите ещё хотя бы один символ…</div>';
+        return;
+    }
+    searchDebounceTimer = setTimeout(() => runLocalSearch(q), SEARCH_DEBOUNCE_MS);
 });
 
 async function runLocalSearch(q) {
-    // Обычный путь — снимок уже в памяти: ранжируем синхронно, мгновенно.
     if (!snapshot.cars.length) {
         searchResults.innerHTML = '<div class="search-empty">Загрузка базы…</div>';
         try { await loadSnapshot(); }
@@ -230,7 +281,17 @@ async function runLocalSearch(q) {
         // Пока грузилось, ввод мог измениться — не перетираем более свежий запрос.
         if (searchInput.value.trim() !== q) return;
     }
-    renderResults(rankCars(q, snapshot.cars));
+    if (searchWorker) {
+        if (!workerReady) { pendingQuery = q; return; }  // выполнится по 'ready'
+        searchWorker.postMessage({ type: 'query', q, gen: searchGen });
+        return;
+    }
+    // Fallback без воркера: prepared-снимок считаем один раз на версию.
+    if (!preparedFallback || preparedFallbackVersion !== snapshot.version) {
+        preparedFallback = prepareCars(snapshot.cars);
+        preparedFallbackVersion = snapshot.version;
+    }
+    renderResults(rankCars(q, preparedFallback));
 }
 
 function renderResults(cars) {
