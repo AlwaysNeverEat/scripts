@@ -177,7 +177,8 @@ test('фильтры: тип по названию и чистка имени (�
     assert.equal(detectFilterType('Свеча зажигания'), null);
 
     assert.equal(cleanFilterName('W712/95 Масляный фильтр двигателя (3)'), 'двигателя');
-    assert.equal(FILTER_SLOTS.find(s => s.key === 'vf').crmType, 'мф');
+    assert.equal(FILTER_SLOTS.find(s => s.key === 'vf').crmType, 'вф');
+    assert.equal(FILTER_SLOTS.find(s => s.key === 'mf').crmType, 'мф');
 });
 
 test('sortFilterRows: лучшая цена — минимальная, наличие важнее цены', () => {

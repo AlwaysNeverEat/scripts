@@ -232,9 +232,10 @@ export function sortFilterRows(rows) {
 }
 
 // Слоты фильтров на сайте (filter_part_numbers) ↔ тип по названию в CRM.
-// Внимание: на сайте vf = масляный, mf = воздушный (не как в CRM-скриптах).
+// Семантика полей — по первым буквам, как в скрапере и калькуляторе:
+// vf = ВОЗДУШНЫЙ фильтр, mf = МАСЛЯНЫЙ, sf = салонный.
 export const FILTER_SLOTS = [
-    { key: 'vf', label: 'масляный',  crmType: 'мф' },
-    { key: 'mf', label: 'воздушный', crmType: 'вф' },
+    { key: 'vf', label: 'воздушный', crmType: 'вф' },
+    { key: 'mf', label: 'масляный',  crmType: 'мф' },
     { key: 'sf', label: 'салонный',  crmType: 'сф' },
 ];
