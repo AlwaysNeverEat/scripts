@@ -4,7 +4,7 @@ import {
     parseStations, parseAnalyseFree, parseRawPrice,
     decodeOilLiters, crmOilPricePerLiter,
     normCrmName, extractViscosity, matchCrmOilRow,
-    detectFilterType, cleanFilterName, FILTER_SLOTS,
+    detectFilterType, cleanFilterName, FILTER_SLOTS, sortFilterRows,
 } from './crmAnalyse.js';
 import { getShopOils } from './oils.js';
 
@@ -178,4 +178,28 @@ test('фильтры: тип по названию и чистка имени (�
 
     assert.equal(cleanFilterName('W712/95 Масляный фильтр двигателя (3)'), 'двигателя');
     assert.equal(FILTER_SLOTS.find(s => s.key === 'vf').crmType, 'мф');
+});
+
+test('sortFilterRows: лучшая цена — минимальная, наличие важнее цены', () => {
+    // Сценарий из бага: дорогой оригинал шёл первым в выдаче CRM и попадал
+    // в расчёт вместо дешёвого аналога.
+    const rows = [
+        { id: '1', name: '5Q0 819 669 Фильтр салона VAG', count: 1, priceRaw: 6538 },
+        { id: '2', name: 'LAC-1948 Фильтр салона LYNXauto', count: 2, priceRaw: 611 },
+        { id: '3', name: 'LAC-1948C Фильтр салона угольный LYNXauto', count: 1, priceRaw: 908 },
+    ];
+    assert.deepEqual(sortFilterRows(rows).map(r => r.id), ['2', '3', '1']);
+
+    // Нет в наличии — вниз, даже если дешевле; цена 0 (не распозналась) — в конец группы
+    const mixed = [
+        { id: 'a', name: 'x', count: 0, priceRaw: 100 },
+        { id: 'b', name: 'x', count: 5, priceRaw: 0 },
+        { id: 'c', name: 'x', count: 3, priceRaw: 900 },
+        { id: 'd', name: 'x', count: 1, priceRaw: 300 },
+    ];
+    assert.deepEqual(sortFilterRows(mixed).map(r => r.id), ['d', 'c', 'b', 'a']);
+
+    // Исходный массив не мутируется, пустой/undefined вход не падает
+    assert.deepEqual(rows.map(r => r.id), ['1', '2', '3']);
+    assert.deepEqual(sortFilterRows(undefined), []);
 });
