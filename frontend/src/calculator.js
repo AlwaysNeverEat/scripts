@@ -8,6 +8,33 @@ import {
 import { buildReport } from '../../shared/report.js';
 import { extractViscosity } from '../../shared/crmAnalyse.js';
 
+// ── Копирование в буфер ────────────────────────────────────────────────────────
+// navigator.clipboard доступен только в secure context (HTTPS) и при фокусе на
+// странице, а без .catch() промис молча падал — поэтому кнопка «Копировать» иногда
+// «не работала». Пробуем современный API, при отказе — откат на скрытую textarea.
+function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+    }
+    return legacyCopy(text);
+}
+
+function legacyCopy(text) {
+    return new Promise((resolve, reject) => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+        document.body.removeChild(ta);
+        ok ? resolve() : reject(new Error('copy failed'));
+    });
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
 export function initCalculator(dbRecord) {
@@ -73,11 +100,11 @@ export function initCalculator(dbRecord) {
     copyBtn.onclick = () => {
         const text = document.getElementById('report-output').textContent;
         if (!text || text.startsWith('—')) return;
-        navigator.clipboard.writeText(text).then(() => {
-            const orig = copyBtn.textContent;
-            copyBtn.textContent = 'скопировано';
-            setTimeout(() => { copyBtn.textContent = orig; }, 1500);
-        });
+        const orig = copyBtn.textContent;
+        copyText(text)
+            .then(() => { copyBtn.textContent = 'скопировано'; })
+            .catch(() => { copyBtn.textContent = 'не удалось'; })
+            .finally(() => setTimeout(() => { copyBtn.textContent = orig; }, 1500));
     };
 
     function rerender() {
@@ -687,10 +714,10 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         const arts = calcState.articles || {};
         const text = ['vf', 'mf', 'sf'].map(k => arts[k]).filter(Boolean).join('\n');
         if (!text) return;
-        navigator.clipboard.writeText(text).then(() => {
-            copyAllBtn.textContent = 'скопировано';
-            setTimeout(() => { copyAllBtn.textContent = '⧉ скопировать все'; }, 1200);
-        });
+        copyText(text)
+            .then(() => { copyAllBtn.textContent = 'скопировано'; })
+            .catch(() => { copyAllBtn.textContent = 'не удалось'; })
+            .finally(() => setTimeout(() => { copyAllBtn.textContent = '⧉ скопировать все'; }, 1200));
     };
 
     // Paste prices: apply / clear
@@ -741,11 +768,11 @@ function bindEvents(container, car, data, calcState, carApprovals) {
     // Filter badge copy-on-click
     container.querySelectorAll('[data-copy]').forEach(badge => {
         badge.onclick = () => {
-            navigator.clipboard.writeText(badge.dataset.copy).then(() => {
-                const orig = badge.textContent;
-                badge.textContent = '✓';
-                setTimeout(() => { badge.textContent = orig; }, 900);
-            });
+            const orig = badge.textContent;
+            copyText(badge.dataset.copy)
+                .then(() => { badge.textContent = '✓'; })
+                .catch(() => { badge.textContent = '✗'; })
+                .finally(() => setTimeout(() => { badge.textContent = orig; }, 900));
         };
     });
 
