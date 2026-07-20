@@ -303,7 +303,7 @@ export function initCrmPanel(record, { apiFetch }) {
 
     function buildFiltersText(byKey) {
         // строки в формате вставки калькулятора: «вф <имя> - <цена>р»
-        // (аббревиатуры сайта: vf=вф масляный, mf=мф воздушный, sf=сф салонный)
+        // (аббревиатуры сайта: vf=вф воздушный, mf=мф масляный, sf=сф салонный)
         const abbr = { vf: 'вф', mf: 'мф', sf: 'сф' };
         const lines = [];
         for (const slot of FILTER_SLOTS) {
