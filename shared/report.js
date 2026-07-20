@@ -144,15 +144,17 @@ export function buildReport(car, data, calcState, carApprovals) {
     const aggs  = getAggregates(data);
     const parts = [];
 
-    // Car header line
+    // Car header line — только марка, модель, объём, год и мощность в л.с.
+    // engineName сознательно НЕ берём: это поле из автоставки дублирует модель
+    // и тянет лишнее («Outlander 2.4 4x4»), из-за чего шапка для Битрикса
+    // выглядела убого. Мощность всегда в л.с. (кВт переводим по 1.35962).
     const carParts = [];
     if (car.makeShort)  carParts.push(car.makeShort);
     if (car.modelShort) carParts.push(car.modelShort);
-    if (car.engineName) carParts.push(car.engineName);
-    else if (car.volume) carParts.push(car.volume);
+    if (car.volume) carParts.push(car.volume + 'л');
     if (car.yearFrom) carParts.push(String(car.yearFrom));
-    if (car.bhp)  carParts.push(car.bhp + 'лс');
-    else if (car.kw) carParts.push(car.kw + 'кВт');
+    const hp = car.bhp || (car.kw ? Math.round(parseFloat(car.kw) * 1.35962) : '');
+    if (hp) carParts.push(hp + 'лс');
     const carLine = carParts.join(' ');
     if (carLine) parts.push(carLine);
 

@@ -78,14 +78,17 @@ const sandboxFactory = new Function('GM_getValue', `
         buildReportOriginal(car, data) {
             const aggs = getAggregates(data);
             const parts = [];
+            // Интенциональное расхождение с базой: шапка отчёта переработана —
+            // engineName больше не берём (дублировал модель), объём печатаем с «л»,
+            // мощность всегда в л.с. (кВт → л.с. по 1.35962). Зеркалим новую логику
+            // shared/report.js, чтобы паритет продолжал стеречь остальной отчёт.
             const carParts = [];
             if (car.makeShort) carParts.push(car.makeShort);
             if (car.modelShort) carParts.push(car.modelShort);
-            if (car.engineName) carParts.push(car.engineName);
-            else if (car.volume) carParts.push(car.volume);
+            if (car.volume) carParts.push(car.volume + 'л');
             if (car.yearFrom) carParts.push(String(car.yearFrom));
-            if (car.bhp) carParts.push(car.bhp + 'лс');
-            else if (car.kw) carParts.push(car.kw + 'кВт');
+            const hp = car.bhp || (car.kw ? Math.round(parseFloat(car.kw) * 1.35962) : '');
+            if (hp) carParts.push(hp + 'лс');
             const carLine = carParts.join(' ');
             if (carLine) parts.push(carLine);
             for (const agg of aggs) {
