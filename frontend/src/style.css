@@ -1168,6 +1168,13 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   text-align: center;
   margin-bottom: 22px;
 }
+.auth-logo {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto;
+  object-fit: contain;
+}
 .auth-form { display: flex; flex-direction: column; gap: 12px; }
 .auth-h { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
 .auth-submit { width: 100%; padding: 10px; font-size: 14px; margin-top: 4px; }
