@@ -1721,6 +1721,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .crm-row-price { white-space: nowrap; font-family: "Fugaz One", "Unbounded", Inter, sans-serif; }
 .crm-best .crm-row-name { font-weight: 600; }
 .crm-best-star { color: var(--accent); }
+/* Строки фильтров кликабельны: выбор того, что уходит в расчёт */
+.crm-row-pick { cursor: pointer; border-radius: 8px; padding-right: 6px; }
+.crm-row-pick:hover { background: var(--bg2); }
 .crm-fit {
   background: var(--green-dim);
   border: 1px solid var(--green);

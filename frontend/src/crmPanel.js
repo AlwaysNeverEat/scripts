@@ -15,6 +15,7 @@ import { splitOilApprovals } from '../../shared/calculator.js';
 import {
     decodeOilLiters, crmOilPricePerLiter, matchCrmOilRow,
     cleanFilterName, detectFilterType, FILTER_SLOTS, extractViscosity,
+    sortFilterRows,
 } from '../../shared/crmAnalyse.js';
 
 const STATION_KEY = 'zm_crm_station';
@@ -40,6 +41,7 @@ export function initCrmPanel(record, { apiFetch }) {
         error: null,             // { code, message }
         results: null,           // ответ /availability
         showOther: false,        // развёрнут ли блок «ещё в наличии»
+        filterPick: {},          // slot.key → id строки CRM, выбранной вручную
     };
 
     render();
@@ -54,9 +56,11 @@ export function initCrmPanel(record, { apiFetch }) {
 
     // ── Данные ────────────────────────────────────────────────────────────────
 
-    // Результаты больше не актуальны — чистим и остатки в калькуляторе
+    // Результаты больше не актуальны — чистим и остатки в калькуляторе.
+    // Ручной выбор фильтров тоже сбрасываем: на другой станции цены другие.
     function dropResults() {
         state.results = null;
+        state.filterPick = {};
         if (typeof window.__zmClearAvailability === 'function') window.__zmClearAvailability();
     }
 
@@ -239,6 +243,23 @@ export function initCrmPanel(record, { apiFetch }) {
 
     // ── Фильтры ───────────────────────────────────────────────────────────────
 
+    // Ключ строки CRM для запоминания ручного выбора (id почти всегда есть)
+    function rowKey(r) {
+        return r.id || `${r.name}|${r.priceRaw}`;
+    }
+
+    // Показываем в порядке «лучшая цена сверху»: в наличии и дешевле — выше
+    function slotRows(byKey, slotKey) {
+        return sortFilterRows(byKey[slotKey]?.rows).slice(0, 5);
+    }
+
+    // Строка, которая уходит в расчёт: выбранная кликом, иначе самая дешёвая
+    function pickedRow(byKey, slotKey) {
+        const rows = slotRows(byKey, slotKey);
+        const pick = state.filterPick[slotKey];
+        return rows.find(r => rowKey(r) === pick) || rows[0] || null;
+    }
+
     function renderFilters(byKey) {
         const parts = ['<div class="crm-sub-title">Фильтры</div>'];
         const applicable = [];
@@ -249,8 +270,7 @@ export function initCrmPanel(record, { apiFetch }) {
                 parts.push(`<div class="crm-slot">${label} <span class="crm-dim">${!fp || fp.absent ? 'отсутствует у машины' : 'артикул не заполнен'}</span></div>`);
                 continue;
             }
-            const res = byKey[slot.key];
-            const rows = res?.rows || [];
+            const rows = slotRows(byKey, slot.key);
             if (!rows.length) {
                 parts.push(`<div class="crm-slot">${label} <b>${esc(fp.part)}</b> — <span class="crm-none">не найдено в CRM</span></div>`);
                 continue;
@@ -259,18 +279,24 @@ export function initCrmPanel(record, { apiFetch }) {
             const types = rows.map(r => detectFilterType(r.name)).filter(Boolean);
             const typeWarn = types.length && types.every(t => t !== slot.crmType)
                 ? ' <span class="crm-type-warn" title="По названию найденное не похоже на этот тип фильтра">тип?</span>' : '';
-            const rowsHtml = rows.slice(0, 5).map((r, i) => `
-                <div class="crm-row${i === 0 ? ' crm-best' : ''}">
-                    ${i === 0 ? '<span class="crm-best-star" title="лучшая цена">★</span>' : ''}
+            const chosen = pickedRow(byKey, slot.key);
+            const rowsHtml = rows.map(r => {
+                const isChosen = chosen && rowKey(r) === rowKey(chosen);
+                return `
+                <div class="crm-row crm-row-pick${isChosen ? ' crm-best' : ''}"
+                     data-crm-pick="${esc(slot.key)}" data-crm-row="${esc(rowKey(r))}"
+                     title="${isChosen ? 'этот фильтр в расчёте' : 'нажми, чтобы подставить этот фильтр в расчёт'}">
+                    ${isChosen ? '<span class="crm-best-star" title="в расчёте">★</span>' : ''}
                     <span class="crm-row-name">${esc(cleanFilterName(r.name))}</span>
                     <span class="crm-row-count">${r.count} шт</span>
                     <span class="crm-row-price">${Math.round(r.priceRaw)}₽</span>
-                </div>`).join('');
+                </div>`;
+            }).join('');
             applicable.push(slot.key);
             parts.push(`<div class="crm-slot">${label} <b>${esc(fp.part)}</b>${typeWarn}${rowsHtml}</div>`);
         }
         if (applicable.length) {
-            parts.push('<div class="crm-auto-note">✓ лучшие цены автоматически подставлены в расчёт</div>');
+            parts.push('<div class="crm-auto-note">✓ минимальные цены подставлены в расчёт — клик по строке, чтобы выбрать другой фильтр</div>');
         }
         return `<div class="crm-filters">${parts.join('')}</div>`;
     }
@@ -281,7 +307,7 @@ export function initCrmPanel(record, { apiFetch }) {
         const abbr = { vf: 'вф', mf: 'мф', sf: 'сф' };
         const lines = [];
         for (const slot of FILTER_SLOTS) {
-            const best = byKey[slot.key]?.rows?.[0];
+            const best = pickedRow(byKey, slot.key);
             if (best) lines.push(`${abbr[slot.key]} ${cleanFilterName(best.name)} - ${Math.round(best.priceRaw)}р`);
         }
         return lines.join('\n');
@@ -423,6 +449,14 @@ export function initCrmPanel(record, { apiFetch }) {
         });
         const toggle = root.querySelector('#crm-other-toggle');
         if (toggle) toggle.onclick = () => { state.showOther = !state.showOther; render(); };
+        // Ручной выбор фильтра: клик по строке подставляет её в расчёт
+        root.querySelectorAll('[data-crm-pick]').forEach(row => {
+            row.onclick = () => {
+                state.filterPick[row.dataset.crmPick] = row.dataset.crmRow;
+                pushToCalculator();
+                render();
+            };
+        });
     }
 }
 

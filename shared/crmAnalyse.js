@@ -217,6 +217,20 @@ export function cleanFilterName(raw) {
     return s || stripTags(raw);
 }
 
+// Порядок показа и автоподстановки: лучшая цена — МИНИМАЛЬНАЯ. Сначала то,
+// что есть в наличии (дешевле — выше), потом отсутствующее; строки с
+// нераспознанной ценой (0) — в самый низ своей группы.
+export function sortFilterRows(rows) {
+    return [...(rows || [])].sort((a, b) => {
+        const aStock = (a.count || 0) > 0 ? 0 : 1;
+        const bStock = (b.count || 0) > 0 ? 0 : 1;
+        if (aStock !== bStock) return aStock - bStock;
+        const ap = a.priceRaw > 0 ? a.priceRaw : Infinity;
+        const bp = b.priceRaw > 0 ? b.priceRaw : Infinity;
+        return ap - bp;
+    });
+}
+
 // Слоты фильтров на сайте (filter_part_numbers) ↔ тип по названию в CRM.
 // Внимание: на сайте vf = масляный, mf = воздушный (не как в CRM-скриптах).
 export const FILTER_SLOTS = [
