@@ -9,6 +9,7 @@ import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
+import { carCardInner } from './carCard.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -302,19 +303,7 @@ function renderResults(cars) {
         return;
     }
     searchResults.innerHTML = cars.map(car => `
-        <div class="car-card" data-id="${car.id}">
-            <div class="car-card-title">
-                ${esc(car.brand)} ${esc(car.model)}
-                ${car.generation ? ' · ' + esc(car.generation) : ''}
-                ${car.engine_code ? ' · ' + esc(car.engine_code) : ''}
-            </div>
-            <div class="car-card-sub">
-                ${car.engine_volume ? car.engine_volume + 'л' : ''}
-                ${car.kw ? ' · ' + car.kw + 'кВт' : ''}
-                ${car.bhp ? ' / ' + car.bhp + 'л.с.' : ''}
-                ${car.year_from ? ' · ' + car.year_from + (car.year_to ? '–' + car.year_to : '+') : ''}
-            </div>
-        </div>
+        <div class="car-card" data-id="${car.id}">${carCardInner(car)}</div>
     `).join('');
 
     searchResults.querySelectorAll('.car-card').forEach(card => {
