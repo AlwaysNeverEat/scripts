@@ -1214,7 +1214,13 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .avatar-circle:hover { border-color: var(--accent); }
 .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-default-icon { font-size: 19px; opacity: .7; }
-.btn-top { font-weight: 600; }
+.btn-top {
+  font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px;
+  padding-left: 15px; padding-right: 16px;
+}
+.btn-top svg { color: var(--accent); flex: none; }
 
 /* ── Роль-префикс (mod и т.п.) ──────────────────────────────────── */
 .role-prefix {
