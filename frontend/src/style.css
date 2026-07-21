@@ -30,6 +30,20 @@
   --red-dim:  oklch(0.55 0.2 25 / 0.2);
   --radius:   10px;
   --chip-act: var(--accent);
+
+  /* Постоянные цвета частей машины в выпадашках поиска (см. carCard.js).
+     Каждая смысловая часть — свой тон, чтобы нужную строку было легче
+     выхватить взглядом, чем из сплошного текста. Оттенки в тон теме: та же
+     светлота ~0.82, что у акцента, разнесены по кругу цветов и держат
+     контраст на тёмной карточке (и на ховере --bg3). */
+  --cc-brand:  oklch(0.84 0.16 83);   /* марка — золото (акцент сайта) */
+  --cc-model:  oklch(0.86 0.12 200);  /* модель — циан */
+  --cc-gen:    oklch(0.80 0.14 300);  /* поколение — фиолетовый */
+  --cc-engine: oklch(0.83 0.16 145);  /* двигатель (код) — зелёный */
+  --cc-vol:    oklch(0.82 0.12 250);  /* объём — синий */
+  --cc-kw:     oklch(0.84 0.15 58);   /* кВт — оранжевый */
+  --cc-hp:     oklch(0.80 0.15 350);  /* л.с. — розово-коралловый */
+  --cc-year:   oklch(0.74 0.05 252);  /* годы — приглушённый */
 }
 
 html, body { height: 100%; }
@@ -269,6 +283,21 @@ input, button, select, textarea { font-family: inherit; }
 .car-card:hover { background: var(--bg3); }
 .car-card-title  { font-weight: 600; font-size: 14px; }
 .car-card-sub    { font-size: 12px; color: var(--sub); margin-top: 2px; }
+
+/* Постоянные цвета частей машины (разметка — carCard.js, токены — :root).
+   Так строку в списке легче выхватить взглядом, чем из сплошного текста. */
+.cc-brand  { color: var(--cc-brand); font-weight: 700; }
+.cc-model  { color: var(--cc-model); }
+.cc-gen    { color: var(--cc-gen); }
+.cc-engine { color: var(--cc-engine); }
+.cc-vol    { color: var(--cc-vol); }
+.cc-kw     { color: var(--cc-kw); }
+.cc-hp     { color: var(--cc-hp); }
+.cc-year   { color: var(--cc-year); }
+/* Разделители и единицы измерения приглушены — значения читаются первыми. */
+.cc-sep    { color: var(--sub); opacity: 0.5; margin: 0 1px; }
+.cc-unit   { opacity: 0.65; font-weight: 500; margin-left: 1px; }
+
 .search-empty { padding: 20px; text-align: center; color: var(--sub); font-size: 13px; }
 
 /* ── Кнопки ─────────────────────────────────────────────────────── */

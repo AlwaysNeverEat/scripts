@@ -6,6 +6,8 @@
 // Когда подходящих машин остаётся меньше SPHERE_HIDE_THRESHOLD — сфера
 // прячется, дальше уточнять смысла нет, снизу и так виден весь результат.
 
+import { carCardInner } from './carCard.js';
+
 const SPHERE_HIDE_THRESHOLD = 5;
 const RESULTS_LIMIT = 60;
 // Маркер «объём не указан у машины» — отдельно от '' (означающего «объём ещё не выбран»)
@@ -295,19 +297,7 @@ export function initTagSearch({ getCars, onPick, sphere }) {
             ? `<div class="search-empty">…и ещё ${total - cars.length} — уточните теги</div>`
             : '';
         resultsEl.innerHTML = cars.map(car => `
-            <div class="car-card" data-id="${car.id}">
-                <div class="car-card-title">
-                    ${esc(car.brand)} ${esc(car.model)}
-                    ${car.generation ? ' · ' + esc(car.generation) : ''}
-                    ${car.engine_code ? ' · ' + esc(car.engine_code) : ''}
-                </div>
-                <div class="car-card-sub">
-                    ${car.engine_volume ? car.engine_volume + 'л' : ''}
-                    ${car.kw ? ' · ' + car.kw + 'кВт' : ''}
-                    ${car.bhp ? ' / ' + car.bhp + 'л.с.' : ''}
-                    ${car.year_from ? ' · ' + car.year_from + (car.year_to ? '–' + car.year_to : '+') : ''}
-                </div>
-            </div>
+            <div class="car-card" data-id="${car.id}">${carCardInner(car)}</div>
         `).join('') + more;
 
         resultsEl.querySelectorAll('.car-card').forEach(card => {
