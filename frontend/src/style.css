@@ -282,21 +282,40 @@ input, button, select, textarea { font-family: inherit; }
 .car-card:last-child { border-bottom: none; }
 .car-card:hover { background: var(--bg3); }
 .car-card-title  { font-weight: 600; font-size: 14px; }
-.car-card-sub    { font-size: 12px; color: var(--sub); margin-top: 2px; }
+/* Подпись — ряд чипов-«кирпичиков», переносится на следующую строку. */
+.car-card-sub    { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
 
 /* Постоянные цвета частей машины (разметка — carCard.js, токены — :root).
-   Так строку в списке легче выхватить взглядом, чем из сплошного текста. */
+   Так строку в списке легче выхватить взглядом, чем из сплошного текста.
+   Заголовок — цветной текст (это «имя» машины). */
 .cc-brand  { color: var(--cc-brand); font-weight: 700; }
 .cc-model  { color: var(--cc-model); }
 .cc-gen    { color: var(--cc-gen); }
 .cc-engine { color: var(--cc-engine); }
-.cc-vol    { color: var(--cc-vol); }
-.cc-kw     { color: var(--cc-kw); }
-.cc-hp     { color: var(--cc-hp); }
-.cc-year   { color: var(--cc-year); }
-/* Разделители и единицы измерения приглушены — значения читаются первыми. */
+/* Разделитель и единицы измерения приглушены — значения читаются первыми. */
 .cc-sep    { color: var(--sub); opacity: 0.5; margin: 0 1px; }
-.cc-unit   { opacity: 0.65; font-weight: 500; margin-left: 1px; }
+.cc-unit   { opacity: 0.7; font-weight: 500; margin-left: 2px; }
+
+/* Чип-«кирпичик»: округлая секция с полупрозрачной заливкой своего цвета,
+   тонкой рамкой и ярким текстом — в тон бейджам сайта (.head-flag). Цвет —
+   из --c, который задаёт модификатор ниже. */
+.cc-chip {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 1px 9px 2px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: nowrap;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 38%, transparent);
+}
+.cc-vol  { --c: var(--cc-vol); }
+.cc-kw   { --c: var(--cc-kw); }
+.cc-hp   { --c: var(--cc-hp); }
+.cc-year { --c: var(--cc-year); }
 
 .search-empty { padding: 20px; text-align: center; color: var(--sub); font-size: 13px; }
 
