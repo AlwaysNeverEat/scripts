@@ -7,6 +7,7 @@ import { initPublicProfilePage } from './publicProfile.js';
 import { initTopModal } from './top.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
+import { initScriptsFeed } from './scriptsFeed.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
 
 // ── API config ────────────────────────────────────────────────────────────────
@@ -101,6 +102,7 @@ function enterApp() {
     hideAllPages();
     renderUserBar();
     initTopModal({ apiFetch });
+    initScriptsFeed(); // кнопка + фид юзерскриптов справа снизу на поиске
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     window.addEventListener('hashchange', renderRoute);
     renderRoute();
