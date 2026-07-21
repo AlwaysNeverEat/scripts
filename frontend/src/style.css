@@ -1784,3 +1784,91 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   font: inherit;
 }
 .crm-input:focus { outline: none; border-color: var(--accent); }
+
+/* ── Фид «Скрипты» ──────────────────────────────────────────────── */
+/* Кнопка справа снизу. Живёт внутри #page-search — прячется вместе со
+   страницей поиска, на других экранах её нет. */
+.scripts-fab {
+  position: fixed;
+  right: 20px; bottom: 20px;
+  z-index: 30;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.scripts-fab:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.45);
+}
+.scripts-fab svg { color: var(--accent); flex: none; }
+
+.scripts-win { max-width: 620px; }
+.scripts-body { display: flex; flex-direction: column; gap: 22px; }
+
+.scr-group { display: flex; flex-direction: column; gap: 10px; }
+.scr-group-title {
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin: 0;
+}
+
+.scr-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color .15s;
+}
+.scr-card:hover { border-color: var(--accent); }
+.scr-card-main { flex: 1; min-width: 0; }
+.scr-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.scr-card-title { font-weight: 700; font-size: 14px; }
+.scr-card-ver {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px; color: var(--sub);
+}
+.scr-card-desc { margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--text); }
+.scr-card-site { margin-top: 8px; font-size: 11px; color: var(--sub); }
+
+.scr-install {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.scr-install svg { flex: none; }
+
+/* Мини-гайд установки */
+.scripts-guide-steps { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.scripts-guide-steps li { font-size: 13px; line-height: 1.5; }
+.scripts-guide-steps a { color: var(--accent); }
+.scr-kbd {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.scripts-guide-note { font-size: 12px; color: var(--sub); margin: 0 0 14px; }
+.scripts-guide-dont {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; cursor: pointer; user-select: none;
+}
+.scripts-guide-dont input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+@media (max-width: 520px) {
+  .scr-card { flex-direction: column; align-items: stretch; }
+  .scr-install { justify-content: center; }
+  .scripts-fab { right: 14px; bottom: 14px; }
+}

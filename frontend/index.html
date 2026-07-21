@@ -127,6 +127,12 @@
           </div>
         </div>
       </div>
+
+      <!-- Кнопка фида юзерскриптов (справа снизу, только на странице поиска) -->
+      <button id="btn-scripts" class="scripts-fab" title="Скрипты для Tampermonkey">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5a1.5 1.5 0 0 1 3 0V5h3.5a1 1 0 0 1 1 1V9.5h1.5a1.5 1.5 0 0 1 0 3H17V16a1 1 0 0 1-1 1h-3.5v1.5a1.5 1.5 0 0 1-3 0V17H6a1 1 0 0 1-1-1v-3.5H3.5a1.5 1.5 0 0 1 0-3H5V6a1 1 0 0 1 1-1h4z"/></svg>
+        <span>Скрипты</span>
+      </button>
     </div>
 
     <!-- Car page (hidden until car selected) -->
@@ -169,6 +175,44 @@
         <button class="btn btn-sec" id="top-modal-close">✕</button>
       </div>
       <div id="top-modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Модалка «Скрипты»: фид юзерскриптов -->
+  <div id="scripts-modal" class="modal hidden">
+    <div class="modal-backdrop" id="scripts-modal-backdrop"></div>
+    <div class="modal-win scripts-win">
+      <div class="modal-head">
+        <span>Скрипты для Tampermonkey</span>
+        <button class="btn btn-sec" id="scripts-modal-close">✕</button>
+      </div>
+      <div id="scripts-modal-body" class="modal-body scripts-body"></div>
+    </div>
+  </div>
+
+  <!-- Мини-гайд установки (первый клик по «Установить») -->
+  <div id="scripts-guide-modal" class="modal hidden">
+    <div class="modal-backdrop" id="scripts-guide-backdrop"></div>
+    <div class="modal-win modal-win-sm">
+      <div class="modal-head">
+        <span>Как установить скрипт</span>
+        <button class="btn btn-sec" id="scripts-guide-close">✕</button>
+      </div>
+      <div class="modal-body scripts-guide-body">
+        <ol class="scripts-guide-steps">
+          <li>Поставь расширение <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">Tampermonkey</a> (Chrome / Firefox / Edge).</li>
+          <li>В&nbsp;Chrome зайди в <span class="scr-kbd">chrome://extensions</span> и включи <b>Режим разработчика</b> — без него скрипты не запускаются. В&nbsp;Firefox ничего включать не нужно.</li>
+          <li>Жми «Установить» — Tampermonkey сам откроет свой экран, там нажми <b>Install / Установить</b>.</li>
+        </ol>
+        <p class="scripts-guide-note">Обновляются скрипты потом сами — переустанавливать не нужно.</p>
+        <label class="scripts-guide-dont">
+          <input type="checkbox" id="scripts-guide-dont"/>
+          <span>Не показывать больше</span>
+        </label>
+        <div class="modal-actions">
+          <button class="btn btn-pri" id="scripts-guide-go">Продолжить установку</button>
+        </div>
+      </div>
     </div>
   </div>
 
