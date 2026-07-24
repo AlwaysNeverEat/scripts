@@ -1738,8 +1738,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .oil-pick-stock.none { color: var(--red); }
 
 /* ── Панель «Наличие на станции» (CRM) ───────────────────────────── */
-.crm-panel { margin-top: 10px; }
-.crm-station-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.crm-panel { margin-top: 10px; padding: 14px 16px; }
+
+/* Строка выбора станции: select + компактная кнопка «проверить заново».
+   Вязкость здесь больше не выбирается — её задаёт калькулятор ниже. */
+.crm-station-row { display: flex; gap: 8px; align-items: stretch; }
 .crm-station-select {
   flex: 1;
   min-width: 0;
@@ -1747,15 +1750,73 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   color: inherit;
   border: 1px solid var(--bg3);
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   font: inherit;
+  font-size: 13px;
 }
 .crm-station-select:focus { outline: none; border-color: var(--accent); }
-.crm-visc-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.crm-refresh {
+  flex: none;
+  width: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg2);
+  color: var(--sub);
+  border: 1px solid var(--bg3);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color .12s, border-color .12s;
+}
+.crm-refresh:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.crm-refresh:disabled { opacity: 0.45; cursor: default; }
 .crm-loading { color: var(--sub); font-size: 12px; padding: 4px 0; }
-.crm-sub-title { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--sub); text-transform: uppercase; margin: 10px 0 4px; }
-.crm-slot { margin: 6px 0; font-size: 13px; }
-.crm-slot-label { color: var(--sub); }
+.crm-sub-title { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--sub); text-transform: uppercase; margin: 12px 0 4px; }
+
+/* Фильтры — карточки единого размера (по типу: воздушный / масляный / салонный).
+   В одном ряду все карточки тянутся до высоты самой высокой → ровная сетка. */
+.crm-filter-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.crm-fcard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  border-radius: 10px;
+  padding: 10px 11px;
+  min-width: 0;
+}
+.crm-fcard-off { opacity: 0.7; }
+.crm-fcard-cap { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--sub); }
+.crm-fcard-name { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.crm-fcard-state { font-size: 12.5px; }
+.crm-fcard-select {
+  width: 100%;
+  min-width: 0;
+  background: var(--card);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.crm-fcard-select:focus { outline: none; border-color: var(--accent); }
+.crm-fcard-meta { display: flex; align-items: baseline; gap: 8px; }
+.crm-fcard-price { font-family: "Fugaz One", "Unbounded", Inter, sans-serif; font-size: 14px; }
+.crm-fcard-count { font-size: 11.5px; color: var(--sub); }
+/* Артикул машины, по которому искали, — прижат к низу карточки для ровных краёв */
+.crm-fcard-art { margin-top: auto; font-size: 10.5px; color: var(--sub); overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .crm-filter-cards { grid-template-columns: 1fr; }
+  .crm-fcard-art { margin-top: 4px; }
+}
 .crm-dim { color: var(--sub); font-size: 12px; }
 .crm-none { color: var(--red); font-size: 12px; }
 .crm-type-warn {
@@ -1777,11 +1838,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .crm-row-name { flex: 1; min-width: 140px; }
 .crm-row-count { color: var(--sub); white-space: nowrap; }
 .crm-row-price { white-space: nowrap; font-family: "Fugaz One", "Unbounded", Inter, sans-serif; }
-.crm-best .crm-row-name { font-weight: 600; }
-.crm-best-star { color: var(--accent); }
-/* Строки фильтров кликабельны: выбор того, что уходит в расчёт */
-.crm-row-pick { cursor: pointer; border-radius: 8px; padding-right: 6px; }
-.crm-row-pick:hover { background: var(--bg2); }
 .crm-fit {
   background: var(--green-dim);
   border: 1px solid var(--green);
@@ -1794,8 +1850,38 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .crm-price-warn { color: var(--red); font-size: 12px; }
 .crm-oil-low { background: var(--red-dim); border-radius: 8px; }
 .crm-low-warn { flex-basis: 100%; color: var(--red); font-size: 12px; font-weight: 600; }
+.crm-low-flat { margin-top: 6px; padding-left: 2px; }
 .crm-oil-missing { opacity: 0.75; }
+
+/* Масла: по умолчанию свёрнуты (дублируют карточки ДВС). Шапка — переключатель */
+.crm-oils { margin-top: 12px; }
+.crm-oils-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 0;
+  text-align: left;
+}
+/* Шеврон-стрелка: вправо — свёрнуто, вниз (поворот) — развёрнуто */
+.crm-chev { flex: none; color: var(--sub); transition: transform .15s; }
+.crm-oils-head[aria-expanded="true"] .crm-chev,
+.crm-other-toggle.is-open .crm-chev { transform: rotate(90deg); }
+.crm-oils-name {
+  font-size: 11px; font-weight: 600; letter-spacing: 1px;
+  color: var(--sub); text-transform: uppercase;
+}
+.crm-oils-head:hover .crm-oils-name { color: var(--text); }
+.crm-oils-count { margin-left: auto; font-size: 12px; color: var(--green); }
 .crm-other-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: none;
   border: none;
   color: var(--sub);
@@ -1811,18 +1897,24 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .crm-need-note { margin-top: 8px; }
 
 /* ── CRM: вход/выход ─────────────────────────────────────────────── */
-.crm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.crm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.crm-head .sec-title { margin-bottom: 0; }
 .crm-logout {
-  background: none;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
   color: var(--sub);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
-  text-decoration: underline dotted;
-  padding: 0;
+  font-size: 12px;
+  border-radius: 8px;
+  padding: 5px 11px;
+  transition: color .12s, border-color .12s, background .12s;
 }
-.crm-logout:hover { color: var(--red); }
+.crm-logout svg { flex: none; }
+.crm-logout:hover { color: var(--red); border-color: var(--red); background: var(--red-dim); }
 .crm-login-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .crm-input {
   flex: 1;
