@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJson, writeJson } from './http.js';
 import { makeQuery } from './db.js';
+import { canonCar } from '../../../shared/carCanon.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -57,7 +58,10 @@ function naturalKey(car) {
 const workset = motulCars.map(car => ({ ...car }));
 const byNaturalKey = new Map();
 for (const car of workset) {
-    if (car.brand && car.model && car.year_from) byNaturalKey.set(naturalKey(car), car);
+    // Ключ — по канонической идентичности (shared/carCanon.js): строки БД
+    // после склейки дублей лежат как «Haval»/«Focus», а Motul-запись — как
+    // «GWM HAVAL»/«Focus Mk II»; без приведения матч не сойдётся.
+    if (car.brand && car.model && car.year_from) byNaturalKey.set(naturalKey(canonCar(car)), car);
 }
 
 let merged = 0;

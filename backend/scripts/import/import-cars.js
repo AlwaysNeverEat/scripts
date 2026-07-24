@@ -25,6 +25,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildNameFields } from '../../../shared/translit.js';
+import { canonCar } from '../../../shared/carCanon.js';
 import { buildSourceKeys, cleanSourceLinks } from '../../../shared/sourceLinks.js';
 import { readJson, writeJson } from './http.js';
 import { makeQuery } from './db.js';
@@ -207,8 +208,12 @@ const progress = (processed, force = false) => {
 };
 
 let processed = 0;
-for (const car of workCars) {
+for (const rawCar of workCars) {
     processed++;
+    // Каноническая идентичность (shared/carCanon.js): «GWM HAVAL» → «Haval»,
+    // «VW» → «Volkswagen», Ford «Focus Mk II» → «Focus» + поколение — иначе
+    // источники заново плодят дубли, склеенные merge-duplicates.js.
+    const car = canonCar(rawCar);
     // Стейт-пропуск отключаем в режиме перезаписи допусков — иначе уже залитые
     // машины не получат исправленный набор.
     if (importedKeys && car._type_key && importedKeys.has(car._type_key) && !OVERWRITE_APPROVALS) {

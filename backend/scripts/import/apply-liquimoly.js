@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJson } from './http.js';
 import { makeQuery } from './db.js';
+import { canonCar } from '../../../shared/carCanon.js';
 import { buildSourceKeys, cleanSourceLinks } from '../../../shared/sourceLinks.js';
 import { color, mark, carLabel, info } from './log.js';
 
@@ -92,7 +93,10 @@ info(`в базе ${dbResult.rows.length} машин — доливаю объё
 let processed = 0, updated = 0, noMatch = 0, unchanged = 0, failed = 0;
 for (const car of cars) {
     if (processed >= LIMIT) break;
-    const rows = index.get(looseKey(car.brand, car.model, car.engine_volume, car.year_from));
+    // Марка/модель источника → каноническое написание (shared/carCanon.js),
+    // как они лежат в БД после склейки дублей.
+    const ci = canonCar(car);
+    const rows = index.get(looseKey(ci.brand, ci.model, ci.engine_volume, ci.year_from));
     if (!rows || !rows.length) { noMatch++; continue; }
     const row = pickRow(rows, car);
     processed++;

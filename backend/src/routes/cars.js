@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool, { query } from '../db/client.js';
 import { normalize, expandQuery, buildNameFields } from '../../../shared/translit.js';
+import { canonCar } from '../../../shared/carCanon.js';
 import { requireRole } from '../auth/middleware.js';
 import { syncAchievementsSafe } from '../achievements/achievements.js';
 
@@ -160,9 +161,15 @@ router.post('/', async (req, res) => {
   const tagsErr = validateTags(tags);
   if (tagsErr) return res.status(400).json({ error: tagsErr });
 
+  // Каноническое написание марки/модели (shared/carCanon.js): «VW» →
+  // «Volkswagen», «GWM HAVAL» → «Haval», Ford «Focus Mk II» → «Focus» +
+  // поколение. Иначе руками заводятся дубли, которые уже склеивали
+  // merge-duplicates.js.
+  const ident = canonCar({ brand, model, generation });
+
   try {
     const { nameNormalized, nameCyrillic, nameTranslit, svSql } =
-      await upsertSearchFields({ brand, model, generation, engine_code, engine_volume, year_from, year_to, tags });
+      await upsertSearchFields({ brand: ident.brand, model: ident.model, generation: ident.generation, engine_code, engine_volume, year_from, year_to, tags });
 
     const result = await query(
       `INSERT INTO cars (
@@ -202,7 +209,7 @@ router.post('/', async (req, res) => {
          updated_at          = now()
        RETURNING *, (xmax = 0) AS inserted`,
       [
-        brand, model, generation ?? null, engine_code ?? null, engine_volume ?? null,
+        ident.brand, ident.model, ident.generation ?? null, engine_code ?? null, engine_volume ?? null,
         year_from, year_to ?? null, kw ?? null, bhp ?? null,
         fuel_type ?? null, motul_name ?? null, engine_name ?? null,
         JSON.stringify(fluid_capacities ?? {}),
@@ -661,6 +668,17 @@ router.patch('/:id', async (req, res) => {
     // Fetch current row so we can rebuild search fields with merged values
     const existing = await query('SELECT * FROM cars WHERE id = $1', [req.params.id]);
     if (!existing.rows.length) return res.status(404).json({ error: 'not found' });
+
+    // При правке идентичности приводим её к каноническому написанию
+    // (shared/carCanon.js) — чтобы переименованием нельзя было снова завести
+    // «VW» рядом с «Volkswagen».
+    if ('brand' in updates || 'model' in updates || 'generation' in updates) {
+      const ident = canonCar({ ...existing.rows[0], ...updates });
+      for (const f of ['brand', 'model', 'generation']) {
+        const requested = f in updates ? updates[f] : existing.rows[0][f];
+        if ((ident[f] ?? null) !== (requested ?? null)) updates[f] = ident[f] ?? null;
+      }
+    }
 
     const changedFields = diffChangedFields(existing.rows[0], updates);
 

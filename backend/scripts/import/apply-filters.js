@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { readJson, writeJson } from './http.js';
 import { makeQuery } from './db.js';
 import { completePower } from './power.js';
+import { canonCar } from '../../../shared/carCanon.js';
 import { buildSourceKeys, cleanSourceLinks } from '../../../shared/sourceLinks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -135,8 +136,11 @@ for (const [typeKey, entry] of Object.entries(filters)) {
 
     // Текущее состояние машины — из массового префетча (без запроса к БД).
     // Изменения считаем в JS, чтобы событие edited содержало ровно то, что
-    // реально поменялось.
-    const row = dbRows.get(carDbKey(car.brand, car.model, car.engine_code, car.engine_volume, car.year_from));
+    // реально поменялось. Идентичность — каноническая (shared/carCanon.js):
+    // в БД после merge-duplicates.js лежит «Haval», а в motul-cars.json —
+    // «GWM HAVAL», без приведения машина бы не нашлась.
+    const ci = canonCar(car);
+    const row = dbRows.get(carDbKey(ci.brand, ci.model, ci.engine_code, ci.engine_volume, ci.year_from));
     if (!row) { notEligible++; continue; }
 
     const changes = {};   // field → { from, to } (формат diffChangedFields)

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { readJson } from './http.js';
 import { makeQuery } from './db.js';
 import { completePower } from './power.js';
+import { canonCar } from '../../../shared/carCanon.js';
 import { buildSourceKeys, cleanSourceLinks } from '../../../shared/sourceLinks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -96,7 +97,9 @@ for (const [typeKey, entry] of Object.entries(filters)) {
 
     const car = carByTypeKey.get(typeKey);
     if (!car) { noCar++; continue; }
-    const row = car._db_id != null ? dbById.get(String(car._db_id)) : dbByKey.get(naturalKey(car));
+    // Идентичность источника приводим к канонической (shared/carCanon.js) —
+    // в БД после склейки дублей лежат канонические марки/модели.
+    const row = car._db_id != null ? dbById.get(String(car._db_id)) : dbByKey.get(naturalKey(canonCar(car)));
     if (!row) { noRow++; continue; }
     processed++;
 
