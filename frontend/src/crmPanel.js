@@ -42,7 +42,10 @@ export function initCrmPanel(record, { apiFetch }) {
         loading: false,
         error: null,             // { code, message }
         results: null,           // ответ /availability
+        showOils: false,         // развёрнут ли полный список масел (по умолчанию свёрнут —
+                                 // он дублирует карточки ДВС в калькуляторе ниже)
         showOther: false,        // развёрнут ли блок «ещё в наличии»
+        filterOpen: {},          // slot.key → показаны ли альтернативы фильтра
         filterPick: {},          // slot.key → id строки CRM, выбранной вручную
     };
 
@@ -185,7 +188,9 @@ export function initCrmPanel(record, { apiFetch }) {
             <div class="ctrl-section crm-panel">
                 <div class="crm-head">
                     <div class="sec-title">Наличие на станции</div>
-                    ${state.crmAuth === true ? '<button class="crm-logout" id="crm-logout" title="Забыть сессию CRM на сайте">выйти из CRM</button>' : ''}
+                    ${state.crmAuth === true ? `<button class="crm-logout" id="crm-logout" title="Забыть сессию CRM на этом сайте">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        <span>Выйти</span></button>` : ''}
                 </div>
                 ${state.crmAuth === null ? '<div class="crm-loading">Проверяю сессию CRM…</div>' : ''}
                 ${state.crmAuth === false ? renderLoginForm() : ''}
@@ -210,20 +215,19 @@ export function initCrmPanel(record, { apiFetch }) {
         `;
     }
 
+    // Вязкость больше не выбирается здесь — её задаёт калькулятор (чипы пробега
+    // в блоке ДВС), а панель следует за ним через window.__zmCrmSetVisc.
     function renderStationRow() {
         if (state.stations === null) return '<div class="crm-loading">Загружаю список станций…</div>';
         if (!state.stations.length && state.error) return '';
-        const opts = ['<option value="">— станция не выбрана —</option>']
+        const opts = ['<option value="">выбери станцию…</option>']
             .concat(state.stations.map(s =>
                 `<option value="${esc(s.id)}"${s.id === state.stationId ? ' selected' : ''}>${esc(s.name)}</option>`));
-        const chips = VISCOSITIES.map(v =>
-            `<button class="chip${v === state.visc ? ' active' : ''}" data-crm-visc="${v}">${v}</button>`).join('');
         return `
             <div class="crm-station-row">
                 <select id="crm-station" class="crm-station-select">${opts.join('')}</select>
-                <button class="btn btn-sec" id="crm-refresh" ${state.stationId ? '' : 'disabled'}>↻ проверить</button>
+                <button class="crm-refresh" id="crm-refresh" title="Проверить наличие заново" aria-label="Проверить заново" ${state.stationId ? '' : 'disabled'}>↻</button>
             </div>
-            <div class="crm-visc-row"><span class="ctrl-lbl">Масло:</span><div class="seg">${chips}</div></div>
         `;
     }
 
@@ -269,12 +273,12 @@ export function initCrmPanel(record, { apiFetch }) {
             const fp = record.filter_part_numbers?.[slot.key];
             const label = `<span class="crm-slot-label">${slot.label}</span>`;
             if (!fp || fp.absent || !fp.part) {
-                parts.push(`<div class="crm-slot">${label} <span class="crm-dim">${!fp || fp.absent ? 'отсутствует у машины' : 'артикул не заполнен'}</span></div>`);
+                parts.push(`<div class="crm-slot crm-slot-flat">${label} <span class="crm-dim">${!fp || fp.absent ? 'нет у машины' : 'артикул не заполнен'}</span></div>`);
                 continue;
             }
             const rows = slotRows(byKey, slot.key);
             if (!rows.length) {
-                parts.push(`<div class="crm-slot">${label} <b>${esc(fp.part)}</b> — <span class="crm-none">не найдено в CRM</span></div>`);
+                parts.push(`<div class="crm-slot crm-slot-flat">${label} <b>${esc(fp.part)}</b> — <span class="crm-none">нет в CRM</span></div>`);
                 continue;
             }
             // все найденные позиции — другого типа? артикул мог совпасть с чужим товаром
@@ -282,7 +286,12 @@ export function initCrmPanel(record, { apiFetch }) {
             const typeWarn = types.length && types.every(t => t !== slot.crmType)
                 ? ' <span class="crm-type-warn" title="По названию найденное не похоже на этот тип фильтра">тип?</span>' : '';
             const chosen = pickedRow(byKey, slot.key);
-            const rowsHtml = rows.map(r => {
+            // Выбранный фильтр всегда виден сверху; альтернативы прячем под «ещё N»,
+            // чтобы блок не растягивался. Клик по строке подставляет её в расчёт.
+            const rest = rows.filter(r => rowKey(r) !== rowKey(chosen));
+            const open = state.filterOpen[slot.key];
+            const visible = (open ? [chosen, ...rest] : [chosen]).filter(Boolean);
+            const rowsHtml = visible.map(r => {
                 const isChosen = chosen && rowKey(r) === rowKey(chosen);
                 return `
                 <div class="crm-row crm-row-pick${isChosen ? ' crm-best' : ''}"
@@ -294,11 +303,17 @@ export function initCrmPanel(record, { apiFetch }) {
                     <span class="crm-row-price">${Math.round(r.priceRaw)}₽</span>
                 </div>`;
             }).join('');
+            const moreBtn = rest.length
+                ? `<button class="crm-slot-more" data-crm-more="${esc(slot.key)}">${open ? 'скрыть' : `ещё ${rest.length}`}</button>`
+                : '';
             applicable.push(slot.key);
-            parts.push(`<div class="crm-slot">${label} <b>${esc(fp.part)}</b>${typeWarn}${rowsHtml}</div>`);
+            parts.push(`<div class="crm-slot">
+                <div class="crm-slot-head">${label} <b>${esc(fp.part)}</b>${typeWarn}${moreBtn}</div>
+                ${rowsHtml}
+            </div>`);
         }
         if (applicable.length) {
-            parts.push('<div class="crm-auto-note">✓ минимальные цены подставлены в расчёт — клик по строке, чтобы выбрать другой фильтр</div>');
+            parts.push('<div class="crm-auto-note">✓ подставлено дешёвое — клик по строке выберет другой фильтр</div>');
         }
         return `<div class="crm-filters">${parts.join('')}</div>`;
     }
@@ -335,8 +350,11 @@ export function initCrmPanel(record, { apiFetch }) {
         return { matched, unmatched };
     }
 
+    // Полный список масел по умолчанию свёрнут: он дублирует карточки ДВС в
+    // калькуляторе ниже (масло уже подставлено, остатки видно на карточке).
+    // Здесь оставляем только короткую строку-итог и предупреждение о низком
+    // остатке; развернуть можно кликом по шапке.
     function renderOils(oilRes) {
-        const parts = [`<div class="crm-sub-title">Масло ${esc(state.visc)}</div>`];
         const rows = oilRes?.rows || [];
         const shopOils = getShopOils();
         const carApprovals = Array.isArray(record.car_approvals) ? record.car_approvals : [];
@@ -358,10 +376,41 @@ export function initCrmPanel(record, { apiFetch }) {
             extractViscosity(o.v) === state.visc && fits(o) && !o.isSpot &&
             !matched.has(o.b + '_' + o.n));
 
-        if (!entries.length && !rows.length) {
-            parts.push('<div class="crm-none">Ничего не найдено в CRM по этой вязкости.</div>');
+        const nothing = !entries.length && !rows.length;
+        const inStock = entries.filter(e => e.liters > 0);
+        // «Представитель» — то, что скорее всего подставится в расчёт ДВС:
+        // подходит по допускам и есть в наличии, дешевле сначала.
+        const rep = entries.find(e => e.fits && e.liters > 0) || inStock[0] || null;
+        const repLow = rep && need && rep.liters < need * 2;
+        const open = state.showOils;
+
+        // ── Свёрнутая шапка: сколько масел в наличии + переключатель ──
+        const summary = nothing
+            ? '<span class="crm-none">по этой вязкости пусто</span>'
+            : inStock.length
+                ? `<span class="crm-oils-count">${inStock.length} в наличии</span>`
+                : '<span class="crm-none">нет в наличии</span>';
+        const head = `
+            <button class="crm-oils-head" id="crm-oils-toggle" aria-expanded="${open}">
+                <span class="crm-caret">${open ? '▾' : '▸'}</span>
+                <span class="crm-oils-name">Масло ${esc(state.visc)}</span>
+                ${summary}
+            </button>`;
+
+        // Низкий остаток подставленного масла важен — показываем и в свёрнутом виде
+        const warn = (!open && repLow)
+            ? `<div class="crm-low-warn crm-low-flat">⚠ ${esc(rep.oil.b)} ${esc(rep.oil.n)}: осталось ${rep.liters} л (нужно ~${need} л)</div>`
+            : '';
+
+        if (!open) {
+            return `<div class="crm-oils">${head}${warn}</div>`;
         }
 
+        // ── Развёрнутый полный список ──
+        const parts = [head];
+        if (nothing) {
+            parts.push('<div class="crm-none">Ничего не найдено в CRM по этой вязкости.</div>');
+        }
         for (const e of entries) {
             parts.push(renderOilRow(e, need, carApprovals));
         }
@@ -384,9 +433,9 @@ export function initCrmPanel(record, { apiFetch }) {
                 ${state.showOther ? `<div class="crm-other">${items}</div>` : ''}`);
         }
         if (need) {
-            parts.push(`<div class="crm-dim crm-need-note">Заправка этой машины ≈ ${need} л; предупреждаем, если остаток меньше ${+(need * 2).toFixed(1)} л (две заправки).</div>`);
+            parts.push(`<div class="crm-dim crm-need-note">Заправка ≈ ${need} л; предупреждаем, если остаток меньше ${+(need * 2).toFixed(1)} л (две заправки).</div>`);
         }
-        return `<div class="crm-oils">${parts.join('')}</div>`;
+        return `<div class="crm-oils crm-oils-open">${parts.join('')}</div>`;
     }
 
     function renderOilRow(e, need, carApprovals) {
@@ -439,14 +488,15 @@ export function initCrmPanel(record, { apiFetch }) {
         if (refresh) refresh.onclick = () => runCheck();
         const retry = root.querySelector('#crm-retry');
         if (retry) retry.onclick = () => (state.stations === null || !state.stations.length) ? loadStations() : runCheck();
-        root.querySelectorAll('[data-crm-visc]').forEach(b => {
+        // Свернуть/развернуть полный список масел (по умолчанию свёрнут)
+        const oilsToggle = root.querySelector('#crm-oils-toggle');
+        if (oilsToggle) oilsToggle.onclick = () => { state.showOils = !state.showOils; render(); };
+        // Показать/скрыть альтернативные фильтры внутри слота
+        root.querySelectorAll('[data-crm-more]').forEach(b => {
             b.onclick = () => {
-                state.visc = b.dataset.crmVisc;
-                // калькулятор следует за выбранной вязкостью (режим пробега)
-                if (typeof window.__zmSetMileageForVisc === 'function') {
-                    window.__zmSetMileageForVisc(state.visc);
-                }
-                if (state.stationId) runCheck(); else render();
+                const k = b.dataset.crmMore;
+                state.filterOpen[k] = !state.filterOpen[k];
+                render();
             };
         });
         const toggle = root.querySelector('#crm-other-toggle');
