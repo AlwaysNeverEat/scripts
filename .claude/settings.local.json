@@ -27,7 +27,10 @@
       "Bash(node -e \"const {spawnSync}=require\\('child_process'\\); const r=spawnSync\\('git',['--version']\\); console.log\\(r.status, r.error, r.stdout && r.stdout.toString\\(\\)\\);\")",
       "Bash(git ls-tree *)",
       "Bash(awk -F/ '{print $1}')",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(git -C /home/user/scripts log --oneline -5)",
+      "Bash(git -C /home/user/scripts branch -a)",
+      "Bash(git -C /home/user/scripts status --short)"
     ]
   }
 }

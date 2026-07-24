@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    parseLoginForm, findLogoutHref, buildAnalyseFreePath, resolveCrmUrl,
+    parseLoginForm, buildAnalyseFreePath, resolveCrmUrl,
 } from './client.js';
 
 test('parseLoginForm: action, поля логина/пароля и hidden (CSRF)', () => {
@@ -26,12 +26,6 @@ test('parseLoginForm: игнорирует формы без пароля, те�
     assert.equal(form.loginField, 'email');
     assert.equal(form.passwordField, 'pw');
     assert.equal(parseLoginForm('<html>нет форм</html>'), null);
-});
-
-test('findLogoutHref находит ссылку выхода', () => {
-    assert.equal(findLogoutHref('<a href="/site/logout">Выход</a>'), '/site/logout');
-    assert.equal(findLogoutHref('<a class="x" href="/user/signout?x=1">exit</a>'), '/user/signout?x=1');
-    assert.equal(findLogoutHref('<a href="/home">Главная</a>'), null);
 });
 
 test('resolveCrmUrl корректно обрабатывает относительные и абсолютные URL CRM', () => {
