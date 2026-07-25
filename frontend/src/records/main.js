@@ -78,7 +78,12 @@ async function loadBoard({ silent = false } = {}) {
     } catch (err) {
         if (err.code === 'zms_credentials_required') {
             state.credsNeeded = true;
-        } else if (!state.board) {
+            state.boardLoading = false;
+            // Гейт уже показан? Не перерисовываем — там кто-то вводит пароль.
+            if (!root?.querySelector('#rc-creds-form')) render();
+            return;
+        }
+        if (!state.board) {
             state.boardOk = false;
             state.boardError = err.message;
         } else {
@@ -229,7 +234,15 @@ function render() {
 }
 
 // Лёгкое обновление строки статуса без полной перерисовки (тикает раз в 10с).
+// НИКОГДА не перерисовывает открытые формы: пока показан гейт кредов или
+// модалка, ввод пользователя священен — иначе поля стираются под руками.
 function renderStatusOnly() {
+    if (state.modal) return;
+    if (state.credsNeeded) {
+        if (root?.querySelector('#rc-creds-form')) return; // форма уже на экране
+        render();
+        return;
+    }
     const el = root?.querySelector('.rc-updated');
     if (!el) { render(); return; }
     el.innerHTML = statusLineHtml();
@@ -1335,10 +1348,14 @@ root.addEventListener('click', (e) => {
 
 setInterval(loadStatus, 30_000);
 setInterval(() => {
-    // не дёргаем доску, пока открыта модалка (перерисовка сбила бы ввод)
-    if (!document.hidden && !state.modal) loadBoard({ silent: true });
+    // не дёргаем доску, пока открыта модалка или гейт кредов
+    // (перерисовка сбила бы ввод)
+    if (!document.hidden && !state.modal && !state.credsNeeded) loadBoard({ silent: true });
 }, 45_000);
-setInterval(() => { if (!state.modal) renderStatusOnly(); }, 10_000);
+setInterval(renderStatusOnly, 10_000);
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) { loadStatus(); if (!state.modal) loadBoard({ silent: true }); }
+    if (!document.hidden) {
+        loadStatus();
+        if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
+    }
 });
