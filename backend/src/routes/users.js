@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db/client.js';
 import { requireRole } from '../auth/middleware.js';
 import { clearSessionCache } from '../auth/sessions.js';
+import { listUserAchievements, syncAchievementsSafe } from '../achievements/achievements.js';
 
 const router = Router();
 
@@ -71,6 +72,14 @@ router.get('/:id/public', async (req, res) => {
     );
     const stats = statsR.rows[0];
 
+    // Синк перед выдачей — иначе у пользователя, который добавлял машины
+    // юзерскриптом и давно не заходил на сайт, чужой профиль показал бы
+    // устаревший (или пустой) список. Себе такой же синк делает поллер
+    // pending-ачивок; тут он ещё и не даёт разъехаться цифрам статистики
+    // и медалям на одной странице.
+    await syncAchievementsSafe(req.params.id);
+    const achievements = await listUserAchievements(req.params.id);
+
     res.json({
       id: row.id,
       display_name: row.display_name,
@@ -83,6 +92,7 @@ router.get('/:id/public', async (req, res) => {
         ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
         : null,
       stats,
+      achievements,
     });
   } catch (err) {
     console.error('GET /api/users/:id/public', err);

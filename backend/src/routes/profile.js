@@ -6,7 +6,9 @@ import { loadPublicUser } from '../auth/sessions.js';
 import {
   uploadAvatarOriginal, uploadAvatarCropped, isAllowedAvatarMime, AVATAR_MAX_BYTES,
 } from '../storage/supabaseStorage.js';
-import { achievementById, computeMetrics, syncAchievementsSafe } from '../achievements/achievements.js';
+import {
+  computeMetrics, listUserAchievements, presentAchievement, syncAchievementsSafe,
+} from '../achievements/achievements.js';
 
 const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
   .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
@@ -125,25 +127,11 @@ router.get('/stats', async (req, res) => {
 // ── GET /api/profile/achievements ──────────────────────────────────────────────
 // Полученные достижения для карточек в профиле. Тексты берутся из определений
 // в коде (не из БД) — если формулировку поправили, поменяется и у уже выданных.
-
-function presentAchievement(row) {
-  const def = achievementById(row.achievement_id);
-  return {
-    id: row.achievement_id,
-    title: def?.title ?? row.achievement_id,
-    description: def?.description ?? '',
-    unlockedAt: row.unlocked_at,
-  };
-}
+// Те же карточки показываются и в чужом профиле — см. GET /api/users/:id/public.
 
 router.get('/achievements', async (req, res) => {
   try {
-    const r = await query(
-      `SELECT achievement_id, unlocked_at FROM user_achievements
-        WHERE user_id = $1 ORDER BY unlocked_at ASC`,
-      [req.user.id],
-    );
-    res.json(r.rows.map(presentAchievement));
+    res.json(await listUserAchievements(req.user.id));
   } catch (err) {
     console.error('GET /api/profile/achievements', err);
     res.status(500).json({ error: err.message });

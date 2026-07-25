@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { openAssignCarsModal } from './assignCars.js';
+import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -65,9 +66,16 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
                 <div class="profile-stat"><b>${user.stats.added ?? 0}</b><span>Добавлено машин</span></div>
                 <div class="profile-stat"><b>${user.stats.edited ?? 0}</b><span>Отредактировано машин</span></div>
             </div>
+
+            <div class="edit-sec-h">Достижения</div>
+            <div class="achievements-feed">
+                ${achievementsFeedHtml(user.achievements, 'Пока нет достижений')}
+            </div>
+
             ${modPanelHtml}
         </div>
     `;
+    attachFeedParticles(box);
 
     if (!viewerIsMod) return;
 
