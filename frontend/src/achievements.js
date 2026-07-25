@@ -42,6 +42,32 @@ export function achievementIcon(id) {
     return ICONS[id] || null;
 }
 
+// Разметка ленты медалей — общая для своего профиля и для чужого
+// (profile.js / publicProfile.js), чтобы карточки не разъезжались.
+// emptyText — что показать, когда ачивок нет (у себя и у чужого текст разный).
+export function achievementsFeedHtml(achievements, emptyText) {
+    if (!Array.isArray(achievements) || !achievements.length) {
+        return `<div class="search-empty">${esc(emptyText)}</div>`;
+    }
+    return achievements.map(a => {
+        const icon = achievementIcon(a.id);
+        return `
+        <div class="achievement-card">
+            <div class="achievement-icon" data-ach-icon="${esc(a.id)}">${icon ? `<img src="${esc(icon)}" alt=""/>` : ''}</div>
+            <div class="achievement-title">${esc(a.title)}</div>
+            <div class="achievement-date">${a.unlockedAt ? new Date(a.unlockedAt).toLocaleDateString('ru-RU') : ''}</div>
+            <div class="achievement-desc">${esc(a.description || '')}</div>
+        </div>`;
+    }).join('');
+}
+
+// Партиклы на медалях 100/500/1000 (см. achievementParticles.js); вызывать
+// после вставки разметки — им нужен живой DOM.
+export function attachFeedParticles(root) {
+    root.querySelectorAll('[data-ach-icon]').forEach(el =>
+        attachAchievementParticles(el, el.dataset.achIcon, 64));
+}
+
 const POLL_INTERVAL_MS = 120_000;
 const TOAST_LIFETIME_MS = 7_000;
 

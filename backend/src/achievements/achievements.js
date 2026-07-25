@@ -111,6 +111,29 @@ export function achievementById(id) {
   return byId.get(id) || null;
 }
 
+// Строка user_achievements → объект для фронта. Тексты берём из определений в
+// коде (не из БД): поправили формулировку — поменялась и у уже выданных.
+export function presentAchievement(row) {
+  const def = achievementById(row.achievement_id);
+  return {
+    id: row.achievement_id,
+    title: def?.title ?? row.achievement_id,
+    description: def?.description ?? '',
+    unlockedAt: row.unlocked_at,
+  };
+}
+
+// Полученные достижения пользователя — общий источник и для своего профиля,
+// и для чужого (GET /api/users/:id/public).
+export async function listUserAchievements(userId) {
+  const r = await query(
+    `SELECT achievement_id, unlocked_at FROM user_achievements
+      WHERE user_id = $1 ORDER BY unlocked_at ASC`,
+    [userId],
+  );
+  return r.rows.map(presentAchievement);
+}
+
 // Чистая логика «что докинуть / что забрать» — отдельно от БД, чтобы её можно
 // было тестировать без Postgres.
 export function diffAchievements(metrics, unlockedIds) {
