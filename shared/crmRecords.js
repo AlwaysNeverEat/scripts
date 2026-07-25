@@ -349,6 +349,42 @@ export function buildExtensionOps(base, durationMinutes) {
     return ops;
 }
 
+// ── Проверка места при переносе ──────────────────────────────────────────────
+
+// Хватит ли места, чтобы переставить записи в новые слоты. Считаем по свежим
+// доскам (по одной на каждую задействованную дату), а слоты самих переносимых
+// записей считаем свободными — иначе перенос «на полчаса вперёд» внутри своей
+// же цепочки всегда упирался бы в себя.
+//
+// records: [{ id, addressId, date, time }] — только те, у кого меняется
+// размещение; boardsByDate: { 'DD.MM.YYYY': parseRecordBoard(...) }.
+// Возвращает строку-причину при конфликте либо null, если всё влезает.
+export function findMoveConflict(records, boardsByDate) {
+    const movingIds = new Set(records.map(r => String(r.id)));
+    const need = new Map(); // `date|addressId|time` → сколько записей туда едет
+
+    for (const r of records) {
+        const key = `${r.date}|${r.addressId}|${r.time}`;
+        need.set(key, (need.get(key) || 0) + 1);
+    }
+
+    for (const [key, count] of need) {
+        const [date, addressId, time] = key.split('|');
+        const board = boardsByDate[date];
+        if (!board) return `нет данных по ${date} — перенос не выполнен`;
+
+        const cell = board.cells?.[addressId]?.[time];
+        if (!cell) return `слот ${time} (${date}) закрыт — перенос не выполнен`;
+
+        // Свободные боксы + места, которые освободят сами переносимые записи.
+        const freed = cell.records.filter(r => movingIds.has(String(r.id))).length;
+        if (count > cell.free + freed) {
+            return `слот ${time} (${date}) уже занят — перенос не выполнен`;
+        }
+    }
+    return null;
+}
+
 // Строка «Копировать запись» — формат оригинального юзерскрипта.
 export function buildCopyLine(date, time, addressTitle, operator = 'Сергей') {
     return `${date || '—'} ${time || '—'} ${addressTitle || '—'} (${operator})`;

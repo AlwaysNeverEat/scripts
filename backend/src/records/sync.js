@@ -17,7 +17,9 @@ import {
     fetchBoardHtml, fetchEditFormHtml, postRecordUpdate, deleteRecordByUrl,
     hasCredentials, ZmsError,
 } from './adminClient.js';
-import { parseRecordBoard, parseEditForm, buildExtensionOps } from '../../../shared/crmRecords.js';
+import {
+    parseRecordBoard, parseEditForm, buildExtensionOps, findMoveConflict,
+} from '../../../shared/crmRecords.js';
 
 const SYNC_INTERVAL_MS = Math.max(10_000, Number(process.env.RECORDS_SYNC_INTERVAL_MS) || 60_000);
 const MAX_OP_ATTEMPTS = 30; // ~полчаса ретраев сетевых ошибок, потом failed
@@ -201,8 +203,22 @@ async function applyOp(op) {
     }
 
     if (op.type === 'update') {
-        // Перенос/правка: для каждой записи читаем текущую форму, чтобы не
-        // затереть невидимые на доске поля (госномер, комментарий).
+        // Перенос: пока операция лежала в очереди (например, оригинал был
+        // недоступен), целевые слоты могли занять — сверяемся со СВЕЖЕЙ
+        // доской, иначе получим двойную запись на один бокс. Правку данных
+        // без смены места (имя/телефон) это не касается.
+        const moving = op.payload.records.filter(r => r.addressId || r.date || r.time);
+        if (moving.length) {
+            const boardsByDate = {};
+            for (const date of new Set(moving.map(r => r.date).filter(Boolean))) {
+                boardsByDate[date] = await freshBoard(date);
+            }
+            const conflict = findMoveConflict(moving, boardsByDate);
+            if (conflict) return { ok: false, reason: conflict };
+        }
+
+        // Для каждой записи читаем текущую форму, чтобы не затереть невидимые
+        // на доске поля (госномер, комментарий).
         for (const r of op.payload.records) {
             let current = null;
             try {

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
     parseRecordBoard, detectChains, assignLanes, buildExtensionOps,
     contiguousFreeSlots, flattenAddressRecords, buildCopyLine,
-    isRecordBoard, looksLikeLoginPage, parseEditForm,
+    isRecordBoard, looksLikeLoginPage, parseEditForm, findMoveConflict,
     timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
     EXTENSION_STUB_PHONE,
 } from './crmRecords.js';
@@ -232,6 +232,65 @@ test('contiguousFreeSlots: обрывается на занятом и на ко
     const free = new Set(['09:30', '10:00']);
     assert.deepEqual(contiguousFreeSlots('09:30', slots, t => free.has(t)), ['09:30', '10:00']);
     assert.deepEqual(contiguousFreeSlots('09:00', slots, t => free.has(t)), []);
+});
+
+// ── Проверка места при переносе ──────────────────────────────────────────────
+
+// Доска-заглушка: cells[addressId][time] = { records:[{id}], free }
+function boardOf(cells) {
+    return { cells };
+}
+
+test('findMoveConflict: пустой слот принимает запись', () => {
+    const boards = { '25.07.2026': boardOf({ 3: { '15:00': { records: [], free: 2 } } }) };
+    assert.equal(findMoveConflict([{ id: '1', addressId: '3', date: '25.07.2026', time: '15:00' }], boards), null);
+});
+
+test('findMoveConflict: занятый слот — отказ с причиной', () => {
+    const boards = { '25.07.2026': boardOf({ 3: { '15:00': { records: [{ id: '99' }], free: 0 } } }) };
+    const reason = findMoveConflict([{ id: '1', addressId: '3', date: '25.07.2026', time: '15:00' }], boards);
+    assert.match(reason, /15:00.*уже занят/);
+});
+
+test('findMoveConflict: закрытый слот — отказ', () => {
+    const boards = { '25.07.2026': boardOf({ 3: {} }) };
+    assert.match(
+        findMoveConflict([{ id: '1', addressId: '3', date: '25.07.2026', time: '15:00' }], boards),
+        /закрыт/,
+    );
+});
+
+test('findMoveConflict: запись «занимает» место сама себе — это не конфликт', () => {
+    // Сдвиг цепочки на полчаса: 10:00 уезжает в 10:30, где стоит её же слот
+    const boards = {
+        '25.07.2026': boardOf({
+            3: {
+                '10:30': { records: [{ id: '2' }], free: 0 },
+                '11:00': { records: [], free: 1 },
+            },
+        }),
+    };
+    const move = [
+        { id: '1', addressId: '3', date: '25.07.2026', time: '10:30' },
+        { id: '2', addressId: '3', date: '25.07.2026', time: '11:00' },
+    ];
+    assert.equal(findMoveConflict(move, boards), null);
+});
+
+test('findMoveConflict: два слота цепочки в одну ячейку с одним боксом — отказ', () => {
+    const boards = { '25.07.2026': boardOf({ 3: { '12:00': { records: [], free: 1 } } }) };
+    const move = [
+        { id: '1', addressId: '3', date: '25.07.2026', time: '12:00' },
+        { id: '2', addressId: '3', date: '25.07.2026', time: '12:00' },
+    ];
+    assert.match(findMoveConflict(move, boards), /уже занят/);
+});
+
+test('findMoveConflict: нет данных по целевому дню — отказ, а не слепой перенос', () => {
+    assert.match(
+        findMoveConflict([{ id: '1', addressId: '3', date: '27.07.2026', time: '12:00' }], {}),
+        /нет данных/,
+    );
 });
 
 // ── Форма редактирования ─────────────────────────────────────────────────────
