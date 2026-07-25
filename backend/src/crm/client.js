@@ -151,8 +151,11 @@ async function followRedirects(res, jar, hops = 5) {
 // ── Форма логина ─────────────────────────────────────────────────────────────
 
 // Разбор формы логина из HTML: action + имена полей логина/пароля + hidden-поля
-// (CSRF и т.п.). Форма CRM заранее неизвестна, поэтому парсер общий, а поля
-// можно переопределить через env.
+// (CSRF и т.п.). Именованные submit-кнопки тоже попадают в hidden — браузер
+// отправляет их вместе с формой, и часть бэкендов (например админка записей
+// ZMS: <button name="submit">) без этого поля логин не принимает. Форма CRM
+// заранее неизвестна, поэтому парсер общий, а поля можно переопределить
+// через env.
 export function parseLoginForm(html) {
     const src = String(html || '');
     const formRe = /<form\b[^>]*>[\s\S]*?<\/form>/gi;
@@ -176,8 +179,17 @@ export function parseLoginForm(html) {
         if (!name) continue;
         const value = (tag.match(/\bvalue=["']([^"']*)["']/i) || [])[1] || '';
         if (type === 'password') passwordField = passwordField || name;
-        else if (type === 'hidden') hidden[name] = value;
+        else if (type === 'hidden' || type === 'submit') hidden[name] = value;
         else if ((type === 'text' || type === 'email' || type === 'tel') && !loginField) loginField = name;
+    }
+    const buttonRe = /<button\b[^>]*>/gi;
+    let btn;
+    while ((btn = buttonRe.exec(form))) {
+        const tag = btn[0];
+        const type = ((tag.match(/\btype=["']?([\w-]+)/i) || [])[1] || 'submit').toLowerCase();
+        const name = (tag.match(/\bname=["']([^"']+)["']/i) || [])[1];
+        if (type !== 'submit' || !name) continue;
+        hidden[name] = (tag.match(/\bvalue=["']([^"']*)["']/i) || [])[1] || '';
     }
     if (!passwordField) return null;
     return { action, loginField, passwordField, hidden };

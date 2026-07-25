@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
     parseLoginForm, buildAnalyseFreePath, resolveCrmUrl,
 } from './client.js';
@@ -15,6 +18,22 @@ test('parseLoginForm: action, поля логина/пароля и hidden (CSRF
         loginField: 'LoginForm[username]',
         passwordField: 'LoginForm[password]',
         hidden: { _csrf: 'tok123' },
+    });
+});
+
+test('parseLoginForm: реальная форма админки записей ZMS (пустой action, кнопка name=submit)', () => {
+    // Сохранённая /admin/auth/login с zamena-masla-spot.ru: action="" означает
+    // «POST на текущий URL», а именованная submit-кнопка обязана попасть в
+    // тело POST'а — без неё бэкенд молча не принимает логин.
+    const html = readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), '../../../shared/__fixtures__/admin-login-page.html'),
+        'utf8',
+    );
+    assert.deepEqual(parseLoginForm(html), {
+        action: '',
+        loginField: 'login',
+        passwordField: 'password',
+        hidden: { submit: '' },
     });
 });
 

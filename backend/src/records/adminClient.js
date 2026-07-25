@@ -186,16 +186,24 @@ async function loginIntoJar(jar, login, password) {
     if (!loginField || !passwordField) {
         throw new ZmsError('zms_auth_failed', 'не удалось распознать форму логина админки');
     }
-    const actionPath = form?.action ? resolveUrl(form.action, res.url || BASE_URL) : LOGIN_ENTRY;
+    // Реальная форма логина — <form action="">: пустой action означает «POST на
+    // текущий URL» (у ZMS это /admin/auth/login после редиректа), НЕ на entry.
+    const loginPageUrl = resolveUrl(res.url || LOGIN_ENTRY);
+    const actionPath = form?.action ? resolveUrl(form.action, loginPageUrl) : loginPageUrl;
 
     const body = new URLSearchParams({
-        ...(form?.hidden || {}),
+        ...(form?.hidden || {}), // hidden-поля + именованные submit-кнопки
         [loginField]: login,
         [passwordField]: password,
     });
     const post = await rawFetch(actionPath, jar, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            // как браузер: часть бэкендов проверяет источник POST'а
+            Origin: loginPageUrl.origin,
+            Referer: loginPageUrl.href,
+        },
         body: body.toString(),
     });
     if (post.status >= 400) {

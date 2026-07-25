@@ -69,14 +69,36 @@ seed();
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// Точная копия реальной формы zamena-masla-spot.ru/admin/auth/login:
+// action ПУСТОЙ (POST на текущий URL), поля login/password, кнопка с
+// name="submit" — бэкенд без этого поля логин не принимает.
 function loginPage() {
-    return `<!DOCTYPE html><html><head><title>Вход</title></head><body>
-    <form action="/admin/auth/login" method="post">
-        <input type="hidden" name="csrf" value="mock-csrf-token">
-        <input type="text" name="username" placeholder="Логин">
-        <input type="password" name="password" placeholder="Пароль">
-        <button type="submit">Войти</button>
-    </form></body></html>`;
+    return `<!DOCTYPE html>
+<head><meta charset="utf-8"><title>Панель управления</title></head>
+<body>
+<section class="container login" role="main">
+    <div class="data-block">
+        <form method="post" action="">
+            <fieldset>
+                <div class="control-group">
+                    <label class="control-label" for="login">Логин:</label>
+                    <div class="controls">
+                        <input id="icon" type="text" name="login" id="login" value="">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" for="password">Пароль:</label>
+                    <div class="controls">
+                        <input id="password" type="password" name="password">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-inverse" type="submit" name="submit">Войти</button>
+                </div>
+            </fieldset>
+        </form>
+    </div>
+</section></body></html>`;
 }
 
 function markerFor(status) {
@@ -171,8 +193,12 @@ app.use((req, res, next) => {
 const SESSION_COOKIE = 'mock_session=ok';
 const authed = (req) => (req.headers.cookie || '').includes(SESSION_COOKIE);
 
+// Как в оригинале: без сессии любой /admin/* уводит 302 на /admin/auth/login.
+app.get('/admin/auth/login', (_req, res) => res.send(loginPage()));
+
 app.post('/admin/auth/login', (req, res) => {
-    if (req.body.username === LOGIN && req.body.password === PASSWORD && req.body.csrf === 'mock-csrf-token') {
+    // 'submit' обязателен — реальный бэкенд игнорирует POST без этого поля
+    if (req.body.login === LOGIN && req.body.password === PASSWORD && 'submit' in req.body) {
         res.setHeader('Set-Cookie', `${SESSION_COOKIE}; Path=/`);
         return res.redirect(302, '/admin/record');
     }
@@ -180,7 +206,7 @@ app.post('/admin/auth/login', (req, res) => {
 });
 
 app.get('/admin/record', (req, res) => {
-    if (!authed(req)) return res.send(loginPage());
+    if (!authed(req)) return res.redirect(302, '/admin/auth/login');
     res.send(boardPage(String(req.query.date || today(0))));
 });
 
