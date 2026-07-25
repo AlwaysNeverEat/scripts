@@ -12,6 +12,14 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
+      rollupOptions: {
+        input: {
+          main: 'index.html',
+          // Записи (клон админки ZMS) — отдельная точка входа без гейта
+          // аккаунтов сайта: /records.html
+          records: 'records.html',
+        },
+      },
     },
     server: {
       port: 5173,
