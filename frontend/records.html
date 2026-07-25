@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Записи — SPOT</title>
+  <link rel="icon" href="./favicon.ico" sizes="any"/>
+  <meta name="theme-color" content="#0f0f12"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Fugaz+One&family=Unbounded:wght@200..900&display=swap" rel="stylesheet"/>
+  <!-- Leaflet вендорен через npm и попадает в бандл (см. src/records/map.js);
+       внешние запросы карты — только тайлы CARTO и геокодер Nominatim. -->
+</head>
+<body>
+  <!-- Клон-обложка админки записей ZMS. Доступ общий: страница открыта, но
+       данные появляются только когда на сервере введён логин/пароль
+       оригинальной админки (форма покажется сама, если кред нет). -->
+  <div id="records-app">
+    <div class="rc-boot">Загрузка записей…</div>
+  </div>
+  <script type="module" src="/src/records/main.js"></script>
+</body>
+</html>

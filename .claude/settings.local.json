@@ -30,7 +30,25 @@
       "Bash(echo \"exit: $?\")",
       "Bash(git -C /home/user/scripts log --oneline -5)",
       "Bash(git -C /home/user/scripts branch -a)",
-      "Bash(git -C /home/user/scripts status --short)"
+      "Bash(git -C /home/user/scripts status --short)",
+      "Bash(git -C /home/user/scripts log --oneline main..HEAD)",
+      "Bash(git clone *)",
+      "Bash(awk '{print NR\": \"length\\($0\\)}' \"/home/user/scripts/CRM — Карта метро СПб \\(записи по станциям\\) v8-8.2.0.user.js\")",
+      "Bash(sort -t: -k2 -rn)",
+      "Bash(git -C /home/user/scripts remote -v)",
+      "Bash(git -C /home/user/scripts log --oneline -10)",
+      "Bash(F=/root/.claude/uploads/a3a3215b-bee4-5542-bf23-776b38fe9b3c/3882ba9a-template.html; head -c 4000 \"$F\")",
+      "Read(//workspace/spot/**)",
+      "Bash(sed -n '/const CITIES/,/^  \\\\];/p' main.js)",
+      "Bash(sed -n '/bookForm.addEventListener/,/^  }/p' main.js)",
+      "Bash(sed -n '/^:root/,/^}/p' styles.css)",
+      "Bash(git -C /home/user/scripts log --oneline -15)",
+      "Bash(grep -n -o -E \"\\(/admin/[^\\\\\"'\\\\` \\)]*|r-stat-table|time-cell|address_id|data-time\\)\" \"ZMS CRM — Продлить запись + Умное удаление-1.0.user\\(1\\).js\")",
+      "Bash(sort -t: -k2)",
+      "Bash(uniq -c -f0)",
+      "Bash(awk '{ print NR\": \"length\\($0\\) }' \"CRM — Карта метро СПб \\(записи по станциям\\) v8-8.2.0.user.js\")",
+      "Bash(grep -on \"Ветеранов[^\\\\\"',<]\\\\{0,30\\\\}\" \"/home/user/scripts/CRM — Карта метро СПб \\(записи по станциям\\) v8-8.2.0.user.js\")",
+      "Bash(sort -t: -k2 -u)"
     ]
   }
 }

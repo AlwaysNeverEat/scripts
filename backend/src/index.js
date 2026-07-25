@@ -8,8 +8,10 @@ import profileRouter from './routes/profile.js';
 import topRouter from './routes/top.js';
 import usersRouter from './routes/users.js';
 import crmRouter from './routes/crm.js';
+import recordsRouter from './routes/records.js';
 import { requireSession } from './auth/middleware.js';
 import { startBot } from './bot/index.js';
+import { startRecordsSync } from './records/sync.js';
 
 const app = express();
 
@@ -56,6 +58,9 @@ app.use('/api/profile', requireSession, profileRouter);
 app.use('/api/top', requireSession, topRouter);
 app.use('/api/users', requireSession, usersRouter);
 app.use('/api/crm', requireSession, crmRouter);
+// Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
+// гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
+app.use('/api/records', recordsRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
@@ -77,3 +82,7 @@ app.listen(PORT, '0.0.0.0', () => console.log(`cars-db backend listening on :${P
 // бесплатных Render/Railway. Не блокирует HTTP: если TELEGRAM_BOT_TOKEN
 // не задан — просто ничего не делает.
 startBot().catch(err => console.error('Telegram-бот: не удалось запустить', err));
+
+// Синхронизация записей с оригинальной админкой ZMS — тоже в этом процессе:
+// раз в минуту тянет доску на сегодня/завтра и проталкивает очередь операций.
+try { startRecordsSync(); } catch (err) { console.error('records sync: не удалось запустить', err); }
