@@ -36,15 +36,16 @@
 
 .rc-brand svg { color: var(--accent); }
 
-.rc-brand-sub {
-    font-size: 10px;
-    letter-spacing: 2px;
-    color: var(--accent);
-    border: 1px solid var(--accent-dim);
-    background: var(--accent-dim);
-    padding: 2px 7px;
+/* Возврат к калькулятору — та же капсула, что кнопки в правом блоке. */
+.rc-home {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 999px;
+    padding: 7px 12px;
 }
+
+.rc-home svg { color: var(--accent); }
 
 .rc-tabs { display: flex; align-items: center; gap: 6px; }
 
@@ -126,6 +127,22 @@
 .rc-search-item:last-child { border-bottom: 0; }
 .rc-search-item:hover { background: var(--bg3); }
 .rc-search-item span { color: var(--sub); font-size: 11px; }
+
+.rc-search-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rc-search-line b { color: var(--text); font-size: 12px; }
+
+.rc-search-phone {
+    font-style: normal;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 11px;
+    color: var(--accent);
+}
 .rc-search-empty { padding: 12px; }
 
 .rc-topbtns { display: flex; align-items: center; gap: 6px; }
@@ -199,74 +216,97 @@
 .rc-overview {
     margin-top: 16px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 10px;
 }
 
 .rc-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
     text-align: left;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px 13px 10px;
+    border-radius: 12px;
+    padding: 13px 14px;
     color: var(--text);
     cursor: pointer;
-    transition: border-color 0.15s, transform 0.15s;
+    transition: border-color 0.15s, background 0.15s;
 }
 
-.rc-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.rc-card:hover { border-color: var(--accent); background: var(--bg2); }
 
 .rc-card-head {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+}
+
+/* Длинные адреса режем многоточием — иначе карточка распирается и сетка едет. */
+.rc-card-name {
     font-size: 13px;
-    margin-bottom: 8px;
+    font-weight: 600;
+    line-height: 1.3;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .rc-line-dot {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex: none;
-}
-
-.rc-card-metro {
-    margin-left: auto;
-    color: var(--sub);
-    font-size: 10.5px;
-    white-space: nowrap;
 }
 
 .rc-card-strip {
     display: flex;
     gap: 2px;
-    height: 16px;
+    height: 14px;
     align-items: stretch;
+    min-width: 0;
 }
 
 .rc-tick {
     flex: 1;
     border-radius: 2px;
     background: var(--bg3);
-    min-width: 3px;
+    min-width: 2px;
 }
 
-.rc-tick-closed { background: transparent; border: 1px dashed var(--border); border-width: 0 0 1px; align-self: end; height: 4px; }
+.rc-tick-closed { background: transparent; border-bottom: 1px dashed var(--border); align-self: end; height: 3px; }
 .rc-tick-free { background: var(--green-dim); }
-.rc-tick-part { background: var(--accent-dim); border: 1px solid var(--accent); }
+.rc-tick-part { background: var(--accent-dim); }
 .rc-tick-full { background: var(--accent); }
 .rc-tick-ghost { outline: 1px dashed var(--blue); outline-offset: 1px; }
 
 .rc-card-foot {
     display: flex;
-    gap: 12px;
-    margin-top: 8px;
-    color: var(--sub);
-    font-size: 10.5px;
+    flex-wrap: wrap;
+    gap: 5px;
 }
 
-.rc-card-queue { display: inline-flex; align-items: center; gap: 4px; color: var(--blue); }
+/* Таблетки: цветом говорит только «свободно» — сколько мест ещё осталось. */
+.rc-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    line-height: 1.4;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.rc-pill-mute { background: var(--bg3); color: var(--sub); }
+.rc-pill-ok { background: var(--green-dim); color: var(--green); }
+.rc-pill-low { background: var(--accent-dim); color: var(--accent); }
+.rc-pill-none { background: var(--red-dim); color: var(--red); }
+.rc-pill-queue { background: var(--blue-dim); color: var(--blue); }
 
 /* ── Вид станции ───────────────────────────────────────────────── */
 

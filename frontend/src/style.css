@@ -328,9 +328,16 @@ input, button, select, textarea { font-family: inherit; }
   transition: border-color .1s, background .1s;
 }
 .btn:hover { border-color: var(--accent); }
-/* Кнопка может быть и ссылкой (например «Записи» в топ-баре) —
-   без этого браузер рисует подчёркивание и синий цвет. */
-a.btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+/* Кнопка может быть и ссылкой (например «Записи» в топ-баре) — без этого
+   браузер рисует её своим стилем ссылки: синей и подчёркнутой. */
+a.btn {
+  text-decoration: none;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+a.btn:visited, a.btn:active { color: var(--text); }
 .btn-sec {}
 .btn-pri {
   background: var(--accent);
