@@ -26,11 +26,21 @@ export function uniqueStations() {
     return out;
 }
 
-// container — DOM-узел; onPick(meta) — клик по плашке станции.
-// Возвращает { setBusy(mapShortToCount), highlight(short), invalidate, focus(lat,lng,zoom), destroy }.
-export function createStationsMap(container, { onPick } = {}) {
-    const map = L.map(container, { zoomControl: true, attributionControl: false })
-        .setView([59.93, 30.32], 10);
+// container — DOM-узел; onPick(meta) — клик по плашке станции;
+// view — {lat, lng, zoom} стартового положения (переживает перерисовку окна).
+// Возвращает { setBusy, highlight, invalidate, focus, getView, destroy }.
+export function createStationsMap(container, { onPick, view } = {}) {
+    const start = view && Number.isFinite(view.lat)
+        ? [[view.lat, view.lng], view.zoom || 12]
+        : [[59.93, 30.32], 10];
+    // zoomSnap: 0.25 — иначе fitBounds округляет зум вниз до целого и все
+    // станции жмутся в середину, оставляя половину карты пустой.
+    const map = L.map(container, {
+        zoomControl: true,
+        attributionControl: false,
+        zoomSnap: 0.25,
+        zoomDelta: 1,
+    }).setView(start[0], start[1]);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         subdomains: 'abcd',
         maxZoom: 19,
@@ -54,11 +64,20 @@ export function createStationsMap(container, { onPick } = {}) {
         iconAnchor: [0, 14],
     });
 
-    for (const meta of uniqueStations()) {
+    const stations = uniqueStations();
+    for (const meta of stations) {
         const marker = L.marker([meta.lat, meta.lng], { icon: makeIcon(meta) }).addTo(map);
         marker.on('click', () => onPick && onPick(meta));
         markers.set(meta.short, { marker, meta });
     }
+
+    // Без явного view показываем сразу все станции целиком, а не кусок
+    // города с пустотой снизу.
+    const fitAll = () => {
+        if (!stations.length) return;
+        map.fitBounds(stations.map(s => [s.lat, s.lng]), { padding: [45, 45] });
+    };
+    if (!view) fitAll();
 
     let activeShort = null;
     const refresh = () => {
@@ -70,8 +89,22 @@ export function createStationsMap(container, { onPick } = {}) {
     return {
         setBusy(counts) { busyCounts = counts || {}; refresh(); },
         highlight(short) { activeShort = short || null; refresh(); },
-        invalidate() { setTimeout(() => map.invalidateSize(), 60); },
+        // Модалка появляется вместе с картой, поэтому первый расчёт размеров
+        // приходится на ещё не разложенный контейнер — после invalidateSize
+        // подгоняем охват заново.
+        invalidate() {
+            setTimeout(() => {
+                map.invalidateSize();
+                if (!view) fitAll();
+            }, 60);
+        },
         focus(lat, lng, zoom = 13) { map.setView([lat, lng], zoom); },
+        // Текущее положение — чтобы перерисовка окна не отбрасывала карту
+        // в начальный вид.
+        getView() {
+            const c = map.getCenter();
+            return { lat: c.lat, lng: c.lng, zoom: map.getZoom() };
+        },
         destroy() { map.remove(); },
     };
 }
@@ -85,7 +118,15 @@ const SPB_VIEWBOX = '29.4,60.35,31.1,59.55'; // lon1,lat1,lon2,lat2
 export async function geocodeStreet(q) {
     const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5'
         + `&viewbox=${SPB_VIEWBOX}&bounded=1&q=${encodeURIComponent(q)}`;
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    // Без таймаута зависший запрос оставляет панель в «Ищу адрес…» навсегда.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    let res;
+    try {
+        res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+    } finally {
+        clearTimeout(timer);
+    }
     if (!res.ok) throw new Error(`геокодер ответил ${res.status}`);
     const list = await res.json();
     return list.map(item => ({

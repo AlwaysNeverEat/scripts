@@ -49,19 +49,23 @@
 .rc-tabs { display: flex; align-items: center; gap: 6px; }
 
 .rc-date-pick {
-    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 5px;
     cursor: pointer;
-    overflow: hidden;
 }
 
-.rc-date-pick input {
+/* Нативный date-input не показываем: календарь открывается через
+   showPicker() по кнопке выше. Схлопывать в display:none нельзя —
+   у скрытого элемента showPicker() не работает. */
+.rc-date-input {
     position: absolute;
-    inset: 0;
+    width: 1px;
+    height: 1px;
     opacity: 0;
-    cursor: pointer;
+    pointer-events: none;
+    border: 0;
+    padding: 0;
 }
 
 .rc-searchbox {
@@ -501,9 +505,14 @@
 
 /* ── Модалки ───────────────────────────────────────────────────── */
 
-.rc-modal .modal-win { width: min(560px, calc(100vw - 32px)); }
-.rc-modal .rc-win-wide { width: min(760px, calc(100vw - 32px)); }
+/* У базового .modal-win жёсткий max-width: 520px — перебиваем именно его,
+   иначе width ничего не решает. */
+.rc-modal .modal-win { width: 100%; max-width: 560px; }
+.rc-modal .rc-win-wide { max-width: min(880px, calc(100vw - 32px)); }
+/* Карта — главный герой своего окна: занимает почти весь экран. */
+.rc-modal .rc-win-map { max-width: min(1280px, calc(100vw - 24px)); }
 .rc-modal-body { max-height: min(76vh, 720px); overflow: auto; }
+.rc-modal-body-map { max-height: none; overflow: visible; }
 
 .rc-field-row { display: flex; gap: 10px; }
 .rc-grow { flex: 1; }
@@ -538,7 +547,7 @@
 }
 
 .rc-create-map, .rc-big-map {
-    height: 280px;
+    height: 340px;
     margin-top: 10px;
     border-radius: var(--radius);
     border: 1px solid var(--border);
@@ -686,9 +695,9 @@
 
 .rc-map-search input { flex: 1; background: none; border: 0; outline: none; color: var(--text); font-size: 13px; }
 
-.rc-map-layout { display: grid; grid-template-columns: 230px 1fr; gap: 10px; }
+.rc-map-layout { display: grid; grid-template-columns: 260px 1fr; gap: 12px; }
 
-.rc-map-near { display: flex; flex-direction: column; gap: 6px; overflow: auto; max-height: 420px; }
+.rc-map-near { display: flex; flex-direction: column; gap: 6px; overflow: auto; max-height: min(70vh, 760px); }
 
 .rc-near-item {
     display: flex;
@@ -707,7 +716,16 @@
 .rc-near-item:hover { border-color: var(--accent); }
 .rc-near-dist { margin-left: auto; color: var(--sub); font-size: 10.5px; }
 
-.rc-big-map { height: 420px; margin-top: 0; }
+.rc-near-head {
+    color: var(--sub);
+    font-size: 10.5px;
+    line-height: 1.4;
+    padding: 2px 2px 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+}
+
+.rc-big-map { height: min(70vh, 760px); margin-top: 0; }
 
 /* Гейт кредов */
 .rc-gate { display: grid; place-items: center; min-height: 90vh; }
@@ -735,7 +753,8 @@
 @media (max-width: 900px) {
     .rc-chain-actions { grid-template-columns: 1fr; }
     .rc-map-layout { grid-template-columns: 1fr; }
-    .rc-big-map { height: 320px; }
+    .rc-map-near { max-height: 160px; }
+    .rc-big-map { height: 52vh; }
 }
 
 @media (max-width: 700px) {

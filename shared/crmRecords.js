@@ -48,6 +48,23 @@ export function normPhoneDigits(phone) {
     return d;
 }
 
+// Телефон в формате оригинальной админки: «+7 (921) 123-45-67». Принимает
+// что угодно — «9211234567», «89211234567», «+7 921 123 45 67»: код страны в
+// начале отбрасывается, лишние символы игнорируются. Используется маской
+// поля ввода, поэтому обязана корректно форматировать и неполный номер.
+export function formatRuPhone(raw) {
+    let d = String(raw || '').replace(/\D/g, '');
+    if (d[0] === '8' || d[0] === '7') d = d.slice(1);
+    d = d.slice(0, 10);
+    if (!d) return '';
+    let out = '+7 (' + d.slice(0, 3);
+    if (d.length >= 3) out += ')';
+    if (d.length > 3) out += ' ' + d.slice(3, 6);
+    if (d.length > 6) out += '-' + d.slice(6, 8);
+    if (d.length > 8) out += '-' + d.slice(8, 10);
+    return out;
+}
+
 export const STUB_DIGITS = normPhoneDigits(EXTENSION_STUB_PHONE);
 
 // ── Время ────────────────────────────────────────────────────────────────────
