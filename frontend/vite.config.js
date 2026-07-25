@@ -15,8 +15,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           main: 'index.html',
-          // Записи (клон админки ZMS) — отдельная точка входа без гейта
-          // аккаунтов сайта: /records.html
+          // Записи живут внутри основного приложения (роут #/records);
+          // records.html остался редиректом для старых ссылок.
           records: 'records.html',
         },
       },

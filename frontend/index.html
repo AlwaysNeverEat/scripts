@@ -92,7 +92,7 @@
           <span class="avatar-default-icon"></span>
           <img id="avatar-img" alt="" hidden/>
         </button>
-        <a href="./records.html" class="btn btn-sec btn-top" title="Записи по станциям">
+        <a href="#/records" class="btn btn-sec btn-top" title="Записи по станциям">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           <span>Записи</span>
         </a>
@@ -162,6 +162,10 @@
       </div>
       <div id="car-events" class="car-events"></div>
     </div>
+
+    <!-- Записи (клон админки ZMS). Модуль грузится лениво при заходе на
+         #/records — калькулятор не тянет за собой карту и её библиотеку. -->
+    <div id="page-records" class="hidden"></div>
 
     <!-- Профиль -->
     <div id="page-profile" class="hidden">

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Страница «Записи» — клон-обложка админки записей ZMS.
+// Раздел «Записи» — клон-обложка админки записей ZMS.
 //
 // Читает доску из кеша бэкенда (обновляется воркером раз в минуту), поэтому
 // работает даже когда оригинал лежит: показывает «обновлено N назад», а все
@@ -8,6 +8,10 @@
 //
 // Паттерн тот же, что в crmPanel.js: plain-state + полный render() + bind().
 // Клики — через делегирование по data-action, чтобы переживать перерисовки.
+//
+// Модуль подключается лениво из главного приложения (main.js, роут #/records)
+// через startRecords(mount) и полностью гасится через stopRecords() — чтобы
+// уход на калькулятор не оставлял за собой опросы и живую карту.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import '../style.css';
@@ -22,7 +26,7 @@ import {
     EXTENSION_STUB_PHONE, SLOT_MINUTES,
 } from '../../../shared/crmRecords.js';
 
-const root = document.getElementById('records-app');
+let root = null; // узел раздела; задаётся в startRecords()
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -341,7 +345,7 @@ function renderHeader() {
     const tomorrow = state.status?.tomorrow;
     return `
     <header class="rc-top">
-        <a class="btn btn-sec rc-home" href="./index.html" title="К калькулятору">${icons.back(15)}</a>
+        <a class="btn btn-sec rc-home" href="#/" title="К калькулятору">${icons.back(15)}</a>
         <div class="rc-brand">${icons.pin(18)}<span>Записи</span></div>
         <nav class="rc-tabs">
             <button class="chip ${state.date === today ? 'active' : ''}" data-action="set-date" data-date="${esc(today)}">Сегодня</button>
@@ -1483,32 +1487,81 @@ async function submitDelete() {
     }
 }
 
-// ── Старт ────────────────────────────────────────────────────────────────────
+// ── Запуск и остановка раздела ───────────────────────────────────────────────
 
-root.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (btn) handleAction(btn);
-    // клик мимо поиска закрывает выпадашку
-    if (!e.target.closest('.rc-searchbox')) {
-        document.getElementById('rc-search-drop')?.classList.add('hidden');
-    }
-});
+const timers = [];
+let onClick = null;
+let onVisibility = null;
 
-(async () => {
-    await loadStatus();
-    await loadBoard();
-})();
+// Второй заход на раздел не должен доедать состояние первого: доска и
+// выбранный день пересобираются, а даты берутся заново — иначе после
+// полуночи открылся бы вчерашний день.
+function resetState() {
+    Object.assign(state, {
+        status: null,
+        credsNeeded: false,
+        credsError: '',
+        date: null,
+        board: null,
+        fetchedAt: null,
+        boardOk: true,
+        boardError: '',
+        boardLoading: false,
+        ops: [],
+        view: 'overview',
+        stationId: null,
+        search: '',
+        highlightId: null,
+        modal: null,
+    });
+}
 
-setInterval(loadStatus, 30_000);
-setInterval(() => {
-    // не дёргаем доску, пока открыта модалка или гейт кредов
-    // (перерисовка сбила бы ввод)
-    if (!document.hidden && !state.modal && !state.credsNeeded) loadBoard({ silent: true });
-}, 45_000);
-setInterval(renderStatusOnly, 10_000);
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
+export function startRecords(mount) {
+    if (!mount) return;
+    stopRecords(); // повторный вход — начинаем с чистого листа
+    root = mount;
+    resetState();
+    root.innerHTML = '<div class="rc-boot">Загрузка записей…</div>';
+
+    onClick = (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (btn) handleAction(btn);
+        // клик мимо поиска закрывает выпадашку
+        if (!e.target.closest('.rc-searchbox')) {
+            root?.querySelector('#rc-search-drop')?.classList.add('hidden');
+        }
+    };
+    root.addEventListener('click', onClick);
+
+    onVisibility = () => {
+        if (document.hidden) return;
         loadStatus();
         if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
-    }
-});
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    timers.push(setInterval(loadStatus, 30_000));
+    timers.push(setInterval(() => {
+        // не дёргаем доску, пока открыта модалка или гейт кредов
+        // (перерисовка сбила бы ввод)
+        if (!document.hidden && !state.modal && !state.credsNeeded) loadBoard({ silent: true });
+    }, 45_000));
+    timers.push(setInterval(renderStatusOnly, 10_000));
+
+    (async () => {
+        await loadStatus();
+        await loadBoard();
+    })();
+}
+
+export function stopRecords() {
+    for (const t of timers.splice(0)) clearInterval(t);
+    clearTimeout(geocodeTimer);
+    for (const t of boardReloadTimers.splice(0)) clearTimeout(t);
+    destroyMapCtl();
+    if (root && onClick) root.removeEventListener('click', onClick);
+    if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
+    onClick = null;
+    onVisibility = null;
+    root = null;
+}
