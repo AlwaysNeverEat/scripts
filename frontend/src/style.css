@@ -328,6 +328,9 @@ input, button, select, textarea { font-family: inherit; }
   transition: border-color .1s, background .1s;
 }
 .btn:hover { border-color: var(--accent); }
+/* Кнопка может быть и ссылкой (например «Записи» в топ-баре) —
+   без этого браузер рисует подчёркивание и синий цвет. */
+a.btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 .btn-sec {}
 .btn-pri {
   background: var(--accent);

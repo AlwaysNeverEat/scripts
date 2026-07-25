@@ -29,6 +29,11 @@ jobs:
 
       - run: npm ci
 
+      # npm test гоняет и backend/src/**/*.test.js — им нужны зависимости
+      # бэкенда (pg, bcryptjs и т.д.), корневой npm ci их не ставит.
+      - name: Зависимости бэкенда
+        run: npm ci --prefix backend
+
       - name: Паритетные тесты
         run: npm test
 
