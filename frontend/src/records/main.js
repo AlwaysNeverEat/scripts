@@ -150,6 +150,31 @@ function pendingOps() {
     return state.ops.filter(o => o.status === 'pending');
 }
 
+// Бейдж на «Очереди» считает только то, чего пользователь ещё не видел:
+// после открытия окна счётчик гаснет, а новые операции снова его зажигают.
+// Отметка живёт в localStorage — переживает перезагрузку страницы.
+const SEEN_OP_KEY = 'zm_records_seen_op';
+let seenOpId = Number(localStorage.getItem(SEEN_OP_KEY) || 0);
+
+function unseenOps() {
+    let pending = 0;
+    let failed = 0;
+    for (const op of state.ops) {
+        if (Number(op.id) <= seenOpId) continue;
+        if (op.status === 'pending') pending++;
+        else if (op.status === 'failed' && !op.lastError.includes('отменена')) failed++;
+    }
+    return { pending, failed };
+}
+
+function markOpsSeen() {
+    const maxId = state.ops.reduce((m, o) => Math.max(m, Number(o.id) || 0), 0);
+    if (maxId > seenOpId) {
+        seenOpId = maxId;
+        try { localStorage.setItem(SEEN_OP_KEY, String(maxId)); } catch { /* приватный режим */ }
+    }
+}
+
 // Записи, которые прямо сейчас в очереди на удаление/перенос.
 function pendingRecordIds() {
     const del = new Set();
@@ -311,13 +336,13 @@ function statusLineHtml() {
 }
 
 function renderHeader() {
-    const pending = pendingOps().length;
-    const failed = state.ops.filter(o => o.status === 'failed' && !o.lastError.includes('отменена')).length;
+    const { pending, failed } = unseenOps();
     const today = state.status?.today;
     const tomorrow = state.status?.tomorrow;
     return `
     <header class="rc-top">
-        <div class="rc-brand">${icons.pin(18)}<span>Записи</span><span class="rc-brand-sub">SPOT</span></div>
+        <a class="btn btn-sec rc-home" href="./index.html" title="К калькулятору">${icons.back(15)}</a>
+        <div class="rc-brand">${icons.pin(18)}<span>Записи</span></div>
         <nav class="rc-tabs">
             <button class="chip ${state.date === today ? 'active' : ''}" data-action="set-date" data-date="${esc(today)}">Сегодня</button>
             <button class="chip ${state.date === tomorrow ? 'active' : ''}" data-action="set-date" data-date="${esc(tomorrow)}">Завтра</button>
@@ -405,19 +430,22 @@ function overviewCard(addr, meta) {
     }).join('');
 
     const line = meta?.line;
+    // Свободных мест мало/нет — это то, ради чего в карточку смотрят, поэтому
+    // цветом выделена только эта таблетка; остальные держим нейтральными,
+    // чтобы сетка не пестрела.
+    const freeTone = free === 0 ? 'rc-pill-none' : free <= 5 ? 'rc-pill-low' : 'rc-pill-ok';
     return `
     <button class="rc-card" data-action="open-station" data-id="${esc(addr.id)}">
         <div class="rc-card-head">
             <span class="rc-line-dot" style="background:${line ? LINE_COLORS[line] : 'var(--sub)'}"></span>
-            <b>${esc(meta?.short || addr.title)}</b>
-            ${meta?.metro ? `<span class="rc-card-metro">${esc(meta.metro)}</span>` : ''}
+            <b class="rc-card-name">${esc(meta?.short || addr.title)}</b>
         </div>
         <div class="rc-card-strip">${ticks}</div>
         <div class="rc-card-foot">
-            <span>${booked} зап.</span>
-            <span>${free} свободно</span>
-            <span>${boxes} ${boxes === 1 ? 'бокс' : boxes < 5 ? 'бокса' : 'боксов'}</span>
-            ${ghosts.length ? `<span class="rc-card-queue">${icons.clock(11)} ${ghosts.length} в очереди</span>` : ''}
+            <span class="rc-pill ${freeTone}">${free} свободно</span>
+            <span class="rc-pill rc-pill-mute">${booked} зап.</span>
+            <span class="rc-pill rc-pill-mute">${boxes} ${boxes === 1 ? 'бокс' : boxes < 5 ? 'бокса' : 'боксов'}</span>
+            ${ghosts.length ? `<span class="rc-pill rc-pill-queue">${icons.clock(10)}${ghosts.length} в очереди</span>` : ''}
         </div>
     </button>`;
 }
@@ -905,7 +933,7 @@ function renderCredsGate() {
     return `
     <div class="rc-shell rc-gate">
         <div class="rc-gate-card">
-            <div class="rc-brand rc-gate-brand">${icons.pin(20)}<span>Записи</span><span class="rc-brand-sub">SPOT</span></div>
+            <div class="rc-brand rc-gate-brand">${icons.pin(20)}<span>Записи</span></div>
             ${credsFormHtml()}
         </div>
     </div>`;
@@ -937,9 +965,14 @@ function runSearch(q) {
         }
         if (out.length >= 30) break;
     }
+    // Телефон показываем всегда: при поиске по цифрам иначе непонятно, почему
+    // выпала именно эта запись.
     drop.innerHTML = out.length ? out.map(({ addr, addrLabel, chain }) => `
         <button class="rc-search-item" data-action="search-pick" data-station="${esc(addr.id)}" data-head="${esc(chain.head.id)}">
-            <b>${esc(chain.head.name || 'без имени')}</b>
+            <span class="rc-search-line">
+                <b>${esc(chain.head.name || 'без имени')}</b>
+                ${chain.head.phone && !chain.head.isStub ? `<em class="rc-search-phone">${esc(chain.head.phone)}</em>` : ''}
+            </span>
             <span>${esc(addrLabel)} · ${esc(chain.timeStart)}–${esc(chain.timeEnd)}${chain.parts.length > 1 ? ` · ${chain.parts.length} слота` : ''}</span>
         </button>`).join('')
         : '<div class="rc-empty-note rc-search-empty">Ничего не нашлось на этот день</div>';
@@ -1219,7 +1252,12 @@ async function handleAction(btn) {
         return render();
     }
     if (a === 'open-map') { state.modal = { kind: 'map' }; return render(); }
-    if (a === 'open-queue') { await loadOps(); state.modal = { kind: 'queue' }; return render(); }
+    if (a === 'open-queue') {
+        await loadOps();
+        markOpsSeen(); // окно открыли — бейдж гасим до следующей операции
+        state.modal = { kind: 'queue' };
+        return render();
+    }
     if (a === 'open-creds') { state.credsError = ''; state.modal = { kind: 'creds' }; return render(); }
     if (a === 'close-modal') { destroyMapCtl(); state.modal = null; return render(); }
 
