@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.2.121
+// @version      1.2.297
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
 // @match        https://mann-filter.com/*
@@ -29,6 +29,7 @@
     if (h.includes("lynxauto.info")) return "lynx";
     if (h.includes("ravenol.ru")) return "ravenol";
     if (h.includes("motul.lubricantadvisor.com")) return "motul";
+    if (h.includes("lukoil.lubribase.ru")) return "lukoil";
     return null;
   }
   function normPart(s) {
@@ -64,6 +65,10 @@
     if (site === "ravenol") {
       const path = normPart(u.pathname);
       return path ? "ravenol:" + path : null;
+    }
+    if (site === "lukoil") {
+      const parts = [p.get("manufacturer_id"), p.get("engine_volume")].map(normPart).filter(Boolean);
+      return parts.length ? "lukoil:" + parts.join(":") : null;
     }
     return null;
   }

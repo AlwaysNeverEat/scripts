@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.121
+// @version      2.23.297
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -458,11 +458,11 @@
   function fuelLabel(fuelType) {
     const ft = String(fuelType == null ? "" : fuelType).trim();
     if (!ft) return "";
-    if (isDieselFuel(ft)) return "⛽ дизель";
-    if (ft === "02") return "⛽ бензин + газ";
-    if (isPetrolFuel(ft)) return "⛽ бензин";
+    if (isDieselFuel(ft)) return "дизель";
+    if (ft === "02") return "бензин + газ";
+    if (isPetrolFuel(ft)) return "бензин";
     const safe = ft.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-    return `⛽ топливо: ${safe}?`;
+    return `топливо: ${safe}?`;
   }
   function fuelSelectOptions(current) {
     const cur = normalizeFuelCode(current);
@@ -890,6 +890,32 @@
     agg.ranked = ratedAll.map((r) => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier, classMiss: r.classMiss || null }));
     return { mid, spot };
   }
+  var MANUAL_UNSUPPORTED_SPECS = [
+    { re: /\b70W\b/i, label: "70W" },
+    { re: /75W[\s-]?85/i, label: "75W-85" },
+    { re: /80W[\s-]?90/i, label: "80W-90" },
+    { re: /\bLS\b/i, label: "LS (limited slip)" }
+  ];
+  function manualOilWarn(agg) {
+    if (agg.key !== "manual") return null;
+    const products = agg.motulProducts || agg.approvals || [];
+    if (!products.length) return { reason: "notFound" };
+    for (const p of products) {
+      for (const spec of MANUAL_UNSUPPORTED_SPECS) {
+        if (spec.re.test(String(p))) {
+          return { reason: "spec", spec: spec.label, product: String(p) };
+        }
+      }
+    }
+    return null;
+  }
+  function manualWarnText(warn) {
+    if (!warn) return "";
+    if (warn.reason === "notFound") {
+      return "Motul не дал продуктов для МКПП (product not found) — предложить нечего, перевести на мастера";
+    }
+    return `Motul требует ${warn.spec} («${warn.product}») — такого масла в наличии нет, предложить нечего, перевести на мастера`;
+  }
   function calcForAggregate(agg, calcState2, carApprovals) {
     if (agg.key === "manual" && agg.rawText && /HIGH\s*GEAR|HIGHGEAR|HI[\s\-]?GEAR/i.test(agg.rawText)) {
       return { isHighGear: true, costs: [], vCalc: 0, formula: "", volumeStr: "—" };
@@ -968,6 +994,21 @@
         agg.atfWarn = picked.noMatch;
       }
     } else {
+      const mkppWarn = manualOilWarn(agg);
+      if (mkppWarn) {
+        agg.mkppWarn = mkppWarn;
+        return {
+          mkppWarn,
+          costs: [],
+          vCalc,
+          formula,
+          volumeStr,
+          vService,
+          motulVol,
+          overrideUsed
+        };
+      }
+      agg.mkppWarn = null;
       const isCvtGear = agg.rawText && /CVT/i.test(agg.rawText);
       const defs = isCvtGear ? defaults.cvt : defaults.gear75W90;
       oil1 = defs[0];
@@ -1114,11 +1155,12 @@
       }
       const extraTxt = extras.length ? " + " + extras.join(" + ") : "";
       lines.push(`${typeTxt} (${calc.vCalc}л / ${pct})${extraTxt}`);
-      if (!isCvt && agg.atfWarn) lines.push("⚠ подходящих масел в наличии нет — перевести на мастера");
+      if (!isCvt && agg.atfWarn) lines.push("подходящих масел в наличии нет — перевести на мастера");
       calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
     } else {
       const vService = (parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)).toFixed(1);
       lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
+      if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
       calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
     }
     return lines.join("\n");
@@ -1156,11 +1198,10 @@
     const carParts = [];
     if (car.makeShort) carParts.push(car.makeShort);
     if (car.modelShort) carParts.push(car.modelShort);
-    if (car.engineName) carParts.push(car.engineName);
-    else if (car.volume) carParts.push(car.volume);
+    if (car.volume) carParts.push(car.volume + "л");
     if (car.yearFrom) carParts.push(String(car.yearFrom));
-    if (car.bhp) carParts.push(car.bhp + "лс");
-    else if (car.kw) carParts.push(car.kw + "кВт");
+    const hp = car.bhp || (car.kw ? Math.round(parseFloat(car.kw) * 1.35962) : "");
+    if (hp) carParts.push(hp + "лс");
     const carLine = carParts.join(" ");
     if (carLine) parts.push(carLine);
     for (const agg of aggs) {
@@ -1186,12 +1227,13 @@
   };
 
   // shared/sourceLinks.js
-  var SOURCE_SITES = ["mann", "lynx", "ravenol", "motul"];
+  var SOURCE_SITES = ["mann", "lynx", "ravenol", "motul", "lukoil"];
   var SOURCE_LABELS = {
     mann: "Mann-Filter",
     lynx: "LYNXauto",
     ravenol: "Ravenol",
-    motul: "Motul"
+    motul: "Motul",
+    lukoil: "ЛУКОЙЛ"
   };
   function detectSite(url) {
     let u;
@@ -1205,6 +1247,7 @@
     if (h.includes("lynxauto.info")) return "lynx";
     if (h.includes("ravenol.ru")) return "ravenol";
     if (h.includes("motul.lubricantadvisor.com")) return "motul";
+    if (h.includes("lukoil.lubribase.ru")) return "lukoil";
     return null;
   }
   function normPart(s) {
@@ -1240,6 +1283,10 @@
     if (site === "ravenol") {
       const path = normPart(u.pathname);
       return path ? "ravenol:" + path : null;
+    }
+    if (site === "lukoil") {
+      const parts = [p.get("manufacturer_id"), p.get("engine_volume")].map(normPart).filter(Boolean);
+      return parts.length ? "lukoil:" + parts.join(":") : null;
     }
     return null;
   }
@@ -1790,11 +1837,15 @@
         <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a0000;border:1px solid #e53935;border-radius:6px;margin-top:6px;color:#ff8a80">
             ⚠ Ни ZIC, ни ROLF не покрывают спецификации этой коробки — перевести клиента на мастера
         </div>` : "";
+    const mkppWarnBox = calc.mkppWarn ? `
+        <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a0000;border:1px solid #e53935;border-radius:6px;margin-top:6px;color:#ff8a80">
+            ⚠ ${escapeHtmlSafe(manualWarnText(calc.mkppWarn))}
+        </div>` : "";
     const html = `
         ${volEditHtml}
         <div class="zm-formula">📐 ${formula}</div>
         ${flushBox}
-        ${atfWarnBox}
+        ${atfWarnBox}${mkppWarnBox}
         ${costs.map((c, i) => {
       const canPick = agg.group === "engine" && i === 0 && !c.oil.isSpot && !isFixedSingle && agg.allCandidates && agg.allCandidates.length > 1;
       const regMatches = agg.group === "engine" ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
