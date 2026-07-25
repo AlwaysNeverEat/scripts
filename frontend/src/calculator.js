@@ -418,7 +418,10 @@ function renderAggCard(agg, calcState, carApprovals) {
 
     const showApp = calcState.showApprovals.has(agg.key);
     const appCount = agg.group === 'engine' ? carApprovals.length : (agg.approvals || []).length;
-    const appLabel = agg.group === 'engine' ? 'Допуска машины' : (agg.isCustom ? 'Допуска' : 'Продукты Motul');
+    // Допуска агрегатов теперь правятся вручную («Нашли ошибку?»), поэтому у
+    // всех неспецифичных агрегатов подпись одна — «Допуска» (раньше у штатных
+    // стояло «Продукты Motul», хотя это тот же список).
+    const appLabel = agg.group === 'engine' ? 'Допуска машины' : 'Допуска';
     const appBlock = sel && !calc.isHighGear && !calc.needsVolume && appCount > 0 ? `
         <button class="app-btn" data-app-toggle="${agg.key}">
             ${showApp ? '▾' : '▸'} ${appLabel} (${appCount})

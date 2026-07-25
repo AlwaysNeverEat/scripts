@@ -293,7 +293,7 @@ function renderEditForm(record) {
         <label class="chk-label edit-flag"><input type="checkbox" data-edit-flag="${key}" ${flags[key] ? 'checked' : ''}/> ${esc(def.label)}</label>
     `).join('');
 
-    // объёмы жидкостей + переименование штатных агрегатов
+    // объёмы жидкостей + переименование штатных агрегатов + их допуска
     const fc = record.fluid_capacities || {};
     const volRow = (key, defName) => {
         const a = fc[key];
@@ -301,11 +301,18 @@ function renderEditForm(record) {
         const vol = key === 'engine'
             ? (a.volumeService || a.volumeTotal || a.volumePlain || '')
             : (a.volumeTotal || a.volumeService || a.volumePlain || '');
+        // Допуска ДВС — общие для машины (car_approvals, секция ниже), у
+        // остальных агрегатов свои: fluid_capacities[key].motulProducts.
+        const appr = Array.isArray(a.motulProducts) ? a.motulProducts : [];
+        const apprBox = key === 'engine' ? '' : `
+                <textarea data-edit-agg-appr="${key}" rows="2" placeholder="допуска — по одному в строке (напр. NS-3, DEXRON VI, Motul MOTYLGEAR 75W-90)">${esc(appr.join('\n'))}</textarea>`;
         return `
-            <div class="edit-agg-row">
-                <input type="text" class="edit-agg-name" data-edit-agg-label="${key}" value="${esc(a.label || '')}" placeholder="${esc(defName)}" title="название агрегата — можно переименовать"/>
-                <input type="number" step="0.1" min="0" data-edit-vol="${key}" value="${vol}" style="width:90px" title="объём, л"/>
-                <span style="color:var(--sub);font-size:12px">л</span>
+            <div class="edit-std-agg">
+                <div class="edit-agg-row">
+                    <input type="text" class="edit-agg-name" data-edit-agg-label="${key}" value="${esc(a.label || '')}" placeholder="${esc(defName)}" title="название агрегата — можно переименовать"/>
+                    <input type="number" step="0.1" min="0" data-edit-vol="${key}" value="${vol}" style="width:90px" title="объём, л"/>
+                    <span style="color:var(--sub);font-size:12px">л</span>
+                </div>${apprBox}
             </div>`;
     };
     const volRows = [
@@ -369,14 +376,14 @@ function renderEditForm(record) {
                 </label>
             </div>
 
-            ${volRows ? `<div class="edit-sec-h">Агрегаты: название и объём</div><div class="edit-oils-note">Левое поле — название (можно переименовать, пусто = стандартное), правое — объём заправки, л.</div>${volRows}` : ''}
+            ${volRows ? `<div class="edit-sec-h">Агрегаты: название, объём и допуска</div><div class="edit-oils-note">Верхняя строка: название (можно переименовать, пусто = стандартное) и объём заправки, л. Ниже — допуска этого агрегата (по одному в строке): по ним подбирается ATF/трансмиссионное масло. У ДВС допуска общие для машины — в секции «Допуски масла ДВС» ниже.</div>${volRows}` : ''}
 
             <div class="edit-sec-h">Дополнительные агрегаты</div>
             <div class="edit-oils-note">Свои агрегаты сверх основных: хоть 5 вариаторов, мостов, редукторов или раздаток. У каждого — название, объём и свои допуска (по одному в строке).</div>
             <div id="edit-custom-aggs"></div>
             <button class="btn btn-sec btn-mini" id="btn-add-custom-agg" style="margin-top:6px">Добавить агрегат</button>
 
-            <div class="edit-sec-h">Допуски масла — по одному в строке</div>
+            <div class="edit-sec-h">Допуски масла ДВС — по одному в строке</div>
             <textarea id="edit-approvals" rows="4">${esc(approvals.join('\n'))}</textarea>
 
             <div class="edit-sec-h">Фильтры ДВС</div>
@@ -574,6 +581,16 @@ function bindEditForm(head, record, ctx) {
             const name = inp.value.trim();
             if (name) fluid[key].label = name;
             else delete fluid[key].label;
+        });
+
+        // Допуска штатных агрегатов (кроме ДВС — у него car_approvals) →
+        // fluid_capacities[key].motulProducts. Пусто = допуска неизвестны.
+        head.querySelectorAll('[data-edit-agg-appr]').forEach(ta => {
+            const key = ta.dataset.editAggAppr;
+            if (!fluid[key]) return;
+            const list = ta.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            if (list.length) fluid[key].motulProducts = list;
+            else delete fluid[key].motulProducts;
         });
 
         // Пользовательские агрегаты → fluid_capacities.custom
