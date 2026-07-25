@@ -70,7 +70,7 @@ export const STATIONS_META = [
 
     // ── Фиолетовая (5) ───────────────────────────────────────────────────────
     { match: 'Планерная 16',        short: 'Планерная 16',    metro: 'Комендантский пр.', line: 5, boxNo: '##18', boxes: 2, layout: '2 бокса / 1 подъёмник / 1 яма', height: '2.8 м', lat: 59.999687, lng: 30.233421, knownId: '142' },
-    { match: 'Оптиков 2',           short: 'Оптиков 2',       metro: 'Комендантский пр.', line: 5, boxNo: '##04', boxes: 3, layout: '3 бокса / 1 подъёмник / 2 ямы', height: '2.4 м', lat: 59.995075, lng: 30.254630, knownId: '3' },
+    { match: 'Оптиков 2',           short: 'Оптиков 2',       metro: 'Комендантский пр.', line: 5, boxNo: '##04', boxes: 2, layout: '2 бокса',                       height: '2.4 м', lat: 59.995075, lng: 30.254630, knownId: '3' },
     { match: 'Фучика 23',           short: 'Фучика 23',       metro: 'Бухарестская',      line: 5, boxNo: '##01', boxes: 1, layout: '1 бокс / 1 яма',                height: '3 м',   lat: 59.883373, lng: 30.386526, knownId: '1', note: 'Во дворе' },
     { match: 'Фучика 14',           short: 'Фучика 14',       metro: 'Международная',     line: 5, boxNo: '##03', boxes: 2, layout: '2 бокса / 2 подъёмника',        height: '2.2 м', lat: 59.884379, lng: 30.386548, knownId: '2', note: 'На углу' },
     { match: 'Дунайский 21',        short: 'Дунайский 21',    metro: 'Дунайская',         line: 5, boxNo: '##12', boxes: 1, layout: '1 бокс / 1 подъёмник',          height: '2.2 м', lat: 59.830708, lng: 30.350039, knownId: '' },

@@ -21,7 +21,7 @@ const LOGIN = 'admin';
 const PASSWORD = 'spot123';
 
 const ADDRESSES = [
-    { id: '3', title: 'СПб, Оптиков 2', boxes: 3 },
+    { id: '3', title: 'СПб, Оптиков 2', boxes: 2 },
     { id: '8', title: 'СПб, Выборгское шоссе 2', boxes: 2 },
     { id: '192', title: 'СПБ, Ветеранов 167 к.8 СПОТ', boxes: 1 },
 ];

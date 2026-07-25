@@ -7,7 +7,7 @@ import {
     parseRecordBoard, detectChains, assignLanes, buildExtensionOps,
     contiguousFreeSlots, flattenAddressRecords, buildCopyLine,
     isRecordBoard, looksLikeLoginPage, parseEditForm,
-    timeToMin, minToTime, addMinutes, normPhoneDigits,
+    timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
     EXTENSION_STUB_PHONE,
 } from './crmRecords.js';
 import { findStationMeta } from './stationsMeta.js';
@@ -24,6 +24,23 @@ test('время: конвертации туда-обратно', () => {
     assert.equal(minToTime(540), '09:00');
     assert.equal(addMinutes('09:30', 30), '10:00');
     assert.equal(addMinutes('20:30', 30), '21:00');
+});
+
+test('formatRuPhone: любой ввод приводится к формату админки', () => {
+    assert.equal(formatRuPhone('9211234567'), '+7 (921) 123-45-67');
+    assert.equal(formatRuPhone('89211234567'), '+7 (921) 123-45-67');
+    assert.equal(formatRuPhone('+7 921 123 45 67'), '+7 (921) 123-45-67');
+    assert.equal(formatRuPhone('+7 (921) 123-45-67'), '+7 (921) 123-45-67');
+    // лишние цифры отбрасываются, а не сдвигают номер
+    assert.equal(formatRuPhone('92112345670000'), '+7 (921) 123-45-67');
+});
+
+test('formatRuPhone: неполный ввод форматируется по мере набора', () => {
+    assert.equal(formatRuPhone(''), '');
+    assert.equal(formatRuPhone('9'), '+7 (9');
+    assert.equal(formatRuPhone('921'), '+7 (921)');
+    assert.equal(formatRuPhone('921123'), '+7 (921) 123');
+    assert.equal(formatRuPhone('92112345'), '+7 (921) 123-45');
 });
 
 test('normPhoneDigits: скобки, пробелы, 8 → 7', () => {

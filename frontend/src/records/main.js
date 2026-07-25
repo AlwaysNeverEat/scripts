@@ -18,7 +18,7 @@ import { createStationsMap, geocodeStreet, stationsNear } from './map.js';
 import { findStationMeta, LINE_COLORS, LINE_NAMES } from '../../../shared/stationsMeta.js';
 import {
     detectChains, assignLanes, flattenAddressRecords, buildCopyLine,
-    timeToMin, addMinutes, normPhoneDigits,
+    timeToMin, addMinutes, formatRuPhone,
     EXTENSION_STUB_PHONE, SLOT_MINUTES,
 } from '../../../shared/crmRecords.js';
 
@@ -127,16 +127,19 @@ function metaFor(addr) {
     return addr ? findStationMeta(addr.title) : null;
 }
 
+// Число боксов станции. Главный источник — сама доска: в открытом слоте
+// оригинал рисует по «Добавить» на каждый свободный бокс, поэтому
+// «записей + свободных» в слоте и есть количество боксов. Это точнее
+// захардкоженной меты (у неё бывает физическое число постов, а не рабочих
+// боксов) и подхватывает изменения без правки справочника.
 function boxesFor(addr) {
-    const meta = metaFor(addr);
-    if (meta?.boxes) return meta.boxes;
-    // мета не нашлась — оцениваем по максимуму одновременных записей+свободных
-    let max = 1;
+    let max = 0;
     const byTime = state.board?.cells[addr.id] || {};
     for (const t of Object.keys(byTime)) {
         max = Math.max(max, byTime[t].records.length + byTime[t].free);
     }
-    return max;
+    if (max > 0) return max;
+    return metaFor(addr)?.boxes || 1; // день целиком закрыт — верим справочнику
 }
 
 function chainsFor(addressId) {
@@ -174,6 +177,46 @@ function ghostsFor(addressId) {
                 name: o.payload.name,
             };
         });
+}
+
+// DD.MM.YYYY → YYYY-MM-DD (значение для <input type="date">) и обратно.
+function ddmmToIso(d) {
+    const m = String(d || '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+}
+
+function isoToDdmm(v) {
+    const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+}
+
+// Маска телефона (формат — formatRuPhone из shared/crmRecords.js), не
+// мешающая правкам в середине: курсор возвращаем на ту же «цифру по счёту»,
+// а не в конец строки.
+function bindPhoneMask(input) {
+    if (!input) return;
+    const apply = () => {
+        const before = input.value;
+        const caret = input.selectionStart ?? before.length;
+        const digitsLeft = before.slice(0, caret).replace(/\D/g, '').length;
+        const formatted = formatRuPhone(before);
+        if (formatted === before) return;
+        input.value = formatted;
+        let pos = formatted.length;
+        if (digitsLeft > 0) {
+            // +7 всегда впереди — отсчёт значимых цифр начинаем после него
+            let seen = 0;
+            for (let i = 3; i < formatted.length; i++) {
+                if (/\d/.test(formatted[i])) seen++;
+                if (seen === digitsLeft) { pos = i + 1; break; }
+            }
+        } else if (formatted) {
+            pos = 4; // сразу внутрь скобок
+        }
+        input.setSelectionRange(pos, pos);
+    };
+    input.addEventListener('input', apply);
+    input.addEventListener('paste', () => setTimeout(apply, 0));
 }
 
 function fmtAgo(iso) {
@@ -214,6 +257,14 @@ function statusIcon(status) {
 
 function render() {
     if (!root) return;
+    // Карта живёт внутри перерисовываемого DOM — запоминаем, куда её увели
+    // мышью, иначе каждый чих в окне отбрасывал бы её к общему виду города.
+    // Исключение — вид, только что заданный кодом (выбрали станцию): его
+    // перетирать положением ещё живой старой карты нельзя.
+    if (state.modal && mapCtl && !state.modal.mapViewForced) {
+        try { state.modal.mapView = mapCtl.getView(); } catch { /* карта уже снята */ }
+    }
+    if (state.modal) state.modal.mapViewForced = false;
     if (state.credsNeeded) {
         root.innerHTML = renderCredsGate();
         bindCredsGate();
@@ -270,10 +321,10 @@ function renderHeader() {
         <nav class="rc-tabs">
             <button class="chip ${state.date === today ? 'active' : ''}" data-action="set-date" data-date="${esc(today)}">Сегодня</button>
             <button class="chip ${state.date === tomorrow ? 'active' : ''}" data-action="set-date" data-date="${esc(tomorrow)}">Завтра</button>
-            <label class="rc-date-pick chip ${state.date && state.date !== today && state.date !== tomorrow ? 'active' : ''}">
+            <button class="chip rc-date-pick ${state.date && state.date !== today && state.date !== tomorrow ? 'active' : ''}" data-action="pick-date">
                 ${icons.calendar(13)}<span>${state.date && state.date !== today && state.date !== tomorrow ? esc(state.date) : 'Дата'}</span>
-                <input type="date" id="rc-date-input"/>
-            </label>
+            </button>
+            <input type="date" id="rc-date-input" class="rc-date-input" value="${esc(ddmmToIso(state.date))}" tabindex="-1" aria-hidden="true"/>
         </nav>
         <div class="rc-searchbox">
             ${icons.search(14)}
@@ -497,13 +548,13 @@ function renderModal() {
     </div>`;
 }
 
-function modalShell(title, body, { wide = false } = {}) {
+function modalShell(title, body, { wide = false, map = false } = {}) {
     return `
-    <div class="modal-win ${wide ? 'rc-win-wide' : ''}">
+    <div class="modal-win ${map ? 'rc-win-map' : wide ? 'rc-win-wide' : ''}">
         <div class="modal-head"><span>${title}</span>
             <button class="btn btn-sec" data-action="close-modal">${icons.x(14)}</button>
         </div>
-        <div class="modal-body rc-modal-body">${body}</div>
+        <div class="modal-body rc-modal-body ${map ? 'rc-modal-body-map' : ''}">${body}</div>
     </div>`;
 }
 
@@ -826,7 +877,7 @@ function modalMap(m) {
             <div id="rc-big-map" class="rc-big-map"></div>
         </div>
     </div>`;
-    return modalShell('Карта станций', body, { wide: true });
+    return modalShell('Карта станций', body, { map: true });
 }
 
 function modalCreds() {
@@ -924,13 +975,31 @@ function addrIdByMeta(meta) {
     return null;
 }
 
-function initModalMap(containerId, onPickMeta) {
+// activeShort — станция, которую подсветить (выбранная в окне записи).
+function initModalMap(containerId, onPickMeta, activeShort = null) {
     const el = document.getElementById(containerId);
     if (!el) return;
     destroyMapCtl();
-    mapCtl = createStationsMap(el, { onPick: onPickMeta });
+    mapCtl = createStationsMap(el, { onPick: onPickMeta, view: state.modal?.mapView });
     mapCtl.setBusy(busyCountByShort());
+    if (activeShort) mapCtl.highlight(activeShort);
     mapCtl.invalidate();
+}
+
+// Клик по станции на карте в окне записи: центрируем карту на ней и
+// отдаляем ровно настолько, чтобы соседние станции остались на виду —
+// иначе следующий выбор пришлось бы искать заново.
+function focusPickedStation(meta) {
+    if (!state.modal) return;
+    state.modal.mapView = { lat: meta.lat, lng: meta.lng, zoom: 12 };
+    state.modal.mapViewForced = true; // ближайший render() этот вид не тронет
+}
+
+// Стартовый вид мини-карты — вокруг уже выбранной станции.
+function ensureMapViewFor(addressId) {
+    if (!state.modal || state.modal.mapView) return;
+    const meta = metaFor(stationById(addressId));
+    if (meta) state.modal.mapView = { lat: meta.lat, lng: meta.lng, zoom: 12 };
 }
 
 // ── Бинды ────────────────────────────────────────────────────────────────────
@@ -978,21 +1047,27 @@ function bind() {
     const dateInput = document.getElementById('rc-date-input');
     if (dateInput) {
         dateInput.onchange = () => {
-            const v = dateInput.value; // YYYY-MM-DD
-            if (!v) return;
-            const [y, mo, d] = v.split('-');
-            state.date = `${d}.${mo}.${y}`;
+            const date = isoToDdmm(dateInput.value);
+            if (!date) return;
+            state.date = date;
             state.view = 'overview';
+            state.highlightId = null;
             loadBoard();
         };
     }
+
+    // Маска телефона в окнах создания и правки
+    bindPhoneMask(document.getElementById('rc-f-phone'));
+    bindPhoneMask(document.getElementById('rc-e-phone'));
     // Селекты в модалках
     const stSel = document.getElementById('rc-f-station');
     if (stSel) {
         stSel.onchange = () => {
             keepCreateFields();
             state.modal.addressId = stSel.value;
-            state.modal.time = null;
+            if (state.modal.time && !slotFree(stSel.value, state.modal.time)) state.modal.time = null;
+            const meta = metaFor(stationById(stSel.value));
+            if (meta) focusPickedStation(meta); // карта едет за выбором из списка
             render();
         };
     }
@@ -1001,6 +1076,8 @@ function bind() {
         mvSel.onchange = () => {
             state.modal.targetAddressId = mvSel.value;
             state.modal.targetTime = null;
+            const meta = metaFor(stationById(mvSel.value));
+            if (meta) focusPickedStation(meta);
             render();
         };
     }
@@ -1017,7 +1094,7 @@ function bind() {
                 state.stationId = id;
                 render();
             }
-        });
+        }, state.view === 'station' ? metaFor(stationById(state.stationId))?.short : null);
         const q = document.getElementById('rc-map-q');
         if (q) {
             q.oninput = () => {
@@ -1025,24 +1102,38 @@ function bind() {
                 const val = q.value.trim();
                 state.modal.query = val;
                 if (val.length < 3) return;
+                const nearEl = () => document.getElementById('rc-map-near');
+                const setNearHtml = (html) => { const el = nearEl(); if (el) el.innerHTML = html; };
+                setNearHtml('<div class="rc-empty-note">Ищу адрес…</div>');
                 geocodeTimer = setTimeout(async () => {
+                    let hits;
                     try {
-                        const hits = await geocodeStreet(val);
-                        if (state.modal?.kind !== 'map') return;
-                        if (hits.length) {
-                            state.modal.near = stationsNear(hits[0].lat, hits[0].lng, 6);
-                            mapCtl?.focus(hits[0].lat, hits[0].lng, 13);
-                            const nearEl = document.getElementById('rc-map-near');
-                            if (nearEl) {
-                                nearEl.innerHTML = state.modal.near.map(s => `
-                                    <button class="rc-near-item" data-action="near-pick" data-short="${esc(s.short)}" data-lat="${s.lat}" data-lng="${s.lng}">
-                                        <span class="rc-line-dot" style="background:${LINE_COLORS[s.line] || 'var(--sub)'}"></span>
-                                        <b>${esc(s.short)}</b>
-                                        <span class="rc-near-dist">${s.distanceKm < 1 ? `${Math.round(s.distanceKm * 1000)} м` : `${s.distanceKm.toFixed(1)} км`}</span>
-                                    </button>`).join('');
-                            }
+                        hits = await geocodeStreet(val);
+                    } catch {
+                        // Молчать нельзя: пустой список неотличим от «ничего не
+                        // нашлось», а причина другая — геокодер не ответил.
+                        if (state.modal?.kind === 'map') {
+                            setNearHtml('<div class="rc-empty-note">Поиск по адресу сейчас недоступен — выбери станцию на карте.</div>');
                         }
-                    } catch { /* геокодер недоступен — просто без подсказок */ }
+                        return;
+                    }
+                    if (state.modal?.kind !== 'map') return;
+                    if (!hits.length) {
+                        state.modal.near = null;
+                        setNearHtml('<div class="rc-empty-note">Такой адрес не нашёлся. Попробуй иначе: «Оптиков 2», «проспект Ветеранов».</div>');
+                        return;
+                    }
+                    state.modal.near = stationsNear(hits[0].lat, hits[0].lng, 6);
+                    mapCtl?.focus(hits[0].lat, hits[0].lng, 13);
+                    setNearHtml(
+                        `<div class="rc-near-head">${esc(hits[0].label)}</div>`
+                        + state.modal.near.map(s => `
+                            <button class="rc-near-item" data-action="near-pick" data-short="${esc(s.short)}" data-lat="${s.lat}" data-lng="${s.lng}">
+                                <span class="rc-line-dot" style="background:${LINE_COLORS[s.line] || 'var(--sub)'}"></span>
+                                <b>${esc(s.short)}</b>
+                                <span class="rc-near-dist">${s.distanceKm < 1 ? `${Math.round(s.distanceKm * 1000)} м` : `${s.distanceKm.toFixed(1)} км`}</span>
+                            </button>`).join(''),
+                    );
                 }, 500);
             };
         }
@@ -1050,23 +1141,26 @@ function bind() {
     if (state.modal?.kind === 'create' && state.modal.showMap) {
         initModalMap('rc-create-map', (meta) => {
             const id = addrIdByMeta(meta);
-            if (id) {
-                keepCreateFields();
-                state.modal.addressId = id;
-                state.modal.time = null;
-                render();
-            }
-        });
+            if (!id) return;
+            keepCreateFields();
+            focusPickedStation(meta);
+            state.modal.addressId = id;
+            // Время сохраняем, если оно свободно и на новой станции.
+            if (state.modal.time && !slotFree(id, state.modal.time)) state.modal.time = null;
+            render();
+        }, metaFor(stationById(state.modal.addressId))?.short);
     }
     if (state.modal?.kind === 'move' && state.modal.showMap) {
+        const found = chainByHead(state.modal.headId);
+        const current = state.modal.targetAddressId || found?.addr.id;
         initModalMap('rc-move-map', (meta) => {
             const id = addrIdByMeta(meta);
-            if (id) {
-                state.modal.targetAddressId = id;
-                state.modal.targetTime = null;
-                render();
-            }
-        });
+            if (!id) return;
+            focusPickedStation(meta);
+            state.modal.targetAddressId = id;
+            state.modal.targetTime = null;
+            render();
+        }, metaFor(stationById(current))?.short);
     }
 
     // Подсветку из поиска доводим до экрана.
@@ -1097,6 +1191,18 @@ async function handleAction(btn) {
         state.highlightId = null;
         return loadBoard();
     }
+    if (a === 'pick-date') {
+        // Нативный календарь: у скрытого input'а клик пикер не открывает,
+        // нужен showPicker() (в старых браузерах — обычный focus+click).
+        const input = document.getElementById('rc-date-input');
+        if (!input) return;
+        if (typeof input.showPicker === 'function') {
+            try { input.showPicker(); return; } catch { /* ниже — запасной путь */ }
+        }
+        input.focus();
+        input.click();
+        return;
+    }
     if (a === 'refresh') {
         apiFetch('/api/records/refresh', { method: 'POST' }).catch(() => {});
         return loadBoard({ silent: true });
@@ -1126,7 +1232,7 @@ async function handleAction(btn) {
     }
     if (a === 'near-pick') {
         // Клик по «ближайшей станции» в поиске по улице
-        mapCtl?.focus(Number(btn.dataset.lat), Number(btn.dataset.lng), 14);
+        mapCtl?.focus(Number(btn.dataset.lat), Number(btn.dataset.lng), 13);
         mapCtl?.highlight(btn.dataset.short);
         return;
     }
@@ -1144,7 +1250,12 @@ async function handleAction(btn) {
     }
     if (a === 'set-create-time') { keepCreateFields(); state.modal.time = btn.dataset.time; return render(); }
     if (a === 'set-duration') { keepCreateFields(); state.modal.durationMinutes = Number(btn.dataset.min); return render(); }
-    if (a === 'toggle-create-map') { keepCreateFields(); state.modal.showMap = !state.modal.showMap; return render(); }
+    if (a === 'toggle-create-map') {
+        keepCreateFields();
+        state.modal.showMap = !state.modal.showMap;
+        ensureMapViewFor(state.modal.addressId);
+        return render();
+    }
     if (a === 'submit-create') return submitCreate();
 
     if (a === 'open-chain') { state.modal = { kind: 'chain', headId: btn.dataset.head }; return render(); }
@@ -1167,7 +1278,11 @@ async function handleAction(btn) {
         }
         return;
     }
-    if (a === 'toggle-move-map') { state.modal.showMap = !state.modal.showMap; return render(); }
+    if (a === 'toggle-move-map') {
+        state.modal.showMap = !state.modal.showMap;
+        ensureMapViewFor(state.modal.targetAddressId || chainByHead(state.modal.headId)?.addr.id);
+        return render();
+    }
     if (a === 'move-time') { state.modal.targetTime = btn.dataset.time; return render(); }
     if (a === 'submit-move') return submitMove();
 
