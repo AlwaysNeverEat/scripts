@@ -917,6 +917,29 @@ input[data-edit-filter-absent]:checked::after {
 }
 .edit-agg-row .edit-agg-name:focus { outline: none; border-color: var(--accent); }
 
+/* Штатный агрегат — карточка «название + объём + допуска», как у своих */
+.edit-std-agg {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--bg2);
+}
+.edit-std-agg .edit-agg-row { margin-bottom: 0; }
+.edit-std-agg .edit-agg-name { background: var(--bg); }
+.edit-std-agg textarea {
+  width: 100%;
+  margin-top: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.edit-std-agg textarea:focus { outline: none; border-color: var(--accent); }
+
 .edit-custom-agg {
   border: 1px solid var(--border);
   border-radius: 10px;
