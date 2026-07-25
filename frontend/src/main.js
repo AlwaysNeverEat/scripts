@@ -76,12 +76,14 @@ const pageAuth    = document.getElementById('page-auth');
 const pageSearch  = document.getElementById('page-search');
 const pageCalc    = document.getElementById('page-calc');
 const pageProfile = document.getElementById('page-profile');
+const pageRecords = document.getElementById('page-records');
 
 function hideAllPages() {
     pageAuth.classList.add('hidden');
     pageSearch.classList.add('hidden');
     pageCalc.classList.add('hidden');
     pageProfile.classList.add('hidden');
+    pageRecords.classList.add('hidden');
 }
 
 function showGate(message) {
@@ -105,7 +107,6 @@ function enterApp() {
     initTopModal({ apiFetch });
     initScriptsFeed(); // кнопка + фид юзерскриптов справа снизу на поиске
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
-    window.addEventListener('hashchange', renderRoute);
     renderRoute();
     loadSnapshot();   // прогреваем базу для поиска и тегов
     loadSphere();
@@ -136,6 +137,14 @@ async function renderRoute() {
     const carMatch = location.hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
     const userMatch = location.hash.match(/^#\/user\/([0-9a-f-]{10,})/i);
     const isProfile = location.hash === '#/profile';
+    const isRecords = location.hash.startsWith('#/records');
+
+    // Записи живут до гейта: у них свой вход — общий логин/пароль админки
+    // ZMS, аккаунт сайта для них не нужен (см. backend/src/routes/records.js).
+    if (isRecords) return showRecords();
+    if (recordsActive) await leaveRecords();
+    // Без сессии сайта всё остальное закрыто.
+    if (!unlocked) { showGate(); return; }
 
     if (isProfile) {
         pageSearch.classList.add('hidden');
@@ -183,6 +192,43 @@ async function renderRoute() {
         pageSearch.classList.remove('hidden');
         searchInput.focus();
     }
+}
+
+// ── Раздел «Записи» (ленивая загрузка) ────────────────────────────────────────
+// Модуль записей тянет за собой Leaflet и свои стили, поэтому грузится только
+// при первом заходе на #/records и гасится при уходе — калькулятор ничего
+// лишнего не качает и не держит фоновых опросов.
+
+let recordsMod = null;      // загруженный модуль (кэшируется на сессию)
+let recordsActive = false;
+let recordsLoading = null;
+
+async function showRecords() {
+    hideAllPages();
+    pageRecords.classList.remove('hidden');
+    if (recordsActive) return;
+    if (!recordsMod) {
+        pageRecords.innerHTML = '<div class="rc-boot">Загрузка записей…</div>';
+        recordsLoading = recordsLoading || import('./records/records.js');
+        try {
+            recordsMod = await recordsLoading;
+        } catch (e) {
+            pageRecords.innerHTML = `<div class="rc-boot">Не удалось загрузить записи: ${esc(e.message)}</div>`;
+            recordsLoading = null;
+            return;
+        }
+        recordsLoading = null;
+        // Пока грузился модуль, могли уйти на другой роут.
+        if (!location.hash.startsWith('#/records')) return;
+    }
+    recordsActive = true;
+    recordsMod.startRecords(pageRecords);
+}
+
+async function leaveRecords() {
+    recordsActive = false;
+    recordsMod?.stopRecords();
+    pageRecords.innerHTML = '';
 }
 
 // ── Снимок базы (мгновенный поиск и теги) ──────────────────────────────────────
@@ -401,15 +447,19 @@ modeBtnTags.onclick = () => setSearchMode('tags');
 // что раньше «доподгружалось» уже в приложении (и мигало), теперь готово к
 // моменту скрытия лоадера. Строки лога показывают реальный прогресс.
 async function bootPrepare(log) {
+    // На записи заходят и без аккаунта сайта, и база машин там не нужна —
+    // не заставляем ждать её загрузку.
+    const recordsFirst = location.hash.startsWith('#/records');
     const authLine = log.line('Authenticating session...');
     try {
         const me = await apiFetch('/api/auth/me');
         currentUser = me.user;
         log.set(authLine, 'Authenticating session... OK');
     } catch {
-        log.set(authLine, 'No active session — login required');
+        log.set(authLine, recordsFirst ? 'Opening records...' : 'No active session — login required');
         return { authed: false };
     }
+    if (recordsFirst) return { authed: true };
     const dbLine = log.line('Loading vehicle database...');
     try {
         const snap = await loadSnapshot();
@@ -420,19 +470,24 @@ async function bootPrepare(log) {
     return { authed: true };
 }
 
+// Роутер слушаем всегда, а не только после входа: раздел «Записи» открыт и
+// без аккаунта сайта, и переключение туда-обратно не должно перезагружать
+// приложение.
+window.addEventListener('hashchange', renderRoute);
+
 bootScreen((API_BASE || '') + '/health', { prepare: bootPrepare }).then(async (result) => {
-    if (result && result.authed) {
-        enterApp();
-    } else if (result && result.authed === false) {
-        showGate();
-    } else {
+    let authed = result && result.authed;
+    if (authed === undefined) {
         // Skip-путь: юзер нажал «Continue» до пробуждения сервера — как раньше.
         try {
             const me = await apiFetch('/api/auth/me');
             currentUser = me.user;
-            enterApp();
+            authed = true;
         } catch {
-            showGate();
+            authed = false;
         }
     }
+    if (authed) enterApp();
+    else if (location.hash.startsWith('#/records')) renderRoute(); // записи без гейта
+    else showGate();
 });
