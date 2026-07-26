@@ -428,34 +428,32 @@
 }
 
 /* Маркер «сейчас»: тонкая линия ровно на текущем времени — не по границе
-   слота, а внутри получаса, поэтому он едет по сетке минута за минутой. Без
-   подписи, только линия и кружок-«шляпка» в колонке времени. Лежит поверх
-   капсул (pointer-events: none, клики проходят сквозь), иначе на занятом слоте
-   маркер пропадал бы под записью — а видеть его нужно как раз там. */
+   слота, а внутри получаса, поэтому он едет по сетке минута за минутой.
+   Начинается в пустом хвосте колонки времени, чтобы не перечёркивать сами
+   часы, и лежит НИЖЕ капсул: ничего не закрывает, а сквозь занятый слот его
+   продолжает тень прошедшей части записи (.rc-cap-elapsed). */
 .rc-now {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 58px;
+    right: 48px; /* обрывается перед колонкой кнопок «+N» справа */
     height: 0;
     margin-top: -1px; /* линия центрируется на самой минуте */
-    z-index: 8;
+    z-index: 3;       /* выше фона строк, ниже капсул (4) и кнопок «+N» (5) */
     pointer-events: none;
-    /* Линия чуть прозрачная, а свечение слабое: маркер проходит и по тексту
-       капсул, плотная полоса перечёркивала бы имя и телефон. */
-    border-top: 2px solid color-mix(in oklab, var(--red) 72%, transparent);
-    box-shadow: 0 0 4px color-mix(in oklab, var(--red) 22%, transparent);
+    border-top: 2px solid var(--red);
 }
 
+/* Наконечник-«ползунок» на левом конце: стоит в свободном месте между часами
+   и сеткой боксов, поэтому не наезжает ни на текст, ни на рамку. */
 .rc-now::before {
     content: '';
     position: absolute;
-    left: 5px;
+    left: -7px;
     top: -5px;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--red);
-    box-shadow: 0 0 7px color-mix(in oklab, var(--red) 65%, transparent);
+    width: 0;
+    height: 0;
+    border: 4px solid transparent;
+    border-left: 7px solid var(--red);
 }
 
 .rc-lane-sep {
@@ -514,6 +512,19 @@
     background: var(--blue-dim);
     border-radius: 999px;
     padding: 1px 6px;
+}
+
+/* Прошедшая часть идущей сейчас записи. Лежит на z-index -1: над фоном
+   капсулы, но под её текстом — маркер как бы продолжается сквозь запись, при
+   этом имя и телефон остаются нетронутыми. */
+.rc-cap-elapsed {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: color-mix(in oklab, var(--red) 13%, transparent);
 }
 
 /* Отсчёт до конца записи, которая идёт прямо сейчас. Считается по концу всей

@@ -352,6 +352,13 @@ function syncNow() {
         const from = timeToMin(cap.dataset.start);
         const to = timeToMin(cap.dataset.end);
         const live = now != null && now >= from && now < to;
+        // Тень прошедшей части: её нижняя граница продолжает линию маркера
+        // сквозь капсулу (сам маркер лежит под записями и здесь не виден).
+        const elapsed = cap.querySelector('.rc-cap-elapsed');
+        if (elapsed) {
+            elapsed.classList.toggle('hidden', !live);
+            if (live) elapsed.style.height = `${((now - from) / SLOT_MINUTES) * ROW_H - 2}px`;
+        }
         badge.classList.toggle('hidden', !live);
         if (live) {
             const left = to - now;
@@ -597,6 +604,7 @@ function renderStation() {
             style="top:${i0 * ROW_H + 2}px; height:${nParts * ROW_H - 5}px;
                    left:calc((100% / ${lanes}) * ${lane} + 3px);
                    width:calc(100% / ${lanes} - 7px)">
+            <i class="rc-cap-elapsed hidden"></i>
             ${segs}
             <span class="rc-cap-line1">
                 ${statusIcon(chain.head.status)}
