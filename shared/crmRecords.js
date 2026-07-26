@@ -352,6 +352,37 @@ export function buildExtensionOps(base, durationMinutes) {
     return ops;
 }
 
+// Влезает ли запись в целевые слоты доски. board — parseRecordBoard дня
+// назначения, times — слоты, которые займёт запись (по одному на каждые
+// 30 минут), ownIds — id записей, которые сами переезжают: их нынешние места
+// на этой же доске освободятся, поэтому «занято собой» конфликтом не считается.
+// → null, если всё влезает, иначе { time, reason: 'closed' | 'busy' }.
+export function findSlotConflict(board, addressId, times, ownIds = []) {
+    const own = new Set([...ownIds].map(String));
+    const byTime = board?.cells?.[String(addressId)] || {};
+    for (const time of times) {
+        const cell = byTime[time];
+        if (!cell) return { time, reason: 'closed' };
+        const mine = cell.records.filter(r => own.has(String(r.id))).length;
+        if (cell.free + mine < 1) return { time, reason: 'busy' };
+    }
+    return null;
+}
+
+// Где запись лежит на доске: { addressId, time } | null. Нужно и для проверки
+// «оригинал действительно принял перенос», и для отката, когда откуда именно
+// уехала запись, в операции не записано.
+export function findBoardRecord(board, id) {
+    const target = String(id);
+    for (const addressId of Object.keys(board?.cells || {})) {
+        const byTime = board.cells[addressId];
+        for (const time of Object.keys(byTime)) {
+            if (byTime[time].records.some(r => String(r.id) === target)) return { addressId, time };
+        }
+    }
+    return null;
+}
+
 // Строка «Копировать запись» — формат оригинального юзерскрипта.
 export function buildCopyLine(date, time, addressTitle, operator = 'Сергей') {
     return `${date || '—'} ${time || '—'} ${addressTitle || '—'} (${operator})`;

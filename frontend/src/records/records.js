@@ -675,7 +675,7 @@ function renderModal() {
         : m.kind === 'extend' ? modalExtend(m)
         : m.kind === 'delete' ? modalDelete(m)
         : m.kind === 'edit' ? modalEdit(m)
-        : m.kind === 'queue' ? modalQueue()
+        : m.kind === 'queue' ? modalQueue(m)
         : m.kind === 'map' ? modalMap(m)
         : m.kind === 'creds' ? modalCreds()
         : '';
@@ -951,6 +951,16 @@ function chainByHead(headId) {
     return null;
 }
 
+// Цепочка, в которую входит слот (не обязательно голова) — нужно, чтобы из
+// очереди вернуться к записи по id любого её слота.
+function chainByPart(recordId) {
+    for (const addr of state.board.addresses) {
+        const chain = chainsFor(addr.id).find(c => c.parts.some(p => String(p.id) === String(recordId)));
+        if (chain) return { chain, addr };
+    }
+    return null;
+}
+
 function modalChain(m) {
     const found = chainByHead(m.headId);
     if (!found) return modalShell('Запись', '<div class="rc-empty-note">Запись уже исчезла с доски (обновите)</div>');
@@ -1113,13 +1123,28 @@ function modalMove(m) {
     return modalShell(`Перенос ${n > 1 ? 'всей записи' : 'записи'}`, body, { wide: true });
 }
 
-function modalQueue() {
+// Перенос ли это (у слотов есть адрес назначения) или правка полей.
+function moveTargetOf(op) {
+    if (op.type !== 'update') return null;
+    const first = (op.payload?.records || [])[0];
+    return first && first.addressId != null && first.date && first.time ? first : null;
+}
+
+function modalQueue(m) {
     const ops = state.ops;
     const opLabel = (op) => {
         const p = op.payload || {};
+        const n = (p.records || []).length;
         if (op.type === 'create') return `Создать: ${p.name || ''} · ${p.date || ''} ${p.time || ''} (${(Number(p.durationMinutes) || 30)} мин)`;
-        if (op.type === 'update') return `Перенос/правка: ${(p.records || []).length} слот(ов)`;
-        if (op.type === 'delete') return `Удалить: ${(p.records || []).length} слот(ов)`;
+        if (op.type === 'delete') return `Удалить: ${n} слот(ов)`;
+        if (op.type === 'update') {
+            const to = moveTargetOf(op);
+            if (!to) return `Правка данных: ${n} слот(ов)`;
+            const st = stationById(to.addressId);
+            const meta = st ? findStationMeta(st.title) : null;
+            const where = meta?.short || st?.title || `станция ${to.addressId}`;
+            return `Перенос: ${n > 1 ? `вся запись (${n} слотов) ` : ''}→ ${to.date} ${to.time}, ${where}`;
+        }
         return op.type;
     };
     const stIcon = (op) => op.status === 'pending' ? `<span class="rc-st rc-st-new">${icons.clock(11)}</span>`
@@ -1127,16 +1152,23 @@ function modalQueue() {
         : `<span class="rc-st rc-st-late">${icons.x(11)}</span>`;
     const body = `
     <div class="rc-queue">
+        ${m?.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
         ${ops.length ? ops.map(op => `
             <div class="rc-queue-item rc-queue-${op.status}">
                 ${stIcon(op)}
                 <div class="rc-queue-main">
                     <div>${esc(opLabel(op))}</div>
                     <div class="rc-queue-sub">${new Date(op.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                        ${op.rollingBack ? ' · отменяю и возвращаю слоты на место' : ''}
                         ${op.status === 'failed' && op.lastError ? ` · ${esc(op.lastError)}` : ''}
-                        ${op.status === 'pending' && op.attempts > 0 ? ` · попыток: ${op.attempts}` : ''}</div>
+                        ${op.status === 'pending' && !op.rollingBack && op.attempts > 0 ? ` · попыток: ${op.attempts}` : ''}</div>
                 </div>
-                ${op.status === 'pending' ? `<button class="btn btn-sec rc-mini-btn" data-action="cancel-op" data-id="${op.id}">${icons.x(12)} отменить</button>` : ''}
+                ${op.status === 'pending' && !op.rollingBack
+                    ? `<button class="btn btn-sec rc-mini-btn" data-action="cancel-op" data-id="${op.id}">${icons.x(12)} отменить</button>`
+                    : ''}
+                ${op.status === 'failed' && moveTargetOf(op)
+                    ? `<button class="btn btn-sec rc-mini-btn" data-action="retry-move" data-id="${op.id}">${icons.move(12)} другое время</button>`
+                    : ''}
             </div>`).join('')
             : '<div class="rc-empty-note">Операций пока не было</div>'}
     </div>`;
@@ -1793,6 +1825,28 @@ async function handleAction(btn) {
         await loadOps();
         return render();
     }
+
+    // Перенос сорвался (окно заняли, оригинал не принял хвосты) — бэкенд вернул
+    // слоты на прежнее место, а здесь сразу открываем выбор нового времени.
+    if (a === 'retry-move') {
+        const op = state.ops.find(o => String(o.id) === String(btn.dataset.id));
+        const first = (op?.payload?.records || [])[0];
+        if (!first) return;
+        const from = first.from;
+        state.modal = null;
+        if (from?.date && from.date !== state.date) {
+            state.date = from.date;
+            state.highlightId = null;
+            await loadBoard();
+        } else {
+            await loadBoard({ silent: true });
+        }
+        const found = chainByPart(first.id);
+        state.modal = found
+            ? { kind: 'move', headId: found.chain.head.id, targetDate: state.date, targetTime: null }
+            : { kind: 'queue', error: 'запись не нашлась на доске — обновите день и перенесите её вручную' };
+        return render();
+    }
 }
 
 // Смена даты в окне записи: клиент передумал на другой день — тянем расписание
@@ -1885,11 +1939,15 @@ async function submitMove() {
     const found = chainByHead(m.headId);
     if (!found || !m.targetTime) return;
     const { chain, addr } = found;
+    // from — где слот лежит сейчас: если перенос не влезет целиком (окно
+    // успели занять, оригинал упал посреди хвостов), бэкенд вернёт по нему
+    // уехавшие слоты на место, а не оставит запись разорванной.
     const records = chain.parts.map((p, i) => ({
         id: p.id,
         addressId: m.targetAddressId || addr.id,
         date: m.targetDate,
         time: addMinutes(m.targetTime, i * SLOT_MINUTES),
+        from: { addressId: addr.id, date: state.date, time: p.timeStart },
     }));
     try {
         await postOp('update', { records });
