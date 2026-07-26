@@ -275,6 +275,102 @@ function statusDotClass() {
     return isDown() ? 'rc-dot-down' : 'rc-dot-ok';
 }
 
+// ── Маркер «сейчас» и отсчёт до конца записи ─────────────────────────────────
+
+// Текущее время в минутах от полуночи по Москве: рабочий день станций и
+// «сегодня» бэкенд считает в МСК (см. mskToday), поэтому и ориентир по
+// времени должен жить в той же зоне, а не в локальной зоне браузера.
+function mskNowMinutes() {
+    const parts = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = (t) => Number(parts.find(p => p.type === t)?.value || 0);
+    return (get('hour') % 24) * 60 + get('minute');
+}
+
+// «Сейчас» имеет смысл только на сегодняшнем дне: на завтра/произвольной дате
+// маркера и отсчётов нет.
+function nowMinutesOnBoard() {
+    if (!state.status?.today || state.date !== state.status.today) return null;
+    return mskNowMinutes();
+}
+
+// Смещение маркера в пикселях от верха сетки — по точному времени, а не по
+// границе слота: маркер едет внутри получаса. Считаем от слота-хозяина
+// (индекс + доля внутри), поэтому дырки в расписании ничего не сдвигают.
+// null — маркера нет (не сегодня либо время вне рабочей сетки).
+function nowOffsetPx() {
+    const slots = state.board?.timeSlots || [];
+    const now = nowMinutesOnBoard();
+    if (now == null || !slots.length) return null;
+    for (let i = 0; i < slots.length; i++) {
+        const t0 = timeToMin(slots[i]);
+        if (now >= t0 && now < t0 + SLOT_MINUTES) return (i + (now - t0) / SLOT_MINUTES) * ROW_H;
+    }
+    return null;
+}
+
+// Конец записи с учётом продлений. Применённые продления уже сидят в цепочке
+// (chain.timeEnd — хвост «червячка»), а те, что ещё в очереди, живут отдельно
+// «призраками», приклеенными к её хвосту: без них отсчёт врал бы на полчаса
+// сразу после «Продлить», пока админка не подтвердила операцию.
+function chainEndWithGhosts(chain, ghosts) {
+    let end = chain.timeEnd;
+    const used = new Set();
+    for (;;) {
+        const next = ghosts.find(g => !used.has(g.opId) && g.timeStart === end && g.name === chain.head.name);
+        if (!next) break;
+        used.add(next.opId);
+        end = next.timeEnd;
+    }
+    return end;
+}
+
+function fmtLeft(min) {
+    if (min >= 60) {
+        const h = Math.floor(min / 60);
+        const m = min % 60;
+        return m ? `${h} ч ${m} мин` : `${h} ч`;
+    }
+    return `${Math.max(1, min)} мин`;
+}
+
+// Маркер и отсчёты живут отдельно от render(): по таймеру двигается один top и
+// перепечатывается текст бейджей — сетку и открытые формы это не трогает.
+// Данные для отсчёта лежат на самих капсулах (data-start / data-end), поэтому
+// пересчёт не зависит от того, что было в state на момент отрисовки.
+function syncNow() {
+    if (!root) return;
+    const px = nowOffsetPx();
+    const marker = root.querySelector('.rc-now');
+    if (marker) {
+        marker.classList.toggle('hidden', px == null);
+        if (px != null) marker.style.top = `${px}px`;
+    }
+    const now = nowMinutesOnBoard();
+    for (const cap of root.querySelectorAll('.rc-cap[data-end]')) {
+        const badge = cap.querySelector('.rc-cap-left');
+        if (!badge) continue;
+        const from = timeToMin(cap.dataset.start);
+        const to = timeToMin(cap.dataset.end);
+        const live = now != null && now >= from && now < to;
+        // Тень прошедшей части: её нижняя граница продолжает линию маркера
+        // сквозь капсулу (сам маркер лежит под записями и здесь не виден).
+        const elapsed = cap.querySelector('.rc-cap-elapsed');
+        if (elapsed) {
+            elapsed.classList.toggle('hidden', !live);
+            if (live) elapsed.style.height = `${((now - from) / SLOT_MINUTES) * ROW_H - 2}px`;
+        }
+        badge.classList.toggle('hidden', !live);
+        if (live) {
+            const left = to - now;
+            badge.textContent = fmtLeft(left);
+            badge.title = `До конца записи (${cap.dataset.start}–${cap.dataset.end}) осталось ${fmtLeft(left)}`;
+            badge.classList.toggle('rc-cap-left-soon', left <= 5);
+        }
+    }
+}
+
 // ── Иконки статусов записи ───────────────────────────────────────────────────
 
 function statusIcon(status) {
@@ -313,6 +409,7 @@ function render() {
         </div>
         ${state.modal ? renderModal() : ''}`;
     bind();
+    syncNow(); // маркер и отсчёты ставятся сразу после отрисовки сетки
 }
 
 // Лёгкое обновление строки статуса без полной перерисовки (тикает раз в 10с).
@@ -496,20 +593,26 @@ function renderStation() {
         const isMoving = chain.parts.some(p => moved.has(String(p.id)));
         const segs = chain.parts.map((p, idx) => idx === 0 ? '' :
             `<i class="rc-cap-seg" style="top:${idx * ROW_H - 1}px"></i>`).join('');
+        // Конец — с учётом продлений (в том числе ещё не применённых): по нему
+        // syncNow() считает «сколько осталось» на идущей прямо сейчас записи.
+        const endAt = chainEndWithGhosts(chain, ghosts);
         return `
         <button class="rc-cap rc-cap-st-${chain.head.status || 'none'}
                 ${nParts > 1 ? 'rc-cap-worm' : ''}
                 ${isDeleting ? 'rc-cap-deleting' : ''} ${isMoving ? 'rc-cap-moving' : ''}
                 ${String(state.highlightId) === String(chain.head.id) ? 'rc-cap-hot' : ''}"
             data-action="open-chain" data-head="${esc(chain.head.id)}"
+            data-start="${esc(chain.timeStart)}" data-end="${esc(endAt)}"
             style="top:${i0 * ROW_H + 2}px; height:${nParts * ROW_H - 5}px;
                    left:calc((100% / ${lanes}) * ${lane} + 3px);
                    width:calc(100% / ${lanes} - 7px)">
+            <i class="rc-cap-elapsed hidden"></i>
             ${segs}
             <span class="rc-cap-line1">
                 ${statusIcon(chain.head.status)}
                 <b>${esc(chain.head.name || chain.head.customer || 'без имени')}</b>
                 ${nParts > 1 ? `<span class="rc-cap-worm-badge">${icons.link(10)}${nParts}</span>` : ''}
+                <span class="rc-cap-left hidden"></span>
             </span>
             <span class="rc-cap-line2">${esc(chain.timeStart)}–${esc(chain.timeEnd)}${chain.head.phone && !chain.head.isStub ? ` · ${esc(chain.head.phone)}` : ''}</span>
             ${isDeleting ? `<span class="rc-cap-flag">${icons.trash(10)} удаляется…</span>` : ''}
@@ -552,6 +655,7 @@ function renderStation() {
         <div class="rc-lanes-heads" style="--lanes:${lanes}">${laneHeads}</div>
         <div class="rc-grid" style="height:${gridH}px">
             <div class="rc-rows">${rows}</div>
+            <i class="rc-now hidden" aria-hidden="true"></i>
             <div class="rc-lanes" style="--lanes:${lanes}">
                 ${Array.from({ length: Math.max(0, lanes - 1) }, (_, i) =>
                     `<i class="rc-lane-sep" style="left:calc((100% / ${lanes}) * ${i + 1})"></i>`).join('')}
@@ -1651,6 +1755,9 @@ export function startRecords(mount) {
         if (!document.hidden && !state.modal && !state.credsNeeded) loadBoard({ silent: true });
     }, 45_000));
     timers.push(setInterval(renderStatusOnly, 10_000));
+    // маркер «сейчас» и отсчёты — отдельным тиком: их можно двигать и при
+    // открытой модалке, ведь это не перерисовка, а top и текст бейджа
+    timers.push(setInterval(syncNow, 15_000));
 
     (async () => {
         await loadStatus();

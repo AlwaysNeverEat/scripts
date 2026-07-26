@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<!-- Дев-песочница раздела «Записи»: фейковая доска, без бэкенда.
+     Открыть: npx vite → /dev-records-now.html
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: записи</title>
+</head>
+<body>
+  <div id="page-records"></div>
+  <script type="module">
+    const TODAY = '26.07.2026';
+    const slots = [];
+    for (let h = 9; h <= 16; h++) { slots.push(`${String(h).padStart(2, '0')}:00`); slots.push(`${String(h).padStart(2, '0')}:30`); }
+
+    const rec = (id, timeStart, timeEnd, name, phone, isStub = false, status = '') => ({
+      id, addressId: '1', timeStart, timeEnd, name, phone,
+      phoneDigits: phone.replace(/\D/g, ''), isStub, status, customer: name, deleteUrl: '',
+    });
+
+    const records = [
+      rec(1, '12:00', '12:30', 'Илья', '+7 (915) 565-85-94'),
+      rec(2, '13:00', '13:30', 'Новак Михаил Викторович', '+7 (921) 846-17-52', false, 'new'),
+      rec(3, '13:30', '14:00', 'Новак Михаил Викторович', '+7 (000) 000-00-00', true), // продление
+      rec(4, '15:00', '15:30', 'Серченя Алексей', '+7 (921) 872-45-63', false, 'checked'),
+    ];
+
+    const cells = { 1: {} };
+    for (const t of slots) {
+      if (t < '11:00') continue; // до 11:00 — закрыто
+      const inSlot = records.filter(r => r.timeStart === t);
+      cells[1][t] = { records: inSlot, free: 2 - inSlot.length };
+    }
+
+    const board = {
+      date: TODAY, timeSlots: slots,
+      addresses: [{ id: '1', title: 'Санкт-Петербург, Кушелевская дорога, 3к5' }],
+      cells,
+    };
+
+    const ops = [{
+      id: 7, type: 'create', status: 'pending', lastError: '',
+      payload: { addressId: '1', date: TODAY, time: '14:00', name: 'Новак Михаил Викторович', durationMinutes: 30 },
+    }];
+
+    const realFetch = window.fetch;
+    window.fetch = async (url, init) => {
+      const u = String(url);
+      const json = (data) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+      if (u.includes('/api/records/status')) return json({ credentials: true, alive: true, today: TODAY, tomorrow: '27.07.2026', queue: {} });
+      if (u.includes('/api/records/board')) return json({ date: TODAY, board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops });
+      if (u.includes('/api/records/ops')) return json({ ops });
+      return realFetch(url, init);
+    };
+
+    const { startRecords } = await import('/src/records/records.js');
+    startRecords(document.getElementById('page-records'));
+  </script>
+</body>
+</html>
