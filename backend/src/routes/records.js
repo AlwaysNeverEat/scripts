@@ -18,14 +18,13 @@ import {
     getSyncState, syncTick, drainQueue, loadSnapshot,
     enqueueOp, cancelOp, listOps, mskToday,
 } from '../records/sync.js';
-import { parseRecordBoard, timeToMin, SLOT_MINUTES } from '../../../shared/crmRecords.js';
+import { parseRecordBoard, timeToMin, SLOT_MINUTES, MAX_DURATION_MIN } from '../../../shared/crmRecords.js';
 import { query } from '../db/client.js';
 
 const router = Router();
 
 const DATE_RE = /^\d{2}\.\d{2}\.\d{4}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
-const MAX_DURATION_MIN = 4 * 60;
 
 function sendZmsError(res, err) {
     if (err instanceof ZmsError) {

@@ -23,7 +23,7 @@ import { findStationMeta, LINE_COLORS, LINE_NAMES } from '../../../shared/statio
 import {
     detectChains, assignLanes, flattenAddressRecords, buildCopyLine,
     timeToMin, addMinutes, formatRuPhone,
-    EXTENSION_STUB_PHONE, SLOT_MINUTES,
+    EXTENSION_STUB_PHONE, SLOT_MINUTES, MAX_DURATION_MIN,
 } from '../../../shared/crmRecords.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
@@ -138,9 +138,9 @@ function metaFor(addr) {
 // «записей + свободных» в слоте и есть количество боксов. Это точнее
 // захардкоженной меты (у неё бывает физическое число постов, а не рабочих
 // боксов) и подхватывает изменения без правки справочника.
-function boxesFor(addr) {
+function boxesFor(addr, board = state.board) {
     let max = 0;
-    const byTime = state.board?.cells[addr.id] || {};
+    const byTime = board?.cells[addr.id] || {};
     for (const t of Object.keys(byTime)) {
         max = Math.max(max, byTime[t].records.length + byTime[t].free);
     }
@@ -148,8 +148,8 @@ function boxesFor(addr) {
     return metaFor(addr)?.boxes || 1; // день целиком закрыт — верим справочнику
 }
 
-function chainsFor(addressId) {
-    return detectChains(flattenAddressRecords(state.board?.cells || {}, String(addressId)));
+function chainsFor(addressId, board = state.board) {
+    return detectChains(flattenAddressRecords(board?.cells || {}, String(addressId)));
 }
 
 function pendingOps() {
@@ -193,10 +193,10 @@ function pendingRecordIds() {
 }
 
 // «Призраки» — pending-создания на выбранную дату (для сетки и карточек).
-function ghostsFor(addressId) {
+function ghostsFor(addressId, date = state.date) {
     return pendingOps()
         .filter(o => o.type === 'create'
-            && o.payload.date === state.date
+            && o.payload.date === date
             && String(o.payload.addressId) === String(addressId))
         .map(o => {
             const n = Math.max(1, Math.round((Number(o.payload.durationMinutes) || SLOT_MINUTES) / SLOT_MINUTES));
@@ -702,41 +702,6 @@ function slotFree(addrId, t, board = state.board) {
     return Boolean(cell && cell.free > 0);
 }
 
-function durationChips(selected) {
-    const opts = [30, 60, 90, 120, 150, 180];
-    return opts.map(min => `
-        <button class="chip ${min === selected ? 'active' : ''}" data-action="set-duration" data-min="${min}">
-            ${min % 60 === 0 ? `${min / 60} ч` : min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч ${min % 60} м`}
-        </button>`).join('');
-}
-
-// Превью занимаемого места: вертикальная лента слотов от выбранного времени.
-function durationPreview(addrId, time, durationMin, board = state.board) {
-    if (!time || !board) return '';
-    const need = Math.ceil(durationMin / SLOT_MINUTES);
-    const slots = board.timeSlots;
-    const items = [];
-    let ok = true;
-    for (let i = 0; i < need; i++) {
-        const t = addMinutes(time, i * SLOT_MINUTES);
-        const free = slots.includes(t) && slotFree(addrId, t, board);
-        if (!free) ok = false;
-        items.push(`<span class="rc-prev-slot ${free ? 'rc-prev-ok' : 'rc-prev-bad'}">${esc(t)}</span>`);
-    }
-    return `
-    <div class="rc-duration-preview ${ok ? '' : 'rc-duration-conflict'}">
-        <div class="rc-prev-track">${items.join('')}</div>
-        <div class="rc-prev-note">${ok
-            ? `займёт ${need} ${need === 1 ? 'слот' : need < 5 ? 'слота' : 'слотов'} · до ${esc(addMinutes(time, durationMin))}`
-            : `${icons.alert(12)} не влезает: часть слотов занята или закрыта`}</div>
-    </div>`;
-}
-
-function freeTimesFor(addrId, board = state.board) {
-    if (!board) return [];
-    return board.timeSlots.filter(t => slotFree(addrId, t, board));
-}
-
 // Доска, к которой относится окно создания: для чужой даты — своя,
 // подгруженная отдельно (пока грузится — null, время выбирать не из чего).
 function createBoard(m) {
@@ -744,11 +709,177 @@ function createBoard(m) {
     return m.dateBoard || null;
 }
 
+// ── Выбор времени: расписание дня + «барабан» длительности ───────────────────
+// Вместо ленты кнопок со свободными получасами показываем весь день станции:
+// видно чужие записи и закрытые часы, клик выбирает начало, повторный клик по
+// слоту ниже — конец окна. Выбранное окно подсвечено и растёт вместе с
+// длительностью, которую крутят барабаном «часы : минуты» (как на будильнике),
+// а не выбирают из готовых кнопок.
+
+// Контекст выбора для окна: где смотрим расписание и что считаем «своим».
+// При продлении начало фиксировано (хвост записи), а слоты самой записи
+// показываем отдельным цветом — это ориентир, а не помеха.
+function pickCtx(m) {
+    if (!m) return null;
+    if (m.kind === 'extend') {
+        const found = chainByHead(m.headId);
+        if (!found) return null;
+        return {
+            kind: 'extend',
+            board: state.board,
+            date: state.date,
+            addrId: found.addr.id,
+            ownTimes: new Set(found.chain.parts.map(p => p.timeStart)),
+            ownIds: new Set(found.chain.parts.map(p => String(p.id))),
+            start: found.chain.timeEnd,
+            fixedStart: true,
+            duration: m.extendMinutes || SLOT_MINUTES,
+        };
+    }
+    if (m.kind === 'create') {
+        return {
+            kind: 'create',
+            board: createBoard(m),
+            date: m.date,
+            addrId: m.addressId,
+            ownTimes: new Set(),
+            ownIds: new Set(),
+            start: m.time,
+            fixedStart: false,
+            duration: m.durationMinutes,
+        };
+    }
+    return null;
+}
+
+// Сколько минут подряд свободно, начиная с from (не больше потолка записи).
+function freeRunFrom(ctx, from) {
+    if (!ctx?.board || !from) return 0;
+    let min = 0;
+    let t = from;
+    while (min < MAX_DURATION_MIN
+        && ctx.board.timeSlots.includes(t)
+        && (ctx.ownTimes.has(t) || slotFree(ctx.addrId, t, ctx.board))) {
+        min += SLOT_MINUTES;
+        t = addMinutes(t, SLOT_MINUTES);
+    }
+    return min;
+}
+
+// Потолок длительности для выбранного начала: дальше либо чужая запись, либо
+// конец рабочего дня, либо предел одной записи (MAX_DURATION_MIN).
+function maxDurationFor(ctx) {
+    if (!ctx) return SLOT_MINUTES;
+    if (!ctx.start) return MAX_DURATION_MIN;
+    return freeRunFrom(ctx, ctx.start);
+}
+
+function clampDuration(ctx, min) {
+    const max = maxDurationFor(ctx);
+    const steps = Math.round((Number(min) || SLOT_MINUTES) / SLOT_MINUTES);
+    const val = Math.max(1, steps) * SLOT_MINUTES;
+    return Math.max(SLOT_MINUTES, Math.min(val, Math.max(SLOT_MINUTES, max)));
+}
+
+function fmtDuration(min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    if (!h) return `${m} мин`;
+    return m ? `${h} ч ${m} м` : `${h} ч`;
+}
+
+// Расписание станции на выбранный день: строка на каждые полчаса.
+function timelineHtml(ctx) {
+    if (!ctx) return '';
+    if (!ctx.board) return '<div class="rc-tl rc-tl-blank"><span class="rc-empty-note">загружаю расписание…</span></div>';
+    const byTime = ctx.board.cells[ctx.addrId] || {};
+    const { del } = pendingRecordIds();
+    const ghostAt = new Map();
+    for (const g of ghostsFor(ctx.addrId, ctx.date)) {
+        for (let t = g.timeStart; timeToMin(t) < timeToMin(g.timeEnd); t = addMinutes(t, SLOT_MINUTES)) ghostAt.set(t, g);
+    }
+
+    const rows = ctx.board.timeSlots.map(t => {
+        const cell = byTime[t];
+        const closed = !cell;
+        const freeN = cell ? cell.free : 0;
+        const recs = (cell?.records || []).filter(r => !del.has(String(r.id)));
+        const ghost = ghostAt.get(t);
+        // Начало выбирают только в свободном слоте; при продлении начало
+        // фиксировано, поэтому строки кликать вообще нельзя.
+        const pickable = !ctx.fixedStart && freeN > 0;
+
+        const chips = recs.map(r => {
+            const mine = ctx.ownIds.has(String(r.id));
+            const label = r.isStub ? 'продление' : (r.name || r.customer || 'запись');
+            return `<i class="rc-tl-rec ${mine ? 'rc-tl-rec-mine' : `rc-tl-rec-${r.status || 'none'}`}"
+                title="${esc(label)}${r.phone && !r.isStub ? ` · ${esc(r.phone)}` : ''}">${esc(label)}</i>`;
+        });
+        if (ghost) chips.push(`<i class="rc-tl-rec rc-tl-rec-ghost" title="В очереди — создастся, когда админка оживёт">${esc(ghost.name || 'в очереди')}</i>`);
+
+        const tag = closed ? '<i class="rc-tl-tag">закрыто</i>'
+            : freeN > 0 ? `<i class="rc-tl-tag rc-tl-tag-free">${freeN} своб.</i>`
+            : '<i class="rc-tl-tag">занято</i>';
+
+        return `
+        <button class="rc-tl-row ${closed ? 'rc-tl-closed' : ''} ${ctx.ownTimes.has(t) ? 'rc-tl-mine' : ''}"
+            data-action="tl-pick" data-time="${esc(t)}" ${pickable ? '' : 'disabled'}
+            title="${pickable ? `Начать в ${esc(t)}` : closed ? 'Слот закрыт' : 'Слот занят'}">
+            <span class="rc-tl-time">${esc(t)}</span>
+            <span class="rc-tl-body">${chips.join('')}</span>
+            ${tag}
+            <span class="rc-tl-till"></span>
+        </button>`;
+    }).join('');
+
+    return `<div class="rc-tl">${rows}</div>`;
+}
+
+// Барабан длительности: колонка часов и колонка получасов со snap-скроллом.
+// Значения — в минутах (data-value), чтобы читать их без разбора текста.
+function wheelHtml() {
+    const hours = Array.from({ length: Math.floor(MAX_DURATION_MIN / 60) + 1 }, (_, h) => h);
+    const col = (unit, values, label) => `
+        <div class="rc-wheel-col" data-unit="${unit}" tabindex="0" role="listbox" aria-label="${label}">
+            ${values.map(v => `<button type="button" class="rc-wheel-item" data-value="${unit === 'h' ? v * 60 : v}" role="option">${unit === 'h' ? v : String(v).padStart(2, '0')}</button>`).join('')}
+        </div>`;
+    return `
+    <div class="rc-wheel">
+        <i class="rc-wheel-band" aria-hidden="true"></i>
+        ${col('h', hours, 'часы')}<span class="rc-wheel-unit">ч</span>
+        ${col('m', [0, 30], 'минуты')}<span class="rc-wheel-unit">мин</span>
+    </div>`;
+}
+
+function pickNoteHtml(ctx, dur, max) {
+    if (!ctx.board) return '';
+    if (!max) {
+        return ctx.kind === 'extend'
+            ? `${icons.alert(12)} сразу после записи занято — продлить некуда`
+            : `${icons.alert(12)} с этого времени свободного окна нет`;
+    }
+    if (!ctx.start) {
+        const anyFree = ctx.board.timeSlots.some(t => slotFree(ctx.addrId, t, ctx.board));
+        return anyFree
+            ? 'выберите время в расписании'
+            : `${icons.alert(12)} свободных окон нет — другая станция или дата`;
+    }
+    const slots = dur / SLOT_MINUTES;
+    const till = addMinutes(ctx.start, dur);
+    const head = ctx.kind === 'extend'
+        ? `+${fmtDuration(dur)} · запись до <b>${esc(till)}</b>`
+        : `<b>${esc(ctx.start)}–${esc(till)}</b> · ${slots} ${slots === 1 ? 'слот' : slots < 5 ? 'слота' : 'слотов'} по 30 минут`;
+    const limit = max < MAX_DURATION_MIN
+        ? `<span class="rc-pick-limit">дальше занято — максимум ${fmtDuration(max)}</span>`
+        : '';
+    return `${head}${limit}`;
+}
+
 function modalCreate(m) {
     const board = createBoard(m);
     const addr = stationById(m.addressId, board);
     const meta = metaFor(addr);
-    const free = freeTimesFor(m.addressId, board);
+    const ctx = pickCtx(m);
     const today = state.status?.today;
     const tomorrow = state.status?.tomorrow;
     const otherDate = m.date && m.date !== today && m.date !== tomorrow;
@@ -791,18 +922,17 @@ function modalCreate(m) {
                 <input type="date" id="rc-f-date" class="rc-date-input" value="${esc(ddmmToIso(m.date))}" tabindex="-1" aria-hidden="true"/>
             </div>
 
-            <div class="rc-sub">Время (${esc(m.date || '')})</div>
-            <div class="rc-times rc-times-scroll">
-                ${m.dateLoading ? '<span class="rc-empty-note">смотрю свободные слоты на ' + esc(m.date) + '…</span>'
-                    : m.dateError ? `<span class="rc-empty-note">${esc(m.dateError)}</span>`
-                    : free.length ? free.map(t => `
-                        <button class="chip ${t === m.time ? 'active' : ''}" data-action="set-create-time" data-time="${esc(t)}">${esc(t)}</button>`).join('')
-                    : '<span class="rc-empty-note">свободных слотов нет — выбери другую станцию или дату</span>'}
-            </div>
-
-            <div class="rc-sub">Длительность</div>
-            <div class="rc-times">${durationChips(m.durationMinutes)}</div>
-            ${durationPreview(m.addressId, m.time, m.durationMinutes, board)}
+            <div class="rc-sub">Расписание ${esc(m.date || '')} — выберите окно</div>
+            ${m.dateError ? `<div class="rc-empty-note">${esc(m.dateError)}</div>` : `
+            <div class="rc-pick">
+                ${timelineHtml(ctx)}
+                <div class="rc-pick-side">
+                    <div class="rc-pick-h">Длительность</div>
+                    ${wheelHtml()}
+                    <div class="rc-pick-note"></div>
+                    <div class="rc-pick-hint">Клик по свободному получасу — начало, клик ниже — конец окна. Длительность крутится барабаном.</div>
+                </div>
+            </div>`}
 
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
             <div class="modal-actions">
@@ -850,34 +980,28 @@ function modalChain(m) {
 function modalExtend(m) {
     const found = chainByHead(m.headId);
     if (!found) return modalShell('Продлить', '<div class="rc-empty-note">Запись уже исчезла с доски</div>');
-    const { chain, addr } = found;
-    // Непрерывные свободные слоты сразу после конца записи.
-    const options = [];
-    let t = chain.timeEnd;
-    while (state.board.timeSlots.includes(t) && slotFree(addr.id, t) && options.length < 8) {
-        options.push(t);
-        t = addMinutes(t, SLOT_MINUTES);
-    }
+    const { chain } = found;
+    const ctx = pickCtx(m);
+    const max = maxDurationFor(ctx); // непрерывные свободные слоты после хвоста
     const body = `
     <div>
-        <div class="rc-chain-row"><b>${esc(chain.head.name)}</b> · сейчас до ${esc(chain.timeEnd)}</div>
-        ${options.length ? `
-            <div class="rc-sub">Продлить на</div>
-            <div class="rc-times">
-                ${options.map((_, i) => {
-                    const min = (i + 1) * SLOT_MINUTES;
-                    return `<button class="chip ${m.extendMinutes === min ? 'active' : ''}" data-action="set-extend" data-min="${min}">
-                        +${min % 60 === 0 ? `${min / 60} ч` : min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч ${min % 60} м`}
-                        <small>до ${esc(addMinutes(chain.timeEnd, min))}</small></button>`;
-                }).join('')}
+        <div class="rc-chain-row"><b>${esc(chain.head.name)}</b> · сейчас ${esc(chain.timeStart)}–${esc(chain.timeEnd)}</div>
+        ${max ? `
+            <div class="rc-pick">
+                ${timelineHtml(ctx)}
+                <div class="rc-pick-side">
+                    <div class="rc-pick-h">Продлить на</div>
+                    ${wheelHtml()}
+                    <div class="rc-pick-note"></div>
+                    <div class="rc-pick-hint">Продолжения создаются отдельными слотами с телефоном-заглушкой — SMS клиенту не уйдёт (как в оригинальном скрипте).</div>
+                </div>
             </div>
-            <div class="rc-prev-note">Продолжения создаются отдельными слотами с телефоном-заглушкой — SMS клиенту не уйдёт (как в оригинальном скрипте).</div>
             <div class="modal-actions">
-                <button class="btn btn-pri" data-action="submit-extend" ${m.extendMinutes ? '' : 'disabled'}>${icons.clock(14)} Продлить${isDown() ? ' (в очередь)' : ''}</button>
+                <button class="btn btn-pri" data-action="submit-extend">${icons.clock(14)} Продлить${isDown() ? ' (в очередь)' : ''}</button>
             </div>`
             : '<div class="rc-empty-note">Сразу после записи свободных слотов нет — продлить некуда.</div>'}
     </div>`;
-    return modalShell('Продлить запись', body);
+    return modalShell('Продлить запись', body, { wide: true });
 }
 
 function modalEdit(m) {
@@ -1171,6 +1295,139 @@ function ensureMapViewFor(addressId) {
     if (meta) state.modal.mapView = { lat: meta.lat, lng: meta.lng, zoom: 12 };
 }
 
+// ── Живая часть выбора времени ───────────────────────────────────────────────
+// Выделение окна и барабан не гоняют полный render(): перерисовка сбрасывала бы
+// скролл расписания и рвала инерцию прокрутки барабана. Вместо этого правим
+// классы уже отрисованных строк и подписи — состояние живёт в state.modal.
+
+const WHEEL_QUIET_MS = 160; // столько игнорируем свой же программный скролл
+
+function wheelCols(wheel) {
+    return [...wheel.querySelectorAll('.rc-wheel-col')];
+}
+
+function wheelItemH(col) {
+    return col.firstElementChild?.offsetHeight || 34;
+}
+
+function colIndex(col) {
+    const n = col.children.length;
+    return Math.max(0, Math.min(n - 1, Math.round(col.scrollTop / wheelItemH(col))));
+}
+
+// Значение барабана в минутах: часы + получас.
+function wheelValue(wheel) {
+    return wheelCols(wheel).reduce((sum, col) =>
+        sum + Number(col.children[colIndex(col)]?.dataset.value || 0), 0);
+}
+
+function setWheelValue(wheel, min) {
+    const want = { h: Math.floor(min / 60) * 60, m: min % 60 };
+    for (const col of wheelCols(wheel)) {
+        const idx = [...col.children].findIndex(c => Number(c.dataset.value) === want[col.dataset.unit]);
+        if (idx < 0) continue;
+        col.dataset.quiet = '1';
+        col.scrollTop = idx * wheelItemH(col);
+        clearTimeout(col._quietTimer);
+        col._quietTimer = setTimeout(() => { delete col.dataset.quiet; }, WHEEL_QUIET_MS);
+    }
+}
+
+// Недостижимые значения гасим: и как подсказку, и чтобы не обещать невозможное.
+function paintWheelLimits(wheel, value, max) {
+    const curH = Math.floor(value / 60) * 60;
+    for (const col of wheelCols(wheel)) {
+        for (const item of col.children) {
+            const v = Number(item.dataset.value);
+            const total = col.dataset.unit === 'h' ? v + (value % 60) : curH + v;
+            const off = total > max || total < SLOT_MINUTES;
+            item.classList.toggle('rc-wheel-off', off);
+            item.classList.toggle('rc-wheel-on', v === (col.dataset.unit === 'h' ? curH : value % 60));
+        }
+    }
+}
+
+// opts.syncWheel — довернуть барабан к значению из state (после клампа или при
+// первой отрисовке); во время живой прокрутки этого делать нельзя.
+function paintPick(opts = {}) {
+    if (!root) return;
+    const ctx = pickCtx(state.modal);
+    if (!ctx) return;
+    const dur = clampDuration(ctx, ctx.duration);
+    const max = maxDurationFor(ctx);
+    const need = dur / SLOT_MINUTES;
+
+    const rows = [...root.querySelectorAll('.rc-tl-row')];
+    const i0 = ctx.start ? rows.findIndex(r => r.dataset.time === ctx.start) : -1;
+    const till = ctx.start ? addMinutes(ctx.start, dur) : '';
+    rows.forEach((row, i) => {
+        const on = i0 >= 0 && i >= i0 && i < i0 + need;
+        row.classList.toggle('rc-tl-on', on);
+        row.classList.toggle('rc-tl-on-a', on && i === i0);
+        row.classList.toggle('rc-tl-on-b', on && i === i0 + need - 1);
+        const tillEl = row.querySelector('.rc-tl-till');
+        if (tillEl) tillEl.textContent = on && i === i0 + need - 1 ? `до ${till}` : '';
+    });
+
+    const note = root.querySelector('.rc-pick-note');
+    if (note) note.innerHTML = pickNoteHtml(ctx, dur, max);
+
+    const wheel = root.querySelector('.rc-wheel');
+    if (wheel) {
+        if (opts.syncWheel) setWheelValue(wheel, dur);
+        paintWheelLimits(wheel, dur, max);
+    }
+    const submit = root.querySelector('[data-action="submit-extend"]');
+    if (submit) submit.disabled = !max;
+}
+
+function setPickDuration(min) {
+    const m = state.modal;
+    const ctx = pickCtx(m);
+    if (!ctx) return false;
+    const val = clampDuration(ctx, min);
+    if (ctx.kind === 'extend') m.extendMinutes = val;
+    else m.durationMinutes = val;
+    return val !== min;
+}
+
+function bindPick() {
+    const ctx = pickCtx(state.modal);
+    if (!ctx) return;
+
+    // Расписание открываем на выбранном времени (или на первом свободном) —
+    // иначе длинный день пришлось бы каждый раз проматывать руками.
+    const tl = root.querySelector('.rc-tl');
+    if (tl && !tl.dataset.scrolled) {
+        const target = ctx.start
+            || root.querySelector('.rc-tl-row:not([disabled])')?.dataset.time;
+        const row = target ? tl.querySelector(`.rc-tl-row[data-time="${target}"]`) : null;
+        if (row) tl.scrollTop = Math.max(0, row.offsetTop - tl.clientHeight / 2 + row.offsetHeight / 2);
+        tl.dataset.scrolled = '1';
+    }
+
+    const wheel = root.querySelector('.rc-wheel');
+    if (wheel) {
+        for (const col of wheelCols(wheel)) {
+            for (const item of col.children) {
+                item.onclick = () => col.scrollTo({
+                    top: [...col.children].indexOf(item) * wheelItemH(col), behavior: 'smooth',
+                });
+            }
+            col.onscroll = () => {
+                if (col.dataset.quiet) return;
+                clearTimeout(col._pickTimer);
+                // Ждём остановки: пока крутится инерция, значение ещё не выбрано.
+                col._pickTimer = setTimeout(() => {
+                    const clamped = setPickDuration(wheelValue(wheel));
+                    paintPick({ syncWheel: clamped });
+                }, 110);
+            };
+        }
+    }
+    paintPick({ syncWheel: true });
+}
+
 // ── Бинды ────────────────────────────────────────────────────────────────────
 
 function bindCredsGate() {
@@ -1259,6 +1516,8 @@ function bind() {
         };
     }
     bindCredsForm();
+    // Расписание + барабан длительности (окна записи и продления)
+    if (state.modal?.kind === 'create' || state.modal?.kind === 'extend') bindPick();
 
     // Карты в модалках
     if (state.modal?.kind === 'map') {
@@ -1444,8 +1703,23 @@ async function handleAction(btn) {
         input.click();
         return;
     }
-    if (a === 'set-create-time') { keepCreateFields(); state.modal.time = btn.dataset.time; return render(); }
-    if (a === 'set-duration') { keepCreateFields(); state.modal.durationMinutes = Number(btn.dataset.min); return render(); }
+    // Клик по расписанию: первый — начало окна, второй ниже по свободному
+    // промежутку — его конец (то же, что покрутить барабан длительности).
+    if (a === 'tl-pick') {
+        const m = state.modal;
+        const ctx = pickCtx(m);
+        if (!ctx || ctx.fixedStart) return;
+        keepCreateFields();
+        const t = btn.dataset.time;
+        const span = m.time ? timeToMin(t) - timeToMin(m.time) + SLOT_MINUTES : 0;
+        if (span > SLOT_MINUTES && span <= freeRunFrom(ctx, m.time)) {
+            m.durationMinutes = span;
+        } else {
+            m.time = t;
+            setPickDuration(m.durationMinutes);
+        }
+        return paintPick({ syncWheel: true });
+    }
     if (a === 'toggle-create-map') {
         keepCreateFields();
         state.modal.showMap = !state.modal.showMap;
@@ -1482,8 +1756,10 @@ async function handleAction(btn) {
     if (a === 'move-time') { state.modal.targetTime = btn.dataset.time; return render(); }
     if (a === 'submit-move') return submitMove();
 
-    if (a === 'open-extend') { state.modal = { kind: 'extend', headId: btn.dataset.head, extendMinutes: 0 }; return render(); }
-    if (a === 'set-extend') { state.modal.extendMinutes = Number(btn.dataset.min); return render(); }
+    if (a === 'open-extend') {
+        state.modal = { kind: 'extend', headId: btn.dataset.head, extendMinutes: SLOT_MINUTES };
+        return render();
+    }
     if (a === 'submit-extend') return submitExtend();
 
     if (a === 'open-edit') { state.modal = { kind: 'edit', headId: btn.dataset.head }; return render(); }
@@ -1562,6 +1838,9 @@ function revalidateCreatePick() {
         return;
     }
     if (m.time && !slotFree(m.addressId, m.time, board)) m.time = null;
+    // Длительность могла перестать влезать: в новом дне за выбранным началом
+    // стоит чужая запись — ужимаем до реального окна.
+    setPickDuration(m.durationMinutes);
 }
 
 // ── Сабмиты операций ─────────────────────────────────────────────────────────
@@ -1571,8 +1850,9 @@ async function submitCreate() {
     const m = state.modal;
     const date = m.date || state.date;
     if (m.dateLoading) { m.error = `расписание на ${date} ещё грузится`; return render(); }
-    if (!m.time) { m.error = 'выбери время'; return render(); }
+    if (!m.time) { m.error = 'выбери время в расписании'; return render(); }
     if (!String(m.name || '').trim()) { m.error = 'имя обязательно'; return render(); }
+    setPickDuration(m.durationMinutes); // окно могло ужаться, пока окно открыто
     try {
         await postOp('create', {
             addressId: m.addressId,
@@ -1625,7 +1905,9 @@ async function submitMove() {
 async function submitExtend() {
     const m = state.modal;
     const found = chainByHead(m.headId);
-    if (!found || !m.extendMinutes) return;
+    if (!found) return;
+    setPickDuration(m.extendMinutes); // не даём уехать за свободное окно
+    if (!m.extendMinutes) return;
     const { chain, addr } = found;
     try {
         await postOp('create', {
