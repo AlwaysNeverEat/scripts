@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!-- Дев-песочница смены дня: много станций и медленная доска (?delay=мс),
+     чтобы видеть уход старого дня, скелет и появление нового.
+     Открыть: npx vite → /dev-records-switch.html (или ?delay=2500)
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: смена дня</title>
+</head>
+<body>
+  <div id="page-records"></div>
+  <script type="module">
+    const TODAY = '26.07.2026';
+    const TOMORROW = '27.07.2026';
+    const DELAY = Number(new URLSearchParams(location.search).get('delay') || 1500);
+
+    const slots = [];
+    for (let h = 9; h <= 21; h++) { slots.push(`${String(h).padStart(2, '0')}:00`); slots.push(`${String(h).padStart(2, '0')}:30`); }
+
+    const titles = [
+      'Санкт-Петербург, Кушелевская дорога, 3к5',
+      'Санкт-Петербург, проспект Энгельса, 33к1',
+      'Санкт-Петербург, улица Оптиков, 4',
+      'Санкт-Петербург, Дунайский проспект, 34',
+      'Санкт-Петербург, Партизанская улица, 15',
+      'Санкт-Петербург, Пулковское шоссе, 30',
+      'Санкт-Петербург, проспект Ветеранов, 140',
+      'Санкт-Петербург, Витебский проспект, 17к3',
+      'Санкт-Петербург, Богатырский проспект, 14',
+      'Санкт-Петербург, Ленинский проспект, 114',
+    ];
+
+    // Доска дня: у каждой станции своя занятость, чтобы разные дни отличались.
+    const makeBoard = (date, seed) => {
+      const addresses = titles.map((title, i) => ({ id: String(i + 1), title }));
+      const cells = {};
+      addresses.forEach((a, i) => {
+        cells[a.id] = {};
+        slots.forEach((t, j) => {
+          if (j < 4) return; // раннее утро закрыто
+          const busy = (i * 7 + j * 3 + seed) % 5;
+          const records = busy === 0 ? [] : [{
+            id: `${date}-${a.id}-${t}`, addressId: a.id, timeStart: t,
+            timeEnd: t, name: `Клиент ${busy}`, phone: '+7 (921) 000-00-00',
+            phoneDigits: '79210000000', isStub: false, status: '', customer: `Клиент ${busy}`, deleteUrl: '',
+          }];
+          cells[a.id][t] = { records, free: 2 - records.length };
+        });
+      });
+      return { date, timeSlots: slots, addresses, cells };
+    };
+
+    const boards = { [TODAY]: makeBoard(TODAY, 0), [TOMORROW]: makeBoard(TOMORROW, 2) };
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    const realFetch = window.fetch;
+    window.fetch = async (url, init) => {
+      const u = String(url);
+      const json = (data) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+      if (u.includes('/api/records/status')) return json({ credentials: true, alive: true, today: TODAY, tomorrow: TOMORROW, queue: {} });
+      if (u.includes('/api/records/board')) {
+        const date = new URL(u, location.origin).searchParams.get('date') || TODAY;
+        await sleep(DELAY); // ради этого песочница и существует
+        const board = boards[date] || makeBoard(date, date.length);
+        return json({ date, board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: [] });
+      }
+      if (u.includes('/api/records/ops')) return json({ ops: [] });
+      return realFetch(url, init);
+    };
+
+    const { startRecords } = await import('/src/records/records.js');
+    startRecords(document.getElementById('page-records'));
+  </script>
+</body>
+</html>

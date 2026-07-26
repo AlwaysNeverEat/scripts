@@ -33,6 +33,15 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
 
 const ROW_H = 36; // px на 30-минутный слот в виде станции
 
+const ANIM_OUT_MS = 150; // столько уезжает старый день, прежде чем ехать за новым
+
+const REDUCED_MOTION = typeof matchMedia === 'function'
+    && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Сколько карточек рисовать в скелете, пока грузится новый день: столько же,
+// сколько было станций в прошлом — тогда сетка не прыгает на подмене.
+let lastStationCount = 12;
+
 const state = {
     status: null,          // GET /status
     credsNeeded: false,
@@ -49,6 +58,7 @@ const state = {
     search: '',
     highlightId: null,     // подсветить запись после перехода из поиска
     modal: null,           // { kind, ... } | null
+    enterAnim: false,      // ближайший render() проявляет содержимое анимацией
 };
 
 let mapCtl = null;         // Leaflet-контроллер открытой карты (модалки)
@@ -68,18 +78,33 @@ async function loadStatus() {
     renderStatusOnly();
 }
 
+// Номер последнего запроса доски: ответы приходят не в том порядке, в каком
+// их просили (медленный «вчера» может прийти после быстрого «завтра»), а на
+// экран имеет право только самый свежий — иначе выбранный день покажет чужую
+// доску.
+let boardReq = 0;
+
 async function loadBoard({ silent = false } = {}) {
     if (!state.date) return;
+    const req = ++boardReq;
+    const date = state.date;
+    const stale = () => req !== boardReq || date !== state.date;
+    const hadBoard = Boolean(state.board);
     if (!silent) { state.boardLoading = true; render(); }
     try {
-        const data = await apiFetch(`/api/records/board?date=${encodeURIComponent(state.date)}`);
+        const data = await apiFetch(`/api/records/board?date=${encodeURIComponent(date)}`);
+        if (stale()) return;
         state.board = data.board;
         state.fetchedAt = data.fetchedAt;
         state.boardOk = data.ok;
         state.boardError = data.error || '';
         state.ops = data.ops || [];
         state.credsNeeded = false;
+        // Доска появилась на пустом месте (первый заход или смена дня) —
+        // проявляем станции; при тихом обновлении дёргать анимацию нельзя.
+        if (!hadBoard) state.enterAnim = true;
     } catch (err) {
+        if (stale()) return;
         if (err.code === 'zms_credentials_required') {
             state.credsNeeded = true;
             state.boardLoading = false;
@@ -397,9 +422,11 @@ function render() {
         bindCredsGate();
         return;
     }
-    const content = !state.board
-        ? `<div class="rc-boot">${state.boardLoading ? 'Загрузка записей…' : esc(state.boardError || 'Нет данных')}</div>`
-        : state.view === 'station' ? renderStation() : renderOverview();
+    const content = state.board
+        ? (state.view === 'station' ? renderStation() : renderOverview())
+        : state.boardLoading ? renderSkeleton()
+        : `<div class="rc-boot">${esc(state.boardError || 'Нет данных')}</div>`;
+    state.enterAnim = false; // флаг одноразовый: следующий render() уже без него
 
     root.innerHTML = `
         <div class="rc-shell">
@@ -434,7 +461,11 @@ function renderStatusOnly() {
 function statusLineHtml() {
     const pending = pendingOps().length;
     const queueNote = pending ? ` · в очереди: ${pending}` : '';
-    const agoNote = state.fetchedAt ? `обновлено ${esc(fmtAgo(state.fetchedAt))}` : 'данных ещё нет';
+    // День меняют — так и пишем: «данных ещё нет» на пустом экране читается как
+    // поломка, хотя доска просто едет.
+    const agoNote = state.boardLoading && !state.board ? `загружаю ${esc(state.date || '')}…`
+        : state.fetchedAt ? `обновлено ${esc(fmtAgo(state.fetchedAt))}`
+        : 'данных ещё нет';
     return `${agoNote}${queueNote}`;
 }
 
@@ -503,11 +534,34 @@ function renderOverview() {
     withMeta.sort((x, y) =>
         (x.meta?.line || 9) - (y.meta?.line || 9)
         || String(x.meta?.short || x.addr.title).localeCompare(String(y.meta?.short || y.addr.title), 'ru'));
+    if (withMeta.length) lastStationCount = withMeta.length;
 
-    return `<main class="rc-overview">${withMeta.map(({ addr, meta }) => overviewCard(addr, meta)).join('')}</main>`;
+    return `<main class="rc-overview ${state.enterAnim ? 'rc-in' : ''}">${
+        withMeta.map(({ addr, meta }, i) => overviewCard(addr, meta, i)).join('')}</main>`;
 }
 
-function overviewCard(addr, meta) {
+// Скелет обзора вместо станций прошлого дня: пока едет новая доска, кликать
+// нечего (это не кнопки), а сетка стоит на месте — карточек столько же.
+function renderSkeleton() {
+    const cards = Array.from({ length: lastStationCount }, () => `
+        <div class="rc-card rc-card-skel">
+            <div class="rc-card-head">
+                <span class="rc-skel rc-skel-dot"></span>
+                <span class="rc-skel rc-skel-name"></span>
+            </div>
+            <div class="rc-card-strip">${'<i class="rc-tick rc-skel"></i>'.repeat(16)}</div>
+            <div class="rc-card-foot">
+                <span class="rc-skel rc-skel-pill"></span>
+                <span class="rc-skel rc-skel-pill rc-skel-pill-s"></span>
+                <span class="rc-skel rc-skel-pill rc-skel-pill-s"></span>
+            </div>
+        </div>`).join('');
+    // Скелет проявляется целиком, без каскада: каскад — язык «данные пришли»,
+    // и два каскада подряд за полторы секунды выглядели бы суетой.
+    return `<main class="rc-overview rc-skeleton" aria-busy="true" aria-label="Загрузка станций">${cards}</main>`;
+}
+
+function overviewCard(addr, meta, i = 0) {
     const slots = state.board.timeSlots;
     const byTime = state.board.cells[addr.id] || {};
     const boxes = boxesFor(addr);
@@ -539,7 +593,7 @@ function overviewCard(addr, meta) {
     // чтобы сетка не пестрела.
     const freeTone = free === 0 ? 'rc-pill-none' : free <= 5 ? 'rc-pill-low' : 'rc-pill-ok';
     return `
-    <button class="rc-card" data-action="open-station" data-id="${esc(addr.id)}">
+    <button class="rc-card" data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
         <div class="rc-card-head">
             <span class="rc-line-dot" style="background:${line ? LINE_COLORS[line] : 'var(--sub)'}"></span>
             <b class="rc-card-name">${esc(meta?.short || addr.title)}</b>
@@ -637,7 +691,7 @@ function renderStation() {
         `<span class="rc-lane-head">Бокс ${i + 1}</span>`).join('');
 
     return `
-    <main class="rc-station">
+    <main class="rc-station ${state.enterAnim ? 'rc-in' : ''}">
         <div class="rc-station-head">
             <button class="btn btn-sec" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
             <div class="rc-station-title">
@@ -1461,6 +1515,34 @@ function bindPick() {
     paintPick({ syncWheel: true });
 }
 
+// ── Смена дня ────────────────────────────────────────────────────────────────
+// Доска приезжает с бэкенда не мгновенно, поэтому раньше между кликом по
+// «Завтра» и ответом сервера на экране оставались станции прошлого дня — и
+// клик по такой станции открывал чужой день. Теперь день сначала уезжает с
+// экрана, на его месте живёт скелет (кликать нечего), а новые станции
+// проявляются каскадом.
+
+function fadeOutBoard() {
+    const el = root?.querySelector('.rc-overview, .rc-station');
+    if (!el) return Promise.resolve();
+    el.classList.add('rc-out'); // в классе ещё и pointer-events: none
+    if (REDUCED_MOTION) return Promise.resolve();
+    return new Promise(resolve => setTimeout(resolve, ANIM_OUT_MS));
+}
+
+async function switchDate(date) {
+    if (!date || date === state.date) return;
+    await fadeOutBoard();
+    state.date = date;
+    state.view = 'overview';
+    state.stationId = null;
+    state.highlightId = null;
+    state.board = null;      // станции чужого дня с экрана сняты
+    state.fetchedAt = null;
+    state.boardError = '';
+    await loadBoard();
+}
+
 // ── Бинды ────────────────────────────────────────────────────────────────────
 
 function bindCredsGate() {
@@ -1507,11 +1589,7 @@ function bind() {
     if (dateInput) {
         dateInput.onchange = () => {
             const date = isoToDdmm(dateInput.value);
-            if (!date) return;
-            state.date = date;
-            state.view = 'overview';
-            state.highlightId = null;
-            loadBoard();
+            if (date) switchDate(date);
         };
     }
 
@@ -1561,6 +1639,7 @@ function bind() {
                 state.modal = null;
                 state.view = 'station';
                 state.stationId = id;
+                state.enterAnim = true;
                 render();
             }
         }, state.view === 'station' ? metaFor(stationById(state.stationId))?.short : null);
@@ -1655,12 +1734,7 @@ function keepCreateFields() {
 async function handleAction(btn) {
     const a = btn.dataset.action;
 
-    if (a === 'set-date') {
-        state.date = btn.dataset.date;
-        state.view = 'overview';
-        state.highlightId = null;
-        return loadBoard();
-    }
+    if (a === 'set-date') return switchDate(btn.dataset.date);
     if (a === 'pick-date') {
         // Нативный календарь: у скрытого input'а клик пикер не открывает,
         // нужен showPicker() (в старых браузерах — обычный focus+click).
@@ -1681,11 +1755,13 @@ async function handleAction(btn) {
         state.view = 'station';
         state.stationId = btn.dataset.id;
         state.highlightId = null;
+        state.enterAnim = true;
         return render();
     }
     if (a === 'back') {
         state.view = 'overview';
         state.highlightId = null;
+        state.enterAnim = true;
         return render();
     }
     if (a === 'open-map') { state.modal = { kind: 'map' }; return render(); }
@@ -1703,6 +1779,7 @@ async function handleAction(btn) {
         state.stationId = btn.dataset.station;
         state.highlightId = btn.dataset.head;
         state.search = '';
+        state.enterAnim = true;
         return render();
     }
     if (a === 'near-pick') {
@@ -1835,13 +1912,9 @@ async function handleAction(btn) {
         if (!first) return;
         const from = first.from;
         state.modal = null;
-        if (from?.date && from.date !== state.date) {
-            state.date = from.date;
-            state.highlightId = null;
-            await loadBoard();
-        } else {
-            await loadBoard({ silent: true });
-        }
+        render(); // очередь закрываем сразу, дальше может уехать день
+        if (from?.date && from.date !== state.date) await switchDate(from.date);
+        else await loadBoard({ silent: true });
         const found = chainByPart(first.id);
         state.modal = found
             ? { kind: 'move', headId: found.chain.head.id, targetDate: state.date, targetTime: null }
@@ -1921,14 +1994,10 @@ async function submitCreate() {
         });
         destroyMapCtl();
         state.modal = null;
+        render(); // окно закрываем сразу: дальше день может уехать анимацией
         // Записали на другой день — переводим доску туда, иначе запись
         // появится «где-то там», а на экране останется прежний день.
-        if (date !== state.date) {
-            state.date = date;
-            state.highlightId = null;
-            return loadBoard();
-        }
-        render();
+        if (date !== state.date) await switchDate(date);
     } catch (err) {
         m.error = err.message;
         render();
@@ -2062,6 +2131,7 @@ function resetState() {
         search: '',
         highlightId: null,
         modal: null,
+        enterAnim: false,
     });
 }
 
@@ -2070,6 +2140,7 @@ export function startRecords(mount) {
     stopRecords(); // повторный вход — начинаем с чистого листа
     root = mount;
     resetState();
+    state.boardLoading = true; // первый render() до ответа сервера — скелет, не «нет данных»
     root.innerHTML = '<div class="rc-boot">Загрузка записей…</div>';
 
     onClick = (e) => {
