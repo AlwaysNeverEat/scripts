@@ -273,6 +273,43 @@ function statusDotClass() {
     return isDown() ? 'rc-dot-down' : 'rc-dot-ok';
 }
 
+// ── Полоска «сейчас» ─────────────────────────────────────────────────────────
+
+// Текущее время в минутах от полуночи по Москве: рабочий день станций и
+// «сегодня» бэкенд считает в МСК (см. mskToday), поэтому и ориентир по
+// времени должен жить в той же зоне, а не в локальной зоне браузера.
+function mskNowMinutes() {
+    const parts = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const get = (t) => Number(parts.find(p => p.type === t)?.value || 0);
+    return (get('hour') % 24) * 60 + get('minute');
+}
+
+// Индекс слота, внутри которого мы сейчас находимся. -1 — если открыт не
+// сегодняшний день или время вне рабочей сетки (до открытия / после закрытия).
+function nowSlotIndex() {
+    const slots = state.board?.timeSlots || [];
+    if (!slots.length) return -1;
+    if (!state.status?.today || state.date !== state.status.today) return -1;
+    const now = mskNowMinutes();
+    for (let i = 0; i < slots.length; i++) {
+        const t0 = timeToMin(slots[i]);
+        if (now >= t0 && now < t0 + SLOT_MINUTES) return i;
+    }
+    return -1;
+}
+
+// Полоска ездит сама, без полной перерисовки сетки: тикает по таймеру и просто
+// переставляет top (или прячется, когда день не сегодняшний / время вне сетки).
+function syncNowBar() {
+    const el = root?.querySelector('.rc-now');
+    if (!el) return;
+    const i = nowSlotIndex();
+    el.classList.toggle('hidden', i < 0);
+    if (i >= 0) el.style.top = `${i * ROW_H}px`;
+}
+
 // ── Иконки статусов записи ───────────────────────────────────────────────────
 
 function statusIcon(status) {
@@ -469,6 +506,7 @@ function renderStation() {
     const ghosts = ghostsFor(addr.id);
 
     const gridH = slots.length * ROW_H;
+    const nowIdx = nowSlotIndex();
 
     const rows = slots.map((t, i) => {
         const cell = byTime[t];
@@ -550,6 +588,7 @@ function renderStation() {
         <div class="rc-lanes-heads" style="--lanes:${lanes}">${laneHeads}</div>
         <div class="rc-grid" style="height:${gridH}px">
             <div class="rc-rows">${rows}</div>
+            <i class="rc-now ${nowIdx < 0 ? 'hidden' : ''}" style="top:${Math.max(0, nowIdx) * ROW_H}px" aria-hidden="true"></i>
             <div class="rc-lanes" style="--lanes:${lanes}">
                 ${Array.from({ length: Math.max(0, lanes - 1) }, (_, i) =>
                     `<i class="rc-lane-sep" style="left:calc((100% / ${lanes}) * ${i + 1})"></i>`).join('')}
@@ -1547,6 +1586,9 @@ export function startRecords(mount) {
         if (!document.hidden && !state.modal && !state.credsNeeded) loadBoard({ silent: true });
     }, 45_000));
     timers.push(setInterval(renderStatusOnly, 10_000));
+    // полоска «сейчас» — отдельным тиком: её можно двигать и при открытой
+    // модалке, ведь это не перерисовка, а один style.top
+    timers.push(setInterval(syncNowBar, 15_000));
 
     (async () => {
         await loadStatus();

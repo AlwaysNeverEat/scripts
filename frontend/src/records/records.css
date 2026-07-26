@@ -427,6 +427,21 @@
     right: 44px;
 }
 
+/* Полоска «сейчас»: 30-минутный слот, в котором идёт текущее время. Без
+   подписей — нужна только как ориентир по времени. Лежит поверх капсул
+   (полупрозрачной плёнкой, pointer-events: none), иначе занятый слот прятал бы
+   её под собой — а «где сейчас идёт запись» важно видеть как раз на занятых. */
+.rc-now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 36px;
+    z-index: 7;
+    pointer-events: none;
+    background: var(--blue-dim);
+    border-top: 2px solid var(--blue);
+}
+
 .rc-lane-sep {
     position: absolute;
     top: 0;
