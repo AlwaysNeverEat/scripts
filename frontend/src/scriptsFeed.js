@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Фид «Скрипты»: кнопка справа снизу на странице поиска → модалка со списком
-// всех юзерскриптов. У каждой карточки ссылка-«Установить» ведёт прямо на сырой
-// .user.js — Tampermonkey перехватывает переход и сам открывает экран установки.
+// Фид «Скрипты»: вкладка со списком всех юзерскриптов. У каждой карточки
+// ссылка-«Установить» ведёт прямо на сырой .user.js — Tampermonkey
+// перехватывает переход и сам открывает экран установки.
 //
 // При первом клике показываем мини-гайд (нужен Tampermonkey + Developer mode в
 // Chrome) с чекбоксом «не показывать больше» → флаг в localStorage. Дальше клик
@@ -48,11 +48,8 @@ function feedHtml() {
 let bound = false;
 
 export function initScriptsFeed() {
-    const btn       = document.getElementById('btn-scripts');
-    const modal     = document.getElementById('scripts-modal');
-    const body      = document.getElementById('scripts-modal-body');
-    const btnClose  = document.getElementById('scripts-modal-close');
-    const backdrop  = document.getElementById('scripts-modal-backdrop');
+    if (bound) return; // фид статичный: собирается один раз за сессию
+    const body = document.getElementById('scripts-body');
 
     const guide       = document.getElementById('scripts-guide-modal');
     const guideBack   = document.getElementById('scripts-guide-backdrop');
@@ -60,12 +57,9 @@ export function initScriptsFeed() {
     const guideGo     = document.getElementById('scripts-guide-go');
     const guideDont   = document.getElementById('scripts-guide-dont');
 
-    if (!btn || !modal || !guide) return;
+    if (!body || !guide) return;
 
     let pendingUrl = null;
-
-    const openModal  = () => { modal.classList.remove('hidden'); };
-    const closeModal = () => { modal.classList.add('hidden'); };
 
     const closeGuide = () => {
         // Уважаем «не показывать больше» даже если гайд просто закрыли.
@@ -80,43 +74,34 @@ export function initScriptsFeed() {
         guide.classList.remove('hidden');
     };
 
-    if (!bound) {
-        bound = true;
-        body.innerHTML = feedHtml();
+    bound = true;
+    body.innerHTML = feedHtml();
 
-        btn.onclick      = openModal;
-        btnClose.onclick = closeModal;
-        backdrop.onclick = closeModal;
+    // Перехватываем обычный клик по «Установить»: пока гайд не отмечен как
+    // виденный — сначала показываем его. Middle/ctrl-клик не трогаем — пусть
+    // открывается напрямую (ссылка настоящая, href на .user.js).
+    body.addEventListener('click', (e) => {
+        const link = e.target.closest('.scr-install');
+        if (!link) return;
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (localStorage.getItem(GUIDE_SEEN_KEY)) return; // гайд уже видели — ведём напрямую
+        e.preventDefault();
+        openGuide(link.dataset.scrUrl);
+    });
 
-        // Перехватываем обычный клик по «Установить»: пока гайд не отмечен как
-        // виденный — сначала показываем его. Middle/ctrl-клик не трогаем — пусть
-        // открывается напрямую (ссылка настоящая, href на .user.js).
-        body.addEventListener('click', (e) => {
-            const link = e.target.closest('.scr-install');
-            if (!link) return;
-            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-            if (localStorage.getItem(GUIDE_SEEN_KEY)) return; // гайд уже видели — ведём напрямую
-            e.preventDefault();
-            openGuide(link.dataset.scrUrl);
-        });
+    guideBack.onclick  = closeGuide;
+    guideClose.onclick = closeGuide;
+    guideGo.onclick = () => {
+        const url = pendingUrl;
+        if (guideDont.checked) localStorage.setItem(GUIDE_SEEN_KEY, '1');
+        guide.classList.add('hidden');
+        pendingUrl = null;
+        if (url) window.open(url, '_blank', 'noopener');
+    };
 
-        guideBack.onclick  = closeGuide;
-        guideClose.onclick = closeGuide;
-        guideGo.onclick = () => {
-            const url = pendingUrl;
-            if (guideDont.checked) localStorage.setItem(GUIDE_SEEN_KEY, '1');
-            guide.classList.add('hidden');
-            pendingUrl = null;
-            if (url) window.open(url, '_blank', 'noopener');
-        };
-
-        // Esc закрывает верхнюю из открытых модалок.
-        document.addEventListener('keydown', (e) => {
-            if (e.key !== 'Escape') return;
-            if (!guide.classList.contains('hidden')) closeGuide();
-            else if (!modal.classList.contains('hidden')) closeModal();
-        });
-    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !guide.classList.contains('hidden')) closeGuide();
+    });
 }
 
 export { TAMPERMONKEY_URL };

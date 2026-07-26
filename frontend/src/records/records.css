@@ -36,17 +36,6 @@
 
 .rc-brand svg { color: var(--accent); }
 
-/* Возврат к калькулятору — та же капсула, что кнопки в правом блоке. */
-.rc-home {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    padding: 7px 12px;
-}
-
-.rc-home svg { color: var(--accent); }
-
 .rc-tabs { display: flex; align-items: center; gap: 6px; }
 
 .rc-date-pick {

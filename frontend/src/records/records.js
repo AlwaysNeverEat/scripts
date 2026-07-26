@@ -444,7 +444,8 @@ function renderHeader() {
     const tomorrow = state.status?.tomorrow;
     return `
     <header class="rc-top">
-        <a class="btn btn-sec rc-home" href="#/" title="К калькулятору">${icons.back(15)}</a>
+        <!-- Возврата к калькулятору тут больше нет: разделы переключает
+             общий ряд вкладок сверху (index.html → .app-tabs). -->
         <div class="rc-brand">${icons.pin(18)}<span>Записи</span></div>
         <nav class="rc-tabs">
             <button class="chip ${state.date === today ? 'active' : ''}" data-action="set-date" data-date="${esc(today)}">Сегодня</button>
@@ -2086,8 +2087,16 @@ export function startRecords(mount) {
         loadStatus();
         if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
     };
-    document.addEventListener('visibilitychange', onVisibility);
+    startPolling();
 
+    (async () => {
+        await loadStatus();
+        await loadBoard();
+    })();
+}
+
+function startPolling() {
+    document.addEventListener('visibilitychange', onVisibility);
     timers.push(setInterval(loadStatus, 30_000));
     timers.push(setInterval(() => {
         // не дёргаем доску, пока открыта модалка или гейт кредов
@@ -2098,20 +2107,36 @@ export function startRecords(mount) {
     // маркер «сейчас» и отсчёты — отдельным тиком: их можно двигать и при
     // открытой модалке, ведь это не перерисовка, а top и текст бейджа
     timers.push(setInterval(syncNow, 15_000));
-
-    (async () => {
-        await loadStatus();
-        await loadBoard();
-    })();
 }
 
-export function stopRecords() {
+function stopPolling() {
     for (const t of timers.splice(0)) clearInterval(t);
     clearTimeout(geocodeTimer);
     for (const t of boardReloadTimers.splice(0)) clearTimeout(t);
+    if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
+}
+
+// Уход на другую вкладку сайта. Раздел остаётся собранным — выбранный день,
+// открытая станция, поиск и незакрытая модалка ждут возвращения, — но ни одного
+// таймера и ни одного фонового запроса за собой не оставляем.
+export function pauseRecords() {
+    if (!root) return;
+    stopPolling();
+}
+
+// Возврат на вкладку: поднимаем опрос и сразу подтягиваем свежую доску, чтобы
+// сохранённый экран не оказался вчерашним.
+export function resumeRecords() {
+    if (!root) return;
+    startPolling();
+    loadStatus();
+    if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
+}
+
+export function stopRecords() {
+    stopPolling();
     destroyMapCtl();
     if (root && onClick) root.removeEventListener('click', onClick);
-    if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
     onClick = null;
     onVisibility = null;
     root = null;
