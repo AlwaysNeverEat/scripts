@@ -123,8 +123,10 @@ async function postOp(type, payload) {
 
 // ── Производные данные ───────────────────────────────────────────────────────
 
-function stationById(id) {
-    return state.board?.addresses.find(a => a.id === String(id)) || null;
+function stationById(id, board = state.board) {
+    return board?.addresses.find(a => a.id === String(id))
+        || state.board?.addresses.find(a => a.id === String(id))
+        || null;
 }
 
 function metaFor(addr) {
@@ -709,15 +711,15 @@ function durationChips(selected) {
 }
 
 // Превью занимаемого места: вертикальная лента слотов от выбранного времени.
-function durationPreview(addrId, time, durationMin) {
-    if (!time) return '';
+function durationPreview(addrId, time, durationMin, board = state.board) {
+    if (!time || !board) return '';
     const need = Math.ceil(durationMin / SLOT_MINUTES);
-    const slots = state.board.timeSlots;
+    const slots = board.timeSlots;
     const items = [];
     let ok = true;
     for (let i = 0; i < need; i++) {
         const t = addMinutes(time, i * SLOT_MINUTES);
-        const free = slots.includes(t) && slotFree(addrId, t);
+        const free = slots.includes(t) && slotFree(addrId, t, board);
         if (!free) ok = false;
         items.push(`<span class="rc-prev-slot ${free ? 'rc-prev-ok' : 'rc-prev-bad'}">${esc(t)}</span>`);
     }
@@ -730,14 +732,26 @@ function durationPreview(addrId, time, durationMin) {
     </div>`;
 }
 
-function freeTimesFor(addrId) {
-    return state.board.timeSlots.filter(t => slotFree(addrId, t));
+function freeTimesFor(addrId, board = state.board) {
+    if (!board) return [];
+    return board.timeSlots.filter(t => slotFree(addrId, t, board));
+}
+
+// Доска, к которой относится окно создания: для чужой даты — своя,
+// подгруженная отдельно (пока грузится — null, время выбирать не из чего).
+function createBoard(m) {
+    if (!m.date || m.date === state.date) return state.board;
+    return m.dateBoard || null;
 }
 
 function modalCreate(m) {
-    const addr = stationById(m.addressId);
+    const board = createBoard(m);
+    const addr = stationById(m.addressId, board);
     const meta = metaFor(addr);
-    const free = freeTimesFor(m.addressId);
+    const free = freeTimesFor(m.addressId, board);
+    const today = state.status?.today;
+    const tomorrow = state.status?.tomorrow;
+    const otherDate = m.date && m.date !== today && m.date !== tomorrow;
     const body = `
     <div class="rc-create">
         <div class="rc-create-form">
@@ -759,7 +773,7 @@ function modalCreate(m) {
             </div>
             <div class="rc-station-select">
                 <select id="rc-f-station">
-                    ${state.board.addresses.map(a => {
+                    ${(board?.addresses || state.board.addresses).map(a => {
                         const am = metaFor(a);
                         return `<option value="${esc(a.id)}" ${String(a.id) === String(m.addressId) ? 'selected' : ''}>${esc(am?.short || a.title)}</option>`;
                     }).join('')}
@@ -767,16 +781,28 @@ function modalCreate(m) {
             </div>
             <div id="rc-create-map" class="rc-create-map ${m.showMap ? '' : 'hidden'}"></div>
 
-            <div class="rc-sub">Время (${esc(state.date || '')})</div>
+            <div class="rc-sub">Дата</div>
             <div class="rc-times">
-                ${free.length ? free.map(t => `
-                    <button class="chip ${t === m.time ? 'active' : ''}" data-action="set-create-time" data-time="${esc(t)}">${esc(t)}</button>`).join('')
-                    : '<span class="rc-empty-note">свободных слотов нет</span>'}
+                <button class="chip ${m.date === today ? 'active' : ''}" data-action="set-create-date" data-date="${esc(today)}">Сегодня</button>
+                <button class="chip ${m.date === tomorrow ? 'active' : ''}" data-action="set-create-date" data-date="${esc(tomorrow)}">Завтра</button>
+                <button class="chip rc-date-pick ${otherDate ? 'active' : ''}" data-action="pick-create-date">
+                    ${icons.calendar(13)}<span>${otherDate ? esc(m.date) : 'Другая дата'}</span>
+                </button>
+                <input type="date" id="rc-f-date" class="rc-date-input" value="${esc(ddmmToIso(m.date))}" tabindex="-1" aria-hidden="true"/>
+            </div>
+
+            <div class="rc-sub">Время (${esc(m.date || '')})</div>
+            <div class="rc-times rc-times-scroll">
+                ${m.dateLoading ? '<span class="rc-empty-note">смотрю свободные слоты на ' + esc(m.date) + '…</span>'
+                    : m.dateError ? `<span class="rc-empty-note">${esc(m.dateError)}</span>`
+                    : free.length ? free.map(t => `
+                        <button class="chip ${t === m.time ? 'active' : ''}" data-action="set-create-time" data-time="${esc(t)}">${esc(t)}</button>`).join('')
+                    : '<span class="rc-empty-note">свободных слотов нет — выбери другую станцию или дату</span>'}
             </div>
 
             <div class="rc-sub">Длительность</div>
             <div class="rc-times">${durationChips(m.durationMinutes)}</div>
-            ${durationPreview(m.addressId, m.time, m.durationMinutes)}
+            ${durationPreview(m.addressId, m.time, m.durationMinutes, board)}
 
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
             <div class="modal-actions">
@@ -1093,14 +1119,14 @@ function destroyMapCtl() {
     if (mapCtl) { try { mapCtl.destroy(); } catch { /* уже снят */ } mapCtl = null; }
 }
 
-function busyCountByShort() {
+function busyCountByShort(board = state.board) {
     const counts = {};
-    if (!state.board) return counts;
-    for (const addr of state.board.addresses) {
+    if (!board) return counts;
+    for (const addr of board.addresses) {
         const meta = metaFor(addr);
         if (!meta) continue;
         let n = 0;
-        const byTime = state.board.cells[addr.id] || {};
+        const byTime = board.cells[addr.id] || {};
         for (const t of Object.keys(byTime)) n += byTime[t].records.length;
         counts[meta.short] = (counts[meta.short] || 0) + n;
     }
@@ -1108,21 +1134,23 @@ function busyCountByShort() {
 }
 
 // Клик по плашке на карте → address_id на текущей доске.
-function addrIdByMeta(meta) {
-    if (!state.board) return null;
-    for (const addr of state.board.addresses) {
+function addrIdByMeta(meta, board = state.board) {
+    if (!board) return null;
+    for (const addr of board.addresses) {
         if (findStationMeta(addr.title)?.short === meta.short) return addr.id;
     }
     return null;
 }
 
 // activeShort — станция, которую подсветить (выбранная в окне записи).
-function initModalMap(containerId, onPickMeta, activeShort = null) {
+// board — доска, по которой считать загрузку станций (в окне записи это может
+// быть другой день, а не тот, что открыт на экране).
+function initModalMap(containerId, onPickMeta, activeShort = null, board = state.board) {
     const el = document.getElementById(containerId);
     if (!el) return;
     destroyMapCtl();
     mapCtl = createStationsMap(el, { onPick: onPickMeta, view: state.modal?.mapView });
-    mapCtl.setBusy(busyCountByShort());
+    mapCtl.setBusy(busyCountByShort(board));
     if (activeShort) mapCtl.highlight(activeShort);
     mapCtl.invalidate();
 }
@@ -1200,14 +1228,22 @@ function bind() {
     // Маска телефона в окнах создания и правки
     bindPhoneMask(document.getElementById('rc-f-phone'));
     bindPhoneMask(document.getElementById('rc-e-phone'));
+    // Произвольная дата в окне создания записи
+    const createDate = document.getElementById('rc-f-date');
+    if (createDate) {
+        createDate.onchange = () => {
+            const date = isoToDdmm(createDate.value);
+            if (date) setCreateDate(date);
+        };
+    }
     // Селекты в модалках
     const stSel = document.getElementById('rc-f-station');
     if (stSel) {
         stSel.onchange = () => {
             keepCreateFields();
             state.modal.addressId = stSel.value;
-            if (state.modal.time && !slotFree(stSel.value, state.modal.time)) state.modal.time = null;
-            const meta = metaFor(stationById(stSel.value));
+            revalidateCreatePick();
+            const meta = metaFor(stationById(state.modal.addressId, createBoard(state.modal)));
             if (meta) focusPickedStation(meta); // карта едет за выбором из списка
             render();
         };
@@ -1281,15 +1317,16 @@ function bind() {
     }
     if (state.modal?.kind === 'create' && state.modal.showMap) {
         initModalMap('rc-create-map', (meta) => {
-            const id = addrIdByMeta(meta);
+            const id = addrIdByMeta(meta, createBoard(state.modal) || state.board);
             if (!id) return;
             keepCreateFields();
             focusPickedStation(meta);
             state.modal.addressId = id;
-            // Время сохраняем, если оно свободно и на новой станции.
-            if (state.modal.time && !slotFree(id, state.modal.time)) state.modal.time = null;
+            // Время сохраняем, если оно свободно и на новой станции (в выбранный день).
+            revalidateCreatePick();
             render();
-        }, metaFor(stationById(state.modal.addressId))?.short);
+        }, metaFor(stationById(state.modal.addressId, createBoard(state.modal)))?.short,
+        createBoard(state.modal));
     }
     if (state.modal?.kind === 'move' && state.modal.showMap) {
         const found = chainByHead(state.modal.headId);
@@ -1388,11 +1425,24 @@ async function handleAction(btn) {
         state.modal = {
             kind: 'create',
             addressId: addr.id,
+            date: state.date,
             time: btn.dataset.time || null,
             durationMinutes: 30,
             name: '', phone: '', carNumber: '', comment: '',
         };
         return render();
+    }
+    if (a === 'set-create-date') return setCreateDate(btn.dataset.date);
+    if (a === 'pick-create-date') {
+        keepCreateFields();
+        const input = document.getElementById('rc-f-date');
+        if (!input) return;
+        if (typeof input.showPicker === 'function') {
+            try { input.showPicker(); return; } catch { /* ниже — запасной путь */ }
+        }
+        input.focus();
+        input.click();
+        return;
     }
     if (a === 'set-create-time') { keepCreateFields(); state.modal.time = btn.dataset.time; return render(); }
     if (a === 'set-duration') { keepCreateFields(); state.modal.durationMinutes = Number(btn.dataset.min); return render(); }
@@ -1469,17 +1519,64 @@ async function handleAction(btn) {
     }
 }
 
+// Смена даты в окне записи: клиент передумал на другой день — тянем расписание
+// того дня и заново проверяем, свободны ли выбранные станция и время.
+async function setCreateDate(date) {
+    const m = state.modal;
+    if (!date || m?.kind !== 'create' || m.date === date) return;
+    keepCreateFields();
+    m.date = date;
+    m.dateBoard = null;
+    m.dateError = '';
+    m.error = '';
+    if (date === state.date) { revalidateCreatePick(); return render(); }
+
+    m.dateLoading = true;
+    render();
+    try {
+        const data = await apiFetch(`/api/records/board?date=${encodeURIComponent(date)}`);
+        if (state.modal !== m || m.date !== date) return; // дату успели сменить снова
+        m.dateBoard = data.board;
+        m.dateLoading = false;
+        revalidateCreatePick();
+    } catch (err) {
+        if (state.modal !== m || m.date !== date) return;
+        m.dateLoading = false;
+        m.dateError = `не удалось получить расписание на ${date}: ${err.message}`;
+        m.time = null;
+    }
+    render();
+}
+
+// Выбранные станция и время должны существовать и быть свободны на текущей
+// доске окна: станции нет — берём первую, слот занят/закрыт — сбрасываем время.
+function revalidateCreatePick() {
+    const m = state.modal;
+    if (m?.kind !== 'create') return;
+    const board = createBoard(m);
+    if (!board) { m.time = null; return; }
+    if (!board.addresses.some(a => String(a.id) === String(m.addressId))) {
+        m.error = `этой станции нет в расписании на ${m.date} — выбрана первая из списка`;
+        m.addressId = board.addresses[0]?.id ?? m.addressId;
+        m.time = null;
+        return;
+    }
+    if (m.time && !slotFree(m.addressId, m.time, board)) m.time = null;
+}
+
 // ── Сабмиты операций ─────────────────────────────────────────────────────────
 
 async function submitCreate() {
     keepCreateFields();
     const m = state.modal;
+    const date = m.date || state.date;
+    if (m.dateLoading) { m.error = `расписание на ${date} ещё грузится`; return render(); }
     if (!m.time) { m.error = 'выбери время'; return render(); }
     if (!String(m.name || '').trim()) { m.error = 'имя обязательно'; return render(); }
     try {
         await postOp('create', {
             addressId: m.addressId,
-            date: state.date,
+            date,
             time: m.time,
             name: m.name.trim(),
             phone: m.phone.trim(),
@@ -1489,6 +1586,13 @@ async function submitCreate() {
         });
         destroyMapCtl();
         state.modal = null;
+        // Записали на другой день — переводим доску туда, иначе запись
+        // появится «где-то там», а на экране останется прежний день.
+        if (date !== state.date) {
+            state.date = date;
+            state.highlightId = null;
+            return loadBoard();
+        }
         render();
     } catch (err) {
         m.error = err.message;
