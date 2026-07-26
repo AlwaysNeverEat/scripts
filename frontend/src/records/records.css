@@ -427,6 +427,35 @@
     right: 44px;
 }
 
+/* Маркер «сейчас»: тонкая линия ровно на текущем времени — не по границе
+   слота, а внутри получаса, поэтому он едет по сетке минута за минутой.
+   Начинается в пустом хвосте колонки времени, чтобы не перечёркивать сами
+   часы, и лежит НИЖЕ капсул: ничего не закрывает, а сквозь занятый слот его
+   продолжает тень прошедшей части записи (.rc-cap-elapsed). */
+.rc-now {
+    position: absolute;
+    left: 58px;
+    right: 48px; /* обрывается перед колонкой кнопок «+N» справа */
+    height: 0;
+    margin-top: -1px; /* линия центрируется на самой минуте */
+    z-index: 3;       /* выше фона строк, ниже капсул (4) и кнопок «+N» (5) */
+    pointer-events: none;
+    border-top: 2px solid var(--red);
+}
+
+/* Наконечник-«ползунок» на левом конце: стоит в свободном месте между часами
+   и сеткой боксов, поэтому не наезжает ни на текст, ни на рамку. */
+.rc-now::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: -5px;
+    width: 0;
+    height: 0;
+    border: 4px solid transparent;
+    border-left: 7px solid var(--red);
+}
+
 .rc-lane-sep {
     position: absolute;
     top: 0;
@@ -483,6 +512,40 @@
     background: var(--blue-dim);
     border-radius: 999px;
     padding: 1px 6px;
+}
+
+/* Прошедшая часть идущей сейчас записи. Лежит на z-index -1: над фоном
+   капсулы, но под её текстом — маркер как бы продолжается сквозь запись, при
+   этом имя и телефон остаются нетронутыми. */
+.rc-cap-elapsed {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: color-mix(in oklab, var(--red) 13%, transparent);
+}
+
+/* Отсчёт до конца записи, которая идёт прямо сейчас. Считается по концу всей
+   цепочки, поэтому продлённая запись показывает остаток до конца продления. */
+.rc-cap-left {
+    margin-left: auto;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    font-size: 9.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+
+/* Меньше пяти минут — запись вот-вот закончится, тон в цвет маркера «сейчас». */
+.rc-cap-left-soon {
+    color: var(--red);
+    background: var(--red-dim);
 }
 
 .rc-cap-line1 {
