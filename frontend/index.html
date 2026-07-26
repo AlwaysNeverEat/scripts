@@ -44,6 +44,38 @@
   </div>
 
   <div id="app">
+    <!-- Вкладки разделов. Заменили кнопки, разбросанные по главной (аватар,
+         «Записи», «Топ» сверху и «Скрипты» справа снизу): один ряд сверху,
+         виден на всех экранах. Состояние каждой вкладки переживает
+         переключение — переход обратно возвращает то, что было (см. main.js). -->
+    <nav id="app-tabs" class="app-tabs hidden" aria-label="Разделы">
+      <div class="app-tabs-row" role="tablist">
+        <button class="app-tab" data-tab="profile" role="tab" aria-selected="false" aria-label="Профиль" title="Профиль">
+          <span class="app-tab-avatar avatar-circle">
+            <span class="avatar-default-icon"></span>
+            <img id="avatar-img" alt="" hidden/>
+          </span>
+          <span class="app-tab-label">Профиль</span>
+        </button>
+        <button class="app-tab" data-tab="calc" role="tab" aria-selected="false" aria-label="Калькулятор" title="Калькулятор">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10"/><line x1="12" y1="10" x2="12" y2="10"/><line x1="16" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="18"/><line x1="8" y1="18" x2="12" y2="18"/></svg>
+          <span class="app-tab-label">Калькулятор</span>
+        </button>
+        <button class="app-tab" data-tab="records" role="tab" aria-selected="false" aria-label="Записи" title="Записи">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="app-tab-label">Записи</span>
+        </button>
+        <button class="app-tab" data-tab="scripts" role="tab" aria-selected="false" aria-label="Скрипты" title="Скрипты">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5a1.5 1.5 0 0 1 3 0V5h3.5a1 1 0 0 1 1 1V9.5h1.5a1.5 1.5 0 0 1 0 3H17V16a1 1 0 0 1-1 1h-3.5v1.5a1.5 1.5 0 0 1-3 0V17H6a1 1 0 0 1-1-1v-3.5H3.5a1.5 1.5 0 0 1 0-3H5V6a1 1 0 0 1 1-1h4z"/></svg>
+          <span class="app-tab-label">Скрипты</span>
+        </button>
+        <button class="app-tab" data-tab="top" role="tab" aria-selected="false" aria-label="Топ" title="Топ">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+          <span class="app-tab-label">Топ</span>
+        </button>
+      </div>
+    </nav>
+
     <!-- Гейт: вход/регистрация. Без валидной сессии не видно ничего другого. -->
     <div id="page-auth" class="hidden">
       <div class="auth-card">
@@ -87,20 +119,6 @@
     <div id="page-search" class="hidden">
       <div class="sphere-glow"></div>
       <canvas id="sphere-canvas"></canvas>
-      <div class="top-bar-user">
-        <button id="btn-avatar" class="avatar-circle" title="Профиль">
-          <span class="avatar-default-icon"></span>
-          <img id="avatar-img" alt="" hidden/>
-        </button>
-        <a href="#/records" class="btn btn-sec btn-top" title="Записи по станциям">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span>Записи</span>
-        </a>
-        <button id="btn-top" class="btn btn-sec btn-top">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-          <span>Топ</span>
-        </button>
-      </div>
       <div class="search-ui">
         <div class="search-wrap">
           <div class="search-mode-toggle" id="search-mode-toggle">
@@ -134,12 +152,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Кнопка фида юзерскриптов (справа снизу, только на странице поиска) -->
-      <button id="btn-scripts" class="scripts-fab" title="Скрипты для Tampermonkey">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5a1.5 1.5 0 0 1 3 0V5h3.5a1 1 0 0 1 1 1V9.5h1.5a1.5 1.5 0 0 1 0 3H17V16a1 1 0 0 1-1 1h-3.5v1.5a1.5 1.5 0 0 1-3 0V17H6a1 1 0 0 1-1-1v-3.5H3.5a1.5 1.5 0 0 1 0-3H5V6a1 1 0 0 1 1-1h4z"/></svg>
-        <span>Скрипты</span>
-      </button>
     </div>
 
     <!-- Car page (hidden until car selected) -->
@@ -170,34 +182,28 @@
     <!-- Профиль -->
     <div id="page-profile" class="hidden">
       <div class="calc-topbar">
-        <button id="btn-profile-back" class="btn btn-sec">← К поиску</button>
+        <button id="btn-profile-back" class="btn btn-sec">← Назад</button>
         <div class="calc-car-title" id="page-profile-title">Профиль</div>
       </div>
       <div id="profile-content" class="profile-content"></div>
     </div>
-  </div>
 
-  <!-- Модалка «Топ» -->
-  <div id="top-modal" class="modal hidden">
-    <div class="modal-backdrop" id="top-modal-backdrop"></div>
-    <div class="modal-win">
-      <div class="modal-head">
-        <span>Топ по машинам и записям</span>
-        <button class="btn btn-sec" id="top-modal-close">✕</button>
+    <!-- Скрипты: фид юзерскриптов (была модалка по кнопке снизу справа) -->
+    <div id="page-scripts" class="hidden">
+      <div class="page-head">
+        <h2 class="page-title">Скрипты для Tampermonkey</h2>
+        <p class="page-sub">Ставятся в один клик, обновляются потом сами.</p>
       </div>
-      <div id="top-modal-body" class="modal-body"></div>
+      <div id="scripts-body" class="page-body scripts-body"></div>
     </div>
-  </div>
 
-  <!-- Модалка «Скрипты»: фид юзерскриптов -->
-  <div id="scripts-modal" class="modal hidden">
-    <div class="modal-backdrop" id="scripts-modal-backdrop"></div>
-    <div class="modal-win scripts-win">
-      <div class="modal-head">
-        <span>Скрипты для Tampermonkey</span>
-        <button class="btn btn-sec" id="scripts-modal-close">✕</button>
+    <!-- Топ (была модалка по кнопке сверху справа) -->
+    <div id="page-top" class="hidden">
+      <div class="page-head">
+        <h2 class="page-title">Топ по машинам и записям</h2>
+        <p class="page-sub">Сумма добавленных и отредактированных машин.</p>
       </div>
-      <div id="scripts-modal-body" class="modal-body scripts-body"></div>
+      <div id="top-body" class="page-body"></div>
     </div>
   </div>
 
