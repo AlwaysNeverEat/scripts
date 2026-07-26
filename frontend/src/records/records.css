@@ -657,27 +657,189 @@
     overflow: hidden;
 }
 
-.rc-duration-preview {
-    margin-top: 10px;
-    padding: 10px;
+/* ── Выбор окна: расписание дня + барабан длительности ─────────── */
+
+/* Слева — весь день станции (видно чужие записи и закрытые часы), справа —
+   барабан длительности и подпись про выбранное окно. */
+.rc-pick {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 12px;
+    align-items: start;
+    margin-top: 4px;
+}
+
+@media (max-width: 720px) {
+    .rc-pick { grid-template-columns: minmax(0, 1fr); }
+}
+
+.rc-tl {
+    position: relative; /* строки меряем от самой ленты: по offsetTop её мотаем */
+    max-height: 320px;
+    overflow: auto;
+    overscroll-behavior: contain;
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    background: var(--card);
+}
+
+.rc-tl-blank { display: grid; place-items: center; min-height: 120px; }
+
+.rc-tl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 30px;
+    padding-right: 8px;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-left: 3px solid transparent;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.rc-tl-row:first-child { border-top: 0; }
+.rc-tl-row:disabled { cursor: default; }
+.rc-tl-row:not(:disabled):hover { background: color-mix(in oklab, var(--accent) 9%, transparent); }
+
+.rc-tl-time {
+    width: 52px;
+    flex: none;
+    text-align: center;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 10.5px;
+    color: var(--sub);
+}
+
+.rc-tl-body { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
+
+.rc-tl-rec {
+    max-width: 200px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 10.5px;
+    font-style: normal;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg3);
+    color: var(--text);
+}
+
+.rc-tl-rec-checked { border-color: color-mix(in oklab, var(--green) 55%, transparent); }
+.rc-tl-rec-late { border-color: color-mix(in oklab, var(--red) 55%, transparent); }
+.rc-tl-rec-new { border-color: color-mix(in oklab, var(--accent) 50%, transparent); }
+.rc-tl-rec-ghost { border-style: dashed; color: var(--sub); }
+.rc-tl-rec-mine { border-color: var(--blue); background: var(--blue-dim); color: var(--blue); }
+
+.rc-tl-tag { margin-left: auto; flex: none; font-style: normal; font-size: 10px; color: var(--sub); }
+.rc-tl-tag-free { color: var(--green); background: var(--green-dim); border-radius: 7px; padding: 2px 6px; }
+
+.rc-tl-closed { background: repeating-linear-gradient(-45deg, transparent 0 8px, rgba(255, 255, 255, 0.02) 8px 16px); }
+.rc-tl-closed .rc-tl-time { opacity: 0.4; }
+
+/* Слоты самой записи в окне продления — ориентир, от которого растёт хвост. */
+.rc-tl-mine { background: color-mix(in oklab, var(--blue) 10%, transparent); }
+
+/* Выбранное окно — сплошная лента: подсветка на всех строках, линии только
+   по краям, поэтому видно, где оно начинается и до какого времени дотянулось. */
+.rc-tl-on { background: color-mix(in oklab, var(--accent) 17%, transparent); border-left-color: var(--accent); }
+.rc-tl-on .rc-tl-time { color: var(--text); font-weight: 700; }
+.rc-tl-on-a { box-shadow: inset 0 1px 0 var(--accent); }
+.rc-tl-on-b { box-shadow: inset 0 -1px 0 var(--accent); }
+.rc-tl-on-a.rc-tl-on-b { box-shadow: inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent); }
+
+.rc-tl-till { flex: none; font-size: 10px; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+.rc-pick-side { display: flex; flex-direction: column; gap: 8px; }
+
+.rc-pick-h {
+    font-size: 10.5px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--sub);
+}
+
+.rc-pick-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text);
+    min-height: 16px;
+}
+
+.rc-pick-limit { width: 100%; font-size: 11px; color: var(--sub); }
+.rc-pick-hint { font-size: 10.5px; line-height: 1.35; color: var(--sub); }
+
+/* Барабан «часы : минуты»: колонки со scroll-snap — крутится пальцем и
+   колесом, как на будильнике. Центр помечен рамкой, недостижимые значения
+   притушены (дальше по расписанию чужая запись или конец дня). */
+.rc-wheel {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: max-content;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
     background: var(--bg2);
 }
 
-.rc-duration-conflict { border-color: var(--red); }
-
-.rc-prev-track { display: flex; gap: 4px; flex-wrap: wrap; }
-
-.rc-prev-slot {
-    padding: 4px 8px;
-    border-radius: 7px;
-    font-size: 10.5px;
-    font-family: "JetBrains Mono", Consolas, monospace;
+.rc-wheel-col {
+    /* высота = 3 строки, отступы = (высота − строка) / 2: тогда scrollTop
+       ровно i × 34 ставит i-й пункт в центр. */
+    height: 102px;
+    padding: 34px 0;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent);
+    mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent);
 }
 
-.rc-prev-ok { background: var(--green-dim); color: var(--green); }
-.rc-prev-bad { background: var(--red-dim); color: var(--red); text-decoration: line-through; }
+.rc-wheel-col::-webkit-scrollbar { display: none; }
+
+.rc-wheel-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    min-width: 42px;
+    scroll-snap-align: center;
+    border: 0;
+    background: none;
+    color: var(--sub);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.rc-wheel-on { color: var(--text); font-size: 18px; font-weight: 700; }
+.rc-wheel-off { opacity: 0.22; }
+
+.rc-wheel-unit { font-size: 11px; color: var(--sub); }
+
+.rc-wheel-band {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 50%;
+    height: 34px;
+    transform: translateY(-50%);
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
+    border-radius: 9px;
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    pointer-events: none;
+}
 
 .rc-prev-note {
     margin-top: 7px;
