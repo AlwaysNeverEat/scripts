@@ -903,6 +903,8 @@
     font-size: 12.5px;
 }
 .rc-queue-main { flex: 1; min-width: 0; }
+/* «отменить» / «другое время» — кнопка не сжимается в многоточие на узком экране */
+.rc-queue-item .rc-mini-btn { flex: none; white-space: nowrap; }
 .rc-queue-sub { color: var(--sub); font-size: 10.5px; margin-top: 2px; }
 .rc-queue-done { opacity: 0.55; }
 .rc-queue-failed { border-color: var(--red-dim); }

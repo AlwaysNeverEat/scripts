@@ -17,10 +17,14 @@ import {
     fetchBoardHtml, fetchEditFormHtml, postRecordUpdate, deleteRecordByUrl,
     hasCredentials, ZmsError,
 } from './adminClient.js';
-import { parseRecordBoard, parseEditForm, buildExtensionOps } from '../../../shared/crmRecords.js';
+import { parseRecordBoard, parseEditForm } from '../../../shared/crmRecords.js';
+import { applyOp, hasAppliedWork } from './opEngine.js';
 
 const SYNC_INTERVAL_MS = Math.max(10_000, Number(process.env.RECORDS_SYNC_INTERVAL_MS) || 60_000);
-const MAX_OP_ATTEMPTS = 30; // ~полчаса ретраев сетевых ошибок, потом failed
+const MAX_OP_ATTEMPTS = 30;       // ~полчаса ретраев сетевых ошибок, потом откат/failed
+const MAX_ROLLBACK_ATTEMPTS = 30; // столько же попыток вернуть уехавшее назад
+const HISTORY_TTL_HOURS = 24;     // сколько живёт история применённых операций
+const HISTORY_SWEEP_MS = 3_600_000;
 
 const state = {
     lastSuccessAt: null,   // Date последнего успешного чтения доски
@@ -103,6 +107,26 @@ async function cleanupOldSnapshots() {
     await query('DELETE FROM record_snapshots WHERE day < $1', [today]);
 }
 
+// ── История операций ─────────────────────────────────────────────────────────
+
+// История применённых операций живёт сутки: очередь — это оперативный журнал
+// («что ушло в оригинал за сегодня»), а не архив, и раздувать её незачем.
+// Незавершённые (pending, в т.ч. в откате) не трогаем никогда, сколько бы они
+// ни ждали живого оригинала.
+let lastHistorySweepAt = 0;
+
+export async function cleanupOpHistory({ force = false } = {}) {
+    if (!force && Date.now() - lastHistorySweepAt < HISTORY_SWEEP_MS) return 0;
+    lastHistorySweepAt = Date.now();
+    const r = await query(
+        `DELETE FROM record_ops
+          WHERE status <> 'pending'
+            AND COALESCE(applied_at, created_at) < now() - ($1 || ' hours')::interval`,
+        [String(HISTORY_TTL_HOURS)],
+    );
+    return r.rowCount || 0;
+}
+
 // ── Операции ─────────────────────────────────────────────────────────────────
 
 export async function enqueueOp(type, payload, author = '') {
@@ -113,18 +137,33 @@ export async function enqueueOp(type, payload, author = '') {
     return r.rows[0].id;
 }
 
+// Отмена вручную. Если часть длинной операции уже уехала в оригинал, просто
+// пометить её failed нельзя — иначе половина записи останется на новом месте:
+// такую операцию переводим в откат, а failed она станет сама, когда всё
+// вернётся.
 export async function cancelOp(id) {
     const r = await query(
+        `SELECT progress FROM record_ops WHERE id = $1 AND status = 'pending'`,
+        [id],
+    );
+    if (!r.rows[0]) return false;
+    const progress = r.rows[0].progress || {};
+    if (progress.phase !== 'rollback' && hasAppliedWork(progress)) {
+        await beginRollback(id, progress, 'отменена вручную');
+        drainQueue().catch(() => {});
+        return true;
+    }
+    const upd = await query(
         `UPDATE record_ops SET status = 'failed', last_error = 'отменена вручную', applied_at = now()
          WHERE id = $1 AND status = 'pending' RETURNING id`,
         [id],
     );
-    return Boolean(r.rows[0]);
+    return Boolean(upd.rows[0]);
 }
 
 export async function listOps({ limit = 50 } = {}) {
     const r = await query(
-        `SELECT id, type, payload, status, attempts, last_error, author, created_at, applied_at
+        `SELECT id, type, payload, progress, status, attempts, last_error, author, created_at, applied_at
          FROM record_ops ORDER BY id DESC LIMIT $1`,
         [Math.min(200, Math.max(1, limit))],
     );
@@ -133,6 +172,9 @@ export async function listOps({ limit = 50 } = {}) {
         type: row.type,
         payload: row.payload,
         status: row.status,
+        // Операция в откате всё ещё pending, но делает противоположное —
+        // интерфейсу нужно показывать «отменяю», а не «жду отправки».
+        rollingBack: (row.progress || {}).phase === 'rollback',
         attempts: row.attempts,
         lastError: row.last_error,
         author: row.author,
@@ -143,9 +185,15 @@ export async function listOps({ limit = 50 } = {}) {
 
 export async function pendingOps() {
     const r = await query(
-        `SELECT id, type, payload, attempts FROM record_ops WHERE status = 'pending' ORDER BY id`,
+        `SELECT id, type, payload, progress, attempts FROM record_ops WHERE status = 'pending' ORDER BY id`,
     );
-    return r.rows.map(row => ({ id: Number(row.id), type: row.type, payload: row.payload, attempts: row.attempts }));
+    return r.rows.map(row => ({
+        id: Number(row.id),
+        type: row.type,
+        payload: row.payload,
+        progress: row.progress || {},
+        attempts: row.attempts,
+    }));
 }
 
 async function markOpDone(id) {
@@ -171,70 +219,54 @@ async function bumpOpAttempt(id, message) {
     );
 }
 
-// Свежая доска нужного дня — для проверки конфликтов перед create.
+// Свежая доска нужного дня — для проверки конфликтов перед изменением.
 async function freshBoard(date) {
     const html = await fetchBoardHtml(date);
     return parseRecordBoard(html);
 }
 
-// Применить одну операцию. Бросает ZmsError при сетевых проблемах (операция
-// остаётся pending); возвращает { ok: true } либо { ok: false, reason } —
-// логическая невозможность (слот занят и т.п.) → failed.
-async function applyOp(op) {
-    if (op.type === 'create') {
-        const p = op.payload;
-        const ops = buildExtensionOps(p, Number(p.durationMinutes) || 30);
+// ── Применение операций ──────────────────────────────────────────────────────
 
-        // Перед созданием сверяемся со СВЕЖЕЙ доской: пока операция лежала в
-        // очереди, слот могли занять.
-        const board = await freshBoard(p.date);
-        for (const slot of ops) {
-            const cell = board.cells[String(p.addressId)]?.[slot.time];
-            if (!cell || cell.free < 1) {
-                return { ok: false, reason: `слот ${slot.time} уже занят или закрыт — запись не создана` };
-            }
-        }
-        for (const slot of ops) {
-            await postRecordUpdate({ id: '', ...slot });
-        }
-        return { ok: true };
-    }
-
-    if (op.type === 'update') {
-        // Перенос/правка: для каждой записи читаем текущую форму, чтобы не
-        // затереть невидимые на доске поля (госномер, комментарий).
-        for (const r of op.payload.records) {
-            let current = null;
+// Ввод-вывод для opEngine.js: вся сеть и база живут здесь, логика «всё или
+// ничего» — там (и оттого покрыта тестами без сети и БД).
+function opIo(op) {
+    return {
+        board: freshBoard,
+        async editForm(id) {
             try {
-                current = parseEditForm(await fetchEditFormHtml(r.id));
+                return parseEditForm(await fetchEditFormHtml(id));
             } catch (err) {
                 if (err instanceof ZmsError) throw err;
+                return null; // не разобралась форма — считаем, что записи нет
             }
-            if (current === null) {
-                return { ok: false, reason: `запись ${r.id} не найдена в оригинале (уже удалена?)` };
-            }
-            await postRecordUpdate({
-                id: r.id,
-                addressId: r.addressId ?? current.addressId,
-                date: r.date ?? current.date,
-                time: r.time ?? current.time,
-                name: r.name ?? current.name ?? '',
-                phone: r.phone ?? current.phone ?? '',
-                carNumber: r.carNumber ?? current.carNumber ?? '',
-                comment: r.comment ?? current.comment ?? '',
-            });
-        }
-        return { ok: true };
-    }
+        },
+        update: (fields) => postRecordUpdate(fields),
+        remove: (deleteUrl) => deleteRecordByUrl(deleteUrl),
+        saveProgress: (progress) => saveProgress(op.id, progress),
+        // Прогресс в памяти держим синхронным со строкой в БД: по нему
+        // onOpError решает, что делать с сорвавшейся попыткой.
+        beginRollback: async (progress, reason) => {
+            op.progress = await beginRollback(op.id, progress, reason);
+            return op.progress;
+        },
+        days: () => [mskToday(0), mskToday(1)],
+    };
+}
 
-    if (op.type === 'delete') {
-        for (const r of op.payload.records) {
-            await deleteRecordByUrl(r.deleteUrl);
-        }
-        return { ok: true };
-    }
+async function saveProgress(id, progress) {
+    await query('UPDATE record_ops SET progress = $2 WHERE id = $1', [id, progress]);
+}
 
-    return { ok: false, reason: `неизвестный тип операции: ${op.type}` };
+// Операция в откате остаётся pending (она ещё ходит в оригинал), но делает
+// обратное: возвращает уехавшие слоты на прежние места. failed она станет,
+// когда возврат дойдёт до конца.
+async function beginRollback(id, progress, reason) {
+    const next = { ...progress, phase: 'rollback', reason, rollbackAttempts: 0 };
+    await query(
+        `UPDATE record_ops SET progress = $2, attempts = 0, last_error = $3 WHERE id = $1`,
+        [id, next, `отменяю: ${reason}`],
+    );
+    return next;
 }
 
 // Протолкнуть очередь. Останавливаемся на первой сетевой ошибке — порядок
@@ -252,7 +284,7 @@ async function doDrainQueue() {
     const ops = await pendingOps();
     for (const op of ops) {
         try {
-            const result = await applyOp(op);
+            const result = await applyOp(op, opIo(op));
             if (result.ok) await markOpDone(op.id);
             else await markOpFailed(op.id, result.reason);
         } catch (err) {
@@ -260,12 +292,37 @@ async function doDrainQueue() {
                 state.lastError = err.message;
                 return; // без кред очередь не сдвинуть
             }
-            await bumpOpAttempt(op.id, err.message);
+            await onOpError(op, err.message);
             if (err instanceof ZmsError) return; // сеть/оригинал лежит — ждём следующего тика
             // Неожиданная ошибка кода: не блокируем остальные операции.
             console.error('records: операция', op.id, err);
         }
     }
+}
+
+// Сорвалась попытка применить операцию. Пока попытки не кончились, операция
+// остаётся pending и повторится с того места, где встала. Когда кончились:
+// уехавшую часть длинной записи возвращаем назад, а не бросаем на полпути.
+async function onOpError(op, message) {
+    const progress = op.progress || {};
+
+    if (progress.phase === 'rollback') {
+        const tries = (progress.rollbackAttempts || 0) + 1;
+        await saveProgress(op.id, { ...progress, rollbackAttempts: tries });
+        if (tries >= MAX_ROLLBACK_ATTEMPTS) {
+            await markOpFailed(op.id,
+                `${progress.reason}; вернуть записи на место не удалось (${message}) — проверьте оригинал вручную`);
+        } else {
+            await query('UPDATE record_ops SET last_error = $2 WHERE id = $1', [op.id, `отменяю: ${message}`]);
+        }
+        return;
+    }
+
+    if (op.attempts + 1 >= MAX_OP_ATTEMPTS && hasAppliedWork(progress)) {
+        await beginRollback(op.id, progress, `не удалось применить целиком (${message})`);
+        return;
+    }
+    await bumpOpAttempt(op.id, message);
 }
 
 // ── Тик ──────────────────────────────────────────────────────────────────────
@@ -277,6 +334,10 @@ export async function syncTick() {
     ticking = (async () => {
         state.lastAttemptAt = new Date();
         try {
+            // Чистка истории не зависит от оригинала — делаем её до всего
+            // остального, иначе при долгом простое админки журнал не подрежется.
+            await cleanupOpHistory().catch(err => console.error('records: чистка истории', err));
+
             if (!(await hasCredentials())) {
                 state.alive = false;
                 state.lastError = 'логин/пароль админки ещё не введены';
