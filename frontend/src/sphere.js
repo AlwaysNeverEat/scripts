@@ -85,9 +85,15 @@ export function startSphere(canvas, initialNodes) {
 
     const FOV = 2.8;
     const MOUSE_RADIUS = 160;
+    // Доля пути к курсору за один кадр при 60 fps (ниже нормируется по dt)
     const SMOOTH = 0.04;
+    const FRAME_MS = 1000 / 60;
+    // Курсора нет: точка сглаживания уезжает за пределы канваса
+    const OFF = -9999;
+    const hasMouse = () => mouse.x > -999;
 
     let proj = [];
+    let prevTime = 0;
 
     const draw = (time) => {
         requestAnimationFrame(draw);
@@ -97,18 +103,25 @@ export function startSphere(canvas, initialNodes) {
         // или узлов ноль — не рисуем
         if (W === 0 || !visible || layout.nodes.length === 0) {
             if (W !== 0) ctx.clearRect(0, 0, W, H);
+            prevTime = 0;
             return;
         }
         const { nodes, basePos, edges } = layout;
 
         ctx.clearRect(0, 0, W, H);
 
-        if (mouse.x > -999) {
-            smooth.x += (mouse.x - smooth.x) * SMOOTH;
-            smooth.y += (mouse.y - smooth.y) * SMOOTH;
+        // dt вместо «одного кадра»: на 144 Гц подсветка не догоняет курсор
+        // втрое быстрее, а после простоя вкладки не прыгает рывком
+        const dt = prevTime ? Math.min(time - prevTime, 100) : FRAME_MS;
+        prevTime = time;
+
+        if (hasMouse()) {
+            const k = 1 - Math.pow(1 - SMOOTH, dt / FRAME_MS);
+            smooth.x += (mouse.x - smooth.x) * k;
+            smooth.y += (mouse.y - smooth.y) * k;
         } else {
-            smooth.x = -9999;
-            smooth.y = -9999;
+            smooth.x = OFF;
+            smooth.y = OFF;
         }
 
         const t = time * 0.00022;
@@ -213,15 +226,28 @@ export function startSphere(canvas, initialNodes) {
     };
     requestAnimationFrame(draw);
 
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.addEventListener('pointermove', (e) => {
         const rect = canvas.getBoundingClientRect();
+        // Курсор вернулся на канвас (был над строкой поиска или вне окна):
+        // ставим точку сглаживания сразу под него. Иначе она ползёт к курсору
+        // от -9999 по 4% за кадр — это ~2 секунды, всё это время узлы под
+        // курсором не подсвечиваются, а подсветка едет из угла.
+        const jump = !hasMouse();
         mouse.x = e.clientX - rect.left;
         mouse.y = e.clientY - rect.top;
+        if (jump) {
+            smooth.x = mouse.x;
+            smooth.y = mouse.y;
+        }
     });
-    canvas.addEventListener('mouseleave', () => {
-        mouse.x = -9999;
-        mouse.y = -9999;
-    });
+    const forgetMouse = () => {
+        mouse.x = OFF;
+        mouse.y = OFF;
+    };
+    canvas.addEventListener('pointerleave', forgetMouse);
+    // pointerleave не приходит, если курсор ушёл вместе с потерей фокуса окна
+    // (Alt+Tab, переключение вкладки) — иначе останется «залипшая» подсветка
+    window.addEventListener('blur', forgetMouse);
 
     return {
         // Подменить набор узлов без пересоздания canvas/анимации (режим «Теги»)
@@ -229,7 +255,7 @@ export function startSphere(canvas, initialNodes) {
         // Спрятать/показать сферу (режим «Теги»: < 5 вариантов — сфера не нужна)
         setVisible(v) {
             visible = v;
-            if (!v) { mouse.x = -9999; mouse.y = -9999; }
+            if (!v) forgetMouse();
         },
     };
 }
