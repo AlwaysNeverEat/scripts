@@ -17,7 +17,7 @@ import {
     fetchBoardHtml, fetchEditFormHtml, postRecordUpdate, deleteRecordByUrl,
     hasCredentials, ZmsError,
 } from './adminClient.js';
-import { parseRecordBoard, parseEditForm } from '../../../shared/crmRecords.js';
+import { parseRecordBoard, parseEditForm, isExtensionCreate } from '../../../shared/crmRecords.js';
 import { applyOp, hasAppliedWork } from './opEngine.js';
 
 const SYNC_INTERVAL_MS = Math.max(10_000, Number(process.env.RECORDS_SYNC_INTERVAL_MS) || 60_000);
@@ -129,10 +129,10 @@ export async function cleanupOpHistory({ force = false } = {}) {
 
 // ── Операции ─────────────────────────────────────────────────────────────────
 
-export async function enqueueOp(type, payload, author = '') {
+export async function enqueueOp(type, payload, author = '', userId = null) {
     const r = await query(
-        `INSERT INTO record_ops (type, payload, author) VALUES ($1, $2, $3) RETURNING id`,
-        [type, payload, author],
+        `INSERT INTO record_ops (type, payload, author, user_id) VALUES ($1, $2, $3, $4) RETURNING id`,
+        [type, payload, author, userId],
     );
     return r.rows[0].id;
 }
@@ -185,7 +185,7 @@ export async function listOps({ limit = 50 } = {}) {
 
 export async function pendingOps() {
     const r = await query(
-        `SELECT id, type, payload, progress, attempts FROM record_ops WHERE status = 'pending' ORDER BY id`,
+        `SELECT id, type, payload, progress, attempts, user_id FROM record_ops WHERE status = 'pending' ORDER BY id`,
     );
     return r.rows.map(row => ({
         id: Number(row.id),
@@ -193,11 +193,35 @@ export async function pendingOps() {
         payload: row.payload,
         progress: row.progress || {},
         attempts: row.attempts,
+        userId: row.user_id,
     }));
 }
 
-async function markOpDone(id) {
-    await query(`UPDATE record_ops SET status = 'done', applied_at = now(), last_error = '' WHERE id = $1`, [id]);
+async function markOpDone(op) {
+    await query(`UPDATE record_ops SET status = 'done', applied_at = now(), last_error = '' WHERE id = $1`, [op.id]);
+    await creditRecordOp(op);
+}
+
+// Зачёт в месячный топ: одна успешно созданная запись = одна строка в
+// record_credits (см. db/migrations/020_record_credits.sql).
+//
+// Считаем только create и только «настоящие» записи: продолжения длинной
+// записи создаются с телефоном-заглушкой, и продлённая запись всё равно одна.
+// Длина роли не играет — операция одна, слотов в ней сколько угодно.
+// Переносы и удаления не считаем: это правка уже сделанной записи.
+async function creditRecordOp(op) {
+    if (op.type !== 'create' || !op.userId) return;
+    if (isExtensionCreate(op.payload)) return;
+    try {
+        await query(
+            `INSERT INTO record_credits (op_id, user_id) VALUES ($1, $2)
+             ON CONFLICT (op_id) DO NOTHING`,
+            [op.id, op.userId],
+        );
+    } catch (err) {
+        // Счётчик топа не должен ронять очередь: запись в оригинале уже стоит.
+        console.error('records: не удалось зачесть запись в топ', err.message);
+    }
 }
 
 async function markOpFailed(id, message) {
@@ -285,7 +309,7 @@ async function doDrainQueue() {
     for (const op of ops) {
         try {
             const result = await applyOp(op, opIo(op));
-            if (result.ok) await markOpDone(op.id);
+            if (result.ok) await markOpDone(op);
             else await markOpFailed(op.id, result.reason);
         } catch (err) {
             if (err instanceof ZmsError && err.code === 'zms_credentials_required') {

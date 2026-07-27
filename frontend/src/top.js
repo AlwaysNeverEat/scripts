@@ -1,8 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Вкладка «Топ»: рейтинг пользователей по сумме (добавленные машины +
-// отредактированные машины). 1-е место переливается золотым (см. .top-row-gold
-// в style.css). Служебный аккаунт (gtrixoff) идёт отдельной серой строкой внизу
-// вне рейтинга — машины он залил автоимпортом (см. backend/src/routes/top.js).
+// Вкладка «Топ»: рейтинг по числу СДЕЛАННЫХ ЗАПИСЕЙ за текущий месяц.
+// 1-е место переливается золотым (см. .top-row-gold в style.css).
+//
+// Месяц закрывается сам: 1-го числа список начинается с нуля, а над ним
+// остаётся карточка «Топ в прошлом месяце» — кто был первым к концу месяца
+// (данные считает backend/src/routes/top.js). Одна запись = один балл,
+// длинная (продлённая) запись — тоже один.
 //
 // Последний ответ держим в кеше: возврат на вкладку показывает готовый список
 // сразу, а свежие цифры доезжают фоном и подменяют его без «Загрузка…».
@@ -24,17 +27,31 @@ function avatarHtml(row) {
         : `<span class="top-avatar-default"></span>`;
 }
 
-// Правая колонка: крупно сумма (число машин + записи), под ней разбивка
-// «добавлено + отредактировано».
+// «1 запись / 2 записи / 5 записей»
+function recordsWord(n) {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'запись';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'записи';
+    return 'записей';
+}
+
+// 'YYYY-MM' → «июль 2026»
+function monthLabel(month) {
+    const m = String(month || '').match(/^(\d{4})-(\d{2})$/);
+    if (!m) return '';
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+    return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', '');
+}
+
+// Правая колонка: крупно число записей, под ним слово с правильным окончанием.
 function countHtml(row) {
     return `
         <div class="top-count">
-            <span class="top-score">${row.score}</span>
-            <span class="top-breakdown" title="добавлено машин + отредактировано машин">${row.added} + ${row.edited}</span>
+            <span class="top-score">${row.records}</span>
+            <span class="top-breakdown">${recordsWord(row.records)}</span>
         </div>`;
 }
-
-const AUTO_IMPORT_NOTE = 'Все эти машины я добавил автоматически по этому не учитываюсь в топе';
 
 let cache = null;   // последний успешный ответ /api/top
 
@@ -58,38 +75,43 @@ export async function showTopPage({ apiFetch }) {
     render(body, cache);
 }
 
-function render(body, data) {
-    // Бэкенд теперь отдаёт { rows, excluded }; на всякий случай переживаем и
-    // старую форму (голый массив), если ответ пришёл из кэша прод-версии.
-    const rows = Array.isArray(data) ? data : (data.rows || []);
-    const excluded = Array.isArray(data) ? null : data.excluded;
-
-    if (!rows.length && !excluded) {
-        body.innerHTML = '<div class="search-empty">Пока никто не добавил ни одной машины</div>';
-        return;
-    }
-
-    const rankedHtml = rows.map((row, i) => `
-        <div class="top-row ${row.rank === 1 ? 'top-row-gold' : ''}" data-top-idx="${i}" title="Открыть профиль">
-            <span class="top-rank">${row.rank}</span>
-            <div class="top-avatar">${avatarHtml(row)}</div>
-            <div class="top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
-            ${countHtml(row)}
+// Карточка над списком: победитель(и) прошлого месяца. Если в прошлом месяце
+// записей не делали вовсе — карточки нет, незачем занимать экран пустотой.
+function previousHtml(previous) {
+    const winners = previous?.winners || [];
+    if (!winners.length) return '';
+    const label = monthLabel(previous.month);
+    const names = winners.map((w, i) => `
+        <div class="top-prev-user" data-prev-idx="${i}" title="Открыть профиль">
+            <div class="top-avatar">${avatarHtml(w)}</div>
+            <div class="top-prev-name">${rolePrefixHtml(w.role_prefix)}${esc(w.display_name)}</div>
+            <span class="top-prev-count">${w.records}&nbsp;${recordsWord(w.records)}</span>
         </div>`).join('');
+    return `
+        <div class="top-prev">
+            <div class="top-prev-head">🏆 Топ в прошлом месяце${label ? ` · ${esc(label)}` : ''}</div>
+            ${names}
+        </div>`;
+}
 
-    // Служебная строка внизу: серая, без места, с «?»-подсказкой сбоку.
-    const excludedHtml = excluded ? `
-        <div class="top-row top-row-muted" data-excluded-idx="0" title="Открыть профиль">
-            <span class="top-rank"></span>
-            <div class="top-avatar">${avatarHtml(excluded)}</div>
-            <div class="top-name">
-                ${rolePrefixHtml(excluded.role_prefix)}${esc(excluded.display_name)}
-                <span class="top-help" tabindex="0" aria-label="${esc(AUTO_IMPORT_NOTE)}">?<span class="top-help-pop">${esc(AUTO_IMPORT_NOTE)}</span></span>
-            </div>
-            ${countHtml(excluded)}
-        </div>` : '';
+function render(body, data) {
+    const rows = data.rows || [];
+    const previous = data.previous || null;
+    const label = monthLabel(data.month);
 
-    body.innerHTML = rankedHtml + excludedHtml;
+    const listHtml = rows.length
+        ? rows.map((row, i) => `
+            <div class="top-row ${row.rank === 1 ? 'top-row-gold' : ''}" data-top-idx="${i}" title="Открыть профиль">
+                <span class="top-rank">${row.rank}</span>
+                <div class="top-avatar">${avatarHtml(row)}</div>
+                <div class="top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
+                ${countHtml(row)}
+            </div>`).join('')
+        : '<div class="search-empty">В этом месяце записей ещё никто не сделал</div>';
+
+    body.innerHTML = previousHtml(previous)
+        + (label ? `<div class="top-month">${esc(label)}</div>` : '')
+        + listHtml;
 
     body.querySelectorAll('[data-top-idx]').forEach(el => {
         el.onclick = () => {
@@ -98,12 +120,10 @@ function render(body, data) {
         };
     });
 
-    const exEl = body.querySelector('[data-excluded-idx]');
-    if (exEl && excluded) {
-        exEl.onclick = (e) => {
-            // клик по «?» — это про подсказку, а не навигацию
-            if (e.target.closest('.top-help')) return;
-            location.hash = '#/user/' + excluded.id;
+    body.querySelectorAll('[data-prev-idx]').forEach(el => {
+        el.onclick = () => {
+            const w = previous.winners[parseInt(el.dataset.prevIdx, 10)];
+            location.hash = '#/user/' + w.id;
         };
-    }
+    });
 }

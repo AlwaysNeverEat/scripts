@@ -163,7 +163,11 @@ function validateRecordsList(p, { needTarget }) {
 router.post('/ops', async (req, res) => {
     const type = String(req.body?.type || '');
     const payload = req.body?.payload || {};
-    const author = String(req.body?.author || '').slice(0, 64);
+    // Имя автора берём у сессии, если она есть (её не подделать), и только для
+    // гостя — из тела запроса. user_id нужен месячному топу: по нему считаются
+    // сделанные записи (см. routes/top.js).
+    const author = req.user?.display_name || String(req.body?.author || '').slice(0, 64);
+    const userId = req.user?.id || null;
 
     let invalid = null;
     if (type === 'create') {
@@ -182,7 +186,7 @@ router.post('/ops', async (req, res) => {
     if (invalid) return bad(res, `некорректное поле: ${invalid}`);
 
     try {
-        const id = await enqueueOp(type, payload, author);
+        const id = await enqueueOp(type, payload, author, userId);
         // Пинаем очередь сразу — при живом оригинале операция уйдёт за секунды;
         // ответа не ждём, статус виден через GET /ops.
         drainQueue().then(() => syncTick()).catch(() => {});
