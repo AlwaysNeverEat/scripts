@@ -17,7 +17,8 @@
 
     const rec = (id, timeStart, timeEnd, name, phone, isStub = false, status = '') => ({
       id, addressId: '1', timeStart, timeEnd, name, phone,
-      phoneDigits: phone.replace(/\D/g, ''), isStub, status, customer: name, deleteUrl: '',
+      phoneDigits: phone.replace(/\D/g, ''), isStub, status, customer: name,
+      deleteUrl: `/admin/record/delete?id=${id}&time=${TODAY}+${timeStart}&address_id=1`,
     });
 
     const records = [
