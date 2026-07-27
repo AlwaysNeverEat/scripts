@@ -23,7 +23,7 @@ import { findStationMeta, LINE_COLORS, LINE_NAMES } from '../../../shared/statio
 import {
     detectChains, assignLanes, flattenAddressRecords, buildCopyLine,
     timeToMin, addMinutes, formatRuPhone,
-    EXTENSION_STUB_PHONE, SLOT_MINUTES, MAX_DURATION_MIN,
+    EXTENSION_STUB_PHONE, SLOT_MINUTES, MAX_DURATION_MIN, copyOperatorFor,
 } from '../../../shared/crmRecords.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
@@ -44,6 +44,7 @@ let lastStationCount = 12;
 
 const state = {
     status: null,          // GET /status
+    viewer: null,          // залогиненный пользователь сайта (или null — гость)
     credsNeeded: false,
     credsError: '',
     date: null,            // выбранный день DD.MM.YYYY
@@ -66,6 +67,17 @@ let geocodeTimer = 0;
 let boardReloadTimers = [];
 
 // ── Загрузка данных ──────────────────────────────────────────────────────────
+
+// Кто смотрит раздел. Нужен только ради подписи оператора в строке для
+// Битрикса: записи открыты и без аккаунта сайта, поэтому 401 — не ошибка.
+async function loadViewer() {
+    try {
+        const me = await apiFetch('/api/auth/me');
+        state.viewer = me?.user || null;
+    } catch {
+        state.viewer = null;
+    }
+}
 
 async function loadStatus() {
     try {
@@ -866,8 +878,15 @@ function runEndsWithDay(ctx, run) {
     return !ctx.board.timeSlots.includes(addMinutes(ctx.start, run));
 }
 
+// Слотов может быть и 24, и 41 — простого «меньше пяти» тут уже не хватает.
 function plSlots(n) {
-    return `${n} ${n === 1 ? 'слот' : n < 5 ? 'слота' : 'слотов'}`;
+    const ones = n % 10;
+    const teens = n % 100;
+    const word = teens >= 11 && teens <= 14 ? 'слотов'
+        : ones === 1 ? 'слот'
+        : ones >= 2 && ones <= 4 ? 'слота'
+        : 'слотов';
+    return `${n} ${word}`;
 }
 
 function fmtDuration(min) {
@@ -1970,7 +1989,7 @@ async function handleAction(btn) {
     if (a === 'copy-chain') {
         const found = chainByHead(btn.dataset.head);
         if (!found) return;
-        const line = buildCopyLine(state.date, found.chain.timeStart, found.addr.title);
+        const line = buildCopyLine(state.date, found.chain.timeStart, found.addr.title, operatorName());
         try { await navigator.clipboard.writeText(line); } catch { /* нет прав на буфер */ }
         state.modal.copied = true;
         render();
@@ -2078,6 +2097,12 @@ function revalidateCreatePick() {
 // что у «Копировать» в карточке записи.
 let copyNoteTimer = 0;
 
+// Подпись «(Имя)» ставится только тому, за кем это имя закреплено: у остальных
+// и у гостей строка уходит без скобок.
+function operatorName() {
+    return copyOperatorFor(state.viewer?.login);
+}
+
 async function copyBitrixLine(kind) {
     const m = state.modal;
     const note = root?.querySelector('#rc-copy-note');
@@ -2113,7 +2138,7 @@ async function copyBitrixLine(kind) {
     if (!String(name || '').trim()) return say('имя клиента пустое — сначала впишите, кого записываем', true);
     if (!time) return say('время не выбрано — сначала выберите окно в расписании', true);
 
-    const line = buildCopyLine(date, time, title);
+    const line = buildCopyLine(date, time, title, operatorName());
     try {
         await navigator.clipboard.writeText(line);
         say(`${line} — скопировано`);
@@ -2309,6 +2334,7 @@ let onVisibility = null;
 function resetState() {
     Object.assign(state, {
         status: null,
+        viewer: null,
         credsNeeded: false,
         credsError: '',
         date: null,
@@ -2353,6 +2379,7 @@ export function startRecords(mount) {
     startPolling();
 
     (async () => {
+        loadViewer(); // подпись оператора — не повод задерживать доску
         await loadStatus();
         await loadBoard();
     })();
@@ -2392,6 +2419,7 @@ export function pauseRecords() {
 export function resumeRecords() {
     if (!root) return;
     startPolling();
+    loadViewer(); // пока раздел стоял, могли войти под своим аккаунтом
     loadStatus();
     if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
 }

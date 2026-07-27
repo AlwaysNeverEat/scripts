@@ -389,9 +389,22 @@ export function findBoardRecord(board, id) {
     return null;
 }
 
-// Строка «Копировать запись» — формат оригинального юзерскрипта.
-export function buildCopyLine(date, time, addressTitle, operator = 'Сергей') {
-    return `${date || '—'} ${time || '—'} ${addressTitle || '—'} (${operator})`;
+// Подпись оператора в строке для Битрикса. В оригинальном юзерскрипте она была
+// зашита («Сергей»), потому что скрипт стоял у одного человека. В общем клоне
+// так нельзя: чужую подпись ставить нечестно, поэтому имя знает только тот, за
+// кем оно закреплено, а остальные копируют строку без скобок. Ключ — логин на
+// сайте (регистр не важен); чтобы добавить оператора, хватает строки здесь.
+const COPY_OPERATORS = { gtrixoff: 'Сергей' };
+
+export function copyOperatorFor(login) {
+    return COPY_OPERATORS[String(login || '').trim().toLowerCase()] || '';
+}
+
+// Строка «Копировать запись» — формат оригинального юзерскрипта. Без оператора
+// (не задан или логин незнакомый) скобки не дописываются вовсе.
+export function buildCopyLine(date, time, addressTitle, operator = '') {
+    const who = String(operator || '').trim();
+    return `${date || '—'} ${time || '—'} ${addressTitle || '—'}${who ? ` (${who})` : ''}`;
 }
 
 // ── Форма /admin/record/edit ─────────────────────────────────────────────────
