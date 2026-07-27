@@ -656,10 +656,10 @@
     overflow: hidden;
 }
 
-/* ── Выбор окна: расписание дня + барабан длительности ─────────── */
+/* ── Выбор окна: расписание дня + длительность ──────────────────── */
 
 /* Слева — весь день станции (видно чужие записи и закрытые часы), справа —
-   барабан длительности и подпись про выбранное окно. */
+   выбор длительности и подпись про выбранное окно. */
 .rc-pick {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 220px;
@@ -790,68 +790,61 @@
 .rc-modal .modal-actions .btn:disabled:hover { border-color: var(--border); }
 .rc-pick-hint { font-size: 10.5px; line-height: 1.35; color: var(--sub); }
 
-/* Барабан «часы : минуты»: колонки со scroll-snap — крутится пальцем и
-   колесом, как на будильнике. Центр помечен рамкой, недостижимые значения
-   притушены (дальше по расписанию чужая запись или конец дня). */
-.rc-wheel {
-    position: relative;
+/* Длительность: шаг кнопками ±30 минут, ручной ввод часов и минут и пресеты.
+   Скролла нет намеренно — по нему промахиваются, а тут нужен точный выбор. */
+.rc-dur {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     width: max-content;
-    padding: 0 10px;
+    padding: 5px 6px;
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--bg2);
 }
 
-.rc-wheel-col {
-    /* высота = 3 строки, отступы = (высота − строка) / 2: тогда scrollTop
-       ровно i × 34 ставит i-й пункт в центр. */
-    height: 102px;
-    padding: 34px 0;
-    overflow-y: auto;
-    scroll-snap-type: y mandatory;
-    overscroll-behavior: contain;
-    scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent);
-    mask-image: linear-gradient(transparent, #000 25%, #000 75%, transparent);
-}
-
-.rc-wheel-col::-webkit-scrollbar { display: none; }
-
-.rc-wheel-item {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 34px;
-    min-width: 42px;
-    scroll-snap-align: center;
-    border: 0;
-    background: none;
-    color: var(--sub);
-    font-size: 15px;
-    font-variant-numeric: tabular-nums;
+.rc-dur-step {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg3);
+    color: var(--text);
+    font-size: 17px;
+    line-height: 1;
     cursor: pointer;
 }
 
-.rc-wheel-on { color: var(--text); font-size: 18px; font-weight: 700; }
-.rc-wheel-off { opacity: 0.22; }
+.rc-dur-step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.rc-dur-step:disabled { opacity: 0.35; cursor: default; }
 
-.rc-wheel-unit { font-size: 11px; color: var(--sub); }
+.rc-dur-fields { display: flex; align-items: baseline; gap: 4px; }
 
-.rc-wheel-band {
-    position: absolute;
-    left: 6px;
-    right: 6px;
-    top: 50%;
-    height: 34px;
-    transform: translateY(-50%);
-    border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
-    border-radius: 9px;
-    background: color-mix(in oklab, var(--accent) 12%, transparent);
-    pointer-events: none;
+.rc-dur-input {
+    width: 40px;
+    padding: 4px 2px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: none;
+    color: var(--text);
+    font-size: 19px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
 }
+
+.rc-dur-input:hover { border-color: var(--border); }
+.rc-dur-input:focus { outline: none; border-color: var(--accent); background: var(--bg3); }
+
+.rc-dur-unit { font-size: 11px; color: var(--sub); }
+
+.rc-dur-quick { display: flex; flex-wrap: wrap; gap: 5px; }
+.rc-dur-quick .chip { font-size: 11px; padding: 4px 9px; }
+.rc-dur-quick .chip:disabled { opacity: 0.35; cursor: default; }
+
 
 .rc-prev-note {
     margin-top: 7px;
@@ -878,6 +871,18 @@
 .rc-btn-danger:hover { border-color: var(--red); }
 
 .rc-copied-note { margin-top: 10px; color: var(--green); font-size: 12px; display: flex; align-items: center; gap: 5px; }
+
+/* Ответ кнопки «В Битрикс»: сама строка при успехе, причина при отказе. */
+.rc-copy-note {
+    margin-right: auto;
+    align-self: center;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--green);
+}
+
+.rc-copy-bad { color: var(--red); }
 
 /* Карточка записи */
 .rc-chain-info { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }

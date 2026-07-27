@@ -709,12 +709,12 @@ function createBoard(m) {
     return m.dateBoard || null;
 }
 
-// ── Выбор времени: расписание дня + «барабан» длительности ───────────────────
+// ── Выбор времени: расписание дня + длительность ─────────────────────────────
 // Вместо ленты кнопок со свободными получасами показываем весь день станции:
 // видно чужие записи и закрытые часы, клик выбирает начало, повторный клик по
 // слоту ниже — конец окна. Выбранное окно подсвечено и растёт вместе с
-// длительностью, которую крутят барабаном «часы : минуты» (как на будильнике),
-// а не выбирают из готовых кнопок.
+// длительностью, которую задают шагом ±30 минут, вводом «ч/мин» с клавиатуры
+// или кнопкой «всё окно» (бокс иногда закрывают на весь день).
 
 // Контекст выбора для окна: где смотрим расписание и что считаем «своим».
 // При продлении начало фиксировано (хвост записи), а слоты самой записи
@@ -805,6 +805,12 @@ function clampDuration(ctx, min) {
     return Math.max(SLOT_MINUTES, Math.min(val, Math.max(SLOT_MINUTES, max)));
 }
 
+// Свободный промежуток упёрся в конец рабочего дня, а не в чужую запись.
+function runEndsWithDay(ctx, run) {
+    if (!ctx?.board || !ctx.start) return false;
+    return !ctx.board.timeSlots.includes(addMinutes(ctx.start, run));
+}
+
 function plSlots(n) {
     return `${n} ${n === 1 ? 'слот' : n < 5 ? 'слота' : 'слотов'}`;
 }
@@ -863,19 +869,29 @@ function timelineHtml(ctx) {
     return `<div class="rc-tl">${rows}</div>`;
 }
 
-// Барабан длительности: колонка часов и колонка получасов со snap-скроллом.
-// Значения — в минутах (data-value), чтобы читать их без разбора текста.
-function wheelHtml() {
-    const hours = Array.from({ length: Math.floor(MAX_DURATION_MIN / 60) + 1 }, (_, h) => h);
-    const col = (unit, values, label) => `
-        <div class="rc-wheel-col" data-unit="${unit}" tabindex="0" role="listbox" aria-label="${label}">
-            ${values.map(v => `<button type="button" class="rc-wheel-item" data-value="${unit === 'h' ? v * 60 : v}" role="option">${unit === 'h' ? v : String(v).padStart(2, '0')}</button>`).join('')}
-        </div>`;
+// Длительность: шаг кнопками, ввод с клавиатуры и быстрые пресеты. Скролл
+// специально не участвует — по нему легко промахнуться, а тут выбор точный.
+function durationHtml(dur, max) {
+    const h = Math.floor(dur / 60);
+    const m = dur % 60;
+    const preset = (min, label) => `
+        <button class="chip ${dur === min ? 'active' : ''} ${min > max ? 'rc-dur-off' : ''}"
+            data-action="dur-set" data-min="${min}" ${min > max ? 'disabled' : ''}>${label}</button>`;
     return `
-    <div class="rc-wheel">
-        <i class="rc-wheel-band" aria-hidden="true"></i>
-        ${col('h', hours, 'часы')}<span class="rc-wheel-unit">ч</span>
-        ${col('m', [0, 30], 'минуты')}<span class="rc-wheel-unit">мин</span>
+    <div class="rc-dur">
+        <button class="rc-dur-step" data-action="dur-step" data-min="-30" title="Минус 30 минут" aria-label="минус 30 минут">−</button>
+        <span class="rc-dur-fields">
+            <input class="rc-dur-input" id="rc-dur-h" type="text" inputmode="numeric" autocomplete="off"
+                value="${h}" aria-label="часы"/><span class="rc-dur-unit">ч</span>
+            <input class="rc-dur-input" id="rc-dur-m" type="text" inputmode="numeric" autocomplete="off"
+                value="${String(m).padStart(2, '0')}" aria-label="минуты"/><span class="rc-dur-unit">мин</span>
+        </span>
+        <button class="rc-dur-step" data-action="dur-step" data-min="30" title="Плюс 30 минут" aria-label="плюс 30 минут">+</button>
+    </div>
+    <div class="rc-dur-quick">
+        ${preset(30, '30 мин')}${preset(60, '1 ч')}${preset(120, '2 ч')}
+        <button class="chip ${dur === max ? 'active' : ''}" data-action="dur-max"
+            title="Занять весь свободный промежуток">всё окно</button>
     </div>`;
 }
 
@@ -907,7 +923,7 @@ function pickNoteHtml(ctx, dur, max) {
         ? `<span class="rc-pick-limit">было ${fmtDuration(ctx.wasMinutes)} — ${dur > ctx.wasMinutes ? 'запись удлинится' : 'лишние слоты снимутся'}</span>`
         : '';
     const limit = !changed && max < MAX_DURATION_MIN
-        ? `<span class="rc-pick-limit">дальше занято — максимум ${fmtDuration(max)}</span>`
+        ? `<span class="rc-pick-limit">${runEndsWithDay(ctx, max) ? 'до конца дня' : 'дальше занято'} — максимум ${fmtDuration(max)}</span>`
         : '';
     return `${head}${changed}${limit}`;
 }
@@ -965,14 +981,18 @@ function modalCreate(m) {
                 ${timelineHtml(ctx)}
                 <div class="rc-pick-side">
                     <div class="rc-pick-h">Длительность</div>
-                    ${wheelHtml()}
+                    ${durationHtml(clampDuration(ctx, ctx.duration), maxDurationFor(ctx))}
                     <div class="rc-pick-note"></div>
-                    <div class="rc-pick-hint">Клик по свободному получасу — начало, клик ниже — конец окна. Длительность крутится барабаном.</div>
+                    <div class="rc-pick-hint">Клик по свободному получасу — начало, клик ниже — конец окна.
+                        Длительность — кнопками ±, вводом с клавиатуры или «всё окно» целиком.</div>
                 </div>
             </div>`}
 
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
             <div class="modal-actions">
+                <span class="rc-copy-note" id="rc-copy-note"></span>
+                <button class="btn btn-sec" data-action="copy-new"
+                    title="Строка для Битрикса: дата, время и адрес">${icons.copy(14)} В Битрикс</button>
                 <button class="btn btn-pri" data-action="submit-create">${icons.plus(14)} Записать${isDown() ? ' (встанет в очередь)' : ''}</button>
             </div>
         </div>
@@ -1028,7 +1048,7 @@ function modalExtend(m) {
                 ${timelineHtml(ctx)}
                 <div class="rc-pick-side">
                     <div class="rc-pick-h">Продлить на</div>
-                    ${wheelHtml()}
+                    ${durationHtml(clampDuration(ctx, ctx.duration), maxDurationFor(ctx))}
                     <div class="rc-pick-note"></div>
                     <div class="rc-pick-hint">Продолжения создаются отдельными слотами с телефоном-заглушкой — SMS клиенту не уйдёт (как в оригинальном скрипте).</div>
                 </div>
@@ -1126,14 +1146,17 @@ function modalMove(m) {
             ${timelineHtml(ctx)}
             <div class="rc-pick-side">
                 <div class="rc-pick-h">Длина записи</div>
-                ${wheelHtml()}
+                ${durationHtml(clampDuration(ctx, ctx.duration), maxDurationFor(ctx))}
                 <div class="rc-pick-note"></div>
-                <div class="rc-pick-hint">Клик по свободному получасу — новое начало. Длину можно поменять барабаном:
+                <div class="rc-pick-hint">Клик по свободному получасу — новое начало. Длину меняют кнопками ± или вводом:
                     лишние слоты снимутся, недостающие добавятся продолжением.</div>
             </div>
         </div>
         ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
         <div class="modal-actions">
+            <span class="rc-copy-note" id="rc-copy-note"></span>
+            <button class="btn btn-sec" data-action="copy-move"
+                title="Строка для Битрикса: новые дата, время и адрес">${icons.copy(14)} В Битрикс</button>
             <button class="btn btn-pri" data-action="submit-move">
                 ${icons.move(14)} Сохранить${isDown() ? ' (в очередь)' : ''}</button>
         </div>
@@ -1324,60 +1347,48 @@ function ensureMapViewFor(addressId) {
 }
 
 // ── Живая часть выбора времени ───────────────────────────────────────────────
-// Выделение окна и барабан не гоняют полный render(): перерисовка сбрасывала бы
-// скролл расписания и рвала инерцию прокрутки барабана. Вместо этого правим
-// классы уже отрисованных строк и подписи — состояние живёт в state.modal.
+// Выделение окна и поля длительности не гоняют полный render(): перерисовка
+// сбрасывала бы скролл расписания и выбивала курсор из поля ввода. Вместо
+// этого правим классы уже отрисованных строк и подписи — состояние живёт в
+// state.modal.
 
-const WHEEL_QUIET_MS = 160; // столько игнорируем свой же программный скролл
-
-function wheelCols(wheel) {
-    return [...wheel.querySelectorAll('.rc-wheel-col')];
+// Разбор того, что напечатали в полях «ч» и «мин»: пусто — ноль, мусор — ноль,
+// а итог округляем до получаса (сетка админки другого шага не знает).
+function readDurationFields() {
+    const num = (id) => {
+        const el = root.querySelector(id);
+        const v = parseInt(String(el?.value ?? '').replace(/\D/g, ''), 10);
+        return Number.isFinite(v) ? v : 0;
+    };
+    const total = num('#rc-dur-h') * 60 + num('#rc-dur-m');
+    return Math.round(total / SLOT_MINUTES) * SLOT_MINUTES;
 }
 
-function wheelItemH(col) {
-    return col.firstElementChild?.offsetHeight || 34;
-}
-
-function colIndex(col) {
-    const n = col.children.length;
-    return Math.max(0, Math.min(n - 1, Math.round(col.scrollTop / wheelItemH(col))));
-}
-
-// Значение барабана в минутах: часы + получас.
-function wheelValue(wheel) {
-    return wheelCols(wheel).reduce((sum, col) =>
-        sum + Number(col.children[colIndex(col)]?.dataset.value || 0), 0);
-}
-
-function setWheelValue(wheel, min) {
-    const want = { h: Math.floor(min / 60) * 60, m: min % 60 };
-    for (const col of wheelCols(wheel)) {
-        const idx = [...col.children].findIndex(c => Number(c.dataset.value) === want[col.dataset.unit]);
-        if (idx < 0) continue;
-        col.dataset.quiet = '1';
-        col.scrollTop = idx * wheelItemH(col);
-        clearTimeout(col._quietTimer);
-        col._quietTimer = setTimeout(() => { delete col.dataset.quiet; }, WHEEL_QUIET_MS);
+function paintDurationFields(dur, max) {
+    const set = (id, value) => {
+        const el = root.querySelector(id);
+        // В поле, где сейчас курсор, не лезем — иначе печатать невозможно.
+        if (el && el !== document.activeElement) el.value = value;
+    };
+    set('#rc-dur-h', Math.floor(dur / 60));
+    set('#rc-dur-m', String(dur % 60).padStart(2, '0'));
+    for (const btn of root.querySelectorAll('[data-action="dur-step"]')) {
+        const delta = Number(btn.dataset.min);
+        btn.disabled = delta < 0 ? dur <= SLOT_MINUTES : dur >= max;
+    }
+    for (const btn of root.querySelectorAll('[data-action="dur-set"]')) {
+        const min = Number(btn.dataset.min);
+        btn.disabled = min > max;
+        btn.classList.toggle('active', min === dur);
+    }
+    const all = root.querySelector('[data-action="dur-max"]');
+    if (all) {
+        all.classList.toggle('active', dur === max);
+        all.title = `Занять весь свободный промежуток (${fmtDuration(max)})`;
     }
 }
 
-// Недостижимые значения гасим: и как подсказку, и чтобы не обещать невозможное.
-function paintWheelLimits(wheel, value, max) {
-    const curH = Math.floor(value / 60) * 60;
-    for (const col of wheelCols(wheel)) {
-        for (const item of col.children) {
-            const v = Number(item.dataset.value);
-            const total = col.dataset.unit === 'h' ? v + (value % 60) : curH + v;
-            const off = total > max || total < SLOT_MINUTES;
-            item.classList.toggle('rc-wheel-off', off);
-            item.classList.toggle('rc-wheel-on', v === (col.dataset.unit === 'h' ? curH : value % 60));
-        }
-    }
-}
-
-// opts.syncWheel — довернуть барабан к значению из state (после клампа или при
-// первой отрисовке); во время живой прокрутки этого делать нельзя.
-function paintPick(opts = {}) {
+function paintPick() {
     if (!root) return;
     const ctx = pickCtx(state.modal);
     if (!ctx) return;
@@ -1406,11 +1417,8 @@ function paintPick(opts = {}) {
     const note = root.querySelector('.rc-pick-note');
     if (note) note.innerHTML = pickNoteHtml(ctx, dur, max);
 
-    const wheel = root.querySelector('.rc-wheel');
-    if (wheel) {
-        if (opts.syncWheel) setWheelValue(wheel, dur);
-        paintWheelLimits(wheel, dur, max);
-    }
+    paintDurationFields(dur, max);
+
     const extendBtn = root.querySelector('[data-action="submit-extend"]');
     if (extendBtn) extendBtn.disabled = !max;
     const moveBtn = root.querySelector('[data-action="submit-move"]');
@@ -1425,6 +1433,11 @@ function setPickDuration(min) {
     if (ctx.kind === 'extend') m.extendMinutes = val;
     else m.durationMinutes = val;
     return val !== min;
+}
+
+function currentDuration() {
+    const ctx = pickCtx(state.modal);
+    return ctx ? clampDuration(ctx, ctx.duration) : SLOT_MINUTES;
 }
 
 function bindPick() {
@@ -1442,26 +1455,28 @@ function bindPick() {
         tl.dataset.scrolled = '1';
     }
 
-    const wheel = root.querySelector('.rc-wheel');
-    if (wheel) {
-        for (const col of wheelCols(wheel)) {
-            for (const item of col.children) {
-                item.onclick = () => col.scrollTo({
-                    top: [...col.children].indexOf(item) * wheelItemH(col), behavior: 'smooth',
-                });
-            }
-            col.onscroll = () => {
-                if (col.dataset.quiet) return;
-                clearTimeout(col._pickTimer);
-                // Ждём остановки: пока крутится инерция, значение ещё не выбрано.
-                col._pickTimer = setTimeout(() => {
-                    const clamped = setPickDuration(wheelValue(wheel));
-                    paintPick({ syncWheel: clamped });
-                }, 110);
-            };
-        }
+    // Поля «ч» и «мин»: применяем по Enter и по уходу из поля, стрелками —
+    // шаг в полчаса. Печатать при этом ничего не мешает.
+    for (const id of ['#rc-dur-h', '#rc-dur-m']) {
+        const el = root.querySelector(id);
+        if (!el) continue;
+        const apply = () => { setPickDuration(readDurationFields()); paintPick(); };
+        el.onchange = apply;
+        el.onblur = apply;
+        el.onkeydown = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); el.blur(); return; }
+            const step = e.key === 'ArrowUp' ? SLOT_MINUTES : e.key === 'ArrowDown' ? -SLOT_MINUTES : 0;
+            if (!step) return;
+            e.preventDefault();
+            setPickDuration(readDurationFields() + step);
+            // Поле под курсором paint не трогает (иначе не попечатаешь) —
+            // после стрелки переписываем его сами.
+            const dur = currentDuration();
+            el.value = el.id === 'rc-dur-h' ? String(Math.floor(dur / 60)) : String(dur % 60).padStart(2, '0');
+            paintPick();
+        };
     }
-    paintPick({ syncWheel: true });
+    paintPick();
 }
 
 // ── Бинды ────────────────────────────────────────────────────────────────────
@@ -1564,7 +1579,7 @@ function bind() {
         };
     }
     bindCredsForm();
-    // Расписание + барабан длительности (окна записи и продления)
+    // Расписание и длительность (окна записи, продления и переноса)
     if (state.modal?.kind === 'create' || state.modal?.kind === 'extend' || state.modal?.kind === 'move') bindPick();
 
     // Карты в модалках
@@ -1742,6 +1757,9 @@ async function handleAction(btn) {
         };
         return render();
     }
+    if (a === 'dur-step') { setPickDuration(currentDuration() + Number(btn.dataset.min)); return paintPick(); }
+    if (a === 'dur-set') { setPickDuration(Number(btn.dataset.min)); return paintPick(); }
+    if (a === 'dur-max') { setPickDuration(maxDurationFor(pickCtx(state.modal))); return paintPick(); }
     if (a === 'set-create-date') return setCreateDate(btn.dataset.date);
     if (a === 'pick-create-date') {
         keepCreateFields();
@@ -1755,7 +1773,7 @@ async function handleAction(btn) {
         return;
     }
     // Клик по расписанию: первый — начало окна, второй ниже по свободному
-    // промежутку — его конец (то же, что покрутить барабан длительности).
+    // промежутку — его конец (то же, что задать длительность руками).
     if (a === 'tl-pick') {
         const m = state.modal;
         const ctx = pickCtx(m);
@@ -1773,7 +1791,7 @@ async function handleAction(btn) {
             m.time = t;
             setPickDuration(m.durationMinutes);
         }
-        return paintPick({ syncWheel: true });
+        return paintPick();
     }
     if (a === 'toggle-create-map') {
         keepCreateFields();
@@ -1838,6 +1856,7 @@ async function handleAction(btn) {
     }
     if (a === 'submit-delete') return submitDelete();
 
+    if (a === 'copy-new' || a === 'copy-move') return copyBitrixLine(a === 'copy-move' ? 'move' : 'create');
     if (a === 'copy-chain') {
         const found = chainByHead(btn.dataset.head);
         if (!found) return;
@@ -1924,6 +1943,55 @@ function revalidateCreatePick() {
     // Длительность могла перестать влезать: в новом дне за выбранным началом
     // стоит чужая запись — ужимаем до реального окна.
     setPickDuration(m.durationMinutes);
+}
+
+// Строка для Битрикса из ещё не сохранённой записи: пока операция идёт в
+// очереди, оператор уже заполняет CRM и берёт следующий звонок. Формат тот же,
+// что у «Копировать» в карточке записи.
+let copyNoteTimer = 0;
+
+async function copyBitrixLine(kind) {
+    const m = state.modal;
+    const note = root?.querySelector('#rc-copy-note');
+    const say = (text, bad = false) => {
+        if (!note) return;
+        note.textContent = text;
+        note.classList.toggle('rc-copy-bad', bad);
+        clearTimeout(copyNoteTimer);
+        copyNoteTimer = setTimeout(() => {
+            if (note.isConnected) { note.textContent = ''; note.classList.remove('rc-copy-bad'); }
+        }, 4000);
+    };
+
+    let name = '';
+    let date = '';
+    let time = '';
+    let title = '';
+    if (kind === 'move') {
+        const found = chainByHead(m.headId);
+        if (!found) return;
+        name = found.chain.head.name;
+        date = m.targetDate;
+        time = m.targetTime;
+        title = stationById(m.targetAddressId || found.addr.id, pickCtx(m)?.board)?.title || '';
+    } else {
+        keepCreateFields();
+        name = m.name;
+        date = m.date;
+        time = m.time;
+        title = stationById(m.addressId, createBoard(m))?.title || '';
+    }
+
+    if (!String(name || '').trim()) return say('имя клиента пустое — сначала впишите, кого записываем', true);
+    if (!time) return say('время не выбрано — сначала выберите окно в расписании', true);
+
+    const line = buildCopyLine(date, time, title);
+    try {
+        await navigator.clipboard.writeText(line);
+        say(`${line} — скопировано`);
+    } catch {
+        say(`буфер недоступен, скопируйте вручную: ${line}`, true);
+    }
 }
 
 // ── Сабмиты операций ─────────────────────────────────────────────────────────
