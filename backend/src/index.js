@@ -9,7 +9,7 @@ import topRouter from './routes/top.js';
 import usersRouter from './routes/users.js';
 import crmRouter from './routes/crm.js';
 import recordsRouter from './routes/records.js';
-import { requireSession } from './auth/middleware.js';
+import { requireSession, optionalSession } from './auth/middleware.js';
 import { startBot } from './bot/index.js';
 import { startRecordsSync } from './records/sync.js';
 
@@ -60,7 +60,9 @@ app.use('/api/users', requireSession, usersRouter);
 app.use('/api/crm', requireSession, crmRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
-app.use('/api/records', recordsRouter);
+// optionalSession не гейт, а «кто это»: залогиненному операции подписываются
+// его аккаунтом и идут в месячный топ, гость работает как раньше.
+app.use('/api/records', optionalSession, recordsRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

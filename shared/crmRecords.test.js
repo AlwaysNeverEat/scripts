@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
     parseRecordBoard, detectChains, assignLanes, buildExtensionOps,
     contiguousFreeSlots, flattenAddressRecords, buildCopyLine, copyOperatorFor,
-    findSlotConflict, findBoardRecord,
+    findSlotConflict, findBoardRecord, isExtensionCreate,
     isRecordBoard, looksLikeLoginPage, parseEditForm,
     timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
     EXTENSION_STUB_PHONE,
@@ -226,6 +226,17 @@ test('buildExtensionOps: запись на 1.5 часа = 1 настоящая +
     assert.equal(ops[1].phone, EXTENSION_STUB_PHONE);
     assert.equal(ops[1].comment, '');
     assert.equal(ops[2].phone, EXTENSION_STUB_PHONE);
+});
+
+test('isExtensionCreate: продолжение — по телефону-заглушке, новая запись — нет', () => {
+    // Слоты продления не должны попадать в месячный топ: продлённая запись
+    // остаётся одной записью (backend/src/records/sync.js).
+    assert.equal(isExtensionCreate({ phone: EXTENSION_STUB_PHONE }), true);
+    assert.equal(isExtensionCreate({ phone: '8 (111) 111-11-11' }), true);
+    assert.equal(isExtensionCreate({ phone: '+79211112233' }), false);
+    assert.equal(isExtensionCreate({ phone: '' }), false);
+    assert.equal(isExtensionCreate({}), false);
+    assert.equal(isExtensionCreate(null), false);
 });
 
 test('contiguousFreeSlots: обрывается на занятом и на конце дня', () => {
