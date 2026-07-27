@@ -18,7 +18,7 @@ import {
     getSyncState, syncTick, drainQueue, loadSnapshot,
     enqueueOp, cancelOp, listOps, mskToday,
 } from '../records/sync.js';
-import { parseRecordBoard, timeToMin, SLOT_MINUTES, MAX_DURATION_MIN } from '../../../shared/crmRecords.js';
+import { parseRecordBoard, timeToMin, SLOT_MINUTES, MAX_DURATION_MIN, MAX_OP_RECORDS } from '../../../shared/crmRecords.js';
 import { query } from '../db/client.js';
 
 const router = Router();
@@ -138,7 +138,7 @@ function validatePlace(place, prefix) {
 }
 
 function validateRecordsList(p, { needTarget }) {
-    if (!Array.isArray(p.records) || !p.records.length || p.records.length > 16) return 'records';
+    if (!Array.isArray(p.records) || !p.records.length || p.records.length > MAX_OP_RECORDS) return 'records';
     for (const r of p.records) {
         if (!/^\d+$/.test(String(r.id || ''))) return 'records[].id';
         if (!needTarget) {

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     parseRecordBoard, detectChains, assignLanes, buildExtensionOps,
-    contiguousFreeSlots, flattenAddressRecords, buildCopyLine,
+    contiguousFreeSlots, flattenAddressRecords, buildCopyLine, copyOperatorFor,
     findSlotConflict, findBoardRecord,
     isRecordBoard, looksLikeLoginPage, parseEditForm,
     timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
@@ -309,9 +309,18 @@ test('parseEditForm: значения инпутов, селектов и textar
     assert.equal(parseEditForm('<html>нет формы</html>'), null);
 });
 
-test('buildCopyLine: формат оригинального скрипта', () => {
+test('buildCopyLine: формат оригинального скрипта, подпись — только своя', () => {
     assert.equal(
-        buildCopyLine('25.07.2026', '14:30', 'СПб, Оптиков 2'),
+        buildCopyLine('25.07.2026', '14:30', 'СПб, Оптиков 2', copyOperatorFor('gtrixoff')),
         '25.07.2026 14:30 СПб, Оптиков 2 (Сергей)',
+    );
+    // Регистр логина не важен — в базе он хранится как ввели.
+    assert.equal(copyOperatorFor('GtriXoff'), 'Сергей');
+    // Чужой оператор и гость копируют ту же строку, но без чужой подписи.
+    assert.equal(copyOperatorFor('ivanov'), '');
+    assert.equal(copyOperatorFor(null), '');
+    assert.equal(
+        buildCopyLine('25.07.2026', '14:30', 'СПб, Оптиков 2', copyOperatorFor('ivanov')),
+        '25.07.2026 14:30 СПб, Оптиков 2',
     );
 });

@@ -17,7 +17,8 @@
 
     const rec = (id, timeStart, timeEnd, name, phone, isStub = false, status = '') => ({
       id, addressId: '1', timeStart, timeEnd, name, phone,
-      phoneDigits: phone.replace(/\D/g, ''), isStub, status, customer: name, deleteUrl: '',
+      phoneDigits: phone.replace(/\D/g, ''), isStub, status, customer: name,
+      deleteUrl: `/admin/record/delete?id=${id}&time=${TODAY}+${timeStart}&address_id=1`,
     });
 
     const records = [
@@ -39,9 +40,16 @@
     // один слот забит обоими боксами — строка «занято»
     cells[1]['16:00'] = { records: [rec(8, '16:00', '16:30', 'Оба бокса', '+7 (900) 000-00-00'), rec(9, '16:00', '16:30', 'Второй бокс', '+7 (900) 000-00-01')], free: 0 };
 
+    // Вторая станция — полностью свободный день: на ней проверяется «весь день»
+    cells[2] = {};
+    for (const t of slots) cells[2][t] = { records: [], free: 1 };
+
     const board = {
       date: TODAY, timeSlots: slots,
-      addresses: [{ id: '1', title: 'Санкт-Петербург, Кушелевская дорога, 3к5' }],
+      addresses: [
+        { id: '1', title: 'Санкт-Петербург, Кушелевская дорога, 3к5' },
+        { id: '2', title: 'Санкт-Петербург, Выборгское шоссе, 212' },
+      ],
       cells,
     };
 
@@ -50,10 +58,19 @@
       payload: { addressId: '1', date: TODAY, time: '18:00', name: 'Из очереди', durationMinutes: 30 },
     }];
 
+    // ?me=<логин> — под кем «залогинены»: от этого зависит подпись оператора
+    // в строке для Битрикса. Без параметра — гость (как без аккаунта сайта).
+    const me = new URLSearchParams(location.search).get('me');
+
     const realFetch = window.fetch;
     window.fetch = async (url, init) => {
       const u = String(url);
       const json = (data) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
+      if (u.includes('/api/auth/me')) {
+        return me
+          ? json({ user: { id: 1, login: me, display_name: me } })
+          : new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+      }
       if (u.includes('/api/records/status')) return json({ credentials: true, alive: true, today: TODAY, tomorrow: '27.07.2026', queue: {} });
       if (u.includes('/api/records/board')) return json({ date: TODAY, board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops });
       if (u.includes('/api/records/ops')) return json({ ops });
