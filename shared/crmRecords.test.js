@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
     parseRecordBoard, detectChains, assignLanes, buildExtensionOps,
     contiguousFreeSlots, flattenAddressRecords, buildCopyLine,
+    findSlotConflict, findBoardRecord,
     isRecordBoard, looksLikeLoginPage, parseEditForm,
     timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
     EXTENSION_STUB_PHONE,
@@ -232,6 +233,50 @@ test('contiguousFreeSlots: обрывается на занятом и на ко
     const free = new Set(['09:30', '10:00']);
     assert.deepEqual(contiguousFreeSlots('09:30', slots, t => free.has(t)), ['09:30', '10:00']);
     assert.deepEqual(contiguousFreeSlots('09:00', slots, t => free.has(t)), []);
+});
+
+// ── Проверка целевых слотов (перенос длинной записи) ─────────────────────────
+
+// Доска-заглушка: cells[адрес][время] = { records, free }.
+function boardOf(cells) {
+    return { date: '25.07.2026', timeSlots: ['09:00', '09:30', '10:00', '10:30'], addresses: [{ id: '3', title: 'Оптиков 2' }], cells };
+}
+
+test('findSlotConflict: свободное окно нужной длины — конфликта нет', () => {
+    const board = boardOf({ 3: { '09:00': { records: [], free: 1 }, '09:30': { records: [], free: 1 } } });
+    assert.equal(findSlotConflict(board, '3', ['09:00', '09:30']), null);
+});
+
+test('findSlotConflict: занятый и закрытый слоты называются поимённо', () => {
+    const board = boardOf({
+        3: {
+            '09:00': { records: [], free: 1 },
+            '09:30': { records: [{ id: '5', name: 'Чужой' }], free: 0 },
+        },
+    });
+    assert.deepEqual(findSlotConflict(board, '3', ['09:00', '09:30']), { time: '09:30', reason: 'busy' });
+    // 10:00 в cells нет вовсе — слот закрыт (нерабочее время)
+    assert.deepEqual(findSlotConflict(board, '3', ['09:00', '10:00']), { time: '10:00', reason: 'closed' });
+});
+
+test('findSlotConflict: собственные слоты переезжающей записи не мешают', () => {
+    const board = boardOf({
+        3: {
+            '09:00': { records: [{ id: '11', name: 'Иван' }], free: 0 },
+            '09:30': { records: [{ id: '12', name: 'Иван' }], free: 0 },
+        },
+    });
+    // сдвиг червячка на полчаса вперёд внутри той же станции
+    assert.equal(findSlotConflict(board, '3', ['09:00', '09:30'], ['11', '12']), null);
+    // а для чужой записи те же слоты заняты
+    assert.deepEqual(findSlotConflict(board, '3', ['09:00'], ['99']), { time: '09:00', reason: 'busy' });
+});
+
+test('findBoardRecord: где запись лежит сейчас', () => {
+    const board = parseRecordBoard(FIXTURE);
+    const rec = flattenAddressRecords(board.cells, '3')[0];
+    assert.deepEqual(findBoardRecord(board, rec.id), { addressId: '3', time: rec.timeStart });
+    assert.equal(findBoardRecord(board, '0'), null);
 });
 
 // ── Форма редактирования ─────────────────────────────────────────────────────

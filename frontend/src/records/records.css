@@ -36,17 +36,6 @@
 
 .rc-brand svg { color: var(--accent); }
 
-/* Возврат к калькулятору — та же капсула, что кнопки в правом блоке. */
-.rc-home {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    padding: 7px 12px;
-}
-
-.rc-home svg { color: var(--accent); }
-
 .rc-tabs { display: flex; align-items: center; gap: 6px; }
 
 .rc-date-pick {
@@ -210,6 +199,75 @@
 
 .rc-banner svg { color: var(--red); flex: none; margin-top: 2px; }
 .rc-banner b { color: var(--red); }
+
+/* ── Смена дня: уход, скелет, появление ────────────────────────── */
+/* Доска приезжает с бэкенда не мгновенно. Пока она едет, станции прошлого дня
+   на экране держать нельзя (клик по ним открывал чужой день), поэтому день
+   уезжает целиком, на его месте мерцает скелет, а новые станции проявляются
+   каскадом — заодно видно, что список действительно сменился. */
+
+@keyframes rc-view-in {
+    from { opacity: 0; transform: translateY(7px) scale(0.985); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes rc-view-out {
+    to { opacity: 0; transform: translateY(-5px) scale(0.99); }
+}
+
+@keyframes rc-skel-shine {
+    to { transform: translateX(100%); }
+}
+
+/* Уходящий день уже не кликабелен — в этом весь смысл ухода. */
+.rc-out {
+    animation: rc-view-out 0.15s ease forwards;
+    pointer-events: none;
+}
+
+.rc-station.rc-in {
+    animation: rc-view-in 0.26s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/* Каскад: карточки проявляются по очереди, но хвост длинного списка не ждёт
+   секунду — задержка упирается в потолок. */
+.rc-overview.rc-in > .rc-card {
+    animation: rc-view-in 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    animation-delay: calc(min(var(--i, 0), 14) * 22ms);
+}
+
+.rc-overview.rc-skeleton { animation: rc-view-in 0.2s ease both; }
+
+.rc-card-skel { cursor: default; pointer-events: none; }
+
+.rc-skel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--bg3);
+}
+
+.rc-skel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+    animation: rc-skel-shine 1.25s ease-in-out infinite;
+}
+
+.rc-skel-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.rc-skel-name { height: 11px; flex: 1; max-width: 150px; }
+.rc-skel-pill { height: 19px; width: 78px; border-radius: 999px; }
+.rc-skel-pill-s { width: 54px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rc-out { animation: none; opacity: 0; }
+    .rc-station.rc-in,
+    .rc-overview.rc-in > .rc-card,
+    .rc-overview.rc-skeleton,
+    .rc-skel::after { animation: none; }
+}
 
 /* ── Обзор станций ─────────────────────────────────────────────── */
 
@@ -920,6 +978,8 @@
     font-size: 12.5px;
 }
 .rc-queue-main { flex: 1; min-width: 0; }
+/* «отменить» / «другое время» — кнопка не сжимается в многоточие на узком экране */
+.rc-queue-item .rc-mini-btn { flex: none; white-space: nowrap; }
 .rc-queue-sub { color: var(--sub); font-size: 10.5px; margin-top: 2px; }
 .rc-queue-done { opacity: 0.55; }
 .rc-queue-failed { border-color: var(--red-dim); }

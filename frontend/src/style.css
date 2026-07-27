@@ -30,6 +30,8 @@
   --red-dim:  oklch(0.55 0.2 25 / 0.2);
   --radius:   10px;
   --chip-act: var(--accent);
+  /* высота ряда вкладок — от неё пляшут sticky-шапки и высота экрана поиска */
+  --tabs-h:   52px;
 
   /* Цвета частей машины в выпадашках поиска (см. carCard.js). Верхняя строка —
      «имя»: марка золотом-акцентом (якорь для взгляда), модель белым, коды
@@ -85,11 +87,96 @@ input, button, select, textarea { font-family: inherit; }
   gap: 8px;
 }
 
+/* ── Вкладки разделов (профиль / калькулятор / записи / скрипты / топ) ──
+   Один ряд сверху вместо кнопок, раскиданных по главной. Sticky, поэтому
+   sticky-шапки внутри страниц отступают на --tabs-h (см. .calc-topbar). */
+.app-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  height: var(--tabs-h);
+  background: oklch(0.16 0.024 252 / 0.9);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.app-tabs-row {
+  height: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 10px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.app-tabs-row::-webkit-scrollbar { display: none; }
+
+.app-tab {
+  position: relative;
+  flex: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 14px;
+  background: none;
+  border: none;
+  color: var(--sub);
+  font: inherit; font-size: 13px; font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .15s;
+}
+.app-tab svg { flex: none; opacity: .85; }
+/* Подчёркивание активной вкладки */
+.app-tab::after {
+  content: '';
+  position: absolute; left: 12px; right: 12px; bottom: 0;
+  height: 2px; border-radius: 2px 2px 0 0;
+  background: transparent;
+  transition: background .15s;
+}
+.app-tab:hover { color: var(--text); }
+.app-tab.active { color: var(--accent); }
+.app-tab.active svg { opacity: 1; }
+.app-tab.active::after { background: var(--accent); }
+
+/* Аватарка вместо иконки у вкладки «Профиль» (перебиваем размер .avatar-circle) */
+.app-tab-avatar.avatar-circle {
+  width: 26px; height: 26px;
+  flex: none;
+  pointer-events: none;
+}
+.app-tab-avatar .avatar-default-icon { font-size: 13px; }
+.app-tab.active .app-tab-avatar { border-color: var(--accent); }
+
+@media (max-width: 560px) {
+  :root { --tabs-h: 48px; }
+  .app-tab { padding: 0 10px; gap: 6px; font-size: 12px; }
+}
+/* На узких экранах подпись остаётся только у активной вкладки — пять
+   разделов помещаются в ряд без горизонтальной прокрутки. */
+@media (max-width: 430px) {
+  .app-tab:not(.active) .app-tab-label { display: none; }
+}
+
+/* ── Простые страницы-разделы (скрипты, топ) ────────────────────── */
+.page-head {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 26px 16px 14px;
+}
+.page-title { font-size: 20px; font-weight: 700; }
+.page-sub { margin-top: 6px; font-size: 12.5px; color: var(--sub); }
+.page-body {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+}
+
 /* ── Страница поиска (сфера из машин + строка) ──────────────────── */
 #page-search {
   position: relative;
-  height: 100vh;
-  height: 100dvh;
+  height: calc(100vh - var(--tabs-h));
+  height: calc(100dvh - var(--tabs-h));
   overflow: hidden;
   background: #07090d;
 }
@@ -358,7 +445,7 @@ a.btn:visited, a.btn:active { color: var(--text); }
   border-bottom: 1px solid var(--border);
   background: var(--card);
   position: sticky;
-  top: 0;
+  top: var(--tabs-h);   /* под рядом вкладок, а не под верхом окна */
   z-index: 10;
 }
 .calc-car-title {
@@ -854,7 +941,7 @@ input[data-edit-filter-absent]:checked::after {
   border-radius: 14px;
   padding: 16px 18px;
   position: sticky;
-  top: 66px;
+  top: calc(var(--tabs-h) + 66px);
 }
 @media (max-width: 900px) {
   .report-panel { position: static; }
@@ -1267,17 +1354,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   font-size: 13px;
 }
 
-/* ── Кружок-аватарка и кнопка «Топ» на поиске ───────────────────── */
-.top-bar-user {
-  position: absolute;
-  top: 18px; left: 18px; right: 18px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  pointer-events: none;
-}
-.top-bar-user > * { pointer-events: auto; }
+/* ── Кружок-аватарка (вкладка «Профиль») ────────────────────────── */
 .avatar-circle {
   width: 42px; height: 42px;
   border-radius: 50%;
@@ -1292,13 +1369,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .avatar-circle:hover { border-color: var(--accent); }
 .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
 .avatar-default-icon { font-size: 19px; opacity: .7; }
-.btn-top {
-  font-weight: 600;
-  display: inline-flex; align-items: center; gap: 6px;
-  border-radius: 999px;
-  padding-left: 15px; padding-right: 16px;
-}
-.btn-top svg { color: var(--accent); flex: none; }
 
 /* ── Роль-префикс (mod и т.п.) ──────────────────────────────────── */
 .role-prefix {
@@ -1961,32 +2031,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .crm-input:focus { outline: none; border-color: var(--accent); }
 
-/* ── Фид «Скрипты» ──────────────────────────────────────────────── */
-/* Кнопка справа снизу. Живёт внутри #page-search — прячется вместе со
-   страницей поиска, на других экранах её нет. */
-.scripts-fab {
-  position: fixed;
-  right: 20px; bottom: 20px;
-  z-index: 30;
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 16px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text);
-  font: inherit; font-size: 13px; font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0,0,0,.35);
-  transition: border-color .15s, transform .15s, box-shadow .15s;
-}
-.scripts-fab:hover {
-  border-color: var(--accent);
-  transform: translateY(-1px);
-  box-shadow: 0 10px 28px rgba(0,0,0,.45);
-}
-.scripts-fab svg { color: var(--accent); flex: none; }
-
-.scripts-win { max-width: 620px; }
+/* ── Фид «Скрипты» (вкладка) ────────────────────────────────────── */
 .scripts-body { display: flex; flex-direction: column; gap: 22px; }
 
 .scr-group { display: flex; flex-direction: column; gap: 10px; }
@@ -2046,5 +2091,4 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 @media (max-width: 520px) {
   .scr-card { flex-direction: column; align-items: stretch; }
   .scr-install { justify-content: center; }
-  .scripts-fab { right: 14px; bottom: 14px; }
 }

@@ -4,7 +4,7 @@ import { bootScreen } from './bootScreen.js';
 import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
-import { initTopModal } from './top.js';
+import { showTopPage, resetTopCache } from './top.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
@@ -72,22 +72,32 @@ export async function apiFetch(path, { method = 'GET', body, isMultipart = false
 // ── Гейт входа/регистрации ──────────────────────────────────────────────────
 // Без валидной сессии не видно ничего, кроме экрана входа/регистрации.
 
+const appTabs     = document.getElementById('app-tabs');
 const pageAuth    = document.getElementById('page-auth');
 const pageSearch  = document.getElementById('page-search');
 const pageCalc    = document.getElementById('page-calc');
 const pageProfile = document.getElementById('page-profile');
 const pageRecords = document.getElementById('page-records');
+const pageScripts = document.getElementById('page-scripts');
+const pageTop     = document.getElementById('page-top');
+
+const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageScripts, pageTop];
 
 function hideAllPages() {
-    pageAuth.classList.add('hidden');
-    pageSearch.classList.add('hidden');
-    pageCalc.classList.add('hidden');
-    pageProfile.classList.add('hidden');
-    pageRecords.classList.add('hidden');
+    for (const page of ALL_PAGES) page.classList.add('hidden');
+}
+
+// Показать ровно одну страницу (вкладки при этом видны).
+function showPage(page) {
+    for (const p of ALL_PAGES) p.classList.toggle('hidden', p !== page);
+    appTabs.classList.remove('hidden');
 }
 
 function showGate(message) {
     hideAllPages();
+    appTabs.classList.add('hidden');
+    pauseRecords();
+    resetTabsState();
     pageAuth.classList.remove('hidden');
     initAuthGate({
         apiFetch,
@@ -104,17 +114,28 @@ function enterApp() {
     unlocked = true;
     hideAllPages();
     renderUserBar();
-    initTopModal({ apiFetch });
-    initScriptsFeed(); // кнопка + фид юзерскриптов справа снизу на поиске
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     renderRoute();
     loadSnapshot();   // прогреваем базу для поиска и тегов
     loadSphere();
 }
 
+// Выход из аккаунта (или протухшая сессия): чужие данные не должны
+// «просвечивать» через сохранённое состояние вкладок, когда войдёт кто-то другой.
+function resetTabsState() {
+    renderedCarId = null;
+    profileKey = null;
+    resetTopCache();
+    searchInput.value = '';
+    searchResults.innerHTML = '';
+    scrollByRoute.clear();
+    Object.assign(lastRoute, DEFAULT_TAB_ROUTE);
+}
+
+// Аватарка живёт в кнопке вкладки «Профиль».
 function renderUserBar() {
     const img = document.getElementById('avatar-img');
-    const defaultIcon = document.querySelector('#btn-avatar .avatar-default-icon');
+    const defaultIcon = document.querySelector('.app-tab-avatar .avatar-default-icon');
     if (currentUser && currentUser.avatar) {
         img.src = currentUser.avatar;
         img.hidden = false;
@@ -125,88 +146,178 @@ function renderUserBar() {
     }
 }
 
-document.getElementById('btn-avatar').onclick = () => { location.hash = '#/profile'; };
+// ── Вкладки ───────────────────────────────────────────────────────────────────
+// Пять разделов одним рядом сверху. Каждая вкладка помнит свой последний роут,
+// а страницы не пересобираются при возврате: найденная машина, набранный поиск,
+// открытая станция в записях — всё остаётся ровно таким, каким его оставили.
+
+const DEFAULT_TAB_ROUTE = {
+    profile: '#/profile',
+    calc:    '#/',
+    records: '#/records',
+    scripts: '#/scripts',
+    top:     '#/top',
+};
+const lastRoute = { ...DEFAULT_TAB_ROUTE };
+
+// Позиция прокрутки на момент ухода с роута — возвращаемся туда же.
+const scrollByRoute = new Map();
+let currentRoute = null;
+
+function tabOfHash(hash) {
+    if (hash.startsWith('#/records')) return 'records';
+    if (hash === '#/scripts') return 'scripts';
+    if (hash === '#/top') return 'top';
+    if (hash === '#/profile' || /^#\/user\/[0-9a-f-]{10,}/i.test(hash)) return 'profile';
+    return 'calc'; // #/ и #/car/:id
+}
+
+function setActiveTab(tab) {
+    appTabs.querySelectorAll('.app-tab').forEach(btn => {
+        const active = btn.dataset.tab === tab;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+}
+
+appTabs.querySelectorAll('.app-tab').forEach(btn => {
+    btn.onclick = () => {
+        const tab = btn.dataset.tab;
+        // Клик по активной вкладке ничего не сбрасывает: это её же экран.
+        if (lastRoute[tab] === location.hash) return;
+        location.hash = lastRoute[tab];
+    };
+});
+
+function restoreScroll(hash) {
+    window.scrollTo(0, scrollByRoute.get(hash) || 0);
+}
 
 // ── Hash routing ──────────────────────────────────────────────────────────────
-//   #/            — поиск
+//   #/            — поиск (вкладка «Калькулятор»)
 //   #/car/:id     — страница машины (прямая ссылка переживает F5)
 //   #/profile     — свой профиль (редактируемый)
 //   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
+//   #/records     — записи по станциям
+//   #/scripts     — фид юзерскриптов
+//   #/top         — рейтинг пользователей
+
+let renderedCarId = null;  // машина, уже отрисованная на #page-calc
+let profileKey = null;     // 'self' или id чужого профиля на #page-profile
 
 async function renderRoute() {
-    const carMatch = location.hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
-    const userMatch = location.hash.match(/^#\/user\/([0-9a-f-]{10,})/i);
-    const isProfile = location.hash === '#/profile';
-    const isRecords = location.hash.startsWith('#/records');
+    const hash = location.hash || '#/';
+    if (currentRoute && currentRoute !== hash) scrollByRoute.set(currentRoute, window.scrollY);
+    currentRoute = hash;
+
+    const tab = tabOfHash(hash);
+    // Вкладка «Профиль» всегда ведёт к своему профилю: чужой (#/user/:id)
+    // открывается из топа и ленты, но вкладкой не запоминается.
+    if (tab !== 'profile' || hash === '#/profile') lastRoute[tab] = hash;
+    setActiveTab(tab);
 
     // Записи живут до гейта: у них свой вход — общий логин/пароль админки
     // ZMS, аккаунт сайта для них не нужен (см. backend/src/routes/records.js).
-    if (isRecords) return showRecords();
-    if (recordsActive) await leaveRecords();
+    if (tab === 'records') {
+        await showRecords();
+        restoreScroll(hash);
+        return;
+    }
+    // Уходим с записей — гасим их опросы, но раздел оставляем собранным.
+    pauseRecords();
     // Без сессии сайта всё остальное закрыто.
     if (!unlocked) { showGate(); return; }
 
-    if (isProfile) {
-        pageSearch.classList.add('hidden');
-        pageCalc.classList.add('hidden');
-        pageProfile.classList.remove('hidden');
-        await initProfilePage({
-            apiFetch,
-            user: currentUser,
-            onUserChanged: (user) => { currentUser = user; renderUserBar(); },
-            onLogout: () => {
-                unlocked = false;
-                setToken('');
-                currentUser = null;
-                location.hash = '#/';
-                showGate();
-            },
-        });
-    } else if (userMatch) {
+    const carMatch = hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
+    const userMatch = hash.match(/^#\/user\/([0-9a-f-]{10,})/i);
+
+    if (tab === 'profile') {
         // Клик по самому себе (в топе, в фиде машины) — открываем свой
         // редактируемый профиль, а не свою «зрительскую» страницу.
-        if (currentUser && userMatch[1] === currentUser.id) {
+        if (userMatch && currentUser && userMatch[1] === currentUser.id) {
             location.hash = '#/profile';
             return;
         }
-        pageSearch.classList.add('hidden');
-        pageCalc.classList.add('hidden');
-        pageProfile.classList.remove('hidden');
-        await initPublicProfilePage({ apiFetch, userId: userMatch[1], viewer: currentUser });
-    } else if (carMatch) {
-        pageProfile.classList.add('hidden');
-        pageSearch.classList.add('hidden');
-        pageCalc.classList.remove('hidden');
-        try {
-            const record = await apiFetch('/api/cars/' + carMatch[1]);
-            initCarPage(record, { apiFetch, user: currentUser, onChanged: () => renderRoute() });
-        } catch (e) {
-            document.getElementById('car-head').innerHTML =
-                `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
-            document.getElementById('calc-main').innerHTML = '';
-            document.getElementById('crm-panel').innerHTML = '';
+        showPage(pageProfile);
+        const key = userMatch ? userMatch[1] : 'self';
+        if (profileKey !== key) {
+            profileKey = key;
+            if (userMatch) await initPublicProfilePage({ apiFetch, userId: userMatch[1], viewer: currentUser });
+            else await initSelfProfilePage();
         }
+    } else if (tab === 'scripts') {
+        showPage(pageScripts);
+        initScriptsFeed(); // фид статичный — собирается один раз
+    } else if (tab === 'top') {
+        showPage(pageTop);
+        showTopPage({ apiFetch }); // из кеша мгновенно, свежие данные подтянутся
+    } else if (carMatch) {
+        showPage(pageCalc);
+        // Та же машина, что и была — не пересобираем: выбранные агрегаты,
+        // раскрытые блоки и заметки остаются на месте.
+        if (renderedCarId !== carMatch[1]) await loadCarPage(carMatch[1]);
     } else {
-        pageProfile.classList.add('hidden');
-        pageCalc.classList.add('hidden');
-        pageSearch.classList.remove('hidden');
-        searchInput.focus();
+        showPage(pageSearch);
+        // Запрос и выдача не чистятся при уходе — возвращаемся к тому же экрану,
+        // курсор ставим в строку, только если открыт режим «Поиск», а не «Теги».
+        if (tagSearchEl.classList.contains('hidden')) searchInput.focus();
     }
+    restoreScroll(hash);
+}
+
+async function loadCarPage(carId) {
+    try {
+        const record = await apiFetch('/api/cars/' + carId);
+        renderedCarId = carId;
+        initCarPage(record, {
+            apiFetch,
+            user: currentUser,
+            onChanged: () => loadCarPage(carId), // после правки перечитываем машину
+        });
+    } catch (e) {
+        renderedCarId = null; // следующий заход попробует ещё раз
+        document.getElementById('car-head').innerHTML =
+            `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
+        document.getElementById('calc-main').innerHTML = '';
+        document.getElementById('crm-panel').innerHTML = '';
+    }
+}
+
+function initSelfProfilePage() {
+    return initProfilePage({
+        apiFetch,
+        user: currentUser,
+        onUserChanged: (user) => { currentUser = user; renderUserBar(); },
+        onLogout: () => {
+            unlocked = false;
+            setToken('');
+            currentUser = null;
+            location.hash = '#/';
+            showGate();
+        },
+    });
 }
 
 // ── Раздел «Записи» (ленивая загрузка) ────────────────────────────────────────
 // Модуль записей тянет за собой Leaflet и свои стили, поэтому грузится только
-// при первом заходе на #/records и гасится при уходе — калькулятор ничего
-// лишнего не качает и не держит фоновых опросов.
+// при первом заходе на #/records. При уходе на другую вкладку раздел не
+// разбирается, а замирает (pauseRecords): выбранный день, открытая станция и
+// поиск остаются на месте, но фоновых опросов и таймеров не остаётся —
+// калькулятор работает так же налегке, как раньше.
 
 let recordsMod = null;      // загруженный модуль (кэшируется на сессию)
-let recordsActive = false;
+let recordsMounted = false; // раздел собран в #page-records
+let recordsRunning = false; // ...и его таймеры сейчас живы
 let recordsLoading = null;
 
 async function showRecords() {
-    hideAllPages();
-    pageRecords.classList.remove('hidden');
-    if (recordsActive) return;
+    showPage(pageRecords);
+    if (recordsRunning) return;
+    if (recordsMounted) {
+        recordsMod.resumeRecords();
+        recordsRunning = true;
+        return;
+    }
     if (!recordsMod) {
         pageRecords.innerHTML = '<div class="rc-boot">Загрузка записей…</div>';
         recordsLoading = recordsLoading || import('./records/records.js');
@@ -221,14 +332,15 @@ async function showRecords() {
         // Пока грузился модуль, могли уйти на другой роут.
         if (!location.hash.startsWith('#/records')) return;
     }
-    recordsActive = true;
     recordsMod.startRecords(pageRecords);
+    recordsMounted = true;
+    recordsRunning = true;
 }
 
-async function leaveRecords() {
-    recordsActive = false;
-    recordsMod?.stopRecords();
-    pageRecords.innerHTML = '';
+function pauseRecords() {
+    if (!recordsRunning) return;
+    recordsRunning = false;
+    recordsMod?.pauseRecords();
 }
 
 // ── Снимок базы (мгновенный поиск и теги) ──────────────────────────────────────
@@ -352,18 +464,21 @@ function renderResults(cars) {
         <div class="car-card" data-id="${car.id}">${carCardInner(car)}</div>
     `).join('');
 
+    // Запрос и выдачу не стираем: вернувшись на вкладку «Калькулятор», человек
+    // видит тот же список, из которого уходил, и может открыть соседнюю машину.
     searchResults.querySelectorAll('.car-card').forEach(card => {
-        card.onclick = () => {
-            searchResults.innerHTML = '';
-            searchInput.value = '';
-            location.hash = '#/car/' + card.dataset.id;
-        };
+        card.onclick = () => { location.hash = '#/car/' + card.dataset.id; };
     });
 }
 
 // ── Back button ───────────────────────────────────────────────────────────────
 document.getElementById('btn-back').onclick = () => { location.hash = '#/'; };
-document.getElementById('btn-profile-back').onclick = () => { location.hash = '#/'; };
+// Профиль открывают и с вкладки, и из топа/ленты машины — возвращаем туда,
+// откуда пришли, а не жёстко на поиск.
+document.getElementById('btn-profile-back').onclick = () => {
+    if (history.length > 1) history.back();
+    else location.hash = '#/';
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) {
@@ -410,10 +525,7 @@ const tagSearchEl   = document.getElementById('tag-search');
 
 const tagSearch = initTagSearch({
     getCars: () => loadSnapshot().then(s => s.cars),
-    onPick: id => {
-        searchResults.innerHTML = '';
-        location.hash = '#/car/' + id;
-    },
+    onPick: id => { location.hash = '#/car/' + id; },
     sphere: {
         setNodes: nodes => sphereController?.setNodes(nodes),
         setVisible: v => sphereController?.setVisible(v),

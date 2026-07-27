@@ -127,16 +127,34 @@ function validateCreate(p) {
     return null;
 }
 
+// Место записи в оригинале: станция + день + слот. Полагаемся на это и при
+// проверке целевого окна перед переносом, и при откате, поэтому «половинчатых»
+// адресов (одно время без станции) не принимаем.
+function validatePlace(place, prefix) {
+    if (!/^\d+$/.test(String(place.addressId ?? ''))) return `${prefix}.addressId`;
+    if (!DATE_RE.test(String(place.date || ''))) return `${prefix}.date`;
+    if (!TIME_RE.test(String(place.time || ''))) return `${prefix}.time`;
+    return null;
+}
+
 function validateRecordsList(p, { needTarget }) {
     if (!Array.isArray(p.records) || !p.records.length || p.records.length > MAX_OP_RECORDS) return 'records';
     for (const r of p.records) {
         if (!/^\d+$/.test(String(r.id || ''))) return 'records[].id';
-        if (needTarget) {
-            if (r.addressId != null && !/^\d+$/.test(String(r.addressId))) return 'records[].addressId';
-            if (r.date != null && !DATE_RE.test(String(r.date))) return 'records[].date';
-            if (r.time != null && !TIME_RE.test(String(r.time))) return 'records[].time';
-        } else if (!/^\/admin\/record\/delete\?/.test(String(r.deleteUrl || ''))) {
-            return 'records[].deleteUrl';
+        if (!needTarget) {
+            if (!/^\/admin\/record\/delete\?/.test(String(r.deleteUrl || ''))) return 'records[].deleteUrl';
+            continue;
+        }
+        // Перенос — либо полный адрес назначения, либо ничего (правка полей).
+        if (r.addressId != null || r.date != null || r.time != null) {
+            const invalid = validatePlace(r, 'records[]');
+            if (invalid) return invalid;
+            // from — откуда запись уехала: по нему бэкенд возвращает слоты на
+            // место, если перенос не удался целиком.
+            if (r.from != null) {
+                const invalidFrom = validatePlace(r.from, 'records[].from');
+                if (invalidFrom) return invalidFrom;
+            }
         }
     }
     return null;
