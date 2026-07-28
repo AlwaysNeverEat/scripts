@@ -12,7 +12,11 @@
   <meta name="theme-color" content="#0f0f12"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Fugaz+One&family=Russo+One&family=Unbounded:wght@200..900&display=swap" rel="stylesheet"/>
+  <!-- Шрифты подключаем неблокирующе (media=print → all по onload): обычный
+       <link rel=stylesheet> задерживает первую отрисовку до ответа Google, а из
+       РФ он может висеть десятками секунд. Так страница рисуется сразу
+       системным шрифтом, а фирменный подменится, когда (и если) догрузится. -->
+  <link href="https://fonts.googleapis.com/css2?family=Fugaz+One&family=Russo+One&family=Unbounded:wght@200..900&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
   <link rel="stylesheet" href="/src/style.css"/>
 </head>
 <body>
