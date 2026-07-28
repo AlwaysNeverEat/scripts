@@ -778,10 +778,10 @@ function createBoard(m) {
 
 // ── Выбор времени: расписание дня + длительность ─────────────────────────────
 // Вместо ленты кнопок со свободными получасами показываем весь день станции:
-// видно чужие записи и закрытые часы, клик выбирает начало, повторный клик по
-// слоту ниже — конец окна. Выбранное окно подсвечено и растёт вместе с
-// длительностью, которую задают шагом ±30 минут, вводом «ч/мин» с клавиатуры
-// или кнопкой «всё окно» (бокс иногда закрывают на весь день).
+// видно чужие записи и закрытые часы, клик выбирает начало и переносит туда
+// всё окно целиком (Shift+клик ниже — конец окна). Выбранное окно подсвечено
+// и растёт вместе с длительностью, которую задают шагом ±30 минут, вводом
+// «ч/мин» с клавиатуры или кнопкой «всё окно» (бокс иногда закрывают на день).
 
 // Контекст выбора для окна: где смотрим расписание и что считаем «своим».
 // При продлении начало фиксировано (хвост записи), а слоты самой записи
@@ -1057,7 +1057,8 @@ function modalCreate(m) {
                     <div class="rc-pick-h">Длительность</div>
                     ${durationHtml(clampDuration(ctx, ctx.duration), maxDurationFor(ctx))}
                     <div class="rc-pick-note"></div>
-                    <div class="rc-pick-hint">Клик по свободному получасу — начало, клик ниже — конец окна.
+                    <div class="rc-pick-hint">Клик по свободному получасу — начало окна: выбранная длина
+                        переезжает следом (хоть раньше, хоть позже). Shift+клик ниже — конец окна.
                         Длительность — кнопками ±, вводом с клавиатуры или «всё окно» целиком.</div>
                 </div>
             </div>`}
@@ -1232,7 +1233,8 @@ function modalMove(m) {
                 <div class="rc-pick-h">Длина записи</div>
                 ${durationHtml(clampDuration(ctx, ctx.duration), maxDurationFor(ctx))}
                 <div class="rc-pick-note"></div>
-                <div class="rc-pick-hint">Клик по свободному получасу — новое начало. Длину меняют кнопками ± или вводом:
+                <div class="rc-pick-hint">Клик по свободному получасу — новое начало, длина записи едет следом.
+                    Длину меняют кнопками ±, вводом или Shift+кликом по концу окна:
                     лишние слоты снимутся, недостающие добавятся продолжением.</div>
             </div>
         </div>
@@ -1518,6 +1520,15 @@ function paintPick() {
         row.classList.toggle('rc-tl-bad', on && i >= i0 + okSlots);
         const tillEl = row.querySelector('.rc-tl-till');
         if (tillEl) tillEl.textContent = on && i === i0 + need - 1 ? `до ${till}` : '';
+        // Тултип пересчитываем тут же: начало переезжает от клика к клику, а
+        // строке нужно честно сказать, что обычный клик перенесёт окно к ней,
+        // а Shift — дотянет до неё конец.
+        if (!row.disabled) {
+            const t = row.dataset.time;
+            row.title = i0 >= 0 && i > i0 && i < i0 + okSlots
+                ? `Начать в ${t} · Shift — окно до ${addMinutes(t, SLOT_MINUTES)}`
+                : `Начать в ${t}`;
+        }
     });
 
     const note = root.querySelector('.rc-pick-note');
@@ -1816,7 +1827,7 @@ function keepCreateFields() {
 
 // ── Действия (делегирование) ─────────────────────────────────────────────────
 
-async function handleAction(btn) {
+async function handleAction(btn, ev) {
     const a = btn.dataset.action;
 
     if (a === 'set-date') return switchDate(btn.dataset.date);
@@ -1901,8 +1912,10 @@ async function handleAction(btn) {
         input.click();
         return;
     }
-    // Клик по расписанию: первый — начало окна, второй ниже по свободному
-    // промежутку — его конец (то же, что задать длительность руками).
+    // Клик по расписанию всегда переносит окно целиком: и вверх, и вниз — куда
+    // ткнули, там и начало, выбранная длина сохраняется. Раньше клик ниже молча
+    // растягивал запись, и «перенести на попозже» превращалось в продление.
+    // Растянуть окно до слота по-прежнему можно — Shift+клик.
     if (a === 'tl-pick') {
         const m = state.modal;
         const ctx = pickCtx(m);
@@ -1911,8 +1924,8 @@ async function handleAction(btn) {
         const t = btn.dataset.time;
         const cur = ctx.kind === 'move' ? m.targetTime : m.time;
         const span = cur ? timeToMin(t) - timeToMin(cur) + SLOT_MINUTES : 0;
-        if (span > SLOT_MINUTES && span <= freeRunFrom(ctx, cur)) {
-            m.durationMinutes = span; // второй клик ниже — это конец окна
+        if (ev?.shiftKey && span > SLOT_MINUTES && span <= freeRunFrom(ctx, cur)) {
+            m.durationMinutes = span; // Shift+клик ниже — это конец окна
         } else if (ctx.kind === 'move') {
             m.targetTime = t;
             setPickDuration(m.durationMinutes ?? ctx.duration);
@@ -2363,7 +2376,7 @@ export function startRecords(mount) {
 
     onClick = (e) => {
         const btn = e.target.closest('[data-action]');
-        if (btn) handleAction(btn);
+        if (btn) handleAction(btn, e);
         // клик мимо поиска закрывает выпадашку
         if (!e.target.closest('.rc-searchbox')) {
             root?.querySelector('#rc-search-drop')?.classList.add('hidden');
