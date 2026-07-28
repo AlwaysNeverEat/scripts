@@ -1,6 +1,7 @@
 import { initCarPage } from './carPage.js';
 import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
+import { fetchRetry } from './netRetry.js';
 import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
@@ -46,7 +47,7 @@ export async function apiFetch(path, { method = 'GET', body, isMultipart = false
         fetchBody = JSON.stringify(body);
     }
 
-    const res = await fetch(API_BASE + path, { method, headers, body: fetchBody });
+    const res = await fetchRetry(API_BASE + path, { method, headers, body: fetchBody });
 
     if (res.status === 401 && unlocked) {
         // Полночь МСК (или бан) разлогинили нас посреди работы — назад к гейту.

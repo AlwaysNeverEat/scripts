@@ -3,23 +3,68 @@
 // Всё это время ни поиск, ни база не работают, поэтому при старте показываем
 // оверлей: строки лога и 100% прогресса привязаны к реальному ответу /health,
 // а не к таймеру. Разметка — в index.html (#boot-screen).
+//
+// Второй случай, ради которого экран должен быть живучим: канал до Render из РФ
+// без VPN режется, соединения виснут и рвутся. Оверлей перекрывает всё
+// приложение, поэтому «сервер не ответил» тут не должно означать «сайт не
+// открылся» — отсюда попытки внахлёст и ранняя кнопка Continue.
 
-const RETRY_DELAY = 2000;   // пауза между попытками достучаться
-const PING_TIMEOUT = 10000; // таймаут одной попытки
-const LONG_WAIT = 45000;    // после этого — строка «дольше обычного»
-const GIVE_UP = 90000;      // после этого — кнопки Retry / Continue
+const ATTEMPT_SPACING = 2500; // как часто запускать очередную попытку
+const PING_TIMEOUT = 8000;    // таймаут одной попытки
+const OFFER_SKIP = 20000;     // после этого — кнопки Retry / Continue
+const LONG_WAIT = 45000;      // после этого — строка «дольше обычного»
 
+// Одна попытка достучаться. Любой ответ сервера, кроме 5xx, считаем связью:
+// /health может отдать 404 или 401 при смене роутов, но сеть при этом жива,
+// а вот 502/503 Render отдаёт как раз пока просыпается — это ещё не готовность.
 async function ping(url) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), PING_TIMEOUT);
     try {
-        const res = await fetch(url, { signal: ctl.signal, cache: 'no-store' });
-        return res.ok;
+        // Кэш-бастер: между нами и Render бывают прокси, отдающие свой ответ на
+        // повторный одинаковый запрос.
+        const sep = url.includes('?') ? '&' : '?';
+        const res = await fetch(url + sep + '_=' + Date.now(), { signal: ctl.signal, cache: 'no-store' });
+        return res.ok || (res.status >= 400 && res.status < 500);
     } catch {
         return false;
     } finally {
         clearTimeout(timer);
     }
+}
+
+// Попытки идут внахлёст: новая стартует каждые ATTEMPT_SPACING, не дожидаясь
+// таймаута предыдущей. Это ключевое отличие от последовательного цикла — при
+// шейпинге канала (РФ без VPN) соединение часто просто виснет и умирает по
+// таймауту, так что последовательные попытки дают одну проверку в 8+ секунд,
+// а внахлёст — четыре живых соединения одновременно, и хватает, чтобы прошло
+// хоть одно. Резолвится true при первом успехе, false — если отменили.
+function waitForServer(url, { onAttempt, cancelled }) {
+    return new Promise(resolve => {
+        let done = false;
+        // Считаем именно провалы, а не номер попытки: внахлёст они завершаются
+        // не по порядку и номер в логе прыгал бы назад.
+        let failed = 0;
+
+        const stop = ok => {
+            if (done) return;
+            done = true;
+            clearInterval(timer);
+            resolve(ok);
+        };
+
+        function fire() {
+            if (done) return;
+            if (cancelled()) { stop(false); return; }
+            ping(url).then(ok => {
+                if (ok) stop(true);
+                else if (!done) onAttempt(++failed);
+            });
+        }
+
+        const timer = setInterval(fire, ATTEMPT_SPACING);
+        fire();
+    });
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -112,30 +157,37 @@ export function bootScreen(pingUrl, { prepare } = {}) {
             await sleep(250);
             const pingLine = addLine('Contacting server...');
 
-            let attempt = 0;
             let retryLine = null;
             let longWarned = false;
 
-            while (!(await ping(pingUrl))) {
-                if (settled) return; // юзер нажал Continue — тихо выходим
-                attempt++;
-                pingLine.textContent = 'Contacting server... no response';
-                if (!retryLine) {
-                    retryLine = addLine('Server is asleep — waking it up...');
-                    hint.classList.remove('hidden');
-                } else {
-                    retryLine.textContent = `Waking the server... attempt ${attempt}`;
-                }
+            // Кнопки Retry / Continue показываем рано и по времени, а не по числу
+            // попыток: сидеть перед намертво висящим оверлеем полторы минуты —
+            // худшее, что можно предложить, когда до сервера просто не достучаться.
+            const ticker = setInterval(() => {
                 const elapsed = Date.now() - t0;
+                if (elapsed > OFFER_SKIP) actions.classList.remove('hidden');
                 if (elapsed > LONG_WAIT && !longWarned) {
                     longWarned = true;
                     addLine('Taking longer than usual, still trying...');
+                    hint.textContent = 'Сервер не отвечает: он либо просыпается, либо до него не дошла сеть. Жми Continue — сайт откроется, а связь подхватится сама.';
                 }
-                if (elapsed > GIVE_UP) actions.classList.remove('hidden');
-                await sleep(RETRY_DELAY);
-            }
+            }, 500);
 
-            if (settled) return;
+            const woke = await waitForServer(pingUrl, {
+                cancelled: () => settled,
+                onAttempt: attempt => {
+                    pingLine.textContent = 'Contacting server... no response';
+                    if (!retryLine) {
+                        retryLine = addLine('Server is asleep — waking it up...');
+                        hint.classList.remove('hidden');
+                    } else {
+                        retryLine.textContent = `Waking the server... attempt ${attempt}`;
+                    }
+                },
+            });
+            clearInterval(ticker);
+
+            if (settled || !woke) return; // юзер нажал Continue — тихо выходим
             pingLine.textContent = 'Contacting server... OK';
             if (retryLine) retryLine.textContent = `Server is awake (took ${Math.round((Date.now() - t0) / 1000)}s)`;
             actions.classList.add('hidden');
