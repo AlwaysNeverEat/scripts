@@ -381,7 +381,12 @@
 
 /* ── Вид станции ───────────────────────────────────────────────── */
 
-.rc-station { margin-top: 16px; }
+.rc-station {
+    margin-top: 16px;
+    /* Ширина левой колонки: по ней же режется кнопка «Все станции» в шапке —
+       список станций встаёт ровно под ней. */
+    --side-w: 210px;
+}
 
 .rc-station-head {
     display: flex;
@@ -420,16 +425,18 @@
     gap: 6px;
 }
 
-/* Сетка дня и список станций рядом. Дорожка-бокс имеет разумную ширину
-   (--lane-w), а не растягивается на всю страницу: раньше запись на станции с
-   одним боксом занимала весь экран, и попасть в нужный получас на глаз было
-   тяжело. Освободившееся справа место занимает список станций. */
+/* Слева — колонка станций (под кнопкой «Все станции»), справа — сетка дня.
+   Дорожка-бокс имеет разумную ширину (--lane-w), а не растягивается на всю
+   страницу: раньше запись на станции с одним боксом занимала весь экран, и
+   попасть в нужный получас на глаз было тяжело. */
 .rc-station-body {
     display: flex;
     align-items: flex-start;
     gap: 14px;
     --lane-w: 320px;
 }
+
+.rc-station-head .rc-back { flex: 0 0 var(--side-w); justify-content: flex-start; }
 
 .rc-board {
     flex: 0 1 auto;
@@ -712,12 +719,13 @@
 .rc-st-late { background: var(--red-dim); color: var(--red); }
 .rc-st-new { background: var(--accent-dim); color: var(--accent); }
 
-/* ── Список станций рядом с сеткой ─────────────────────────────── */
-/* Занимает место, освободившееся после того, как записи стали шириной с бокс:
-   переход на соседнюю станцию — в один клик, без возврата в общий список. */
+/* ── Колонка станций слева от сетки ────────────────────────────── */
+/* Стоит под кнопкой «Все станции» и занимает место, освободившееся после того,
+   как записи стали шириной с бокс: переход на соседнюю станцию — в один клик,
+   без возврата в общий список. */
 
 .rc-side {
-    flex: 1 1 240px;
+    flex: 0 0 var(--side-w);
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -733,10 +741,9 @@
 }
 
 .rc-side-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 5px;
-    align-content: start;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .rc-side-item {
@@ -1223,10 +1230,12 @@
     .rc-map-layout { grid-template-columns: 1fr; }
     .rc-map-near { max-height: 160px; }
     .rc-big-map { height: 52vh; }
-    /* Списку станций сбоку места уже нет — уводим его под сетку. */
+    /* Колонке станций слева места уже нет — уводим её под сетку и
+       раскладываем плиткой (в столбик такой список был бы бесконечным). */
     .rc-station-body { flex-wrap: wrap; --lane-w: 280px; }
-    .rc-board { flex-basis: 100%; }
+    .rc-board { order: -1; flex-basis: 100%; }
     .rc-side { flex-basis: 100%; }
+    .rc-side-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 5px; }
 }
 
 @media (max-width: 700px) {
@@ -1234,6 +1243,8 @@
     .rc-searchbox { order: 10; flex-basis: 100%; max-width: none; }
     .rc-field-row { flex-direction: column; gap: 0; }
     .rc-station-body { --lane-w: 240px; }
+    /* Подпись у кнопки спрятана — растягивать её на ширину колонки незачем. */
+    .rc-station-head .rc-back { flex: 0 0 auto; }
     .rc-side-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .rc-station-head .btn-pri { margin-left: 0; width: 100%; justify-content: center; }
 }
