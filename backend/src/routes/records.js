@@ -13,12 +13,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Router } from 'express';
-import { ZmsError, hasCredentials, testAndSaveCredentials, fetchBoardHtml } from '../records/adminClient.js';
+import {
+    ZmsError, hasCredentials, testAndSaveCredentials, fetchBoardHtml, fetchEditFormHtml,
+} from '../records/adminClient.js';
 import {
     getSyncState, syncTick, drainQueue, loadSnapshot,
     enqueueOp, cancelOp, listOps, mskToday,
 } from '../records/sync.js';
-import { parseRecordBoard, timeToMin, SLOT_MINUTES, MAX_DURATION_MIN, MAX_OP_RECORDS } from '../../../shared/crmRecords.js';
+import {
+    parseRecordBoard, parseEditForm, timeToMin,
+    SLOT_MINUTES, MAX_DURATION_MIN, MAX_OP_RECORDS,
+} from '../../../shared/crmRecords.js';
 import { query } from '../db/client.js';
 
 const router = Router();
@@ -109,6 +114,36 @@ router.get('/board', async (req, res) => {
         const board = parseRecordBoard(html);
         const ops = await listOps({ limit: 100 });
         res.json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops });
+    } catch (err) {
+        sendZmsError(res, err);
+    }
+});
+
+// ── Карточка записи ──────────────────────────────────────────────────────────
+
+// На доске оригинал показывает только имя и телефон: госномер и комментарий
+// живут в форме /admin/record/edit. Тянем их поштучно, по требованию (когда
+// запись открыли), — тащить формы всех записей дня ради доски нельзя, оригинал
+// этого не переживёт.
+router.get('/record/:id', async (req, res) => {
+    if (!/^\d+$/.test(req.params.id)) return bad(res, 'id');
+    if (!(await hasCredentials().catch(() => false))) {
+        return res.status(403).json({ error: { code: 'zms_credentials_required', message: 'введите логин/пароль админки' } });
+    }
+    try {
+        const form = parseEditForm(await fetchEditFormHtml(req.params.id));
+        if (!form) {
+            return res.status(404).json({ error: { code: 'record_not_found', message: 'записи больше нет в админке' } });
+        }
+        res.json({
+            record: {
+                id: String(req.params.id),
+                name: form.name || '',
+                phone: form.phone || '',
+                carNumber: form.carNumber || '',
+                comment: form.comment || '',
+            },
+        });
     } catch (err) {
         sendZmsError(res, err);
     }
