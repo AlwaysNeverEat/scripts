@@ -188,6 +188,7 @@ function updateReport(calcState, data, car, carApprovals) {
 // ── Main render ───────────────────────────────────────────────────────────────
 
 function renderCalcControls(container, car, data, calcState, carApprovals) {
+    const focus = captureTypingFocus(container);
     container.innerHTML = `
         ${renderControls(calcState)}
         ${renderFiltersSection(calcState)}
@@ -195,6 +196,40 @@ function renderCalcControls(container, car, data, calcState, carApprovals) {
         ${renderTotals(data, calcState, carApprovals)}
     `;
     bindEvents(container, car, data, calcState, carApprovals);
+    restoreTypingFocus(container, focus);
+}
+
+// ── Фокус на пересборке панели ────────────────────────────────────────────────
+// Панель пересобирается целиком (innerHTML), поэтому поле, в котором человек
+// печатает, умирает вместе со старым DOM: после первого же символа ввод
+// «схлопывался», и набрать дробный объём (4.5 / 4,5) можно было только
+// вставкой из буфера. Снимаем фокус перед пересборкой и возвращаем его в новый
+// узел — вместе с сырым текстом, чтобы промежуточное «4,» не превращалось в «4»
+// прямо под курсором.
+function captureTypingFocus(container) {
+    const el = document.activeElement;
+    if (!el || !container.contains(el) || !el.dataset || !el.dataset.volKey) return null;
+    let selStart = null, selEnd = null;
+    try { selStart = el.selectionStart; selEnd = el.selectionEnd; } catch { /* поле без выделения */ }
+    return { key: el.dataset.volKey, value: el.value, selStart, selEnd };
+}
+
+function restoreTypingFocus(container, saved) {
+    if (!saved) return;
+    const el = container.querySelector(`[data-vol-key="${saved.key}"]`);
+    if (!el) return;
+    el.value = saved.value;
+    el.focus({ preventScroll: true });
+    if (saved.selStart != null) {
+        try { el.setSelectionRange(saved.selStart, saved.selEnd); } catch { /* тип поля без каретки */ }
+    }
+}
+
+// Объём вводят руками, и на русской раскладке дробная часть чаще идёт через
+// запятую — принимаем оба разделителя (в input[type=number] запятая вообще не
+// доезжает до value, поэтому поля объёма — текстовые с inputmode="decimal").
+function parseVolume(str) {
+    return parseFloat(String(str == null ? '' : str).replace(',', '.'));
 }
 
 function renderControls(calcState) {
@@ -407,7 +442,7 @@ function renderAggCard(agg, calcState, carApprovals) {
                 <div class="warn-box">Motul не дал объём заправки. Введи вручную:</div>
                 <div class="agg-volume" style="margin-top:8px">
                     <span class="ctrl-lbl">Объём (л):</span>
-                    <input type="number" step="0.1" min="0" class="filter-row input vol-input"
+                    <input type="text" inputmode="decimal" autocomplete="off" class="filter-row input vol-input"
                         data-vol-key="${agg.key}" value="${calcState.volumeOverride[agg.key] || ''}" placeholder="?"/>
                 </div>
             `;
@@ -459,7 +494,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
     parts.push(`
         <div class="agg-volume">
             <span class="ctrl-lbl">Объём:</span>
-            <input type="number" step="0.1" min="0" class="vol-input"
+            <input type="text" inputmode="decimal" autocomplete="off" class="vol-input"
                 data-vol-key="${agg.key}" value="${calcState.volumeOverride[agg.key] || ''}"
                 placeholder="${defaultVol || '?'}"/>
             ${calcState.volumeOverride[agg.key] ? `<button class="btn-reset-vol" data-vol-reset="${agg.key}" title="сбросить">↺</button>` : ''}
@@ -791,10 +826,18 @@ function bindEvents(container, car, data, calcState, carApprovals) {
     // Volume overrides
     container.querySelectorAll('[data-vol-key]').forEach(inp => {
         inp.oninput = () => {
-            const v = parseFloat(inp.value);
+            const v = parseVolume(inp.value);
             if (isFinite(v) && v > 0) calcState.volumeOverride[inp.dataset.volKey] = v;
             else delete calcState.volumeOverride[inp.dataset.volKey];
             rerender();
+        };
+        // Enter — «готово»: снять фокус, чтобы поле показало нормализованное
+        // значение, а не «4,» из-под пальцев.
+        inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } };
+        inp.onblur = () => {
+            const v = parseVolume(inp.value);
+            const norm = isFinite(v) && v > 0 ? String(v) : '';
+            if (inp.value !== norm) inp.value = norm;
         };
     });
     container.querySelectorAll('[data-vol-reset]').forEach(btn => {
