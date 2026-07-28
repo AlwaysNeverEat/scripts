@@ -60,6 +60,7 @@ const state = {
     highlightId: null,     // подсветить запись после перехода из поиска
     modal: null,           // { kind, ... } | null
     enterAnim: false,      // ближайший render() проявляет содержимое анимацией
+    details: {},           // карточки записей: id → { loading, record, error }
 };
 
 let mapCtl = null;         // Leaflet-контроллер открытой карты (модалки)
@@ -135,6 +136,51 @@ async function loadBoard({ silent = false } = {}) {
     }
     state.boardLoading = false;
     render();
+}
+
+// ── Карточка записи (госномер и комментарий) ─────────────────────────────────
+// На доске оригинала этих полей нет — они лежат в форме правки, поэтому окно
+// записи открывается сразу, а комментарий доезжает отдельным запросом. Ответ
+// ненадолго запоминаем (одну и ту же запись открывают по многу раз), но не
+// навсегда: запись могли поправить и в самой админке, мимо нас.
+const DETAILS_FRESH_MS = 60_000;
+
+function detailsOf(id) {
+    return state.details[String(id)] || null;
+}
+
+// Запись, о которой сейчас окно: по ней решаем, надо ли перерисовать модалку,
+// когда приехала карточка (за это время могли открыть уже другую).
+function modalRecordId(m) {
+    if (m?.kind !== 'chain' && m?.kind !== 'edit') return null;
+    return chainByHead(m.headId) ? String(m.headId) : null;
+}
+
+async function loadDetails(id) {
+    const key = String(id);
+    const cached = state.details[key];
+    // Свежая карточка — берём из памяти; после ошибки повторное открытие
+    // записи всегда пробует ещё раз.
+    if (cached && (cached.loading || (cached.record && Date.now() - cached.at < DETAILS_FRESH_MS))) return cached;
+    // Перечитываем — старое значение остаётся на экране: показывать «загружаю»
+    // поверх уже известного комментария незачем.
+    state.details[key] = { loading: true, record: cached?.record || null, error: '', at: 0 };
+    try {
+        const data = await apiFetch(`/api/records/record/${encodeURIComponent(key)}`);
+        state.details[key] = { loading: false, record: data.record || null, error: '', at: Date.now() };
+    } catch (err) {
+        state.details[key] = { loading: false, record: null, error: err.message, at: Date.now() };
+    }
+    if (modalRecordId(state.modal) === key) {
+        keepEditFields(); // набранное в полях правки перерисовку переживает
+        render();
+    }
+    return state.details[key];
+}
+
+// Правка записи прошла — сохранённая карточка устарела.
+function dropDetails(ids) {
+    for (const id of ids) delete state.details[String(id)];
 }
 
 async function loadOps() {
@@ -1093,6 +1139,26 @@ function chainByPart(recordId) {
     return null;
 }
 
+// Госномер и комментарий записи в окне: пока грузятся — так и говорим, потому
+// что «пусто» и «ещё не приехало» — разные вещи, и оператор должен их различать.
+function detailsHtml(det) {
+    if (!det?.record) {
+        if (!det || det.loading) {
+            return `<div class="rc-chain-row rc-dim">${icons.clock(12)} загружаю госномер и комментарий…</div>`;
+        }
+        return `<div class="rc-chain-row rc-chain-bad">${icons.alert(12)} комментарий не подгрузился: ${esc(det.error)}</div>`;
+    }
+    const rows = [];
+    if (det.record.carNumber) {
+        rows.push(`<div class="rc-chain-row rc-chain-note">${icons.car(12)} ${esc(det.record.carNumber)}</div>`);
+    }
+    if (det.record.comment) {
+        rows.push(`<div class="rc-chain-row rc-chain-note rc-chain-comment">${icons.note(12)}
+            <span>${esc(det.record.comment)}</span></div>`);
+    }
+    return rows.length ? rows.join('') : `<div class="rc-chain-row rc-dim">госномера и комментария нет</div>`;
+}
+
 function modalChain(m) {
     const found = chainByHead(m.headId);
     if (!found) return modalShell('Запись', '<div class="rc-empty-note">Запись уже исчезла с доски (обновите)</div>');
@@ -1106,6 +1172,7 @@ function modalChain(m) {
             ${chain.head.phone && !chain.head.isStub ? `<div class="rc-chain-row">${esc(chain.head.phone)}</div>` : ''}
             <div class="rc-chain-row">${esc(meta?.short || addr.title)} · ${esc(state.date || '')} · ${esc(chain.timeStart)}–${esc(chain.timeEnd)}</div>
             ${n > 1 ? `<div class="rc-chain-row rc-chain-worm">${icons.link(12)} продлённая запись: ${n} слотов по 30 минут</div>` : ''}
+            ${detailsHtml(detailsOf(chain.head.id))}
         </div>
         <div class="rc-chain-actions">
             <button class="btn btn-sec" data-action="open-move" data-head="${esc(chain.head.id)}">${icons.move(14)} Время и длина${n > 1 ? ' (вся запись)' : ''}</button>
@@ -1150,16 +1217,25 @@ function modalEdit(m) {
     const found = chainByHead(m.headId);
     if (!found) return modalShell('Изменить', '<div class="rc-empty-note">Запись уже исчезла с доски</div>');
     const { chain } = found;
+    // Госномер с комментарием приезжают отдельно (их нет на доске). Пока их не
+    // знаем, пустое поле означает «не менять» — иначе правка имени затёрла бы
+    // комментарий. Когда карточка доехала, поля показывают текущие значения и
+    // их можно осознанно очистить.
+    const det = detailsOf(chain.head.id);
+    const known = Boolean(det?.record);
+    const hint = known ? '' : ' <small class="rc-dim">(пусто = не менять)</small>';
     const body = `
     <div class="rc-create-form">
         <label class="edit-field"><span>Имя</span>
             <input id="rc-e-name" type="text" value="${esc(m.name ?? chain.head.name)}"/></label>
         <label class="edit-field"><span>Телефон</span>
             <input id="rc-e-phone" type="tel" value="${esc(m.phone ?? (chain.head.isStub ? '' : chain.head.phone))}"/></label>
-        <label class="edit-field"><span>Госномер <small class="rc-dim">(пусто = не менять)</small></span>
-            <input id="rc-e-car" type="text" value="${esc(m.carNumber || '')}"/></label>
-        <label class="edit-field"><span>Комментарий <small class="rc-dim">(пусто = не менять)</small></span>
-            <textarea id="rc-e-comment" rows="2">${esc(m.comment || '')}</textarea></label>
+        <label class="edit-field"><span>Госномер${hint}</span>
+            <input id="rc-e-car" type="text" value="${esc(m.carNumber ?? det?.record?.carNumber ?? '')}"/></label>
+        <label class="edit-field"><span>Комментарий${hint}</span>
+            <textarea id="rc-e-comment" rows="2">${esc(m.comment ?? det?.record?.comment ?? '')}</textarea></label>
+        ${known || det?.error ? '' : `<div class="rc-prev-note rc-dim">${icons.clock(12)} подтягиваю нынешние госномер и комментарий…</div>`}
+        ${det?.error ? `<div class="rc-prev-note rc-chain-bad">${icons.alert(12)} нынешние госномер и комментарий не подгрузились — пустые поля оставлю как есть</div>` : ''}
         <div class="rc-prev-note">Имя меняется у всех ${chain.parts.length} слотов записи, остальное — только у первого.</div>
         ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
         <div class="modal-actions">
@@ -1825,6 +1901,21 @@ function keepCreateFields() {
     state.modal.comment = document.getElementById('rc-f-comment')?.value ?? state.modal.comment;
 }
 
+// Поля правки переживают перерисовку (её вызывает приехавшая карточка записи).
+// Пустое поле не запоминаем: там нечего беречь, а подставится в него как раз
+// подгруженное значение.
+function keepEditFields() {
+    const m = state.modal;
+    if (m?.kind !== 'edit') return;
+    for (const [key, id] of [['name', 'rc-e-name'], ['phone', 'rc-e-phone'],
+        ['carNumber', 'rc-e-car'], ['comment', 'rc-e-comment']]) {
+        const val = document.getElementById(id)?.value;
+        if (val == null) continue;
+        if (val.trim()) m[key] = val;
+        else delete m[key];
+    }
+}
+
 // ── Действия (делегирование) ─────────────────────────────────────────────────
 
 async function handleAction(btn, ev) {
@@ -1943,7 +2034,11 @@ async function handleAction(btn, ev) {
     }
     if (a === 'submit-create') return submitCreate();
 
-    if (a === 'open-chain') { state.modal = { kind: 'chain', headId: btn.dataset.head }; return render(); }
+    if (a === 'open-chain') {
+        state.modal = { kind: 'chain', headId: btn.dataset.head };
+        loadDetails(btn.dataset.head); // окно открываем сразу, карточка доедет
+        return render();
+    }
     if (a === 'open-move') {
         const found = chainByHead(btn.dataset.head);
         if (!found) return;
@@ -1983,7 +2078,11 @@ async function handleAction(btn, ev) {
     }
     if (a === 'submit-extend') return submitExtend();
 
-    if (a === 'open-edit') { state.modal = { kind: 'edit', headId: btn.dataset.head }; return render(); }
+    if (a === 'open-edit') {
+        state.modal = { kind: 'edit', headId: btn.dataset.head };
+        loadDetails(btn.dataset.head); // без неё поля правки не знают, что там сейчас
+        return render();
+    }
     if (a === 'submit-edit') return submitEdit();
 
     if (a === 'open-delete') { state.modal = { kind: 'delete', headId: btn.dataset.head }; return render(); }
@@ -2296,17 +2395,22 @@ async function submitEdit() {
     const carNumber = document.getElementById('rc-e-car')?.value.trim() || '';
     const comment = document.getElementById('rc-e-comment')?.value.trim() || '';
     if (!name) { m.error = 'имя обязательно'; return render(); }
+    // Нынешние госномер и комментарий известны — отправляем их как есть, в том
+    // числе пустыми (это осознанная очистка). Не известны — пустое поле не шлём
+    // вовсе, и бэкенд оставит то, что было в оригинале.
+    const known = Boolean(detailsOf(chain.head.id)?.record);
     const records = chain.parts.map((p, i) => {
         const r = { id: p.id, name };
         if (i === 0) {
             if (phone) r.phone = phone;
-            if (carNumber) r.carNumber = carNumber;
-            if (comment) r.comment = comment;
+            if (known || carNumber) r.carNumber = carNumber;
+            if (known || comment) r.comment = comment;
         }
         return r;
     });
     try {
         await postOp('update', { records });
+        dropDetails(chain.parts.map(p => p.id));
         state.modal = null;
         render();
     } catch (err) {
@@ -2327,6 +2431,7 @@ async function submitDelete() {
     if (!records.length) { state.modal = null; return render(); }
     try {
         await postOp('delete', { records });
+        dropDetails(records.map(r => r.id));
         state.modal = null;
         render();
     } catch (err) {
@@ -2363,6 +2468,7 @@ function resetState() {
         highlightId: null,
         modal: null,
         enterAnim: false,
+        details: {},
     });
 }
 

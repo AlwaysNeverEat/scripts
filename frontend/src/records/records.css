@@ -948,6 +948,19 @@
 .rc-chain-row { color: var(--sub); font-size: 12.5px; }
 .rc-chain-worm { color: var(--blue); display: flex; align-items: center; gap: 6px; }
 
+/* Госномер и комментарий: на доске их нет, окно тянет их отдельным запросом —
+   поэтому здесь же живут строки «загружаю» и «не подгрузилось». */
+.rc-chain-note,
+.rc-chain-bad,
+.rc-chain-row.rc-dim { display: flex; align-items: flex-start; gap: 6px; }
+.rc-chain-note { color: var(--text); }
+.rc-chain-bad { color: var(--red); }
+.rc-chain-note svg,
+.rc-chain-bad svg,
+.rc-chain-row.rc-dim svg { flex: none; margin-top: 1px; }
+.rc-chain-note svg { color: var(--sub); }
+.rc-chain-comment span { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .rc-chain-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .rc-chain-actions .btn { display: inline-flex; align-items: center; gap: 7px; justify-content: flex-start; }
 

@@ -67,6 +67,8 @@
         return json({ date, board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: [] });
       }
       if (u.includes('/api/records/ops')) return json({ ops: [] });
+      if (u.includes('/api/records/record/')) return json({ record: { id: u.split('/').pop(), name: '', phone: '',
+        carNumber: 'о123ор198', comment: 'Замена масла + масляный фильтр, клиент просил позвонить перед приездом' } });
       return realFetch(url, init);
     };
 
