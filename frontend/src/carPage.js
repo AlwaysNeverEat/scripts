@@ -16,6 +16,20 @@ import {
 
 let editMode = false;
 
+// Атрибуты числового поля формы правки: 'decimal' — дробь через точку ИЛИ
+// запятую (обычный текст + числовая клавиатура на телефоне), 'number' —
+// целые (годы, кВт, л.с.), 'text' — как есть.
+function numAttrs(type) {
+    if (type === 'decimal') return 'type="text" inputmode="decimal" autocomplete="off"';
+    if (type === 'number') return 'type="number" step="any"';
+    return `type="${type}"`;
+}
+
+// «4,5» → 4.5: на русской раскладке дробную часть чаще отбивают запятой.
+function parseDecimal(str) {
+    return parseFloat(String(str == null ? '' : str).replace(',', '.'));
+}
+
 export function initCarPage(record, { apiFetch, onChanged, user }) {
     editMode = false;
     renderHead(record, { apiFetch, onChanged, user });
@@ -271,10 +285,13 @@ function confirmDeleteCar(record, ctx) {
 // ── Режим правки ──────────────────────────────────────────────────────────────
 
 function renderEditForm(record) {
+    // 'decimal' — дробное поле (объём): текстовое, а не number, иначе браузер
+    // выкидывает запятую («4,5» приходит в value пустой строкой) и введённый
+    // объём молча теряется при сохранении. Разбирает такие поля parseDecimal.
     const f = (key, label, value, type = 'text') => `
         <label class="edit-field">
             <span>${label}</span>
-            <input type="${type}" ${type === 'number' ? 'step="any"' : ''} data-edit="${key}" value="${esc(value == null ? '' : String(value))}"/>
+            <input ${numAttrs(type)} data-edit="${key}" value="${esc(value == null ? '' : String(value))}"/>
         </label>`;
 
     const fpn = record.filter_part_numbers || {};
@@ -310,7 +327,7 @@ function renderEditForm(record) {
             <div class="edit-std-agg">
                 <div class="edit-agg-row">
                     <input type="text" class="edit-agg-name" data-edit-agg-label="${key}" value="${esc(a.label || '')}" placeholder="${esc(defName)}" title="название агрегата — можно переименовать"/>
-                    <input type="number" step="0.1" min="0" data-edit-vol="${key}" value="${vol}" style="width:90px" title="объём, л"/>
+                    <input type="text" inputmode="decimal" autocomplete="off" data-edit-vol="${key}" value="${vol}" style="width:90px" title="объём, л"/>
                     <span style="color:var(--sub);font-size:12px">л</span>
                 </div>${apprBox}
             </div>`;
@@ -365,7 +382,7 @@ function renderEditForm(record) {
                 ${f('generation', 'Поколение', record.generation)}
                 ${f('engine_name', 'Двигатель', record.engine_name)}
                 ${f('engine_code', 'Код двигателя', record.engine_code)}
-                ${f('engine_volume', 'Объём, л', record.engine_volume, 'number')}
+                ${f('engine_volume', 'Объём, л', record.engine_volume, 'decimal')}
                 ${f('year_from', 'Год с *', record.year_from, 'number')}
                 ${f('year_to', 'Год по', record.year_to, 'number')}
                 ${f('kw', 'кВт', record.kw, 'number')}
@@ -452,7 +469,7 @@ function renderCustomAggRow(c, i) {
             </div>
             <div class="edit-custom-agg-row">
                 <select data-cagg="type">${typeOpts}</select>
-                <input type="number" step="0.1" min="0" data-cagg="volume" value="${esc(c.volume)}" placeholder="объём, л" style="width:110px"/>
+                <input type="text" inputmode="decimal" autocomplete="off" data-cagg="volume" value="${esc(c.volume)}" placeholder="объём, л" style="width:110px"/>
                 <span style="color:var(--sub);font-size:12px">л</span>
             </div>
             <textarea data-cagg="approvals" rows="2" placeholder="допуска — по одному в строке (напр. NS-3, Motul CVTF)">${esc(c.approvals)}</textarea>
@@ -543,7 +560,7 @@ function bindEditForm(head, record, ctx) {
             const el = head.querySelector(`[data-edit="${k}"]`);
             return el ? el.value.trim() : '';
         };
-        const num = (k) => { const v = parseFloat(val(k)); return isFinite(v) ? v : null; };
+        const num = (k) => { const v = parseDecimal(val(k)); return isFinite(v) ? v : null; };
         const int = (k) => { const v = parseInt(val(k)); return isFinite(v) ? v : null; };
 
         const filters = {};
@@ -568,7 +585,7 @@ function bindEditForm(head, record, ctx) {
         const fluid = JSON.parse(JSON.stringify(record.fluid_capacities || {}));
         head.querySelectorAll('[data-edit-vol]').forEach(inp => {
             const key = inp.dataset.editVol;
-            const v = parseFloat(inp.value);
+            const v = parseDecimal(inp.value);
             if (!isFinite(v) || v <= 0 || !fluid[key]) return;
             if (key === 'engine') fluid.engine.volumeService = v;
             else fluid[key].volumeTotal = v;
@@ -596,7 +613,7 @@ function bindEditForm(head, record, ctx) {
         // Пользовательские агрегаты → fluid_capacities.custom
         fluid.custom = customAggs.map(c => {
             const group = c.type === 'gear' ? 'gear' : 'auto';
-            const vol = parseFloat(c.volume);
+            const vol = parseDecimal(c.volume);
             const approvals = String(c.approvals || '')
                 .split(/\r?\n/).map(s => s.trim()).filter(Boolean);
             return {
