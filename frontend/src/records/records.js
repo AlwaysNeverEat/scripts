@@ -22,8 +22,9 @@ import { createStationsMap, geocodeStreet, stationsNear } from './map.js';
 import { findStationMeta, LINE_COLORS, LINE_NAMES } from '../../../shared/stationsMeta.js';
 import {
     detectChains, assignLanes, flattenAddressRecords, buildCopyLine,
-    timeToMin, addMinutes, formatRuPhone,
+    timeToMin, addMinutes, formatRuPhone, isBookableTime,
     EXTENSION_STUB_PHONE, SLOT_MINUTES, MAX_DURATION_MIN, copyOperatorFor,
+    LAST_START_TIME,
 } from '../../../shared/crmRecords.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
@@ -233,6 +234,23 @@ function boxesFor(addr, board = state.board) {
 
 function chainsFor(addressId, board = state.board) {
     return detectChains(flattenAddressRecords(board?.cells || {}, String(addressId)));
+}
+
+// Занятость станции за день: сколько записей стоит и сколько боксо-получасов
+// ещё можно продать. Слоты после закрытия (21:00) в «свободно» не идут — оригинал
+// рисует «Добавить» до 22:30, но записывать туда нам некуда.
+function stationCounts(addr, board = state.board) {
+    const byTime = board?.cells[addr.id] || {};
+    const { del } = pendingRecordIds();
+    let booked = 0;
+    let free = 0;
+    for (const t of board?.timeSlots || []) {
+        const cell = byTime[t];
+        if (!cell) continue;
+        booked += cell.records.filter(r => !del.has(String(r.id))).length;
+        if (isBookableTime(t)) free += cell.free;
+    }
+    return { booked, free };
 }
 
 function pendingOps() {
@@ -631,15 +649,15 @@ function overviewCard(addr, meta, i = 0) {
         return out;
     }));
 
-    let booked = 0;
-    let free = 0;
+    const { booked, free } = stationCounts(addr);
     const ticks = slots.map(t => {
         const cell = byTime[t];
         if (!cell) return `<i class="rc-tick rc-tick-closed"></i>`;
         const alive = cell.records.filter(r => !del.has(String(r.id))).length;
-        booked += alive;
-        free += cell.free;
         const ghost = ghostTimes.has(t);
+        // После 21:00 станция закрыта: чужие записи там ещё показываем, но
+        // «свободно» не рисуем — записать туда всё равно нельзя.
+        if (!isBookableTime(t) && !alive) return `<i class="rc-tick rc-tick-closed"></i>`;
         if (alive >= boxes && boxes > 0) return `<i class="rc-tick rc-tick-full${ghost ? ' rc-tick-ghost' : ''}"></i>`;
         if (alive > 0) return `<i class="rc-tick rc-tick-part${ghost ? ' rc-tick-ghost' : ''}"></i>`;
         return `<i class="rc-tick rc-tick-free${ghost ? ' rc-tick-ghost' : ''}"></i>`;
@@ -685,13 +703,16 @@ function renderStation() {
     const rows = slots.map((t, i) => {
         const cell = byTime[t];
         const closed = !cell;
-        const freeN = cell ? cell.free : 0;
+        // Оригинал держит сетку до 22:30, а станции работают до 21:00: такие
+        // слоты рисуем нерабочими — записи в них (если их завели мимо клона)
+        // остаются на месте, но новых там не предложим.
+        const afterHours = !closed && !isBookableTime(t);
         return `
-        <div class="rc-row ${closed ? 'rc-row-closed' : ''}" style="top:${i * ROW_H}px">
+        <div class="rc-row ${closed || afterHours ? 'rc-row-closed' : ''}" style="top:${i * ROW_H}px">
             <span class="rc-row-time">${esc(t)}</span>
-            ${freeN > 0
-                ? `<button class="rc-row-free" data-action="create-at" data-time="${esc(t)}" title="Свободно боксов: ${freeN} — создать запись">${icons.plus(12)}<i>${freeN}</i></button>`
-                : (closed ? '<span class="rc-row-closed-label">закрыто</span>' : '')}
+            ${closed ? '<span class="rc-row-closed-label">закрыто</span>'
+                : afterHours ? '<span class="rc-row-closed-label" title="Станция работает до 21:00">не работаем</span>'
+                : ''}
         </div>`;
     }).join('');
 
@@ -733,16 +754,60 @@ function renderStation() {
         </button>`;
     }).join('');
 
+    // Занятость дорожек по слотам — из неё растут кнопки «записать»: они стоят
+    // ровно в свободном боксе и ровно на своей строке времени, поэтому промазать
+    // мимо получаса нельзя (раньше это была одна кнопка «+N» у правого края).
+    const busy = slots.map(() => new Array(lanes).fill(false));
+    const markBusy = (i0, n, lane) => {
+        for (let i = i0; i < Math.min(i0 + n, slots.length); i++) busy[i][lane] = true;
+    };
+    for (const chain of chains) {
+        const i0 = startIdx(chain.timeStart);
+        if (i0 !== -1) markBusy(i0, chain.parts.length, byHeadId[chain.head.id] ?? 0);
+    }
+    // Призрак садится в первую свободную дорожку — туда же, куда сядет и сама
+    // запись, когда очередь дойдёт до оригинала.
+    for (const g of ghosts) {
+        const i0 = startIdx(g.timeStart);
+        if (i0 === -1) continue;
+        let lane = 0;
+        while (lane < lanes - 1 && busy[i0][lane]) lane++;
+        g.lane = lane;
+        markBusy(i0, g.parts, lane);
+    }
+
+    const laneStyle = (lane, i0, n) => `top:${i0 * ROW_H + 2}px; height:${n * ROW_H - 5}px;`
+        + ` left:calc((100% / ${lanes}) * ${lane} + 3px); width:calc(100% / ${lanes} - 7px)`;
+
     const ghostCaps = ghosts.map(g => {
         const i0 = startIdx(g.timeStart);
         if (i0 === -1) return '';
         return `
-        <div class="rc-cap rc-cap-ghost" style="top:${i0 * ROW_H + 2}px; height:${g.parts * ROW_H - 5}px;
-                left:3px; width:calc(100% - 7px)"
+        <div class="rc-cap rc-cap-ghost" style="${laneStyle(g.lane || 0, i0, g.parts)}"
              title="В очереди — создастся, когда админка оживёт">
             <span class="rc-cap-line1">${icons.clock(11)}<b>${esc(g.name)}</b></span>
             <span class="rc-cap-line2">${esc(g.timeStart)}–${esc(g.timeEnd)} · в очереди</span>
         </div>`;
+    }).join('');
+
+    // Кнопка на каждый свободный бокс: размером с запись и подписана временем —
+    // видно, куда именно попадёшь.
+    const addBtns = slots.flatMap((t, i) => {
+        const cell = byTime[t];
+        if (!cell || !isBookableTime(t)) return [];
+        const out = [];
+        let left = cell.free; // сколько боксов оригинал считает свободными
+        for (let lane = 0; lane < lanes && left > 0; lane++) {
+            if (busy[i][lane]) continue;
+            left--;
+            out.push(`
+            <button class="rc-add" data-action="create-at" data-time="${esc(t)}"
+                style="${laneStyle(lane, i, 1)}"
+                title="Свободно: ${esc(t)}, бокс ${lane + 1} — создать запись">
+                ${icons.plus(12)}<i>${esc(t)}</i>
+            </button>`);
+        }
+        return out;
     }).join('');
 
     const laneHeads = Array.from({ length: lanes }, (_, i) =>
@@ -765,17 +830,50 @@ function renderStation() {
             </div>
             <button class="btn btn-pri" data-action="create-at" data-time="">${icons.plus(14)} Новая запись</button>
         </div>
-        <div class="rc-lanes-heads" style="--lanes:${lanes}">${laneHeads}</div>
-        <div class="rc-grid" style="height:${gridH}px">
-            <div class="rc-rows">${rows}</div>
-            <i class="rc-now hidden" aria-hidden="true"></i>
-            <div class="rc-lanes" style="--lanes:${lanes}">
-                ${Array.from({ length: Math.max(0, lanes - 1) }, (_, i) =>
-                    `<i class="rc-lane-sep" style="left:calc((100% / ${lanes}) * ${i + 1})"></i>`).join('')}
-                ${ghostCaps}${caps}
+        <div class="rc-station-body">
+            <div class="rc-board" style="--lanes:${lanes}">
+                <div class="rc-lanes-heads">${laneHeads}</div>
+                <div class="rc-grid" style="height:${gridH}px">
+                    <div class="rc-rows">${rows}</div>
+                    <i class="rc-now hidden" aria-hidden="true"></i>
+                    <div class="rc-lanes">
+                        ${Array.from({ length: Math.max(0, lanes - 1) }, (_, i) =>
+                            `<i class="rc-lane-sep" style="left:calc((100% / ${lanes}) * ${i + 1})"></i>`).join('')}
+                        ${addBtns}${ghostCaps}${caps}
+                    </div>
+                </div>
             </div>
+            ${otherStationsHtml(addr.id)}
         </div>
     </main>`;
+}
+
+// Соседний список станций: место, освободившееся справа от сетки (записи стали
+// узкими — шириной с бокс), занимает быстрый переход на другую станцию, чтобы
+// не бегать через «Все станции» и обратно.
+function otherStationsHtml(currentId) {
+    const items = state.board.addresses
+        .map(a => ({ addr: a, meta: metaFor(a) }))
+        .sort((x, y) =>
+            (x.meta?.line || 9) - (y.meta?.line || 9)
+            || String(x.meta?.short || x.addr.title).localeCompare(String(y.meta?.short || y.addr.title), 'ru'))
+        .map(({ addr, meta }) => {
+            const { free, booked } = stationCounts(addr);
+            const active = String(addr.id) === String(currentId);
+            const tone = free === 0 ? 'rc-side-none' : free <= 5 ? 'rc-side-low' : '';
+            return `
+            <button class="rc-side-item ${active ? 'rc-side-active' : ''}" data-action="open-station"
+                data-id="${esc(addr.id)}" title="${esc(addr.title)} · ${booked} зап., ${free} свободно">
+                <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
+                <b>${esc(meta?.short || addr.title)}</b>
+                <span class="rc-side-free ${tone}">${free}</span>
+            </button>`;
+        }).join('');
+    return `
+    <aside class="rc-side">
+        <div class="rc-side-head">Станции · свободных получасов</div>
+        <div class="rc-side-list">${items}</div>
+    </aside>`;
 }
 
 // ── Модалки ──────────────────────────────────────────────────────────────────
@@ -810,9 +908,11 @@ function modalShell(title, body, { wide = false, map = false } = {}) {
 }
 
 // Свободен ли слот t на станции addr (для превью длительности и окон переноса).
+// Слоты после закрытия (21:00) свободными не считаем: оригинал предлагает
+// записывать до 22:30, но станции к этому времени уже не работают.
 function slotFree(addrId, t, board = state.board) {
     const cell = board?.cells?.[String(addrId)]?.[t];
-    return Boolean(cell && cell.free > 0);
+    return Boolean(cell && cell.free > 0 && isBookableTime(t));
 }
 
 // Доска, к которой относится окно создания: для чужой даты — своя,
@@ -918,10 +1018,12 @@ function clampDuration(ctx, min) {
     return Math.max(SLOT_MINUTES, Math.min(val, Math.max(SLOT_MINUTES, max)));
 }
 
-// Свободный промежуток упёрся в конец рабочего дня, а не в чужую запись.
+// Свободный промежуток упёрся в конец рабочего дня (или в закрытие в 21:00),
+// а не в чужую запись.
 function runEndsWithDay(ctx, run) {
     if (!ctx?.board || !ctx.start) return false;
-    return !ctx.board.timeSlots.includes(addMinutes(ctx.start, run));
+    const next = addMinutes(ctx.start, run);
+    return !ctx.board.timeSlots.includes(next) || !isBookableTime(next);
 }
 
 // Слотов может быть и 24, и 41 — простого «меньше пяти» тут уже не хватает.
@@ -956,12 +1058,13 @@ function timelineHtml(ctx) {
     const rows = ctx.board.timeSlots.map(t => {
         const cell = byTime[t];
         const closed = !cell;
+        const afterHours = !closed && !isBookableTime(t); // сетка оригинала шире рабочего дня
         const freeN = cell ? cell.free : 0;
         const recs = (cell?.records || []).filter(r => !del.has(String(r.id)));
         const ghost = ghostAt.get(t);
         // Начало выбирают только в свободном слоте; при продлении начало
         // фиксировано, поэтому строки кликать вообще нельзя.
-        const pickable = !ctx.fixedStart && (freeN > 0 || ctx.ownTimes.has(t));
+        const pickable = !ctx.fixedStart && (slotFree(ctx.addrId, t, ctx.board) || ctx.ownTimes.has(t));
 
         const chips = recs.map(r => {
             const mine = ctx.ownIds.has(String(r.id));
@@ -972,13 +1075,14 @@ function timelineHtml(ctx) {
         if (ghost) chips.push(`<i class="rc-tl-rec rc-tl-rec-ghost" title="В очереди — создастся, когда админка оживёт">${esc(ghost.name || 'в очереди')}</i>`);
 
         const tag = closed ? '<i class="rc-tl-tag">закрыто</i>'
+            : afterHours ? '<i class="rc-tl-tag">не работаем</i>'
             : freeN > 0 ? `<i class="rc-tl-tag rc-tl-tag-free">${freeN} своб.</i>`
             : '<i class="rc-tl-tag">занято</i>';
 
         return `
-        <button class="rc-tl-row ${closed ? 'rc-tl-closed' : ''} ${ctx.ownTimes.has(t) ? 'rc-tl-mine' : ''}"
+        <button class="rc-tl-row ${closed || afterHours ? 'rc-tl-closed' : ''} ${ctx.ownTimes.has(t) ? 'rc-tl-mine' : ''}"
             data-action="tl-pick" data-time="${esc(t)}" ${pickable ? '' : 'disabled'}
-            title="${pickable ? `Начать в ${esc(t)}` : closed ? 'Слот закрыт' : 'Слот занят'}">
+            title="${pickable ? `Начать в ${esc(t)}` : closed ? 'Слот закрыт' : afterHours ? 'Станция работает до 21:00' : 'Слот занят'}">
             <span class="rc-tl-time">${esc(t)}</span>
             <span class="rc-tl-body">${chips.join('')}</span>
             ${tag}
@@ -1018,6 +1122,9 @@ function durationHtml(dur, max) {
 function pickNoteHtml(ctx, dur, max) {
     if (!ctx.board) return '';
     if (!max) {
+        if (ctx.start && !isBookableTime(ctx.start)) {
+            return `${icons.alert(12)} рабочий день кончился — станции работают до 21:00`;
+        }
         return ctx.kind === 'extend'
             ? `${icons.alert(12)} сразу после записи занято — продлить некуда`
             : `${icons.alert(12)} с этого времени свободного окна нет`;
@@ -1105,7 +1212,8 @@ function modalCreate(m) {
                     <div class="rc-pick-note"></div>
                     <div class="rc-pick-hint">Клик по свободному получасу — начало окна: выбранная длина
                         переезжает следом (хоть раньше, хоть позже). Shift+клик ниже — конец окна.
-                        Длительность — кнопками ±, вводом с клавиатуры или «всё окно» целиком.</div>
+                        Длительность — кнопками ±, вводом с клавиатуры или «всё окно» целиком.
+                        Станции работают до 21:00, поэтому последнее начало — ${esc(LAST_START_TIME)}.</div>
                 </div>
             </div>`}
 
@@ -1208,7 +1316,9 @@ function modalExtend(m) {
             <div class="modal-actions">
                 <button class="btn btn-pri" data-action="submit-extend">${icons.clock(14)} Продлить${isDown() ? ' (в очередь)' : ''}</button>
             </div>`
-            : '<div class="rc-empty-note">Сразу после записи свободных слотов нет — продлить некуда.</div>'}
+            : `<div class="rc-empty-note">${isBookableTime(chain.timeEnd)
+                ? 'Сразу после записи свободных слотов нет — продлить некуда.'
+                : 'Запись упирается в закрытие: станции работают до 21:00.'}</div>`}
     </div>`;
     return modalShell('Продлить запись', body, { wide: true });
 }
@@ -2267,6 +2377,10 @@ async function submitCreate() {
     const date = m.date || state.date;
     if (m.dateLoading) { m.error = `расписание на ${date} ещё грузится`; return render(); }
     if (!m.time) { m.error = 'выбери время в расписании'; return render(); }
+    if (!isBookableTime(m.time)) {
+        m.error = `станции работают до 21:00 — позже ${LAST_START_TIME} записать нельзя`;
+        return render();
+    }
     if (!String(m.name || '').trim()) { m.error = 'имя обязательно'; return render(); }
     setPickDuration(m.durationMinutes); // окно могло ужаться, пока окно открыто
     try {

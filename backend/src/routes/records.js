@@ -22,7 +22,7 @@ import {
 } from '../records/sync.js';
 import {
     parseRecordBoard, parseEditForm, timeToMin,
-    SLOT_MINUTES, MAX_DURATION_MIN, MAX_OP_RECORDS,
+    SLOT_MINUTES, MAX_DURATION_MIN, MAX_OP_RECORDS, WORK_END_MIN,
 } from '../../../shared/crmRecords.js';
 import { query } from '../db/client.js';
 
@@ -158,7 +158,11 @@ function validateCreate(p) {
     if (!String(p.name || '').trim()) return 'name';
     const dur = Number(p.durationMinutes) || SLOT_MINUTES;
     if (dur < SLOT_MINUTES || dur > MAX_DURATION_MIN || dur % SLOT_MINUTES !== 0) return 'durationMinutes';
-    if (Number.isNaN(timeToMin(p.time))) return 'time';
+    const start = timeToMin(p.time);
+    if (Number.isNaN(start)) return 'time';
+    // Сетка оригинала шире рабочего дня (до 22:30), а станции работают до 21:00:
+    // запись, которая вылезает за закрытие, до очереди не доходит вовсе.
+    if (start + dur > WORK_END_MIN) return 'time';
     return null;
 }
 

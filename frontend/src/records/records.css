@@ -10,6 +10,19 @@
     font-size: 13px;
 }
 
+/* Кнопки раздела почти все «иконка + подпись», а базовый .btn — inline-block:
+   SVG вставал на базовую линию текста, и стрелка с подписью («Все станции»)
+   выглядели съехавшими друг относительно друга. Ровняем по центру и разводим
+   зазором один раз на весь раздел. Отдельные кнопки (например список действий
+   в карточке записи) переопределяют выравнивание ниже — они идут позже. */
+.rc-shell .btn,
+.rc-modal .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
 .rc-shell {
     max-width: 1400px;
     margin: 0 auto;
@@ -407,6 +420,24 @@
     gap: 6px;
 }
 
+/* Сетка дня и список станций рядом. Дорожка-бокс имеет разумную ширину
+   (--lane-w), а не растягивается на всю страницу: раньше запись на станции с
+   одним боксом занимала весь экран, и попасть в нужный получас на глаз было
+   тяжело. Освободившееся справа место занимает список станций. */
+.rc-station-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    --lane-w: 320px;
+}
+
+.rc-board {
+    flex: 0 1 auto;
+    min-width: 0;
+    width: calc(64px + var(--lanes) * var(--lane-w));
+    max-width: 100%;
+}
+
 .rc-lanes-heads {
     display: grid;
     grid-template-columns: repeat(var(--lanes), 1fr);
@@ -458,31 +489,45 @@
 .rc-row-closed .rc-row-time { opacity: 0.4; }
 .rc-row-closed-label { color: var(--sub); opacity: 0.4; font-size: 10px; margin-left: auto; margin-right: 10px; }
 
-.rc-row-free {
-    margin-left: auto;
-    margin-right: 6px;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    background: var(--green-dim);
-    color: var(--green);
-    border: 1px solid transparent;
-    border-radius: 7px;
-    font-size: 10px;
-    padding: 3px 7px;
-    cursor: pointer;
+/* Кнопка «записать» стоит там же, где встанет сама запись: в своей дорожке и
+   на своей строке времени. Подпись — время слота, чтобы не гадать, куда
+   попадёшь. */
+.rc-add {
+    position: absolute;
     z-index: 5;
-    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 8px;
+    border: 1px dashed color-mix(in oklab, var(--green) 45%, transparent);
+    border-radius: 11px;
+    background: color-mix(in oklab, var(--green) 7%, transparent);
+    color: var(--green);
+    font-size: 10.5px;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.12s, border-color 0.12s, background 0.12s;
 }
 
-.rc-row-free:hover { border-color: var(--green); }
+.rc-add i {
+    font-style: normal;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.rc-add:hover {
+    opacity: 1;
+    border-style: solid;
+    background: var(--green-dim);
+}
 
 .rc-lanes {
     position: absolute;
     top: 0;
     bottom: 0;
     left: 64px;
-    right: 44px;
+    right: 6px;
 }
 
 /* Маркер «сейчас»: тонкая линия ровно на текущем времени — не по границе
@@ -493,7 +538,7 @@
 .rc-now {
     position: absolute;
     left: 58px;
-    right: 48px; /* обрывается перед колонкой кнопок «+N» справа */
+    right: 6px;
     height: 0;
     margin-top: -1px; /* линия центрируется на самой минуте */
     z-index: 3;       /* выше фона строк, ниже капсул (4) и кнопок «+N» (5) */
@@ -524,15 +569,17 @@
 
 /* ── Капсулы-«червячки» ────────────────────────────────────────── */
 
+/* Высота капсулы — ровно её слоты (31px на получас), поэтому две строки в неё
+   влезают только вплотную: отсюда прижатые интерлиньяжи и padding без запаса —
+   иначе телефон обрезается по нижнему краю. */
 .rc-cap {
     position: absolute;
     z-index: 4;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    gap: 1px;
     text-align: left;
-    padding: 4px 8px;
+    padding: 3px 8px;
     border-radius: 11px;
     border: 1px solid var(--border);
     background: var(--bg3);
@@ -611,7 +658,7 @@
     align-items: center;
     gap: 5px;
     font-size: 11.5px;
-    line-height: 1.25;
+    line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -621,6 +668,7 @@
 
 .rc-cap-line2 {
     font-size: 10px;
+    line-height: 1.15;
     color: var(--sub);
     white-space: nowrap;
     overflow: hidden;
@@ -663,6 +711,71 @@
 .rc-st-ok { background: var(--green-dim); color: var(--green); }
 .rc-st-late { background: var(--red-dim); color: var(--red); }
 .rc-st-new { background: var(--accent-dim); color: var(--accent); }
+
+/* ── Список станций рядом с сеткой ─────────────────────────────── */
+/* Занимает место, освободившееся после того, как записи стали шириной с бокс:
+   переход на соседнюю станцию — в один клик, без возврата в общий список. */
+
+.rc-side {
+    flex: 1 1 240px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rc-side-head {
+    font-size: 10px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--sub);
+    padding: 4px 0;
+}
+
+.rc-side-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 5px;
+    align-content: start;
+}
+
+.rc-side-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 7px 9px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: var(--text);
+    font-size: 11.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+
+.rc-side-item:hover { border-color: var(--accent); background: var(--bg2); }
+.rc-side-item b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+
+.rc-side-active { border-color: var(--accent); background: var(--bg2); }
+
+/* Счётчик свободных получасов: цветом кричит только «мало» и «нет». */
+.rc-side-free {
+    margin-left: auto;
+    flex: none;
+    min-width: 22px;
+    text-align: center;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--bg3);
+    color: var(--sub);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.rc-side-low { background: var(--accent-dim); color: var(--accent); }
+.rc-side-none { background: var(--red-dim); color: var(--red); }
 
 /* ── Модалки ───────────────────────────────────────────────────── */
 
@@ -1110,12 +1223,17 @@
     .rc-map-layout { grid-template-columns: 1fr; }
     .rc-map-near { max-height: 160px; }
     .rc-big-map { height: 52vh; }
+    /* Списку станций сбоку места уже нет — уводим его под сетку. */
+    .rc-station-body { flex-wrap: wrap; --lane-w: 280px; }
+    .rc-board { flex-basis: 100%; }
+    .rc-side { flex-basis: 100%; }
 }
 
 @media (max-width: 700px) {
     .rc-btn-label { display: none; }
     .rc-searchbox { order: 10; flex-basis: 100%; max-width: none; }
     .rc-field-row { flex-direction: column; gap: 0; }
-    .rc-lanes { right: 40px; }
+    .rc-station-body { --lane-w: 240px; }
+    .rc-side-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .rc-station-head .btn-pri { margin-left: 0; width: 100%; justify-content: center; }
 }

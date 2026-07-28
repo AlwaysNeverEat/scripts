@@ -9,7 +9,7 @@ import {
     findSlotConflict, findBoardRecord, isExtensionCreate,
     isRecordBoard, looksLikeLoginPage, parseEditForm,
     timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
-    EXTENSION_STUB_PHONE,
+    isBookableTime, LAST_START_TIME, EXTENSION_STUB_PHONE,
 } from './crmRecords.js';
 import { findStationMeta } from './stationsMeta.js';
 
@@ -25,6 +25,17 @@ test('время: конвертации туда-обратно', () => {
     assert.equal(minToTime(540), '09:00');
     assert.equal(addMinutes('09:30', 30), '10:00');
     assert.equal(addMinutes('20:30', 30), '21:00');
+});
+
+// Сетка оригинала шире рабочего дня: «Добавить» он рисует до 22:30, хотя
+// станции закрываются в 21:00.
+test('isBookableTime: записываем только до закрытия', () => {
+    assert.equal(LAST_START_TIME, '20:30');
+    assert.equal(isBookableTime('09:00'), true);
+    assert.equal(isBookableTime('20:30'), true);
+    assert.equal(isBookableTime('21:00'), false);
+    assert.equal(isBookableTime('22:30'), false);
+    assert.equal(isBookableTime(''), false);
 });
 
 test('formatRuPhone: любой ввод приводится к формату админки', () => {
@@ -91,6 +102,19 @@ test('parseRecordBoard: каждая станция из выгрузки нах
     assert.equal(findStationMeta('СПБ, Ветеранов 167 к.8 СПОТ').short, 'Ветеранов 167к8');
     assert.equal(findStationMeta('СПб, Выборгское шоссе 2').boxNo, '##09');
     assert.equal(findStationMeta('Выборгское ш. 212к8').boxNo, '##19');
+});
+
+// Короткое имя — единственная подпись станции почти во всём разделе, поэтому
+// номер дома в нём обязателен: «212» и «212к8» — разные адреса на карте.
+test('короткие имена станций сохраняют номер дома', () => {
+    assert.equal(findStationMeta('Выборгское ш. 212к8').short, 'Выб. шоссе 212к8');
+    assert.equal(findStationMeta('Санкт-Петербург, Полюстровский проспект, 59к1').short, 'Полюстровский 59к1');
+    assert.equal(findStationMeta('Санкт-Петербург, Индустриальный проспект, 47к1Б').short, 'Индустриальный 47к1Б');
+    assert.equal(findStationMeta('Фучика 14к4').short, 'Фучика 14к4');
+    // Алиасы одной станции обязаны совпадать по short: по нему схлопываются
+    // дубли в карте и в поиске ближайших.
+    assert.equal(findStationMeta('Охтинская ал 9/1,Мурино').short, findStationMeta('Мурино').short);
+    assert.equal(findStationMeta('Центральная ул., 25, Кудрово').short, findStationMeta('Кудрово').short);
 });
 
 test('parseRecordBoard: конкретная запись 09:00 разобрана полностью', () => {
