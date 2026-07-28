@@ -816,7 +816,7 @@ function renderStation() {
     return `
     <main class="rc-station ${state.enterAnim ? 'rc-in' : ''}">
         <div class="rc-station-head">
-            <button class="btn btn-sec" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
+            <button class="btn btn-sec rc-back" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
             <div class="rc-station-title">
                 <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
                 <b>${esc(meta?.short || addr.title)}</b>
@@ -831,6 +831,7 @@ function renderStation() {
             <button class="btn btn-pri" data-action="create-at" data-time="">${icons.plus(14)} Новая запись</button>
         </div>
         <div class="rc-station-body">
+            ${otherStationsHtml(addr.id)}
             <div class="rc-board" style="--lanes:${lanes}">
                 <div class="rc-lanes-heads">${laneHeads}</div>
                 <div class="rc-grid" style="height:${gridH}px">
@@ -843,14 +844,13 @@ function renderStation() {
                     </div>
                 </div>
             </div>
-            ${otherStationsHtml(addr.id)}
         </div>
     </main>`;
 }
 
-// Соседний список станций: место, освободившееся справа от сетки (записи стали
-// узкими — шириной с бокс), занимает быстрый переход на другую станцию, чтобы
-// не бегать через «Все станции» и обратно.
+// Список станций — колонкой слева, прямо под кнопкой «Все станции»: переход к
+// соседней станции в один клик, без возврата в общий список. Место под него
+// освободилось после того, как записи стали шириной с бокс.
 function otherStationsHtml(currentId) {
     const items = state.board.addresses
         .map(a => ({ addr: a, meta: metaFor(a) }))
@@ -871,7 +871,7 @@ function otherStationsHtml(currentId) {
         }).join('');
     return `
     <aside class="rc-side">
-        <div class="rc-side-head">Станции · свободных получасов</div>
+        <div class="rc-side-head">Станции · свободно</div>
         <div class="rc-side-list">${items}</div>
     </aside>`;
 }
