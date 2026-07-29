@@ -372,9 +372,10 @@
 }
 
 /* Плашки под названием: у каждой величины свой цвет и своя рамка — иначе
-   четыре одинаковые серые пилюли читаются как один шум, и «свободно» в них
+   несколько одинаковых серых пилюль читаются как один шум, и «свободно» в них
    теряется. Форма прямоугольная (радиус 4): так они не спорят с круглыми
-   счётчиками и лучше держат строку. */
+   счётчиками и лучше держат строку. Количества записей тут нет намеренно:
+   в карточке важно, куда ещё можно записать, а не сколько уже записано. */
 .rc-pill {
     display: inline-flex;
     align-items: center;
@@ -399,8 +400,7 @@
 .rc-pill-low { background: var(--accent-dim); color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, transparent); }
 .rc-pill-none { background: var(--red-dim); color: var(--red); border-color: color-mix(in oklab, var(--red) 45%, transparent); }
 
-/* Остальные — постоянные цвета: записи, боксы, ворота, очередь. */
-.rc-pill-booked { background: var(--bg3); color: var(--text); border-color: var(--border-strong); }
+/* Остальные — постоянные цвета: боксы, ворота, очередь. */
 .rc-pill-boxes { background: var(--blue-dim); color: var(--blue); border-color: color-mix(in oklab, var(--blue) 40%, transparent); }
 .rc-pill-gate { background: var(--violet-dim); color: var(--violet); border-color: color-mix(in oklab, var(--violet) 40%, transparent); }
 .rc-pill-queue { background: var(--accent-dim); color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, transparent); }
@@ -467,12 +467,14 @@
 
 /* Код перевода звонка («##01»). Это номер, который набирают, — он должен
    читаться с первого взгляда, поэтому не приглушённый: цвет основного текста,
-   полужирный, моноширинный, с табличными цифрами и заметной рамкой. */
+   полужирный, моноширинный, с табличными цифрами и заметной рамкой.
+   Шрифт — тот же JetBrains Mono, что и у всех кодов/артикулов в приложении:
+   раньше тут стоял системный ui-monospace, и код выпадал из общего набора. */
 .rc-code {
     flex: none;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: "JetBrains Mono", Consolas, monospace;
     font-size: 10.5px;
-    font-weight: 600;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
     line-height: 1.5;

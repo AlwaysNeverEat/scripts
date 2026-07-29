@@ -701,7 +701,7 @@ function overviewCard(addr, meta, i = 0) {
         return out;
     }));
 
-    const { booked, free } = stationCounts(addr);
+    const { free } = stationCounts(addr);
     const ticks = slots.map(t => {
         const cell = byTime[t];
         if (!cell) return `<i class="rc-tick rc-tick-closed"></i>`;
@@ -731,7 +731,6 @@ function overviewCard(addr, meta, i = 0) {
         <div class="rc-card-strip">${ticks}</div>
         <div class="rc-card-foot">
             <span class="rc-pill ${freeTone}">${free} свободно</span>
-            <span class="rc-pill rc-pill-booked">${booked} зап.</span>
             <span class="rc-pill rc-pill-boxes">${boxes} ${boxes === 1 ? 'бокс' : boxes < 5 ? 'бокса' : 'боксов'}</span>
             ${meta?.height ? `<span class="rc-pill rc-pill-gate" title="Высота ворот">ворота ${esc(meta.height)}</span>` : ''}
             ${ghosts.length ? `<span class="rc-pill rc-pill-queue">${icons.clock(10)}${ghosts.length} в очереди</span>` : ''}
