@@ -97,14 +97,48 @@ export function startSphere(canvas, initialNodes) {
     const mouse = { x: -9999, y: -9999 };
     const smooth = { x: -9999, y: -9999 };
 
-    const resize = () => {
+    // Буфер канваса синхронизируем с его размером на странице каждый кадр, а не
+    // по window.resize. Иначе сфера пропадала «до ресайза окна»: буфер
+    // рассинхронизировался с вёрсткой (ресайз, пока страница поиска скрыта →
+    // offsetWidth 0 → буфер 0×0; смена монитора/зума без события resize;
+    // скрытие адресной строки на мобильных), и вернуть его мог только ручной
+    // ресайз. Чтения offsetWidth/offsetHeight в draw() и так были — лишней
+    // работы это не добавляет.
+    // Возвращает false, если рисовать некуда (страница скрыта, размер 0).
+    const syncSize = () => {
+        const w = canvas.offsetWidth;
+        const h = canvas.offsetHeight;
+        if (!w || !h) return false;
         const dpr = window.devicePixelRatio || 1;
-        canvas.width = canvas.offsetWidth * dpr;
-        canvas.height = canvas.offsetHeight * dpr;
-        ctx.scale(dpr, dpr);
+        const bw = Math.round(w * dpr);
+        const bh = Math.round(h * dpr);
+        if (canvas.width !== bw || canvas.height !== bh) {
+            canvas.width = bw;
+            canvas.height = bh;
+        }
+        // setTransform, а не scale: scale домножает текущую матрицу, а браузер
+        // сбрасывает её только когда реально пересоздаёт буфер. Повторный вызов
+        // с тем же размером накапливал бы масштаб, и сфера уезжала за край.
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return true;
     };
-    resize();
-    window.addEventListener('resize', resize);
+    syncSize();
+
+    // Браузер может отобрать 2D-контекст у долго живущей вкладки (нехватка
+    // памяти, сброс GPU-драйвера). Без preventDefault он не станет его
+    // восстанавливать, и канвас останется пустым навсегда.
+    let contextLost = false;
+    canvas.addEventListener('contextlost', (e) => {
+        e.preventDefault();
+        contextLost = true;
+    });
+    canvas.addEventListener('contextrestored', () => {
+        contextLost = false;
+        // Буфер после восстановления пустой — заставляем syncSize() выставить
+        // размеры и трансформацию заново
+        canvas.width = 0;
+        prevTime = 0;
+    });
 
     const FOV = 2.8;
     const MOUSE_RADIUS = 160;
@@ -117,15 +151,20 @@ export function startSphere(canvas, initialNodes) {
 
     let proj = [];
     let prevTime = 0;
+    let rafId = 0;
 
     const draw = (time) => {
-        requestAnimationFrame(draw);
+        rafId = requestAnimationFrame(draw);
         const W = canvas.offsetWidth;
         const H = canvas.offsetHeight;
         // Страница поиска скрыта, сфера спрятана (мало вариантов в режиме тегов),
-        // или узлов ноль — не рисуем
-        if (W === 0 || !visible || layout.nodes.length === 0) {
-            if (W !== 0) ctx.clearRect(0, 0, W, H);
+        // узлов ноль или контекст отобран браузером — не рисуем
+        if (W === 0 || !visible || layout.nodes.length === 0 || contextLost) {
+            if (W !== 0 && !contextLost) ctx.clearRect(0, 0, W, H);
+            prevTime = 0;
+            return;
+        }
+        if (!syncSize()) {
             prevTime = 0;
             return;
         }
@@ -249,7 +288,18 @@ export function startSphere(canvas, initialNodes) {
             ctx.globalAlpha = 1;
         }
     };
-    requestAnimationFrame(draw);
+    // Единственная точка входа в цикл: cancelAnimationFrame перед новым
+    // запросом гарантирует, что параллельных циклов не появится
+    const kick = () => {
+        cancelAnimationFrame(rafId);
+        prevTime = 0;
+        rafId = requestAnimationFrame(draw);
+    };
+    kick();
+    // Замороженная вкладка (Chrome «discard», bfcache в Safari) может не
+    // возобновить rAF сама — перезапускаем цикл, когда страница снова видна
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
+    window.addEventListener('pageshow', kick);
 
     canvas.addEventListener('pointermove', (e) => {
         const rect = canvas.getBoundingClientRect();
