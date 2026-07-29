@@ -384,6 +384,46 @@ export function isExtensionCreate(payload) {
     return normPhoneDigits(payload?.phone) === STUB_DIGITS;
 }
 
+// Имя клиента для сравнения с доской: оператор печатает его руками, а с доски
+// оно приходит разобранным из текста — регистр и лишние пробелы значить не
+// должны.
+function normName(name) {
+    return String(name || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+// Встаёт ли создаваемая запись встык к уже стоящей записи того же клиента —
+// то есть это ручное продление, а не новый клиент.
+//
+// Телефона-заглушки тут может и не быть: продлевать можно, просто создав
+// соседний слот с теми же именем и номером — хоть после записи, хоть перед
+// ней. Доска рисует такие слоты одним червячком (detectChains), значит и топ
+// должен считать их одной записью: иначе двухчасовая запись даёт 4 очка
+// вместо одного.
+//
+// board — parseRecordBoard дня ДО создания (после него наш собственный слот
+// уже в цепочке, и кончается она не там).
+// payload = { addressId, time, name, phone, durationMinutes }
+export function extendsExistingRecord(board, payload) {
+    const name = normName(payload?.name);
+    if (!name || !payload?.time) return false;
+    const digits = normPhoneDigits(payload?.phone);
+    const nSlots = Math.max(1, Math.ceil((Number(payload.durationMinutes) || SLOT_MINUTES) / SLOT_MINUTES));
+    const end = addMinutes(payload.time, nSlots * SLOT_MINUTES);
+    const chains = detectChains(flattenAddressRecords(board?.cells || {}, String(payload.addressId)));
+
+    // Правило стыковки — то же, что у detectChains, только применённое к ещё
+    // не созданной записи: имя совпало, а телефон либо заглушка (это
+    // продолжение), либо тот же, что у головы цепочки.
+    return chains.some((chain) => {
+        if (normName(chain.head.name) !== name) return false;
+        // Дописываем хвост к чужой цепочке — продолжение здесь мы.
+        if (chain.timeEnd === payload.time) return digits === STUB_DIGITS || chain.head.phoneDigits === digits;
+        // Дописываем начало перед цепочкой — продолжение здесь она.
+        if (chain.timeStart === end) return chain.head.isStub || chain.head.phoneDigits === digits;
+        return false;
+    });
+}
+
 // Влезает ли запись в целевые слоты доски. board — parseRecordBoard дня
 // назначения, times — слоты, которые займёт запись (по одному на каждые
 // 30 минут), ownIds — id записей, которые сами переезжают: их нынешние места
