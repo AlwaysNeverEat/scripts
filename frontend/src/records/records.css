@@ -572,11 +572,14 @@
 
 .rc-rows { position: absolute; inset: 0; }
 
+/* Высоту строки задаёт JS (--row-h на .rc-grid, значение ROW_H): по ней же он
+   раскладывает записи и кнопки, так что второй раз её тут писать нельзя —
+   разъедется. */
 .rc-row {
     position: absolute;
     left: 0;
     right: 0;
-    height: 36px;
+    height: var(--row-h, 44px);
     border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -706,17 +709,19 @@
 
 /* ── Капсулы-«червячки» ────────────────────────────────────────── */
 
-/* Высота капсулы — ровно её слоты (31px на получас), поэтому две строки в неё
-   влезают только вплотную: отсюда прижатые интерлиньяжи и padding без запаса —
-   иначе телефон обрезается по нижнему краю. */
+/* Высота капсулы — ровно её слоты (39px на получас при ROW_H = 44). Раньше на
+   получас приходился 31px: две строки влезали только впритык, имя сидело на
+   телефоне, а нижняя строка подрезалась. Теперь между строками есть воздух, а
+   у текста — поля. */
 .rc-cap {
     position: absolute;
     z-index: 4;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    gap: 3px;
     text-align: left;
-    padding: 3px 8px;
+    padding: 5px 9px;
     border-radius: 11px;
     border: 1px solid var(--border);
     background: var(--bg3);
@@ -901,18 +906,32 @@
 .rc-side-map-search {
     margin: 0;
     padding: 7px 11px;
-    background: var(--card);
-    box-shadow: 0 4px 14px rgb(0 0 0 / 0.28);
+    /* Слегка прозрачно и с размытием — строка читается как стекло поверх
+       карты, а не как вырезанный из неё кусок панели. */
+    background: color-mix(in oklab, var(--card) 86%, transparent);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-1);
     pointer-events: auto;
 }
 
 .rc-side-map-search input { font-size: 12.5px; }
 
-/* Кнопки зума уводим под строку поиска. */
-.rc-side-map .leaflet-top { top: 46px; }
+/* Кнопки зума — в свободный угол справа снизу: слева сверху они оказывались
+   ровно под выпадающим списком станций и становились некликабельными как раз
+   тогда, когда ищут. Легенда сидит в левом нижнем, привязка тоже отключена —
+   правый нижний свободен. */
+.rc-side-map .leaflet-top.leaflet-left {
+    top: auto;
+    left: auto;
+    bottom: 4px;
+    right: 4px;
+}
 
 /* Совпадения падают из поиска вниз, как подсказки, и ограничены по высоте:
-   список нужен на секунду — выбрать и уйти, — а карта должна оставаться видна. */
+   список нужен на секунду — выбрать и уйти, — а карта должна оставаться видна.
+   Своя подложка обязательна: строчки сами по себе висели прямо на тайлах, и
+   подпись найденного адреса читалась поверх домов. Подложка полупрозрачная и
+   с размытием — карта под ней угадывается, но текст остаётся читаемым. */
 .rc-side-map-hits {
     display: flex;
     flex-direction: column;
@@ -920,6 +939,12 @@
     max-height: 216px;
     overflow: auto;
     margin-top: 6px;
+    padding: 6px;
+    background: color-mix(in oklab, var(--card) 80%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-2);
+    backdrop-filter: blur(10px);
     pointer-events: auto;
 }
 
@@ -929,8 +954,10 @@
     gap: 8px;
     min-width: 0;
     padding: 7px 9px;
-    background: var(--card);
-    border: 1px solid var(--border);
+    /* Внутри своей подложки строки почти прозрачны — рамка карточки в карточке
+       выглядела бы двойной. */
+    background: color-mix(in oklab, var(--bg2) 55%, transparent);
+    border: 1px solid transparent;
     border-radius: 9px;
     color: var(--text);
     font-size: 11.5px;
@@ -1328,7 +1355,15 @@
 /* Карта: плашки-станции */
 .rc-pin-wrap { background: none; border: 0; }
 
+/* --dy — сдвиг, которым map.js разводит налезающие друг на друга плашки
+   (см. layoutPins). Именно top, а не transform: transform здесь анимирован
+   ради ховера, и раскладка, которая замеряет плашки после каждого зума,
+   ловила бы их на середине перехода — и разводила по неверным координатам.
+   top не анимируется и на соседей не влияет (плашка позиционирована). */
 .rc-pin {
+    --dy: 0px;
+    position: relative;
+    top: var(--dy);
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1351,7 +1386,36 @@
     border-color: color-mix(in oklab, var(--blue) 35%, var(--border));
 }
 
-.rc-pin:hover, .rc-pin-active { border-color: var(--accent); transform: translate(-8px, -14px) scale(1.08); }
+.rc-pin:hover { border-color: var(--accent); transform: translate(-8px, -14px) scale(1.08); }
+
+/* Открытая станция. Обводки акцентом не хватало — на карте с тремя десятками
+   плашек тонкий контур теряется, а «где я сейчас» — первое, что ищут глазами.
+   Поэтому красим плашку целиком и обводим ореолом. */
+.rc-pin-active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 32%, transparent), var(--shadow-1);
+    transform: translate(-8px, -14px) scale(1.08);
+}
+
+.rc-pin-active .rc-pin-code,
+.rc-pin-active .rc-pin-ac {
+    background: color-mix(in oklab, var(--accent-fg) 22%, transparent);
+    color: var(--accent-fg);
+}
+
+/* Поводок от сдвинутой плашки к её настоящей точке — высоту и сторону
+   проставляет map.js, пока плашка на месте, поводка нет вовсе. */
+.rc-pin-leader {
+    position: absolute;
+    left: 9px;
+    width: 0;
+    border-left: 1px dashed color-mix(in oklab, var(--text) 45%, transparent);
+    pointer-events: none;
+}
+
+.rc-pin-active .rc-pin-leader { border-left-color: var(--accent); }
 
 .rc-pin-stripe { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 

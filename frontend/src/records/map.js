@@ -38,12 +38,17 @@ export function uniqueStations() {
     return out;
 }
 
+// Зазор между разведёнными плашками (см. layoutPins).
+const PIN_GAP = 3;
+
 // container — DOM-узел; onPick(meta) — клик по плашке станции;
 // view — {lat, lng, zoom} стартового положения (переживает перерисовку окна);
 // fit — [[lat, lng], …] точки, которые должны поместиться в кадр, когда view
-// нет (карта станции: она сама и её соседи).
+// нет (карта станции: она сама и её соседи);
+// onUserMove() — юзер сам потянул карту или крутнул зум (программные
+// перемещения сюда не приходят).
 // Возвращает { setFree, highlight, invalidate, focus, getView, destroy }.
-export function createStationsMap(container, { onPick, view, fit } = {}) {
+export function createStationsMap(container, { onPick, view, fit, onUserMove } = {}) {
     const start = view && Number.isFinite(view.lat)
         ? [[view.lat, view.lng], view.zoom || 12]
         : [[59.93, 30.32], 10];
@@ -85,7 +90,10 @@ export function createStationsMap(container, { onPick, view, fit } = {}) {
         const ac = meta.ac
             ? `<span class="rc-pin-ac" title="Заправка кондиционера">${icons.snowflake(11)}</span>` : '';
         const code = meta.boxNo ? `<span class="rc-pin-code">${esc(meta.boxNo)}</span>` : '';
+        // Поводок — пунктир от разведённой плашки к её настоящей точке; пока
+        // плашка стоит на месте, он спрятан (см. layoutPins).
         return `<span class="rc-pin${meta.ac ? ' rc-pin-ac-st' : ''}${active ? ' rc-pin-active' : ''}">`
+            + `<i class="rc-pin-leader" style="display:none"></i>`
             + `<span class="rc-pin-stripe" style="background:${color}"></span>${code}`
             + `<span class="rc-pin-name">${esc(meta.short)}</span>${ac}${badge}</span>`;
     };
@@ -114,23 +122,118 @@ export function createStationsMap(container, { onPick, view, fit } = {}) {
     };
     // Плашка растёт ВПРАВО от своей точки (iconAnchor слева), поэтому справа
     // оставляем места на целую подпись — иначе соседи упираются в край и
-    // читаются как «##35 Кузнец…».
+    // читаются как «##35 Кузнец…». 140px не хватало на самые длинные названия
+    // («Охтинская 9/1, Мурино» — под 200px вместе с кодом и снежинкой).
     const fitStart = () => {
         if (fit && fit.length) {
             map.fitBounds(fit, {
                 paddingTopLeft: [16, 30],
-                paddingBottomRight: [140, 30],
+                paddingBottomRight: [200, 40],
                 maxZoom: 14,
             });
         } else fitAll();
     };
     if (!view) fitStart();
 
-    let activeShort = null;
+    let activeShort = null; // открытая станция — её плашка и красится, и не двигается
+
+    // ── Разведение плашек ────────────────────────────────────────────────────
+    // На общем виде города станции стоят так плотно, что плашки налезали друг
+    // на друга и превращались в кашу. Отъезжать зумом нельзя — тогда не
+    // прочитать названия, — поэтому раздвигаем не карту, а сами плашки: после
+    // каждого зума считаем их прямоугольники в пикселях и сдвигаем по
+    // вертикали ровно настолько, чтобы они встали ВПРИТЫК друг к другу, а не
+    // внахлёст. От настоящей точки к уехавшей плашке тянется пунктирный
+    // поводок — иначе непонятно, чья она.
+    //
+    // Пересчитывать нужно только на зуме: при перетаскивании все плашки едут
+    // вместе, их взаимное расположение не меняется, и старая раскладка
+    // остаётся верной.
+    let layoutRaf = 0;
+    const layoutPins = () => {
+        const contRect = container.getBoundingClientRect();
+        if (!contRect.width) return;
+        const items = [];
+        for (const [short, { marker }] of markers) {
+            const pin = marker.getElement()?.firstElementChild;
+            if (!pin) continue;
+            // Сбрасываем прошлый сдвиг ДО замеров: иначе каждая перекладка
+            // считала бы от уже сдвинутой плашки и ошибка копилась бы.
+            pin.style.setProperty('--dy', '0px');
+            items.push({ short, pin });
+        }
+        // Замеры — отдельным проходом: браузер пересчитает вёрстку один раз, а
+        // не по разу на каждую плашку.
+        for (const it of items) {
+            const r = it.pin.getBoundingClientRect();
+            it.x = r.left - contRect.left;
+            it.w = r.width;
+            it.h = r.height;
+            it.base = r.top - contRect.top;
+        }
+        // Открытая станция встаёт первой — её место настоящее, двигаются
+        // соседи. Дальше сверху вниз: верхняя плашка остаётся, следующие
+        // подставляются под неё столбиком.
+        items.sort((a, b) =>
+            (b.short === activeShort) - (a.short === activeShort) || a.base - b.base);
+        const placed = [];
+        const hit = (it, y) => placed.find(p =>
+            it.x < p.x + p.w + PIN_GAP && p.x < it.x + it.w + PIN_GAP
+            && y < p.y + p.h + PIN_GAP && p.y < y + it.h + PIN_GAP);
+        for (const it of items) {
+            let y = it.base;
+            // Каждый шаг сдвигает строго вниз, так что цикл конечен; guard —
+            // страховка от вырожденных размеров (нулевая высота плашки).
+            for (let guard = 0; guard < 60; guard++) {
+                const p = hit(it, y);
+                if (!p) break;
+                y = p.y + p.h + PIN_GAP;
+            }
+            it.y = y;
+            placed.push({ x: it.x, y, w: it.w, h: it.h });
+        }
+        for (const it of items) {
+            const dy = Math.round(it.y - it.base);
+            it.pin.style.setProperty('--dy', `${dy}px`);
+            const leader = it.pin.querySelector('.rc-pin-leader');
+            if (!leader) continue;
+            leader.style.display = dy ? '' : 'none';
+            leader.style.height = `${Math.abs(dy)}px`;
+            // Плашка ушла вниз — поводок тянется от неё вверх, к своей точке.
+            leader.style.top = dy > 0 ? 'auto' : '50%';
+            leader.style.bottom = dy > 0 ? '50%' : 'auto';
+        }
+    };
+    const relayout = () => {
+        cancelAnimationFrame(layoutRaf);
+        layoutRaf = requestAnimationFrame(layoutPins);
+    };
+    map.on('zoomend', relayout);
+    map.on('viewreset', relayout);
+    relayout();
+
+    // Перетаскивание и зум руками — повод убрать с карты то, что её закрывает
+    // (подсказки поиска). Программные перемещения (fitBounds, focus) под этот
+    // сигнал не попадают: иначе список станций исчезал бы ровно в тот момент,
+    // когда карта подъезжает к найденному адресу.
+    let quiet = 0;
+    const beQuiet = () => {
+        quiet++;
+        setTimeout(() => { quiet = Math.max(0, quiet - 1); }, 600);
+    };
+    const userMoved = () => { if (!quiet && onUserMove) onUserMove(); };
+    map.on('dragstart', userMoved);
+    map.on('zoomstart', userMoved);
+
     const refresh = () => {
         for (const [short, { marker, meta }] of markers) {
-            marker.setIcon(makeIcon(meta, short === activeShort));
+            const active = short === activeShort;
+            marker.setIcon(makeIcon(meta, active));
+            // Открытая станция — поверх соседей, иначе её плашку подрезали бы
+            // те, что южнее (Leaflet сортирует маркеры по широте).
+            marker.setZIndexOffset(active ? 1000 : 0);
         }
+        relayout();
     };
 
     return {
@@ -141,11 +244,13 @@ export function createStationsMap(container, { onPick, view, fit } = {}) {
         // подгоняем охват заново.
         invalidate() {
             setTimeout(() => {
+                beQuiet();
                 map.invalidateSize();
                 if (!view) fitStart();
+                relayout();
             }, 60);
         },
-        focus(lat, lng, zoom = 13) { map.setView([lat, lng], zoom); },
+        focus(lat, lng, zoom = 13) { beQuiet(); map.setView([lat, lng], zoom); },
         // Текущее положение — чтобы перерисовка окна не отбрасывала карту
         // в начальный вид.
         getView() {
@@ -153,6 +258,7 @@ export function createStationsMap(container, { onPick, view, fit } = {}) {
             return { lat: c.lat, lng: c.lng, zoom: map.getZoom() };
         },
         destroy() {
+            cancelAnimationFrame(layoutRaf);
             document.removeEventListener('themechange', onThemeChange);
             map.remove();
         },

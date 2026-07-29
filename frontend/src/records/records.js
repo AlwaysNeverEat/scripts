@@ -33,7 +33,12 @@ let visible = false; // раздел на экране (между startRecords/
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const ROW_H = 36; // px на 30-минутный слот в виде станции
+// px на 30-минутный слот в виде станции. На 36 капсула получалась в 31px, и
+// две её строки (имя + время с телефоном) лезли друг на друга, а нижняя ещё и
+// подрезалась по краю — сетка выглядела приплюснутой. Значение уходит в CSS
+// переменной --row-h (высота строки сетки), чтобы линейка и записи считались
+// от одного числа.
+const ROW_H = 44;
 
 const ANIM_OUT_MS = 150; // столько уезжает старый день, прежде чем ехать за новым
 
@@ -69,7 +74,9 @@ const state = {
     // Карта рядом с сеткой станции: запрос в её поиске и текущее положение
     // (переживает перерисовку — иначе карту отбрасывало бы к станции при
     // каждом обновлении доски).
-    stationMap: { query: '', view: null, near: null },
+    // hidden — подсказки убраны с глаз, пока крутят карту; вернутся, как только
+    // снова начнут печатать в поиске.
+    stationMap: { query: '', view: null, near: null, hidden: false },
 };
 
 let mapCtl = null;         // Leaflet-контроллер открытой карты (модалки)
@@ -738,7 +745,7 @@ function renderStationSkeleton() {
         <div class="rc-station-body">
             <div class="rc-board" style="--lanes:${lastStationLanes}">
                 <div class="rc-lanes-heads">${heads}</div>
-                <div class="rc-grid" style="height:${lastStationRows * ROW_H}px">
+                <div class="rc-grid" style="height:${lastStationRows * ROW_H}px; --row-h:${ROW_H}px">
                     <div class="rc-rows">${rows}</div>
                 </div>
             </div>
@@ -972,7 +979,7 @@ function renderStation() {
         <div class="rc-station-body">
             <div class="rc-board" style="--lanes:${lanes}">
                 <div class="rc-lanes-heads">${laneHeads}</div>
-                <div class="rc-grid" style="height:${gridH}px">
+                <div class="rc-grid" style="height:${gridH}px; --row-h:${ROW_H}px">
                     <div class="rc-rows">${rows}</div>
                     <i class="rc-now hidden" aria-hidden="true"></i>
                     <div class="rc-lanes">
@@ -1007,7 +1014,7 @@ function stationMapHtml() {
                     <input id="rc-station-map-q" type="search" placeholder="Улица или станция…"
                         autocomplete="off" value="${esc(state.stationMap.query)}"/>
                 </div>
-                <div id="rc-station-map-hits" class="rc-side-map-hits ${state.stationMap.query.trim() ? '' : 'hidden'}">
+                <div id="rc-station-map-hits" class="rc-side-map-hits ${stationMapHitsVisible() ? '' : 'hidden'}">
                     ${stationMapHitsHtml()}
                 </div>
             </div>
@@ -1034,6 +1041,13 @@ function stationHits(query) {
             || String(meta?.metro || '').toLowerCase().includes(q)
             || String(meta?.boxNo || '').includes(q))
         .slice(0, 8);
+}
+
+// Подсказки висят поверх карты и закрывают половину города, поэтому показываем
+// их только пока с поиском действительно работают: есть запрос и карту с тех
+// пор не трогали руками.
+function stationMapHitsVisible() {
+    return !!state.stationMap.query.trim() && !state.stationMap.hidden;
 }
 
 function stationMapHitsHtml() {
@@ -1873,6 +1887,14 @@ function initStationMap() {
             if (!id || String(id) === String(state.stationId)) return;
             openStation(id);
         },
+        // Потянули карту — значит смотрят на неё, а не на список: убираем
+        // подсказки, чтобы не загораживали. Вернутся с первой же буквой в
+        // поиске (или когда в поле снова поставят курсор).
+        onUserMove: () => {
+            if (state.stationMap.hidden) return;
+            state.stationMap.hidden = true;
+            paintStationMapHits();
+        },
     });
     stationMapCtl.setFree(freeCountByShort());
     if (meta) stationMapCtl.highlight(meta.short);
@@ -1884,7 +1906,7 @@ function initStationMap() {
 function paintStationMapHits() {
     const box = document.getElementById('rc-station-map-hits');
     if (!box) return;
-    box.classList.toggle('hidden', !state.stationMap.query.trim());
+    box.classList.toggle('hidden', !stationMapHitsVisible());
     box.innerHTML = stationMapHitsHtml();
 }
 
@@ -1892,10 +1914,18 @@ function bindStationMap() {
     initStationMap();
     const q = document.getElementById('rc-station-map-q');
     if (!q) return;
+    // Курсор вернулся в поле — снова показываем то, что нашлось: искать заново
+    // ради уже набранного запроса незачем.
+    q.onfocus = () => {
+        if (!state.stationMap.query.trim() || !state.stationMap.hidden) return;
+        state.stationMap.hidden = false;
+        paintStationMapHits();
+    };
     q.oninput = () => {
         clearTimeout(stationGeocodeTimer);
         state.stationMap.query = q.value;
         state.stationMap.near = null;
+        state.stationMap.hidden = false;
         paintStationMapHits();
         const val = q.value.trim();
         // Свои станции нашлись — за улицей в сеть не ходим.
