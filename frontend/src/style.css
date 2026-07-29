@@ -78,19 +78,23 @@
   --gold-card-bg: linear-gradient(135deg, oklch(0.76 0.18 83 / 0.12), transparent 70%);
   --gold-card-border: oklch(0.76 0.18 83 / 0.35);
 
-  /* Плашка первого места. Специально НЕ зависит от темы: заливка сплошная и
-     одинаково читается на тёмном фоне и на белом, а текст на ней всегда
-     тёмно-коричневый. Держать блик в двух палитрах пришлось бы ради нулевой
-     разницы — золото есть золото. Отсюда же hex вместо oklch: значения
-     подобраны под сам блик, а не под шкалу светлот темы. */
-  --gold-plate: #f3c96b;
-  --gold-plate-fill: linear-gradient(180deg, #f6d489, #eeb84e);
-  --gold-plate-border: #d99e2b;
-  --gold-sweep: linear-gradient(105deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.35) 50%, rgba(255,255,255,0) 58%);
-  --gold-text-sweep: linear-gradient(105deg, #4a2c00 42%, #ffdf8e 50%, #fffbe8 52%, #ffdf8e 54%, #4a2c00 62%);
-  --gold-ink: #4a2c00;                   /* текст на плашке */
-  --gold-ink-soft: rgba(74, 44, 0, .65); /* второстепенный текст на плашке */
-  --gold-hair: rgba(74, 44, 0, .4);      /* обводки внутри плашки */
+  /* Плашка первого места (тёмная тема). Сплошное золото на почти чёрном фоне
+     светится, поэтому здесь оно приглушённое, «патинированное»: светлота ниже
+     примерно на 0.1, блик слабее. В светлой теме та же плашка берёт полную
+     яркость — см. одноимённые токены в блоке [data-theme="light"].
+     Текст на плашке в обеих темах тёмно-коричневый: на золоте любой светлоты
+     он читается лучше светлого. */
+  --gold-plate: oklch(0.72 0.115 80);
+  --gold-plate-fill: linear-gradient(180deg, oklch(0.755 0.11 84), oklch(0.675 0.115 76));
+  --gold-plate-border: oklch(0.58 0.1 74);
+  --gold-sweep: linear-gradient(105deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.2) 50%, rgba(255,255,255,0) 58%);
+  --gold-text-sweep: linear-gradient(105deg, #3d2400 42%, #ffe7a8 50%, #fff6dc 52%, #ffe7a8 54%, #3d2400 62%);
+  /* Один цвет на весь текст плашки: полутон вроде rgba(…,.7) на приглушённом
+     золоте даёт ~2.9:1, а мелкому «записей» нужно 4.5:1. Иерархию держат
+     размер и блик — он идёт только по цифрам и имени. */
+  --gold-ink: #3d2400;
+  --gold-hair: rgba(61, 36, 0, .42);     /* обводки внутри плашки */
+  --gold-avatar-bg: rgba(255, 255, 255, .26);  /* подложка аватара без фото */
 
   /* Boot-экран — отдельная «терминальная» палитра (см. #boot-screen) */
   --boot-bg: #07090d;
@@ -199,7 +203,17 @@
   --gold-glow: oklch(0.72 0.15 78 / 0.55);
   --gold-card-bg: linear-gradient(135deg, oklch(0.78 0.14 82 / 0.22), transparent 70%);
   --gold-card-border: oklch(0.68 0.13 78 / 0.45);
-  /* --gold-plate-* не переопределяем: плашка первого места одна на обе темы */
+
+  /* Плашка первого места в полную яркость: на белом фоне приглушённое золото
+     тёмной темы выглядело бы грязным пятном, а не наградой. */
+  --gold-plate: #f3c96b;
+  --gold-plate-fill: linear-gradient(180deg, #f6d489, #eeb84e);
+  --gold-plate-border: #d99e2b;
+  --gold-sweep: linear-gradient(105deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.35) 50%, rgba(255,255,255,0) 58%);
+  --gold-text-sweep: linear-gradient(105deg, #4a2c00 42%, #ffdf8e 50%, #fffbe8 52%, #ffdf8e 54%, #4a2c00 62%);
+  --gold-ink: #4a2c00;
+  --gold-hair: rgba(74, 44, 0, .4);
+  --gold-avatar-bg: rgba(255, 255, 255, .38);
 
   /* Boot-экран тоже светлый: он показывается первым, и «чёрный экран →
      белый сайт» бил бы по глазам ровно тем, ради чего тема и делалась. */
@@ -1777,17 +1791,17 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   color: transparent;
   animation: gold-sweep 5.5s ease-in-out infinite;
 }
-.top-row-gold .top-breakdown { color: var(--gold-ink-soft); }
+.top-row-gold .top-breakdown { color: var(--gold-ink); }
 /* Подложка светлая: у кого нет фото, тёмный кружок темы читался бы дыркой
    в плашке. Под самим фото её всё равно не видно. */
 .top-row-gold .top-avatar {
-  background: rgba(255, 255, 255, .38);
+  background: var(--gold-avatar-bg);
   border-color: var(--gold-hair);
   box-shadow: none;
 }
 /* Роль-префикс на золоте: цветная плашка «мода» на золотом фоне не читается */
 .top-row-gold .role-prefix {
-  background: rgba(74, 44, 0, .1);
+  background: rgba(0, 0, 0, .08);
   border: 1px solid var(--gold-hair);
   color: var(--gold-ink);
 }
