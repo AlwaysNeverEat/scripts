@@ -5,6 +5,10 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Токены тёмной темы (по умолчанию) ────────────────────────────
+   Светлая тема ниже переопределяет ровно этот же набор — ни один цвет не
+   должен быть зашит в правила напрямую, иначе он «переживёт» переключение.
+   Тема ставится атрибутом data-theme на <html> ещё в <head> (см. theme.js). */
 :root {
   /* Нативные виджеты (select-попапы, скроллбары, спиннеры) — в тёмной теме
      во всех браузерах, иначе Firefox рисует их белыми. */
@@ -17,9 +21,11 @@
   --bg2:      oklch(0.22 0.027 252);
   --bg3:      oklch(0.27 0.03 252);
   --border:   oklch(0.36 0.03 252 / 0.8);
+  --border-strong: oklch(0.5 0.03 252);
   --accent:   oklch(0.80 0.17 83);
   --accent-dim: oklch(0.80 0.17 83 / 0.2);
   --accent-fg: oklch(0.12 0.02 252);
+  --accent-hover: oklch(0.7 0.18 78);
   --text:     oklch(0.95 0.01 252);
   --sub:      oklch(0.68 0.02 252);
   --green:    oklch(0.76 0.17 148);
@@ -28,10 +34,76 @@
   --blue-dim: oklch(0.76 0.12 250 / 0.18);
   --red:      oklch(0.67 0.2 25);
   --red-dim:  oklch(0.55 0.2 25 / 0.2);
+  /* Текст поверх сплошной цветной заливки (красная кнопка, бейдж) — светлый
+     в обеих темах, поэтому живёт вне тематических блоков. */
+  --solid-fg: oklch(0.98 0.005 252);
   --radius:   10px;
   --chip-act: var(--accent);
   /* высота ряда вкладок — от неё пляшут sticky-шапки и высота экрана поиска */
   --tabs-h:   52px;
+
+  /* Тени и подложки. Живут токенами, потому что на белом фоне чёрная тень
+     в 50% превращается в грязное пятно — светлой теме нужна своя. */
+  --shadow-1: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 16px 48px oklch(0 0 0 / 0.5);
+  --shadow-3: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --overlay:  rgba(0, 0, 0, 0.6);
+  --switch-off: oklch(0.34 0.025 252);
+  --switch-knob: var(--text);
+  --scroll-thumb: oklch(0.35 0.03 252);
+  --stripe: rgba(255, 255, 255, 0.02);   /* «закрыто»: косая штриховка */
+  --sheen:  rgba(255, 255, 255, 0.07);   /* блик по скелетону загрузки */
+  --map-bg: #14171f;                     /* подложка Leaflet под тайлами */
+  --hover-bright: brightness(1.15);      /* подсветка строки без смены фона */
+  --crystal-glow: rgba(186, 230, 253, 0.35);
+
+  /* Стеклянные контролы экрана поиска (поверх канваса со сферой) */
+  --search-bg: #07090d;
+  --search-glow: rgba(212, 160, 23, 0.07);
+  --glass-bg: rgba(10, 14, 20, 0.82);
+  --glass-border: rgba(212, 160, 23, 0.25);
+  --glass-fg: rgba(253, 235, 180, 0.9);
+  --glass-fg-dim: rgba(253, 235, 180, 0.7);
+  --glass-fg-faint: rgba(253, 235, 180, 0.5);
+  --glass-ph: rgba(148, 163, 184, 0.75);
+  --glass-hover: rgba(212, 160, 23, 0.12);
+  --glass-shadow: 0 0 0 1px rgba(212, 160, 23, 0.08), 0 8px 32px rgba(0, 0, 0, 0.55);
+  --glass-shadow-focus: 0 0 0 3px oklch(0.76 0.18 83 / 0.18), 0 8px 32px rgba(0, 0, 0, 0.55);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Золото топа (карточка прошлого месяца, первая строка) */
+  --gold: oklch(0.8 0.18 83);
+  --gold-soft: oklch(0.85 0.14 83);
+  --gold-glow: oklch(0.76 0.18 83 / 0.45);
+  --gold-card-bg: linear-gradient(135deg, oklch(0.76 0.18 83 / 0.12), transparent 70%);
+  --gold-card-border: oklch(0.76 0.18 83 / 0.35);
+  --gold-row: linear-gradient(90deg, oklch(0.3 0.06 83 / 0.25), oklch(0.76 0.18 83 / 0.18), oklch(0.3 0.06 83 / 0.25));
+
+  /* Boot-экран — отдельная «терминальная» палитра (см. #boot-screen) */
+  --boot-bg: #07090d;
+  --boot-card: #07090d;
+  --boot-fg: #e8a300;
+  --boot-fg-soft: rgba(232, 163, 0, 0.65);
+  --boot-fg-dim: rgba(232, 163, 0, 0.35);
+  --boot-fg-faint: rgba(232, 163, 0, 0.3);
+  --boot-hair: rgba(232, 163, 0, 0.1);
+  --boot-hair-soft: rgba(232, 163, 0, 0.08);
+  --boot-card-shadow: 0 0 60px rgba(232, 163, 0, 0.04), 0 0 0 1px rgba(232, 163, 0, 0.04);
+  --boot-card-border: rgba(232, 163, 0, 0.14);
+  --boot-bar-bg: rgba(232, 163, 0, 0.08);
+  --boot-bar-border: rgba(232, 163, 0, 0.12);
+  --boot-bar-fill: linear-gradient(90deg, rgba(232, 163, 0, 0.5) 0%, #e8a300 100%);
+  --boot-bar-drop: radial-gradient(circle, rgba(232, 163, 0, 0.9) 0%, transparent 70%);
+  --boot-shimmer: rgba(255, 255, 255, 0.18);
+  --boot-btn-border: rgba(232, 163, 0, 0.2);
+  --boot-btn-fg: rgba(232, 163, 0, 0.5);
+  --boot-btn-hover-bg: #0a1420;
+
+  /* Цветные полоски у ссылок на страницы производителей */
+  --src-mann:    oklch(0.62 0.2 25);
+  --src-lynx:    oklch(0.7 0.17 145);
+  --src-ravenol: oklch(0.75 0.16 85);
+  --src-motul:   oklch(0.62 0.2 265);
 
   /* Цвета частей машины в выпадашках поиска (см. carCard.js). Верхняя строка —
      «имя»: марка золотом-акцентом (якорь для взгляда), модель белым, коды
@@ -44,6 +116,109 @@
   --cc-kw:     oklch(0.84 0.15 58);   /* кВт — оранжевый */
   --cc-hp:     oklch(0.80 0.15 350);  /* л.с. — розово-коралловый */
   --cc-year:   oklch(0.74 0.05 252);  /* годы — приглушённый */
+}
+
+/* ── Токены светлой темы ──────────────────────────────────────────
+   Главное правило палитры: жёлто-золотой акцент тёмной темы (L≈0.80) на белом
+   не читается вообще — контраст ~1.5:1. Поэтому в светлой теме тот же оттенок
+   уводится в глубокую бронзу (L≈0.52): цвет остаётся «тем самым», но даёт
+   ~6:1 к белому, то есть проходит WCAG AA даже мелким текстом. Ровно так же
+   опущены зелёный/синий/красный и цвета спек-чипов — все смысловые цвета
+   держат L в диапазоне 0.47…0.55, где на белом они контрастны и при этом не
+   выглядят ядовитыми. Текст на сплошной заливке акцента становится белым
+   (--accent-fg), а не тёмно-синим.
+
+   Слои инвертированы не «в лоб»: белой становится карточка (--card), а фон
+   страницы — чуть серее, чтобы карточки читались как приподнятые; --bg2/--bg3
+   идут в сторону затемнения, сохраняя ту же иерархию, что и в тёмной теме. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg:       oklch(0.968 0.003 250);
+  --card:     oklch(1 0 0);
+  --bg2:      oklch(0.958 0.004 250);
+  --bg3:      oklch(0.912 0.007 250);
+  --border:   oklch(0.87 0.01 250);
+  --border-strong: oklch(0.72 0.02 250);
+  --accent:   oklch(0.52 0.125 62);
+  --accent-dim: oklch(0.52 0.125 62 / 0.12);
+  --accent-fg: oklch(1 0 0);
+  --accent-hover: oklch(0.44 0.115 55);
+  --text:     oklch(0.25 0.018 252);
+  --sub:      oklch(0.47 0.015 252);
+  --green:    oklch(0.47 0.13 150);
+  --green-dim: oklch(0.47 0.13 150 / 0.12);
+  --blue:     oklch(0.49 0.15 255);
+  --blue-dim: oklch(0.49 0.15 255 / 0.12);
+  --red:      oklch(0.52 0.19 26);
+  --red-dim:  oklch(0.52 0.19 26 / 0.1);
+
+  --shadow-1: 0 3px 10px rgba(15, 23, 42, 0.08);
+  --shadow-2: 0 16px 40px rgba(15, 23, 42, 0.14);
+  --shadow-3: 0 20px 50px rgba(15, 23, 42, 0.18);
+  --overlay:  rgba(15, 23, 42, 0.35);
+  --switch-off: oklch(0.86 0.01 250);
+  --switch-knob: oklch(1 0 0);
+  --scroll-thumb: oklch(0.82 0.012 250);
+  --stripe: rgba(15, 23, 42, 0.045);
+  --sheen:  rgba(15, 23, 42, 0.06);
+  --map-bg: oklch(0.95 0.004 250);
+  /* На белом «ярче» = ближе к белому, то есть строка бы пропадала —
+     ховер, наоборот, слегка притемняем. */
+  --hover-bright: brightness(0.965);
+  --crystal-glow: rgba(56, 132, 255, 0.35);
+
+  --search-bg: oklch(0.978 0.003 250);
+  --search-glow: oklch(0.52 0.125 62 / 0.07);
+  --glass-bg: rgba(255, 255, 255, 0.86);
+  --glass-border: oklch(0.52 0.125 62 / 0.3);
+  --glass-fg: var(--text);
+  --glass-fg-dim: var(--sub);
+  --glass-fg-faint: oklch(0.55 0.02 252);
+  --glass-ph: oklch(0.6 0.015 252);
+  --glass-hover: oklch(0.52 0.125 62 / 0.1);
+  --glass-shadow: 0 0 0 1px oklch(0.52 0.125 62 / 0.07), 0 8px 28px rgba(15, 23, 42, 0.1);
+  --glass-shadow-focus: 0 0 0 3px oklch(0.52 0.125 62 / 0.18), 0 8px 28px rgba(15, 23, 42, 0.1);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+  --gold: oklch(0.55 0.13 70);
+  --gold-soft: oklch(0.5 0.12 64);
+  --gold-glow: oklch(0.72 0.15 78 / 0.55);
+  --gold-card-bg: linear-gradient(135deg, oklch(0.78 0.14 82 / 0.22), transparent 70%);
+  --gold-card-border: oklch(0.68 0.13 78 / 0.45);
+  --gold-row: linear-gradient(90deg, oklch(0.88 0.07 83 / 0.5), oklch(0.83 0.13 83 / 0.55), oklch(0.88 0.07 83 / 0.5));
+
+  /* Boot-экран тоже светлый: он показывается первым, и «чёрный экран →
+     белый сайт» бил бы по глазам ровно тем, ради чего тема и делалась. */
+  --boot-bg: oklch(0.978 0.003 250);
+  --boot-card: oklch(1 0 0);
+  --boot-fg: oklch(0.47 0.12 62);
+  --boot-fg-soft: oklch(0.47 0.12 62 / 0.85);
+  --boot-fg-dim: oklch(0.47 0.12 62 / 0.72);
+  --boot-fg-faint: oklch(0.47 0.12 62 / 0.68);
+  --boot-hair: oklch(0.47 0.12 62 / 0.16);
+  --boot-hair-soft: oklch(0.47 0.12 62 / 0.12);
+  --boot-card-shadow: 0 10px 40px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  --boot-card-border: oklch(0.47 0.12 62 / 0.18);
+  --boot-bar-bg: oklch(0.47 0.12 62 / 0.1);
+  --boot-bar-border: oklch(0.47 0.12 62 / 0.18);
+  --boot-bar-fill: linear-gradient(90deg, oklch(0.68 0.13 70) 0%, oklch(0.47 0.13 62) 100%);
+  --boot-bar-drop: radial-gradient(circle, oklch(0.55 0.13 66 / 0.9) 0%, transparent 70%);
+  --boot-shimmer: rgba(255, 255, 255, 0.55);
+  --boot-btn-border: oklch(0.47 0.12 62 / 0.3);
+  --boot-btn-fg: oklch(0.47 0.12 62 / 0.75);
+  --boot-btn-hover-bg: oklch(0.47 0.12 62 / 0.08);
+
+  --src-mann:    oklch(0.52 0.2 26);
+  --src-lynx:    oklch(0.5 0.14 150);
+  --src-ravenol: oklch(0.55 0.13 70);
+  --src-motul:   oklch(0.5 0.19 265);
+
+  --cc-brand:  oklch(0.5 0.13 62);
+  --cc-vol:    oklch(0.49 0.15 255);
+  --cc-kw:     oklch(0.52 0.15 48);
+  --cc-hp:     oklch(0.52 0.16 355);
+  --cc-year:   oklch(0.5 0.025 252);
 }
 
 html, body { height: 100%; }
@@ -95,15 +270,25 @@ input, button, select, textarea { font-family: inherit; }
   top: 0;
   z-index: 200;
   height: var(--tabs-h);
-  background: oklch(0.16 0.024 252 / 0.9);
+  background: color-mix(in oklab, var(--card) 90%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
-.app-tabs-row {
+/* Ряд вкладок прокручивается по горизонтали, а кнопка темы прижата к правому
+   краю и в эту прокрутку не уезжает — поэтому они лежат в общей обёртке. */
+.app-tabs-inner {
   height: 100%;
   max-width: 1160px;
   margin: 0 auto;
   padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-tabs-row {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
   display: flex;
   align-items: stretch;
   gap: 2px;
@@ -148,9 +333,35 @@ input, button, select, textarea { font-family: inherit; }
 .app-tab-avatar .avatar-default-icon { font-size: 13px; }
 .app-tab.active .app-tab-avatar { border-color: var(--accent); }
 
+/* ── Переключатель темы ─────────────────────────────────────────────
+   Показываем иконку того, что получится по клику: в тёмной теме — солнце
+   («включить светлую»), в светлой — луну. */
+.theme-toggle {
+  flex: none;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--sub);
+  cursor: pointer;
+  padding: 0;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent); background: var(--bg3); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-toggle svg { flex: none; }
+:root[data-theme="light"] .theme-icon-sun,
+:root:not([data-theme="light"]) .theme-icon-moon { display: none; }
+
+/* На гейте ряда вкладок нет — кнопка живёт в углу самого экрана входа. */
+.auth-theme-toggle { position: absolute; top: 14px; right: 14px; z-index: 2; }
+
 @media (max-width: 560px) {
   :root { --tabs-h: 48px; }
   .app-tab { padding: 0 10px; gap: 6px; font-size: 12px; }
+  .app-tabs-inner { padding: 0 6px; gap: 4px; }
+  .theme-toggle { width: 30px; height: 30px; }
 }
 /* На узких экранах подпись остаётся только у активной вкладки — пять
    разделов помещаются в ряд без горизонтальной прокрутки. */
@@ -178,12 +389,12 @@ input, button, select, textarea { font-family: inherit; }
   height: calc(100vh - var(--tabs-h));
   height: calc(100dvh - var(--tabs-h));
   overflow: hidden;
-  background: #07090d;
+  background: var(--search-bg);
 }
 .sphere-glow {
   position: absolute; inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(212,160,23,0.07) 0%, transparent 70%);
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, var(--search-glow) 0%, transparent 70%);
 }
 #sphere-canvas {
   position: absolute; inset: 0;
@@ -205,7 +416,7 @@ input, button, select, textarea { font-family: inherit; }
   font-weight: 500;
   letter-spacing: 0.35em;
   text-transform: uppercase;
-  color: rgba(253,224,132,0.55);
+  color: var(--glass-fg-dim);
 }
 .search-wrap {
   width: 100%;
@@ -213,13 +424,18 @@ input, button, select, textarea { font-family: inherit; }
   position: relative;
 }
 .search-box { position: relative; }
-/* Лупа как в фигме (lucide Search); z-index — иначе фон инпута красит поверх */
+/* Лупа как в фигме (lucide Search); z-index — иначе фон инпута красит поверх.
+   Иконка нарисована маской, а не картинкой: цвет берётся из --accent и потому
+   меняется вместе с темой (золото на чёрном, бронза на белом) — жёстко зашитое
+   золото на светлой теме превращалось в еле заметное жёлтое пятно. */
 .search-box::before {
   content: '';
   position: absolute; left: 20px; top: 50%;
   width: 16px; height: 16px; transform: translateY(-50%);
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d4a017' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center/contain no-repeat;
-  opacity: 0.55;
+  background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center/contain no-repeat;
+  opacity: 0.7;
   pointer-events: none;
   z-index: 1;
 }
@@ -227,19 +443,19 @@ input, button, select, textarea { font-family: inherit; }
   width: 100%;
   padding: 14px 22px 14px 46px;
   font-size: 14px;
-  background: rgba(10,14,20,0.82);
-  border: 1px solid rgba(212,160,23,0.25);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
-  color: rgba(253,235,180,0.9);
+  color: var(--glass-fg);
   outline: none;
   backdrop-filter: blur(18px);
-  box-shadow: 0 0 0 1px rgba(212,160,23,0.08), 0 8px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
   transition: border-color .15s, box-shadow .15s;
 }
-#search-input::placeholder { color: rgba(148,163,184,0.75); }
+#search-input::placeholder { color: var(--glass-ph); }
 #search-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px oklch(0.76 0.18 83 / 0.18), 0 8px 32px rgba(0,0,0,0.55);
+  box-shadow: var(--glass-shadow-focus);
 }
 
 .search-results {
@@ -252,7 +468,7 @@ input, button, select, textarea { font-family: inherit; }
   max-height: 420px;
   overflow-y: auto;
   z-index: 100;
-  box-shadow: 0 16px 48px oklch(0 0 0 / 0.5);
+  box-shadow: var(--shadow-2);
 }
 .search-results:empty { display: none; }
 
@@ -261,8 +477,8 @@ input, button, select, textarea { font-family: inherit; }
   display: flex;
   width: fit-content;
   margin: 0 auto 14px;
-  background: rgba(10,14,20,0.82);
-  border: 1px solid rgba(212,160,23,0.25);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
   padding: 3px;
   backdrop-filter: blur(18px);
@@ -272,9 +488,9 @@ input, button, select, textarea { font-family: inherit; }
   border-radius: 999px;
   padding: 7px 18px;
   font-size: 12px;
-  color: rgba(253,235,180,0.7);
+  color: var(--glass-fg-dim);
 }
-.search-mode-toggle .chip:hover { background: rgba(212,160,23,0.12); }
+.search-mode-toggle .chip:hover { background: var(--glass-hover); }
 .search-mode-toggle .chip.active {
   background: var(--accent);
   color: var(--accent-fg);
@@ -302,19 +518,19 @@ input, button, select, textarea { font-family: inherit; }
   width: 100%;
   padding: 12px 34px 12px 16px;
   font-size: 13px;
-  background: rgba(10,14,20,0.82);
-  border: 1px solid rgba(212,160,23,0.25);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 999px;
-  color: rgba(253,235,180,0.9);
+  color: var(--glass-fg);
   outline: none;
   backdrop-filter: blur(18px);
-  box-shadow: 0 0 0 1px rgba(212,160,23,0.08), 0 8px 32px rgba(0,0,0,0.55);
+  box-shadow: var(--glass-shadow);
   transition: border-color .15s, box-shadow .15s;
 }
-.tag-combo-input::placeholder { color: rgba(148,163,184,0.75); }
+.tag-combo-input::placeholder { color: var(--glass-ph); }
 .tag-combo-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px oklch(0.76 0.18 83 / 0.18), 0 8px 32px rgba(0,0,0,0.55);
+  box-shadow: var(--glass-shadow-focus);
 }
 .tag-combo.has-value .tag-combo-input { color: var(--accent); font-weight: 600; }
 
@@ -325,11 +541,11 @@ input, button, select, textarea { font-family: inherit; }
   background: transparent;
   border: none;
   border-radius: 50%;
-  color: rgba(253,235,180,0.5);
+  color: var(--glass-fg-faint);
   font-size: 11px;
   cursor: pointer;
 }
-.tag-combo-clear:hover { background: rgba(212,160,23,0.15); color: var(--accent); }
+.tag-combo-clear:hover { background: var(--glass-hover); color: var(--accent); }
 
 .tag-combo-list {
   position: absolute;
@@ -341,7 +557,7 @@ input, button, select, textarea { font-family: inherit; }
   max-height: 260px;
   overflow-y: auto;
   z-index: 50;
-  box-shadow: 0 16px 48px oklch(0 0 0 / 0.5);
+  box-shadow: var(--shadow-2);
 }
 .tag-combo-opt {
   padding: 9px 14px;
@@ -432,7 +648,7 @@ a.btn:visited, a.btn:active { color: var(--text); }
   color: var(--accent-fg);
   font-weight: 600;
 }
-.btn-pri:hover { background: oklch(0.7 0.18 78); }
+.btn-pri:hover { background: var(--accent-hover); }
 
 /* ── Страница машины ────────────────────────────────────────────── */
 .hidden { display: none !important; }
@@ -563,10 +779,10 @@ a.btn:visited, a.btn:active { color: var(--text); }
   transition: border-color .15s, background .15s;
 }
 .src-btn:hover { border-color: var(--accent); background: var(--bg3); }
-.src-btn-mann    { border-left: 3px solid oklch(0.62 0.2 25); }
-.src-btn-lynx    { border-left: 3px solid oklch(0.7 0.17 145); }
-.src-btn-ravenol { border-left: 3px solid oklch(0.75 0.16 85); }
-.src-btn-motul   { border-left: 3px solid oklch(0.62 0.2 265); }
+.src-btn-mann    { border-left: 3px solid var(--src-mann); }
+.src-btn-lynx    { border-left: 3px solid var(--src-lynx); }
+.src-btn-ravenol { border-left: 3px solid var(--src-ravenol); }
+.src-btn-motul   { border-left: 3px solid var(--src-motul); }
 
 .head-rec { margin-top: 12px; font-size: 12px; }
 .head-rec summary { cursor: pointer; color: var(--sub); }
@@ -620,7 +836,7 @@ a.btn:visited, a.btn:active { color: var(--text); }
   appearance: none;
   width: 34px; height: 19px;
   border-radius: 19px;
-  background: oklch(0.34 0.025 252);
+  background: var(--switch-off);
   position: relative;
   cursor: pointer;
   transition: background .15s;
@@ -631,7 +847,7 @@ a.btn:visited, a.btn:active { color: var(--text); }
   position: absolute; top: 2px; left: 2px;
   width: 15px; height: 15px;
   border-radius: 50%;
-  background: var(--text);
+  background: var(--switch-knob);
   transition: left .15s;
 }
 .chk-label input[type="checkbox"]:checked { background: var(--accent); }
@@ -837,7 +1053,7 @@ input[data-edit-filter-absent]:checked::after {
 .oil-option.selected { border-color: var(--accent); }
 /* Первая карточка двс сама открывает выбор замены масла */
 .oil-option-pick { cursor: pointer; }
-.oil-option-pick:hover { border-color: oklch(0.5 0.03 252); }
+.oil-option-pick:hover { border-color: var(--border-strong); }
 .oil-pick-hint {
   margin-top: 9px;
   padding-top: 8px;
@@ -1120,7 +1336,7 @@ input[data-edit-filter-absent]:checked::after {
 /* ── Boot screen (загрузка, пока сервер просыпается) ───────────── */
 #boot-screen {
   position: fixed; inset: 0; z-index: 1000;
-  background: #07090d;
+  background: var(--boot-bg);
   display: flex; align-items: center; justify-content: center;
   padding: 16px;
   font-family: "JetBrains Mono", Consolas, monospace;
@@ -1131,23 +1347,23 @@ input[data-edit-filter-absent]:checked::after {
 .boot-card {
   width: 560px; max-width: 100%;
   padding: 36px 40px 32px;
-  background: #07090d;
-  border: 1px solid rgba(232,163,0,0.14);
+  background: var(--boot-card);
+  border: 1px solid var(--boot-card-border);
   border-radius: 4px;
-  box-shadow: 0 0 60px rgba(232,163,0,0.04), 0 0 0 1px rgba(232,163,0,0.04);
+  box-shadow: var(--boot-card-shadow);
 }
 @media (max-width: 480px) { .boot-card { padding: 24px 20px 22px; } }
 
 .boot-head {
   display: flex; justify-content: space-between; align-items: baseline;
-  border-bottom: 1px solid rgba(232,163,0,0.1);
+  border-bottom: 1px solid var(--boot-hair);
   padding-bottom: 14px; margin-bottom: 20px;
 }
 .boot-title {
-  color: #e8a300; font-size: 13px;
+  color: var(--boot-fg); font-size: 13px;
   letter-spacing: 0.22em; text-transform: uppercase;
 }
-.boot-time { color: rgba(232,163,0,0.35); font-size: 11px; letter-spacing: 0.1em; }
+.boot-time { color: var(--boot-fg-dim); font-size: 11px; letter-spacing: 0.1em; }
 
 .boot-log { min-height: 168px; margin-bottom: 24px; }
 .boot-line {
@@ -1158,16 +1374,16 @@ input[data-edit-filter-absent]:checked::after {
 }
 @keyframes boot-line-in { to { opacity: 1; transform: translateY(0); } }
 .boot-line-num {
-  color: rgba(232,163,0,0.3); font-size: 11px;
+  color: var(--boot-fg-faint); font-size: 11px;
   user-select: none; flex-shrink: 0; padding-top: 1px;
 }
-.boot-line-text { color: rgba(232,163,0,0.65); font-size: 12px; letter-spacing: 0.03em; }
-.boot-line-final .boot-line-text { color: #e8a300; font-weight: 700; }
+.boot-line-text { color: var(--boot-fg-soft); font-size: 12px; letter-spacing: 0.03em; }
+.boot-line-final .boot-line-text { color: var(--boot-fg); font-weight: 700; }
 
 .boot-cursor {
   display: inline-block;
   width: 7px; height: 1em;
-  background: #e8a300;
+  background: var(--boot-fg);
   vertical-align: middle; margin-left: 3px; border-radius: 1px;
   animation: boot-blink 1.06s steps(1) infinite;
 }
@@ -1176,8 +1392,8 @@ input[data-edit-filter-absent]:checked::after {
 .boot-bar {
   position: relative;
   height: 6px; border-radius: 999px;
-  background: rgba(232,163,0,0.08);
-  border: 1px solid rgba(232,163,0,0.12);
+  background: var(--boot-bar-bg);
+  border: 1px solid var(--boot-bar-border);
   overflow: hidden;
   margin-bottom: 12px;
 }
@@ -1186,13 +1402,13 @@ input[data-edit-filter-absent]:checked::after {
   width: 0%;
   transition: width .6s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(232,163,0,0.5) 0%, #e8a300 100%);
+  background: var(--boot-bar-fill);
   overflow: hidden;
 }
 .boot-bar-wave {
   position: absolute; right: -6px; top: -3px;
   width: 12px; height: 12px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(232,163,0,0.9) 0%, transparent 70%);
+  background: var(--boot-bar-drop);
   animation: boot-pulse-drop 1.2s ease-in-out infinite;
 }
 @keyframes boot-pulse-drop {
@@ -1202,7 +1418,7 @@ input[data-edit-filter-absent]:checked::after {
 .boot-bar-shimmer {
   position: absolute; top: 0; bottom: 0; left: 0;
   width: 40px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  background: linear-gradient(90deg, transparent, var(--boot-shimmer), transparent);
   animation: boot-shimmer 1.6s ease-in-out infinite;
 }
 @keyframes boot-shimmer {
@@ -1213,28 +1429,28 @@ input[data-edit-filter-absent]:checked::after {
 .boot-foot {
   display: flex; justify-content: space-between; align-items: center;
   padding-top: 12px;
-  border-top: 1px solid rgba(232,163,0,0.08);
+  border-top: 1px solid var(--boot-hair-soft);
 }
-.boot-status { color: rgba(232,163,0,0.3); font-size: 11px; letter-spacing: 0.12em; }
+.boot-status { color: var(--boot-fg-faint); font-size: 11px; letter-spacing: 0.12em; }
 .boot-actions { display: flex; gap: 8px; }
 .boot-btn {
   background: transparent;
-  border: 1px solid rgba(232,163,0,0.2);
+  border: 1px solid var(--boot-btn-border);
   border-radius: 3px;
-  color: rgba(232,163,0,0.5);
+  color: var(--boot-btn-fg);
   font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
   padding: 4px 12px; cursor: pointer;
   font-family: inherit;
   transition: background .2s, border-color .2s, color .2s;
 }
 .boot-btn:hover {
-  background: #0a1420;
-  border-color: rgba(232,163,0,0.5);
-  color: #e8a300;
+  background: var(--boot-btn-hover-bg);
+  border-color: var(--boot-fg-dim);
+  color: var(--boot-fg);
 }
 .boot-hint {
   margin-top: 14px;
-  color: rgba(232,163,0,0.35);
+  color: var(--boot-fg-dim);
   font-size: 11px; line-height: 1.5;
 }
 
@@ -1244,7 +1460,7 @@ input[data-edit-filter-absent]:checked::after {
    не поддержан, поэтому конфликтовать они не будут). */
 * {
   scrollbar-width: thin;
-  scrollbar-color: oklch(0.35 0.03 252) transparent;
+  scrollbar-color: var(--scroll-thumb) transparent;
 }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 5px; }
@@ -1284,7 +1500,7 @@ input[type="range"]::-webkit-slider-thumb {
   border: none;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  box-shadow: var(--shadow-1);
   transition: transform .1s;
 }
 input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
@@ -1303,7 +1519,7 @@ input[type="range"]::-moz-range-thumb {
   border: none;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  box-shadow: var(--shadow-1);
   transition: transform .1s;
 }
 input[type="range"]::-moz-range-thumb:hover { transform: scale(1.12); }
@@ -1311,9 +1527,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* ── Гейт входа/регистрации ──────────────────────────────────────── */
 #page-auth {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #07090d;
+  background: var(--search-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1385,7 +1602,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* ── Модалки (общие) ────────────────────────────────────────────── */
 .modal { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; padding: 16px; }
-.modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
+.modal-backdrop { position: absolute; inset: 0; background: var(--overlay); backdrop-filter: blur(2px); }
 .modal-win {
   position: relative;
   width: 100%; max-width: 520px;
@@ -1394,7 +1611,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  box-shadow: var(--shadow-3);
 }
 .modal-win-sm { max-width: 420px; }
 .modal-head {
@@ -1452,7 +1669,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   color: var(--red);
   font-weight: 600;
 }
-.btn-danger:hover { background: var(--red); color: var(--text); }
+.btn-danger:hover { background: var(--red); color: var(--solid-fg); }
 
 /* ── Топ пользователей ──────────────────────────────────────────── */
 .top-row {
@@ -1465,7 +1682,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 /* filter, не background — иначе на золотой #1-строке хover перебивал бы
    переливающийся градиент (см. .top-row-gold ниже) */
-.top-row:hover { filter: brightness(1.15); }
+.top-row:hover { filter: var(--hover-bright); }
 .top-row:last-child { border-bottom: none; }
 .top-rank { width: 22px; text-align: center; font-weight: 700; color: var(--sub); font-size: 13px; }
 .top-avatar, .event-avatar, .profile-avatar {
@@ -1494,8 +1711,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* Карточка «Топ в прошлом месяце»: закрытый месяц, победитель уже не меняется */
 .top-prev {
-  background: linear-gradient(135deg, oklch(0.76 0.18 83 / .12), transparent 70%);
-  border: 1px solid oklch(0.76 0.18 83 / .35);
+  background: var(--gold-card-bg);
+  border: 1px solid var(--gold-card-border);
   border-radius: 12px;
   padding: 10px 12px;
   margin-bottom: 14px;
@@ -1503,7 +1720,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .top-prev-head {
   display: flex; align-items: center; gap: 6px;
   font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
-  color: oklch(0.85 0.14 83);
+  color: var(--gold-soft);
   margin-bottom: 8px;
 }
 .top-prev-head svg { flex: none; }
@@ -1513,22 +1730,22 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   cursor: pointer;
   transition: filter .12s;
 }
-.top-prev-user:hover { filter: brightness(1.15); }
+.top-prev-user:hover { filter: var(--hover-bright); }
 .top-prev-user .top-avatar {
-  border-color: oklch(0.8 0.18 83);
-  box-shadow: 0 0 12px oklch(0.76 0.18 83 / .45);
+  border-color: var(--gold);
+  box-shadow: 0 0 12px var(--gold-glow);
 }
 .top-prev-name { flex: 1; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
-.top-prev-count { font-size: 12px; font-weight: 700; color: oklch(0.85 0.14 83); }
+.top-prev-count { font-size: 12px; font-weight: 700; color: var(--gold-soft); }
 
 .top-row-gold {
-  background: linear-gradient(90deg, oklch(0.3 0.06 83 / .25), oklch(0.76 0.18 83 / .18), oklch(0.3 0.06 83 / .25));
+  background: var(--gold-row);
   background-size: 200% 100%;
   border-radius: 10px;
   animation: gold-shimmer 2.4s ease-in-out infinite;
 }
-.top-row-gold .top-rank { color: oklch(0.8 0.18 83); }
-.top-row-gold .top-avatar { border-color: oklch(0.8 0.18 83); box-shadow: 0 0 12px oklch(0.76 0.18 83 / .5); }
+.top-row-gold .top-rank { color: var(--gold); }
+.top-row-gold .top-avatar { border-color: var(--gold); box-shadow: 0 0 12px var(--gold-glow); }
 @keyframes gold-shimmer {
   0%, 100% { background-position: 0% 50%; }
   50%      { background-position: 100% 50%; }
@@ -1628,7 +1845,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   background: var(--card);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
-  box-shadow: 0 8px 30px oklch(0 0 0 / 0.5);
+  box-shadow: var(--shadow-2);
   opacity: 0;
   transform: translateX(24px);
   transition: opacity .4s ease, transform .4s ease;
@@ -1650,7 +1867,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   z-index: 2;
 }
 /* 1000 — кристальная медаль дополнительно подсвечена, как в макете */
-.ach-glow-crystal img { filter: drop-shadow(0 0 12px rgba(186, 230, 253, 0.35)); }
+.ach-glow-crystal img { filter: drop-shadow(0 0 12px var(--crystal-glow)); }
 
 /* ── Модалка «Назначить ответственного» ─────────────────────────── */
 #assign-search {
