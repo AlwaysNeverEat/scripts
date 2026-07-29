@@ -43,6 +43,9 @@ const REDUCED_MOTION = typeof matchMedia === 'function'
 // Сколько карточек рисовать в скелете, пока грузится новый день: столько же,
 // сколько было станций в прошлом — тогда сетка не прыгает на подмене.
 let lastStationCount = 12;
+// Форма последней открытой станции — по ней рисуется её скелет при смене дня.
+let lastStationLanes = 2;
+let lastStationRows = 28;
 
 const state = {
     status: null,          // GET /status
@@ -566,7 +569,8 @@ function render() {
     }
     const content = state.board
         ? (state.view === 'station' ? renderStation() : renderOverview())
-        : state.boardLoading ? renderSkeleton()
+        : state.boardLoading
+            ? (state.view === 'station' ? renderStationSkeleton() : renderSkeleton())
         : `<div class="rc-boot">${esc(state.boardError || 'Нет данных')}</div>`;
     state.enterAnim = false; // флаг одноразовый: следующий render() уже без него
 
@@ -716,6 +720,32 @@ function renderSkeleton() {
     return `<main class="rc-overview rc-skeleton" aria-busy="true" aria-label="Загрузка станций">${cards}</main>`;
 }
 
+// Скелет станции — для смены дня, не выходя со станции: экран не должен на
+// секунду становиться списком карточек, которого никто не просил (это и
+// читалось как «выкинуло в общий список»). Форма берётся с прошлой отрисовки:
+// боксов и получасов у станции завтра ровно столько же.
+function renderStationSkeleton() {
+    const rows = Array.from({ length: lastStationRows }, (_, i) =>
+        `<div class="rc-row" style="top:${i * ROW_H}px"><span class="rc-skel rc-skel-time"></span></div>`).join('');
+    const heads = Array.from({ length: lastStationLanes }, () =>
+        '<span class="rc-lane-head"><span class="rc-skel rc-skel-lane"></span></span>').join('');
+    return `
+    <main class="rc-station rc-skeleton" aria-busy="true" aria-label="Загрузка станции">
+        <div class="rc-station-head">
+            <button class="btn btn-sec rc-back" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
+            <div class="rc-station-title"><span class="rc-skel rc-skel-dot"></span><span class="rc-skel rc-skel-name"></span></div>
+        </div>
+        <div class="rc-station-body">
+            <div class="rc-board" style="--lanes:${lastStationLanes}">
+                <div class="rc-lanes-heads">${heads}</div>
+                <div class="rc-grid" style="height:${lastStationRows * ROW_H}px">
+                    <div class="rc-rows">${rows}</div>
+                </div>
+            </div>
+        </div>
+    </main>`;
+}
+
 function overviewCard(addr, meta, i = 0) {
     const slots = state.board.timeSlots;
     const byTime = state.board.cells[addr.id] || {};
@@ -780,6 +810,9 @@ function renderStation() {
     const ghosts = ghostsFor(addr.id);
 
     const gridH = slots.length * ROW_H;
+    // Запоминаем форму сетки: по ней рисуется скелет, если отсюда сменят день.
+    lastStationLanes = lanes;
+    lastStationRows = slots.length;
 
     const startIdx = (t) => slots.indexOf(t);
 
@@ -2050,13 +2083,15 @@ function fadeOutBoard() {
     return new Promise(resolve => setTimeout(resolve, ANIM_OUT_MS));
 }
 
+// Смена дня. Открытую станцию НЕ закрываем: день меняют как раз затем, чтобы
+// посмотреть ту же станцию завтра, а возврат в общий список заставлял бы
+// открывать её заново. Если на новом дне такой станции не окажется,
+// renderStation() сам уведёт в список.
 async function switchDate(date) {
     if (!date || date === state.date) return;
     await fadeOutBoard();
     state.date = date;
-    state.view = 'overview';
-    state.stationId = null;
-    state.highlightId = null;
+    state.highlightId = null; // подсветка записи чужого дня смысла не имеет
     state.board = null;      // станции чужого дня с экрана сняты
     state.fetchedAt = null;
     state.boardError = '';
@@ -2654,8 +2689,15 @@ async function submitCreate() {
         state.modal = null;
         render(); // окно закрываем сразу: дальше день может уехать анимацией
         // Записали на другой день — переводим доску туда, иначе запись
-        // появится «где-то там», а на экране останется прежний день.
-        if (date !== state.date) await switchDate(date);
+        // появится «где-то там», а на экране останется прежний день. Смена дня
+        // станцию больше не закрывает, поэтому за станцией идём сами: иначе
+        // после «записать на завтра» остались бы на расписании, где записи нет.
+        if (date !== state.date) {
+            await switchDate(date);
+            if (state.view === 'station' && String(m.addressId) !== String(state.stationId)) {
+                openStation(m.addressId);
+            }
+        }
     } catch (err) {
         m.error = err.message;
         render();

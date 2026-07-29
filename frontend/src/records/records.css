@@ -271,6 +271,14 @@
 
 .rc-skel-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .rc-skel-name { height: 11px; flex: 1; max-width: 150px; }
+/* Скелет станции: полоски вместо времени в колонке слева и вместо «Бокс N».
+   Полоска времени стоит ровно в своей 64-пиксельной колонке, а не по центру
+   строки: скелет должен совпадать с сеткой, которая придёт ему на смену. */
+.rc-skel-time { flex: none; width: 34px; height: 8px; margin: 0 15px; }
+.rc-skel-lane { display: inline-block; width: 46px; height: 8px; }
+/* Название станции ещё неизвестно — держим ширину, иначе полоска схлопнется
+   в ноль (в шапке она flex: 1 от пустого содержимого). */
+.rc-station-title .rc-skel-name { flex: none; width: 150px; }
 .rc-skel-pill { height: 21px; width: 78px; border-radius: 4px; }
 .rc-skel-pill-s { width: 54px; }
 
@@ -279,6 +287,7 @@
     .rc-station.rc-in,
     .rc-overview.rc-in > .rc-card,
     .rc-overview.rc-skeleton,
+    .rc-station.rc-skeleton,
     .rc-skel::after { animation: none; }
 }
 
