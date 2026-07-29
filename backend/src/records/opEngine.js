@@ -33,7 +33,9 @@
 //   io.days()             → ['DD.MM.YYYY', …] дни, где искать записи без from
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { buildExtensionOps, findSlotConflict, findBoardRecord, timeToMin } from '../../../shared/crmRecords.js';
+import {
+    buildExtensionOps, findSlotConflict, findBoardRecord, timeToMin, extendsExistingRecord,
+} from '../../../shared/crmRecords.js';
 
 export class OpConflict extends Error {}
 
@@ -63,6 +65,10 @@ export async function applyOp(op, io) {
 
 // Создание записи (в т.ч. длинной: первый слот — клиент, остальные —
 // продолжения с телефоном-заглушкой).
+//
+// Возвращает ещё и continuation: запись встала встык к уже стоящей записи того
+// же клиента, то есть это продление, а не новый клиент. Нужно топу — см.
+// creditRecordOp() в sync.js.
 async function applyCreate(payload, progress, io) {
     const slots = buildExtensionOps(payload, Number(payload.durationMinutes) || 30);
     const created = progress.created || (progress.created = []);
@@ -72,6 +78,14 @@ async function applyCreate(payload, progress, io) {
     // очереди, слот могли занять.
     const board = await io.board(payload.date);
     const cellAt = (time) => board.cells?.[String(payload.addressId)]?.[time];
+
+    // Продление считаем ровно один раз — по доске ДО создания. На ретрае наш
+    // собственный слот уже стоит, цепочка кончается не там, и ответ был бы
+    // другим (запись сама себе продолжение).
+    if (progress.continuation === undefined) {
+        progress.continuation = extendsExistingRecord(board, payload);
+        await io.saveProgress(progress);
+    }
     for (const slot of slots) {
         if (done.has(slot.time)) continue;
         const cell = cellAt(slot.time);
@@ -85,7 +99,7 @@ async function applyCreate(payload, progress, io) {
         created.push({ addressId: String(slot.addressId), date: slot.date, time: slot.time, name: slot.name, before });
         await io.saveProgress(progress);
     }
-    return { ok: true };
+    return { ok: true, continuation: Boolean(progress.continuation) };
 }
 
 // Перенос записи. Правка полей (имя, телефон) переносом не является — слоты не

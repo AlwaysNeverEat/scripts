@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
     parseRecordBoard, detectChains, assignLanes, buildExtensionOps,
     contiguousFreeSlots, flattenAddressRecords, buildCopyLine, copyOperatorFor,
-    findSlotConflict, findBoardRecord, isExtensionCreate,
+    findSlotConflict, findBoardRecord, isExtensionCreate, extendsExistingRecord,
     isRecordBoard, looksLikeLoginPage, parseEditForm,
     timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
     isBookableTime, LAST_START_TIME, EXTENSION_STUB_PHONE,
@@ -261,6 +261,87 @@ test('isExtensionCreate: продолжение — по телефону-заг
     assert.equal(isExtensionCreate({ phone: '' }), false);
     assert.equal(isExtensionCreate({}), false);
     assert.equal(isExtensionCreate(null), false);
+});
+
+// Ручное продление — слот встык с настоящим номером клиента: заглушки нет, но
+// запись всё та же, и в топе она должна дать одно очко, а не по очку за слот.
+function chainBoard(records) {
+    const cells = { 3: {} };
+    for (const r of records) {
+        cells['3'][r.timeStart] = { records: [r], free: 0 };
+    }
+    return { cells };
+}
+
+test('extendsExistingRecord: слот встык с тем же именем и номером — продление', () => {
+    const board = chainBoard([rec('1', '10:00', 'Иван', '+7 (921) 111-22-33', '3')]);
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '10:30', name: 'Иван', phone: '+79211112233',
+    }), true);
+    // Регистр и лишние пробелы оператора значить не должны.
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '10:30', name: '  иван  ', phone: '8 (921) 111-22-33',
+    }), true);
+});
+
+test('extendsExistingRecord: продление длинной записи — от конца всей цепочки', () => {
+    const board = chainBoard([
+        rec('1', '10:00', 'Иван', '+7 (921) 111-22-33', '3'),
+        rec('2', '10:30', 'Иван', EXTENSION_STUB_PHONE, '3'),
+    ]);
+    // Встык к хвосту червячка — продление; в середину цепочки не встать.
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '11:00', name: 'Иван', phone: '+79211112233',
+    }), true);
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '10:30', name: 'Иван', phone: '+79211112233',
+    }), false);
+});
+
+test('extendsExistingRecord: слот перед записью того же клиента — тоже продление', () => {
+    // Начало сдвинули на полчаса раньше: червячок один, значит и запись одна.
+    const board = chainBoard([
+        rec('1', '10:00', 'Иван', '+7 (921) 111-22-33', '3'),
+        rec('2', '10:30', 'Иван', EXTENSION_STUB_PHONE, '3'),
+    ]);
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '09:30', name: 'Иван', phone: '+79211112233',
+    }), true);
+    // Час перед цепочкой — конец добавки всё так же встык.
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '09:00', name: 'Иван', phone: '+79211112233', durationMinutes: 60,
+    }), true);
+    // Тёзка со своим номером перед цепочкой — другой человек.
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '09:30', name: 'Иван', phone: '+79214445566',
+    }), false);
+});
+
+test('extendsExistingRecord: новый клиент — не продление', () => {
+    const board = chainBoard([rec('1', '10:00', 'Иван', '+7 (921) 111-22-33', '3')]);
+    // Тот же тёзка, но свой номер — два разных человека подряд.
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '10:30', name: 'Иван', phone: '+79214445566',
+    }), false);
+    // Другое имя, разрыв во времени, другая станция, пустое имя.
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '10:30', name: 'Пётр', phone: '+79211112233',
+    }), false);
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '11:00', name: 'Иван', phone: '+79211112233',
+    }), false);
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '4', time: '10:30', name: 'Иван', phone: '+79211112233',
+    }), false);
+    assert.equal(extendsExistingRecord(board, {
+        addressId: '3', time: '10:30', name: '', phone: '+79211112233',
+    }), false);
+});
+
+test('extendsExistingRecord: пустая доска — не продление', () => {
+    assert.equal(extendsExistingRecord(null, {
+        addressId: '3', time: '10:30', name: 'Иван', phone: '+79211112233',
+    }), false);
 });
 
 test('contiguousFreeSlots: обрывается на занятом и на конце дня', () => {

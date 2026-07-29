@@ -197,24 +197,29 @@ export async function pendingOps() {
     }));
 }
 
-async function markOpDone(op) {
+async function markOpDone(op, result = {}) {
     await query(`UPDATE record_ops SET status = 'done', applied_at = now(), last_error = '' WHERE id = $1`, [op.id]);
-    await creditRecordOp(op);
+    await creditRecordOp(op, result);
 }
 
 // Зачёт в месячный топ: одна успешно созданная запись = одна строка в
 // record_credits (см. db/migrations/020_record_credits.sql).
 //
-// Считаем только create и только «настоящие» записи: продолжения длинной
-// записи создаются с телефоном-заглушкой, и продлённая запись всё равно одна.
-// Длина роли не играет — операция одна, слотов в ней сколько угодно.
+// Считаем только create и только «настоящие» записи. Длина роли не играет —
+// операция одна, слотов в ней сколько угодно, — и продлений это тоже касается:
+// продлённая запись даёт одно очко, как и получасовая.
+//
+// Продление узнаём двумя способами: по телефону-заглушке («Продлить» и добор
+// хвоста при правке длины ставят слоты именно с ней) и по доске — слот встык к
+// записи того же клиента (до неё или после), даже если оператор продлевал
+// руками, с настоящим номером (continuation из opEngine.applyCreate).
 //
 // Зачёт выдаётся один раз и НЕ отзывается: перенос, правка и удаление записи
 // очко не снимают. Клиент отменился — работа всё равно была сделана, поэтому
 // строки из record_credits не удаляет никто и никогда.
-async function creditRecordOp(op) {
+async function creditRecordOp(op, result = {}) {
     if (op.type !== 'create' || !op.userId) return;
-    if (isExtensionCreate(op.payload)) return;
+    if (isExtensionCreate(op.payload) || result.continuation) return;
     try {
         await query(
             `INSERT INTO record_credits (op_id, user_id) VALUES ($1, $2)
@@ -312,7 +317,7 @@ async function doDrainQueue() {
     for (const op of ops) {
         try {
             const result = await applyOp(op, opIo(op));
-            if (result.ok) await markOpDone(op);
+            if (result.ok) await markOpDone(op, result);
             else await markOpFailed(op.id, result.reason);
         } catch (err) {
             if (err instanceof ZmsError && err.code === 'zms_credentials_required') {

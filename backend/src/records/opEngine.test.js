@@ -7,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { applyOp, hasAppliedWork } from './opEngine.js';
+import { addMinutes, normPhoneDigits, EXTENSION_STUB_PHONE } from '../../../shared/crmRecords.js';
 
 const TODAY = '25.07.2026';
 const TOMORROW = '26.07.2026';
@@ -35,7 +36,15 @@ function makeZms({ boxes = { 3: 1, 4: 1 }, records = [], closed = [] } = {}) {
             if (r.date !== date) continue;
             const cell = cells[r.addressId]?.[r.time];
             if (!cell) continue;
-            cell.records.push({ id: r.id, name: r.name, deleteUrl: `/admin/record/delete?id=${r.id}` });
+            // Поля — как у parseRecordBoard: по ним движок узнаёт червячки
+            // (продление слотом встык к записи того же клиента).
+            const phoneDigits = normPhoneDigits(r.phone);
+            cell.records.push({
+                id: r.id, addressId: r.addressId, name: r.name,
+                timeStart: r.time, timeEnd: addMinutes(r.time, 30),
+                phone: r.phone || '', phoneDigits, isStub: phoneDigits === normPhoneDigits(EXTENSION_STUB_PHONE),
+                deleteUrl: `/admin/record/delete?id=${r.id}`,
+            });
             cell.free = Math.max(0, cell.free - 1);
         }
         return {
@@ -294,6 +303,63 @@ test('создание длинной записи: слот заняли на �
     const res = await applyOp({ ...op, progress: rollback }, zms.io);
     assert.equal(res.ok, false);
     assert.equal(zms.records.length, 0);
+});
+
+// continuation — это ответ топу: продлённая запись даёт одно очко, а не по
+// очку за каждый доставленный слот (см. creditRecordOp в sync.js).
+
+test('создание длинной записи: новый клиент — не продление', async () => {
+    const zms = makeZms({ records: [] });
+    const op = {
+        id: 30,
+        type: 'create',
+        payload: { addressId: '3', date: TODAY, time: '09:00', name: 'Иван', phone: '+79210000000', durationMinutes: 90 },
+        progress: {},
+    };
+    const res = await applyOp(op, zms.io);
+    assert.deepEqual(res, { ok: true, continuation: false });
+    assert.equal(zms.records.length, 3);
+});
+
+test('ручное продление: слот встык с тем же номером клиента — продление', async () => {
+    // Червячок 09:00–10:30 уже стоит; оператор дописывает ещё полчаса руками,
+    // с настоящим номером клиента, а не через «Продлить».
+    const zms = makeZms({ records: chainOf() });
+    const op = {
+        id: 31,
+        type: 'create',
+        payload: { addressId: '3', date: TODAY, time: '10:30', name: 'Иван', phone: '+79210000000', durationMinutes: 30 },
+        progress: {},
+    };
+    assert.deepEqual(await applyOp(op, zms.io), { ok: true, continuation: true });
+});
+
+test('ручное продление: решение принимается один раз, ретрай его не переворачивает', async () => {
+    const zms = makeZms({ records: chainOf() });
+    const op = {
+        id: 32,
+        type: 'create',
+        payload: { addressId: '3', date: TODAY, time: '10:30', name: 'Иван', phone: '+79210000000', durationMinutes: 60 },
+        progress: {},
+    };
+    zms.failUpdate = (_f, n) => { if (n === 2) throw new Error('админка недоступна'); };
+    await assert.rejects(() => applyOp(op, zms.io), /админка недоступна/);
+
+    // На второй попытке наш первый слот уже на доске — цепочка кончается на нём,
+    // и «продолжает ли запись чужую» ответ был бы другим. Берём сохранённый.
+    zms.failUpdate = null;
+    assert.deepEqual(await applyOp(op, zms.io), { ok: true, continuation: true });
+});
+
+test('тёзка встык со своим номером — новая запись, а не продление', async () => {
+    const zms = makeZms({ records: chainOf() });
+    const op = {
+        id: 33,
+        type: 'create',
+        payload: { addressId: '3', date: TODAY, time: '10:30', name: 'Иван', phone: '+79219998877', durationMinutes: 30 },
+        progress: {},
+    };
+    assert.deepEqual(await applyOp(op, zms.io), { ok: true, continuation: false });
 });
 
 test('откат создания не трогает чужие записи в тех же слотах', async () => {
