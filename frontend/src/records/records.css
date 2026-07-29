@@ -432,9 +432,18 @@
     font-size: 15px;
 }
 
-.rc-station-full { color: var(--sub); font-size: 11px; }
-
-.rc-station-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Чипы станции всегда своей строкой под адресом: по месту они то влезали в
+   строку с названием, то нет, и шапка прыгала при каждом переходе между
+   станциями. Отступ слева — ширина колонки со списком станций: строка чипов
+   встаёт ровно под названием, а не под кнопкой «Все станции». */
+.rc-station-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex-basis: 100%;
+    margin-top: -4px;
+    padding-left: calc(var(--side-w) + 12px);
+}
 
 /* Чипы в шапке станции — той же прямоугольной формы и той же цветовой
    раскладки, что и плашки в карточках обзора. */
@@ -1428,7 +1437,9 @@
     .rc-searchbox { order: 10; flex-basis: 100%; max-width: none; }
     .rc-field-row { flex-direction: column; gap: 0; }
     .rc-station-body { --lane-w: 240px; }
-    /* Подпись у кнопки спрятана — растягивать её на ширину колонки незачем. */
+    /* Подпись у кнопки спрятана — растягивать её на ширину колонки незачем,
+       а вместе с ней уезжает и отступ у строки чипов: равняться уже не на что. */
     .rc-station-head .rc-back { flex: 0 0 auto; }
+    .rc-station-chips { padding-left: 0; }
     .rc-side-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }

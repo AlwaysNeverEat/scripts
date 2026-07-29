@@ -912,8 +912,7 @@ function renderStation() {
             <div class="rc-station-title">
                 <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
                 ${boxCodeHtml(meta, 'rc-code-lg')}
-                <b>${esc(meta?.short || addr.title)}</b>
-                <span class="rc-station-full">${esc(addr.title)}</span>
+                <b title="${esc(addr.title)}">${esc(meta?.short || addr.title)}</b>
             </div>
             <div class="rc-station-chips">
                 ${meta?.metro ? `<span class="rc-chip-meta rc-chip-metro">${esc(meta.metro)}${meta.line ? ` · ${esc(LINE_NAMES[meta.line] || '')}` : ''}</span>` : ''}
