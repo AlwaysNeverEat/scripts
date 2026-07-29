@@ -301,12 +301,20 @@ export function startSphere(canvas, initialNodes) {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
     window.addEventListener('pageshow', kick);
 
-    canvas.addEventListener('pointermove', (e) => {
+    // Указатель слушаем на контейнере страницы, а не на канвасе. Строка поиска
+    // с переключателем и результатами лежит поверх канваса и, в отличие от
+    // самого оверлея, ловит pointer-события (.search-ui > * { pointer-events:
+    // auto }) — pointermove до канваса просто не доходил, а вдобавок прилетал
+    // pointerleave, и подсветка гасла целиком, стоило навести на инпут. С
+    // контейнера события всплывают и от инпута, и от кнопок, поэтому узлы
+    // продолжают подсвечиваться, пока курсор идёт по строке поиска.
+    const pointerHost = canvas.parentElement || canvas;
+    pointerHost.addEventListener('pointermove', (e) => {
         const rect = canvas.getBoundingClientRect();
-        // Курсор вернулся на канвас (был над строкой поиска или вне окна):
-        // ставим точку сглаживания сразу под него. Иначе она ползёт к курсору
-        // от -9999 по 4% за кадр — это ~2 секунды, всё это время узлы под
-        // курсором не подсвечиваются, а подсветка едет из угла.
+        // Курсор вернулся в окно: ставим точку сглаживания сразу под него,
+        // иначе она ползёт к курсору от -9999 по 4% за кадр — это ~2 секунды,
+        // всё это время узлы под курсором не подсвечиваются, а подсветка едет
+        // из угла.
         const jump = !hasMouse();
         mouse.x = e.clientX - rect.left;
         mouse.y = e.clientY - rect.top;
@@ -319,7 +327,8 @@ export function startSphere(canvas, initialNodes) {
         mouse.x = OFF;
         mouse.y = OFF;
     };
-    canvas.addEventListener('pointerleave', forgetMouse);
+    // Тоже с контейнера: уход с канваса на строку поиска — не уход мыши
+    pointerHost.addEventListener('pointerleave', forgetMouse);
     // pointerleave не приходит, если курсор ушёл вместе с потерей фокуса окна
     // (Alt+Tab, переключение вкладки) — иначе останется «залипшая» подсветка
     window.addEventListener('blur', forgetMouse);
