@@ -308,6 +308,17 @@
 
 .rc-card:hover { border-color: var(--accent); background: var(--bg2); }
 
+/* Станции с заправкой кондиционера — карточка чуть голубее: летом их ищут
+   пачками, и подсветка целой карточки находится быстрее, чем значок.
+   Оттенок слабый: это подсказка, а не статус, и он не должен спорить с
+   цветными плашками внутри. */
+.rc-card-ac {
+    background: color-mix(in oklab, var(--blue) 13%, var(--card));
+    border-color: color-mix(in oklab, var(--blue) 30%, var(--border));
+}
+
+.rc-card-ac:hover { border-color: var(--accent); background: color-mix(in oklab, var(--blue) 17%, var(--bg2)); }
+
 .rc-card-head {
     display: flex;
     align-items: center;

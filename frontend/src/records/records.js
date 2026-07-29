@@ -692,7 +692,7 @@ function overviewCard(addr, meta, i = 0) {
     // чтобы сетка не пестрела.
     const freeTone = free === 0 ? 'rc-pill-none' : free <= 5 ? 'rc-pill-low' : 'rc-pill-ok';
     return `
-    <button class="rc-card" data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
+    <button class="rc-card ${meta?.ac ? 'rc-card-ac' : ''}" data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
         <div class="rc-card-head">
             <span class="rc-line-dot" style="background:${line ? LINE_COLORS[line] : 'var(--sub)'}"></span>
             ${boxCodeHtml(meta)}
