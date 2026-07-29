@@ -90,8 +90,9 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         const ac = meta.ac
             ? `<span class="rc-pin-ac" title="Заправка кондиционера">${icons.snowflake(11)}</span>` : '';
         const code = meta.boxNo ? `<span class="rc-pin-code">${esc(meta.boxNo)}</span>` : '';
-        // Поводок — пунктир от разведённой плашки к её настоящей точке; пока
-        // плашка стоит на месте, он спрятан (см. layoutPins).
+        // Поводок — пунктир от разведённой плашки к её настоящей точке. Длину
+        // ему считает layoutPins, а показывается он только под курсором
+        // (см. .rc-pin-leader в records.css).
         return `<span class="rc-pin${meta.ac ? ' rc-pin-ac-st' : ''}${active ? ' rc-pin-active' : ''}">`
             + `<i class="rc-pin-leader" style="display:none"></i>`
             + `<span class="rc-pin-stripe" style="background:${color}"></span>${code}`
@@ -197,6 +198,8 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
             it.pin.style.setProperty('--dy', `${dy}px`);
             const leader = it.pin.querySelector('.rc-pin-leader');
             if (!leader) continue;
+            // Плашка на своём месте — тянуть некуда, поводка нет совсем
+            // (показ остальных — на CSS, по ховеру).
             leader.style.display = dy ? '' : 'none';
             leader.style.height = `${Math.abs(dy)}px`;
             // Плашка ушла вниз — поводок тянется от неё вверх, к своей точке.

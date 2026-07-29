@@ -1406,16 +1406,23 @@
 }
 
 /* Поводок от сдвинутой плашки к её настоящей точке — высоту и сторону
-   проставляет map.js, пока плашка на месте, поводка нет вовсе. */
+   проставляет map.js, пока плашка на месте, поводка нет вовсе.
+   Постоянно висеть он не должен: на общем виде города сдвиги большие, и два
+   десятка пунктиров читались как мусор поверх карты. Поэтому поводок
+   появляется только под курсором — когда плашку и правда примеряют к месту.
+   Открытой станции он не нужен вовсе: в раскладке она идёт первой и всегда
+   стоит на своей настоящей точке. */
 .rc-pin-leader {
     position: absolute;
     left: 9px;
     width: 0;
     border-left: 1px dashed color-mix(in oklab, var(--text) 45%, transparent);
+    opacity: 0;
+    transition: opacity 0.12s;
     pointer-events: none;
 }
 
-.rc-pin-active .rc-pin-leader { border-left-color: var(--accent); }
+.rc-pin:hover .rc-pin-leader { opacity: 1; }
 
 .rc-pin-stripe { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
