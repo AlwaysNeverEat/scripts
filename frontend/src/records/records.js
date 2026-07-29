@@ -692,7 +692,7 @@ function overviewCard(addr, meta, i = 0) {
     // чтобы сетка не пестрела.
     const freeTone = free === 0 ? 'rc-pill-none' : free <= 5 ? 'rc-pill-low' : 'rc-pill-ok';
     return `
-    <button class="rc-card" data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
+    <button class="rc-card ${meta?.ac ? 'rc-card-ac' : ''}" data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
         <div class="rc-card-head">
             <span class="rc-line-dot" style="background:${line ? LINE_COLORS[line] : 'var(--sub)'}"></span>
             ${boxCodeHtml(meta)}
@@ -702,9 +702,9 @@ function overviewCard(addr, meta, i = 0) {
         <div class="rc-card-strip">${ticks}</div>
         <div class="rc-card-foot">
             <span class="rc-pill ${freeTone}">${free} свободно</span>
-            <span class="rc-pill rc-pill-mute">${booked} зап.</span>
-            <span class="rc-pill rc-pill-mute">${boxes} ${boxes === 1 ? 'бокс' : boxes < 5 ? 'бокса' : 'боксов'}</span>
-            ${meta?.height ? `<span class="rc-pill rc-pill-mute" title="Высота ворот">ворота ${esc(meta.height)}</span>` : ''}
+            <span class="rc-pill rc-pill-booked">${booked} зап.</span>
+            <span class="rc-pill rc-pill-boxes">${boxes} ${boxes === 1 ? 'бокс' : boxes < 5 ? 'бокса' : 'боксов'}</span>
+            ${meta?.height ? `<span class="rc-pill rc-pill-gate" title="Высота ворот">ворота ${esc(meta.height)}</span>` : ''}
             ${ghosts.length ? `<span class="rc-pill rc-pill-queue">${icons.clock(10)}${ghosts.length} в очереди</span>` : ''}
         </div>
     </button>`;
@@ -850,10 +850,10 @@ function renderStation() {
                 <span class="rc-station-full">${esc(addr.title)}</span>
             </div>
             <div class="rc-station-chips">
-                ${meta?.metro ? `<span class="rc-chip-meta">${esc(meta.metro)}${meta.line ? ` · ${esc(LINE_NAMES[meta.line] || '')}` : ''}</span>` : ''}
-                ${meta?.layout ? `<span class="rc-chip-meta">${esc(meta.layout)}</span>` : ''}
-                ${meta?.height ? `<span class="rc-chip-meta">ворота ${esc(meta.height)}</span>` : ''}
-                ${meta?.hydro === true ? `<span class="rc-chip-meta">гидростойка есть</span>` : ''}
+                ${meta?.metro ? `<span class="rc-chip-meta rc-chip-metro">${esc(meta.metro)}${meta.line ? ` · ${esc(LINE_NAMES[meta.line] || '')}` : ''}</span>` : ''}
+                ${meta?.layout ? `<span class="rc-chip-meta rc-chip-layout">${esc(meta.layout)}</span>` : ''}
+                ${meta?.height ? `<span class="rc-chip-meta rc-chip-gate">ворота ${esc(meta.height)}</span>` : ''}
+                ${meta?.hydro === true ? `<span class="rc-chip-meta rc-chip-hydro">гидростойка есть</span>` : ''}
                 ${meta?.hydro === false ? `<span class="rc-chip-meta rc-chip-off">гидростойки нет</span>` : ''}
                 ${meta?.ac ? `<span class="rc-chip-meta rc-chip-ac">${icons.snowflake(11)}заправка кондиционера</span>` : ''}
                 ${meta?.note ? `<span class="rc-chip-meta rc-chip-note">${esc(meta.note)}</span>` : ''}

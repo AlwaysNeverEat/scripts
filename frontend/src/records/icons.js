@@ -30,6 +30,13 @@ export const icons = {
     chevronDown: (s) => svg('<polyline points="6 9 12 15 18 9"/>', s),
     award: (s) => svg('<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>', s),
     // Снежинка = «делаем заправку кондиционера» (в списках и на плашках карты).
-    snowflake: (s) => svg('<line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/>', s),
+    // Штрих толще базовых двух: значок живёт в размере 10–12px, и на тонких
+    // линиях он превращался в серое пятно.
+    snowflake: (s = 16) =>
+        `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" `
+        + 'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>'
+        + '<path d="m16 4-4 4-4-4"/><path d="m8 20 4-4 4 4"/>'
+        + '<path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/></svg>',
     externalLink: (s) => svg('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>', s),
 };
