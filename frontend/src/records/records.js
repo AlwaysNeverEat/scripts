@@ -217,6 +217,28 @@ function metaFor(addr) {
     return addr ? findStationMeta(addr.title) : null;
 }
 
+// Код станции («##01») — то, что набирают, чтобы перевести на неё звонок,
+// поэтому он висит рядом с названием везде, где станция вообще названа.
+// Номер всегда двузначный и всегда через две решётки.
+function boxCodeHtml(meta, extra = '') {
+    return meta?.boxNo
+        ? `<span class="rc-code ${extra}" title="Код для перевода звонка">${esc(meta.boxNo)}</span>`
+        : '';
+}
+
+// Снежинка = на станции заправляют кондиционер.
+function acHtml(meta, size = 11) {
+    return meta?.ac
+        ? `<span class="rc-ac" title="Заправка кондиционера">${icons.snowflake(size)}</span>`
+        : '';
+}
+
+// Текстовый вариант для <option> и title, куда разметку не вставить.
+function stationLabel(addr, meta = metaFor(addr)) {
+    const name = meta?.short || addr?.title || '';
+    return `${meta?.boxNo ? `${meta.boxNo} · ` : ''}${name}${meta?.ac ? ' · кондей' : ''}`;
+}
+
 // Число боксов станции. Главный источник — сама доска: в открытом слоте
 // оригинал рисует по «Добавить» на каждый свободный бокс, поэтому
 // «записей + свободных» в слоте и есть количество боксов. Это точнее
@@ -630,6 +652,7 @@ function renderSkeleton() {
                 <span class="rc-skel rc-skel-pill"></span>
                 <span class="rc-skel rc-skel-pill rc-skel-pill-s"></span>
                 <span class="rc-skel rc-skel-pill rc-skel-pill-s"></span>
+                <span class="rc-skel rc-skel-pill rc-skel-pill-s"></span>
             </div>
         </div>`).join('');
     // Скелет проявляется целиком, без каскада: каскад — язык «данные пришли»,
@@ -672,13 +695,16 @@ function overviewCard(addr, meta, i = 0) {
     <button class="rc-card" data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
         <div class="rc-card-head">
             <span class="rc-line-dot" style="background:${line ? LINE_COLORS[line] : 'var(--sub)'}"></span>
+            ${boxCodeHtml(meta)}
             <b class="rc-card-name">${esc(meta?.short || addr.title)}</b>
+            ${acHtml(meta)}
         </div>
         <div class="rc-card-strip">${ticks}</div>
         <div class="rc-card-foot">
             <span class="rc-pill ${freeTone}">${free} свободно</span>
             <span class="rc-pill rc-pill-mute">${booked} зап.</span>
             <span class="rc-pill rc-pill-mute">${boxes} ${boxes === 1 ? 'бокс' : boxes < 5 ? 'бокса' : 'боксов'}</span>
+            ${meta?.height ? `<span class="rc-pill rc-pill-mute" title="Высота ворот">ворота ${esc(meta.height)}</span>` : ''}
             ${ghosts.length ? `<span class="rc-pill rc-pill-queue">${icons.clock(10)}${ghosts.length} в очереди</span>` : ''}
         </div>
     </button>`;
@@ -819,13 +845,17 @@ function renderStation() {
             <button class="btn btn-sec rc-back" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
             <div class="rc-station-title">
                 <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
+                ${boxCodeHtml(meta, 'rc-code-lg')}
                 <b>${esc(meta?.short || addr.title)}</b>
                 <span class="rc-station-full">${esc(addr.title)}</span>
             </div>
             <div class="rc-station-chips">
                 ${meta?.metro ? `<span class="rc-chip-meta">${esc(meta.metro)}${meta.line ? ` · ${esc(LINE_NAMES[meta.line] || '')}` : ''}</span>` : ''}
                 ${meta?.layout ? `<span class="rc-chip-meta">${esc(meta.layout)}</span>` : ''}
-                ${meta?.height ? `<span class="rc-chip-meta">до ${esc(meta.height)}</span>` : ''}
+                ${meta?.height ? `<span class="rc-chip-meta">ворота ${esc(meta.height)}</span>` : ''}
+                ${meta?.hydro === true ? `<span class="rc-chip-meta">гидростойка есть</span>` : ''}
+                ${meta?.hydro === false ? `<span class="rc-chip-meta rc-chip-off">гидростойки нет</span>` : ''}
+                ${meta?.ac ? `<span class="rc-chip-meta rc-chip-ac">${icons.snowflake(11)}заправка кондиционера</span>` : ''}
                 ${meta?.note ? `<span class="rc-chip-meta rc-chip-note">${esc(meta.note)}</span>` : ''}
             </div>
             <button class="btn btn-pri" data-action="create-at" data-time="">${icons.plus(14)} Новая запись</button>
@@ -863,9 +893,11 @@ function otherStationsHtml(currentId) {
             const tone = free === 0 ? 'rc-side-none' : free <= 5 ? 'rc-side-low' : '';
             return `
             <button class="rc-side-item ${active ? 'rc-side-active' : ''}" data-action="open-station"
-                data-id="${esc(addr.id)}" title="${esc(addr.title)} · ${booked} зап., ${free} свободно">
+                data-id="${esc(addr.id)}" title="${esc(stationLabel(addr, meta))} · ${esc(addr.title)} · ${booked} зап., ${free} свободно">
                 <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
+                ${boxCodeHtml(meta)}
                 <b>${esc(meta?.short || addr.title)}</b>
+                ${acHtml(meta, 10)}
                 <span class="rc-side-free ${tone}">${free}</span>
             </button>`;
         }).join('');
@@ -1179,14 +1211,14 @@ function modalCreate(m) {
             <label class="edit-field"><span>Комментарий</span>
                 <textarea id="rc-f-comment" rows="2">${esc(m.comment || '')}</textarea></label>
 
-            <div class="rc-sub">Станция — <b>${esc(meta?.short || addr?.title || '')}</b>
+            <div class="rc-sub">Станция — ${boxCodeHtml(meta)}<b>${esc(meta?.short || addr?.title || '')}</b>${acHtml(meta, 10)}
                 <button class="btn btn-sec rc-mini-btn" data-action="toggle-create-map">${icons.map(13)} сменить на карте</button>
             </div>
             <div class="rc-station-select">
                 <select id="rc-f-station">
                     ${(board?.addresses || state.board.addresses).map(a => {
                         const am = metaFor(a);
-                        return `<option value="${esc(a.id)}" ${String(a.id) === String(m.addressId) ? 'selected' : ''}>${esc(am?.short || a.title)}</option>`;
+                        return `<option value="${esc(a.id)}" ${String(a.id) === String(m.addressId) ? 'selected' : ''}>${esc(stationLabel(a, am))}</option>`;
                     }).join('')}
                 </select>
             </div>
@@ -1278,7 +1310,7 @@ function modalChain(m) {
         <div class="rc-chain-info">
             <div class="rc-chain-name">${statusIcon(chain.head.status)}<b>${esc(chain.head.name || 'без имени')}</b></div>
             ${chain.head.phone && !chain.head.isStub ? `<div class="rc-chain-row">${esc(chain.head.phone)}</div>` : ''}
-            <div class="rc-chain-row">${esc(meta?.short || addr.title)} · ${esc(state.date || '')} · ${esc(chain.timeStart)}–${esc(chain.timeEnd)}</div>
+            <div class="rc-chain-row">${boxCodeHtml(meta)}${esc(meta?.short || addr.title)} · ${esc(state.date || '')} · ${esc(chain.timeStart)}–${esc(chain.timeEnd)}</div>
             ${n > 1 ? `<div class="rc-chain-row rc-chain-worm">${icons.link(12)} продлённая запись: ${n} слотов по 30 минут</div>` : ''}
             ${detailsHtml(detailsOf(chain.head.id))}
         </div>
@@ -1495,12 +1527,21 @@ function modalMap(m) {
             ${icons.search(14)}
             <input id="rc-map-q" type="search" placeholder="Улица или адрес — покажу ближайшие станции…" autocomplete="off" value="${esc(m.query || '')}"/>
         </div>
+        <div class="rc-map-legend">
+            <span><i class="rc-lg-dot rc-pin-count-ok"></i>свободно много</span>
+            <span><i class="rc-lg-dot rc-pin-count-low"></i>мало (≤5 получасов)</span>
+            <span><i class="rc-lg-dot rc-pin-count-none"></i>мест нет</span>
+            <span class="rc-lg-ac">${icons.snowflake(12)}заправка кондиционера</span>
+            <span><b class="rc-code">##NN</b>код перевода звонка</span>
+        </div>
         <div class="rc-map-layout">
             <div id="rc-map-near" class="rc-map-near">
                 ${m.near ? m.near.map(s => `
                     <button class="rc-near-item" data-action="near-pick" data-short="${esc(s.short)}" data-lat="${s.lat}" data-lng="${s.lng}">
                         <span class="rc-line-dot" style="background:${LINE_COLORS[s.line] || 'var(--sub)'}"></span>
+                        ${boxCodeHtml(s)}
                         <b>${esc(s.short)}</b>
+                        ${acHtml(s, 10)}
                         <span class="rc-near-dist">${s.distanceKm < 1 ? `${Math.round(s.distanceKm * 1000)} м` : `${s.distanceKm.toFixed(1)} км`}</span>
                     </button>`).join('')
                     : '<div class="rc-empty-note">Введи улицу — подскажу, какие станции рядом. Клик по плашке на карте открывает станцию.</div>'}
@@ -1554,9 +1595,12 @@ function runSearch(q) {
     for (const addr of state.board.addresses) {
         const meta = metaFor(addr);
         const addrLabel = (meta?.short || addr.title);
+        // Код станции ищем только с решётками («##11»): без них «11» совпало бы
+        // ещё и с телефонами, и выдача превращалась бы в кашу.
         const addrMatch = addr.title.toLowerCase().includes(query)
             || addrLabel.toLowerCase().includes(query)
-            || (meta?.metro || '').toLowerCase().includes(query);
+            || (meta?.metro || '').toLowerCase().includes(query)
+            || (query.startsWith('#') && (meta?.boxNo || '').includes(query));
         for (const chain of chainsFor(addr.id)) {
             const r = chain.head;
             const nameMatch = (r.name || '').toLowerCase().includes(query);
@@ -1576,7 +1620,7 @@ function runSearch(q) {
                 <b>${esc(chain.head.name || 'без имени')}</b>
                 ${chain.head.phone && !chain.head.isStub ? `<em class="rc-search-phone">${esc(chain.head.phone)}</em>` : ''}
             </span>
-            <span>${esc(addrLabel)} · ${esc(chain.timeStart)}–${esc(chain.timeEnd)}${chain.parts.length > 1 ? ` · ${chain.parts.length} слота` : ''}</span>
+            <span>${boxCodeHtml(metaFor(addr))}${esc(addrLabel)} · ${esc(chain.timeStart)}–${esc(chain.timeEnd)}${chain.parts.length > 1 ? ` · ${chain.parts.length} слота` : ''}</span>
         </button>`).join('')
         : '<div class="rc-empty-note rc-search-empty">Ничего не нашлось на этот день</div>';
     drop.classList.remove('hidden');
@@ -1588,16 +1632,16 @@ function destroyMapCtl() {
     if (mapCtl) { try { mapCtl.destroy(); } catch { /* уже снят */ } mapCtl = null; }
 }
 
-function busyCountByShort(board = state.board) {
+// На карте счётчик показывает СВОБОДНЫЕ получасы, а не количество записей:
+// плашку читают, когда ищут, куда воткнуть клиента, — «занято 12» на этот
+// вопрос не отвечает, а «свободно 3» отвечает сразу и цветом.
+function freeCountByShort(board = state.board) {
     const counts = {};
     if (!board) return counts;
     for (const addr of board.addresses) {
         const meta = metaFor(addr);
         if (!meta) continue;
-        let n = 0;
-        const byTime = board.cells[addr.id] || {};
-        for (const t of Object.keys(byTime)) n += byTime[t].records.length;
-        counts[meta.short] = (counts[meta.short] || 0) + n;
+        counts[meta.short] = (counts[meta.short] || 0) + stationCounts(addr, board).free;
     }
     return counts;
 }
@@ -1619,7 +1663,7 @@ function initModalMap(containerId, onPickMeta, activeShort = null, board = state
     if (!el) return;
     destroyMapCtl();
     mapCtl = createStationsMap(el, { onPick: onPickMeta, view: state.modal?.mapView });
-    mapCtl.setBusy(busyCountByShort(board));
+    mapCtl.setFree(freeCountByShort(board));
     if (activeShort) mapCtl.highlight(activeShort);
     mapCtl.invalidate();
 }

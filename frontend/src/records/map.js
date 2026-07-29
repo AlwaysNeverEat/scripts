@@ -1,6 +1,8 @@
 // Карта станций для страницы «Записи»: Leaflet + бесплатные тайлы CARTO
 // (подход перенесён с лендинга SPOT), но вместо голых булавок — плашки с
-// названием станции, цветом линии метро и счётчиком занятых слотов.
+// кодом перевода звонка, названием станции, цветом линии метро, снежинкой
+// «есть заправка кондиционера» и счётчиком СВОБОДНЫХ слотов (цвет счётчика
+// отвечает на главный вопрос — куда ещё можно записать).
 // Плюс поиск по улице через Nominatim (OSM) с подсказкой ближайших станций.
 //
 // Leaflet вендорен через npm (а не CDN, как на лендинге) — страница работает
@@ -10,6 +12,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { STATIONS_META, LINE_COLORS, nearestStations } from '../../../shared/stationsMeta.js';
 import { currentTheme } from '../theme.js';
+import { icons } from './icons.js';
 
 // Тайлы под тему сайта: на светлой теме тёмная карта была бы чёрным пятном
 // посреди белой страницы. У CARTO это те же тайлы в двух вариантах, так что
@@ -37,7 +40,7 @@ export function uniqueStations() {
 
 // container — DOM-узел; onPick(meta) — клик по плашке станции;
 // view — {lat, lng, zoom} стартового положения (переживает перерисовку окна).
-// Возвращает { setBusy, highlight, invalidate, focus, getView, destroy }.
+// Возвращает { setFree, highlight, invalidate, focus, getView, destroy }.
 export function createStationsMap(container, { onPick, view } = {}) {
     const start = view && Number.isFinite(view.lat)
         ? [[view.lat, view.lng], view.zoom || 12]
@@ -66,19 +69,28 @@ export function createStationsMap(container, { onPick, view } = {}) {
     document.addEventListener('themechange', onThemeChange);
 
     const markers = new Map(); // short → { marker, meta }
-    let busyCounts = {};
+    let freeCounts = {};
 
-    const pinHtml = (meta, busy, active) => {
+    // Цвет счётчика: нет мест — красный, мало — жёлтый, есть — зелёный.
+    const freeTone = (free) =>
+        free === 0 ? ' rc-pin-count-none' : free <= 5 ? ' rc-pin-count-low' : ' rc-pin-count-ok';
+
+    const pinHtml = (meta, free, active) => {
         const color = LINE_COLORS[meta.line] || '#888';
-        const badge = busy > 0 ? `<span class="rc-pin-count">${busy}</span>` : '';
+        // Доска ещё не приехала — счётчика нет вовсе, а не «0 свободно».
+        const badge = free == null ? ''
+            : `<span class="rc-pin-count${freeTone(free)}" title="Свободно получасов: ${free}">${free}</span>`;
+        const ac = meta.ac
+            ? `<span class="rc-pin-ac" title="Заправка кондиционера">${icons.snowflake(11)}</span>` : '';
+        const code = meta.boxNo ? `<span class="rc-pin-code">${esc(meta.boxNo)}</span>` : '';
         return `<span class="rc-pin${active ? ' rc-pin-active' : ''}">`
-            + `<span class="rc-pin-stripe" style="background:${color}"></span>`
-            + `<span class="rc-pin-name">${esc(meta.short)}</span>${badge}</span>`;
+            + `<span class="rc-pin-stripe" style="background:${color}"></span>${code}`
+            + `<span class="rc-pin-name">${esc(meta.short)}</span>${ac}${badge}</span>`;
     };
 
     const makeIcon = (meta, active = false) => L.divIcon({
         className: 'rc-pin-wrap',
-        html: pinHtml(meta, busyCounts[meta.short] || 0, active),
+        html: pinHtml(meta, meta.short in freeCounts ? freeCounts[meta.short] : null, active),
         iconSize: null,
         iconAnchor: [0, 14],
     });
@@ -106,7 +118,7 @@ export function createStationsMap(container, { onPick, view } = {}) {
     };
 
     return {
-        setBusy(counts) { busyCounts = counts || {}; refresh(); },
+        setFree(counts) { freeCounts = counts || {}; refresh(); },
         highlight(short) { activeShort = short || null; refresh(); },
         // Модалка появляется вместе с картой, поэтому первый расчёт размеров
         // приходится на ещё не разложенный контейнер — после invalidateSize
