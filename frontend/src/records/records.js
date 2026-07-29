@@ -1395,7 +1395,7 @@ function modalCreate(m) {
                     <input id="rc-f-car" type="text" value="${esc(m.carNumber || '')}"/></label>
             </div>
             <label class="edit-field"><span>Комментарий</span>
-                <textarea id="rc-f-comment" rows="2">${esc(m.comment || '')}</textarea></label>
+                <textarea id="rc-f-comment" rows="2" placeholder="Табуретка+вф+сф">${esc(m.comment || '')}</textarea></label>
 
             <div class="rc-sub">Станция — ${boxCodeHtml(meta)}<b>${esc(meta?.short || addr?.title || '')}</b>${acHtml(meta, 10)}
                 <button class="btn btn-sec rc-mini-btn" data-action="toggle-create-map">${icons.map(13)} сменить на карте</button>
