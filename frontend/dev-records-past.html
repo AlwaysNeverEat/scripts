@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!-- Дев-песочница раздела «Записи»: прошедшая часть дня так, как её отдаёт
+     оригинал. Ключевое отличие от других песочниц — в прошлом у админки нет
+     ссылок «добавить», поэтому ячеек у прошедших получасов нет вообще: пустое
+     утро приходит ровно тем же «ничем», что и нерабочее время. Здесь видно,
+     что клон их различает — «никого» вместо «закрыто» и штриховка по каждому
+     пустому боксу отдельно (у станции их два, и второй часто простаивает).
+     Дата берётся из реальных «сегодня»/времени МСК, иначе прошлое не прошлое.
+     Открыть: npx vite → /dev-records-past.html
+     В прод-сборку не попадает: vite собирает только index.html и records.html. -->
+<html lang="ru">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>dev: записи — прошедший день</title></head>
+<body>
+  <div id="page-records"></div>
+  <script type="module">
+    const msk = new Intl.DateTimeFormat('ru-RU', {
+      timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(new Date());
+    const part = (t) => msk.find(p => p.type === t).value;
+    const TODAY = `${part('day')}.${part('month')}.${part('year')}`;
+    const nowMin = Number(part('hour')) * 60 + Number(part('minute'));
+
+    const slots = [];
+    for (let h = 9; h <= 22; h++) { slots.push(`${String(h).padStart(2,'0')}:00`); slots.push(`${String(h).padStart(2,'0')}:30`); }
+    const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+
+    const addresses = [
+      { id: '1', title: 'СПб, Руставели 69' },
+      { id: '2', title: 'Кузнецовская 60' },
+    ];
+    const BOXES = { 1: 2, 2: 1 };
+
+    const rec = (id, aid, t0, t1, name, phone, status = 'checked') => ({
+      id: String(id), addressId: aid, timeStart: t0, timeEnd: t1, name, phone,
+      phoneDigits: phone.replace(/\D/g, ''), isStub: false, status, customer: name,
+      deleteUrl: '/admin/record/delete?id=' + id,
+    });
+
+    // Утро пустое, день — записи в первом боксе (второй простаивал), 14:30 —
+    // дырка посреди занятых часов, вечером ещё можно записаться.
+    const main = [
+      rec(1, '1', '12:30', '13:00', 'Деменев Антон Олегович', '+7 (966) 791-83-97'),
+      rec(2, '1', '13:00', '13:30', 'Александр двс', '+7 (929) 220-38-10'),
+      rec(3, '1', '13:30', '14:00', 'Игорь Сергеевич', '+7(911) 139-98-35'),
+      rec(4, '1', '14:00', '14:30', 'Охота Анатолий Григорьевич', '+7 (911) 284-59-16'),
+      rec(5, '1', '15:00', '16:00', 'Виталий двс', '+7(906) 275-72-33'),
+      rec(6, '1', '15:30', '16:00', 'Мурат двс', '+7 (981) 731-71-07'),
+      rec(7, '1', '16:00', '16:30', 'Игорь Сергеевич', '+7 (911) 139-98-35'),
+      rec(8, '2', '17:00', '17:30', 'Пётр', '+7 (911) 222-33-44'),
+    ];
+
+    // Главное в песочнице: ячейка появляется либо от записи, либо от ссылки
+    // «добавить», а её оригинал печатает только в будущем и до 21:00.
+    const cells = {};
+    for (const a of addresses) {
+      cells[a.id] = {};
+      for (const t of slots) {
+        const inSlot = main.filter(r => r.addressId === a.id && r.timeStart === t);
+        const busy = main.filter(r => r.addressId === a.id && toMin(r.timeStart) <= toMin(t) && toMin(r.timeEnd) > toMin(t)).length;
+        const bookable = toMin(t) >= nowMin && toMin(t) + 30 <= 21 * 60;
+        const free = bookable ? Math.max(0, BOXES[a.id] - busy) : 0;
+        if (!inSlot.length && !free) continue; // ни записей, ни «добавить» — ячейки нет
+        cells[a.id][t] = { records: inSlot, free };
+      }
+    }
+
+    const board = { date: TODAY, timeSlots: slots, addresses, cells };
+    const ops = [];
+    const realFetch = window.fetch;
+    window.fetch = async (url, init) => {
+      const u = String(url);
+      const json = (d) => new Response(JSON.stringify(d), { headers: { 'Content-Type': 'application/json' } });
+      if (u.includes('/api/records/status')) return json({ credentials: true, alive: true, today: TODAY, tomorrow: TODAY, queue: {} });
+      if (u.includes('/api/records/board')) return json({ date: TODAY, board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops });
+      if (u.includes('/api/records/ops')) return json({ ops });
+      if (u.includes('/api/auth/me')) return json({ user: null });
+      return realFetch(url, init);
+    };
+
+    const { startRecords } = await import('/src/records/records.js');
+    startRecords(document.getElementById('page-records'));
+    location.hash = '#/records';
+  </script>
+</body>
+</html>

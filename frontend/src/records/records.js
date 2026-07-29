@@ -434,6 +434,21 @@ function nowMinutesOnBoard() {
     return mskNowMinutes();
 }
 
+// Получас уже прошёл: на прошедших датах — все слоты, на сегодняшней — те, что
+// уже начались, на будущих — ни одного. Нужно, чтобы отличить пустой слот от
+// закрытого: оригинал не печатает «добавить» в прошлом, поэтому ячейки у таких
+// слотов нет — ровно как у нерабочего времени.
+function slotIsPast(time, date = state.date) {
+    const today = state.status?.today;
+    if (!today || !date) return false;
+    const day = ddmmToIso(date);
+    const now = ddmmToIso(today);
+    if (!day || !now || day > now) return false;
+    if (day < now) return true;
+    const min = timeToMin(time);
+    return Number.isFinite(min) && mskNowMinutes() >= min;
+}
+
 // Смещение маркера в пикселях от верха сетки — по точному времени, а не по
 // границе слота: маркер едет внутри получаса. Считаем от слота-хозяина
 // (индекс + доля внутри), поэтому дырки в расписании ничего не сдвигают.
@@ -754,23 +769,62 @@ function renderStation() {
 
     const gridH = slots.length * ROW_H;
 
+    const startIdx = (t) => slots.indexOf(t);
+
+    // Занятость дорожек по слотам — из неё растут кнопки «записать»: они стоят
+    // ровно в свободном боксе и ровно на своей строке времени, поэтому промазать
+    // мимо получаса нельзя (раньше это была одна кнопка «+N» у правого края).
+    // Она же говорит строкам, какие боксы простояли пустыми.
+    const busy = slots.map(() => new Array(lanes).fill(false));
+    const markBusy = (i0, n, lane) => {
+        for (let i = i0; i < Math.min(i0 + n, slots.length); i++) busy[i][lane] = true;
+    };
+    for (const chain of chains) {
+        const i0 = startIdx(chain.timeStart);
+        if (i0 !== -1) markBusy(i0, chain.parts.length, byHeadId[chain.head.id] ?? 0);
+    }
+    // Призрак садится в первую свободную дорожку — туда же, куда сядет и сама
+    // запись, когда очередь дойдёт до оригинала.
+    for (const g of ghosts) {
+        const i0 = startIdx(g.timeStart);
+        if (i0 === -1) continue;
+        let lane = 0;
+        while (lane < lanes - 1 && busy[i0][lane]) lane++;
+        g.lane = lane;
+        markBusy(i0, g.parts, lane);
+    }
+
     const rows = slots.map((t, i) => {
         const cell = byTime[t];
-        const closed = !cell;
         // Оригинал держит сетку до 22:30, а станции работают до 21:00: такие
         // слоты рисуем нерабочими — записи в них (если их завели мимо клона)
         // остаются на месте, но новых там не предложим.
-        const afterHours = !closed && !isBookableTime(t);
+        const afterHours = !isBookableTime(t);
+        // Ячейки нет и время уже прошло — станция работала, просто никто не
+        // приехал: в прошлом оригинал не печатает ссылок «добавить», поэтому
+        // пустой получас неотличим от закрытого по одним данным. «Закрыто»
+        // тут враньё, отсюда отдельная подпись.
+        const nobody = !cell && !afterHours && slotIsPast(t);
+        const closed = !cell && !afterHours && !nobody;
+        // Пустые боксы прошедших получасов штрихуем поштучно: второй бокс мог
+        // простоять пустым и тогда, когда в первом стояла запись, — по одной
+        // штриховке на всю строку этого не видно.
+        let bookable = cell && !afterHours ? cell.free : 0;
+        const blanks = !afterHours && slotIsPast(t) ? busy[i].map((taken, lane) => {
+            if (taken) return '';
+            if (bookable > 0) { bookable--; return ''; } // тут ещё стоит кнопка «записать»
+            return `<i style="left:calc((100% / ${lanes}) * ${lane}); width:calc(100% / ${lanes})"></i>`;
+        }).join('') : '';
         return `
-        <div class="rc-row ${closed || afterHours ? 'rc-row-closed' : ''}" style="top:${i * ROW_H}px">
+        <div class="rc-row ${closed || afterHours ? 'rc-row-closed' : ''} ${nobody ? 'rc-row-nobody' : ''}" style="top:${i * ROW_H}px">
             <span class="rc-row-time">${esc(t)}</span>
+            ${blanks ? `<span class="rc-row-lanes">${blanks}</span>` : ''}
             ${closed ? '<span class="rc-row-closed-label">закрыто</span>'
                 : afterHours ? '<span class="rc-row-closed-label" title="Станция работает до 21:00">не работаем</span>'
+                : nobody ? '<span class="rc-row-closed-label" title="Станция работала — записей в этот получас не было">никого</span>'
                 : ''}
         </div>`;
     }).join('');
-
-    const startIdx = (t) => slots.indexOf(t);
 
     const caps = chains.map(chain => {
         const lane = byHeadId[chain.head.id] ?? 0;
@@ -807,28 +861,6 @@ function renderStation() {
             ${isMoving ? `<span class="rc-cap-flag">${icons.move(10)} переносится…</span>` : ''}
         </button>`;
     }).join('');
-
-    // Занятость дорожек по слотам — из неё растут кнопки «записать»: они стоят
-    // ровно в свободном боксе и ровно на своей строке времени, поэтому промазать
-    // мимо получаса нельзя (раньше это была одна кнопка «+N» у правого края).
-    const busy = slots.map(() => new Array(lanes).fill(false));
-    const markBusy = (i0, n, lane) => {
-        for (let i = i0; i < Math.min(i0 + n, slots.length); i++) busy[i][lane] = true;
-    };
-    for (const chain of chains) {
-        const i0 = startIdx(chain.timeStart);
-        if (i0 !== -1) markBusy(i0, chain.parts.length, byHeadId[chain.head.id] ?? 0);
-    }
-    // Призрак садится в первую свободную дорожку — туда же, куда сядет и сама
-    // запись, когда очередь дойдёт до оригинала.
-    for (const g of ghosts) {
-        const i0 = startIdx(g.timeStart);
-        if (i0 === -1) continue;
-        let lane = 0;
-        while (lane < lanes - 1 && busy[i0][lane]) lane++;
-        g.lane = lane;
-        markBusy(i0, g.parts, lane);
-    }
 
     const laneStyle = (lane, i0, n) => `top:${i0 * ROW_H + 2}px; height:${n * ROW_H - 5}px;`
         + ` left:calc((100% / ${lanes}) * ${lane} + 3px); width:calc(100% / ${lanes} - 7px)`;
@@ -1118,6 +1150,9 @@ function timelineHtml(ctx) {
         const cell = byTime[t];
         const closed = !cell;
         const afterHours = !closed && !isBookableTime(t); // сетка оригинала шире рабочего дня
+        // Прошедший получас без записей — не «закрыто»: станция работала,
+        // просто никто не приехал (см. slotIsPast).
+        const nobody = closed && isBookableTime(t) && slotIsPast(t, ctx.date);
         const freeN = cell ? cell.free : 0;
         const recs = (cell?.records || []).filter(r => !del.has(String(r.id)));
         const ghost = ghostAt.get(t);
@@ -1133,7 +1168,8 @@ function timelineHtml(ctx) {
         });
         if (ghost) chips.push(`<i class="rc-tl-rec rc-tl-rec-ghost" title="В очереди — создастся, когда админка оживёт">${esc(ghost.name || 'в очереди')}</i>`);
 
-        const tag = closed ? '<i class="rc-tl-tag">закрыто</i>'
+        const tag = nobody ? '<i class="rc-tl-tag">никого</i>'
+            : closed ? '<i class="rc-tl-tag">закрыто</i>'
             : afterHours ? '<i class="rc-tl-tag">не работаем</i>'
             : freeN > 0 ? `<i class="rc-tl-tag rc-tl-tag-free">${freeN} своб.</i>`
             : '<i class="rc-tl-tag">занято</i>';
@@ -1141,7 +1177,10 @@ function timelineHtml(ctx) {
         return `
         <button class="rc-tl-row ${closed || afterHours ? 'rc-tl-closed' : ''} ${ctx.ownTimes.has(t) ? 'rc-tl-mine' : ''}"
             data-action="tl-pick" data-time="${esc(t)}" ${pickable ? '' : 'disabled'}
-            title="${pickable ? `Начать в ${esc(t)}` : closed ? 'Слот закрыт' : afterHours ? 'Станция работает до 21:00' : 'Слот занят'}">
+            title="${pickable ? `Начать в ${esc(t)}`
+                : nobody ? 'Время уже прошло — записей в нём не было'
+                : closed ? 'Слот закрыт'
+                : afterHours ? 'Станция работает до 21:00' : 'Слот занят'}">
             <span class="rc-tl-time">${esc(t)}</span>
             <span class="rc-tl-body">${chips.join('')}</span>
             ${tag}
