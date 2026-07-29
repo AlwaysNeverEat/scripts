@@ -28,6 +28,7 @@ import {
 } from '../../../shared/crmRecords.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
+let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -533,6 +534,7 @@ function render() {
     if (state.credsNeeded) {
         root.innerHTML = renderCredsGate();
         bindCredsGate();
+        syncModalChrome();
         return;
     }
     const content = state.board
@@ -550,6 +552,18 @@ function render() {
         ${state.modal ? renderModal() : ''}`;
     bind();
     syncNow(); // маркер и отсчёты ставятся сразу после отрисовки сетки
+    syncModalChrome();
+}
+
+// Ряд вкладок сайта (.app-tabs) лежит поверх модалок и остаётся кликабельным:
+// посреди записи клиент спрашивает стоимость — уходим на калькулятор и
+// возвращаемся к тому же окну. Отсюда две мелочи за пределами раздела:
+// непрозрачная шапка, пока окно открыто (иначе тонет в затемнении), и точка
+// на вкладке «Записи», пока черновик не закрыт, — видно, куда возвращаться.
+function syncModalChrome() {
+    document.body.classList.toggle('modal-open', visible && Boolean(state.modal));
+    const draft = Boolean(root) && (state.modal?.kind === 'create' || state.modal?.kind === 'edit');
+    document.querySelector('.app-tab[data-tab="records"]')?.classList.toggle('has-draft', draft);
 }
 
 // Лёгкое обновление строки статуса без полной перерисовки (тикает раз в 10с).
@@ -943,10 +957,10 @@ function renderModal() {
     </div>`;
 }
 
-function modalShell(title, body, { wide = false, map = false } = {}) {
+function modalShell(title, body, { wide = false, map = false, note = '' } = {}) {
     return `
     <div class="modal-win ${map ? 'rc-win-map' : wide ? 'rc-win-wide' : ''}">
-        <div class="modal-head"><span>${title}</span>
+        <div class="modal-head"><span>${title}${note ? `<span class="rc-modal-note">${esc(note)}</span>` : ''}</span>
             <button class="btn btn-sec" data-action="close-modal">${icons.x(14)}</button>
         </div>
         <div class="modal-body rc-modal-body ${map ? 'rc-modal-body-map' : ''}">${body}</div>
@@ -1272,7 +1286,13 @@ function modalCreate(m) {
             </div>
         </div>
     </div>`;
-    return modalShell('Новая запись', body, { wide: true });
+    return modalShell('Новая запись', body, {
+        wide: true,
+        // Разговор с клиентом редко идёт по порядку: посреди записи просят
+        // назвать стоимость. Вкладки сверху остаются кликабельными — уходим
+        // считать и возвращаемся к этому же окну (см. .app-tabs в style.css).
+        note: 'можно уйти на калькулятор и вернуться — заполненное сохранится',
+    });
 }
 
 function chainByHead(headId) {
@@ -2636,6 +2656,7 @@ export function startRecords(mount) {
     if (!mount) return;
     stopRecords(); // повторный вход — начинаем с чистого листа
     root = mount;
+    visible = true;
     resetState();
     state.boardLoading = true; // первый render() до ответа сервера — скелет, не «нет данных»
     root.innerHTML = '<div class="rc-boot">Загрузка записей…</div>';
@@ -2690,6 +2711,13 @@ function stopPolling() {
 // таймера и ни одного фонового запроса за собой не оставляем.
 export function pauseRecords() {
     if (!root) return;
+    visible = false;
+    // Уходят с открытым окном — набранное живёт в DOM (раздел не разбирается),
+    // но в state его переносим сразу: перерисовка после возвращения не должна
+    // стереть имя и телефон, которые никто не «зафиксировал» сменой станции.
+    keepCreateFields();
+    keepEditFields();
+    syncModalChrome();
     stopPolling();
 }
 
@@ -2697,6 +2725,11 @@ export function pauseRecords() {
 // сохранённый экран не оказался вчерашним.
 export function resumeRecords() {
     if (!root) return;
+    visible = true;
+    syncModalChrome();
+    // Карта в открытом окне считала свои размеры на скрытом контейнере —
+    // после возвращения ей нужно пересчитать их, иначе останутся серые поля.
+    mapCtl?.invalidate();
     startPolling();
     loadViewer(); // пока раздел стоял, могли войти под своим аккаунтом
     loadStatus();
@@ -2710,4 +2743,7 @@ export function stopRecords() {
     onClick = null;
     onVisibility = null;
     root = null;
+    visible = false;
+    state.modal = null;
+    syncModalChrome(); // раздела больше нет — снимаем и шапку, и точку черновика
 }
