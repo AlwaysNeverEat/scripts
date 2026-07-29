@@ -77,7 +77,20 @@
   --gold-glow: oklch(0.76 0.18 83 / 0.45);
   --gold-card-bg: linear-gradient(135deg, oklch(0.76 0.18 83 / 0.12), transparent 70%);
   --gold-card-border: oklch(0.76 0.18 83 / 0.35);
-  --gold-row: linear-gradient(90deg, oklch(0.3 0.06 83 / 0.25), oklch(0.76 0.18 83 / 0.18), oklch(0.3 0.06 83 / 0.25));
+
+  /* Плашка первого места. Специально НЕ зависит от темы: заливка сплошная и
+     одинаково читается на тёмном фоне и на белом, а текст на ней всегда
+     тёмно-коричневый. Держать блик в двух палитрах пришлось бы ради нулевой
+     разницы — золото есть золото. Отсюда же hex вместо oklch: значения
+     подобраны под сам блик, а не под шкалу светлот темы. */
+  --gold-plate: #f3c96b;
+  --gold-plate-fill: linear-gradient(180deg, #f6d489, #eeb84e);
+  --gold-plate-border: #d99e2b;
+  --gold-sweep: linear-gradient(105deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.35) 50%, rgba(255,255,255,0) 58%);
+  --gold-text-sweep: linear-gradient(105deg, #4a2c00 42%, #ffdf8e 50%, #fffbe8 52%, #ffdf8e 54%, #4a2c00 62%);
+  --gold-ink: #4a2c00;                   /* текст на плашке */
+  --gold-ink-soft: rgba(74, 44, 0, .65); /* второстепенный текст на плашке */
+  --gold-hair: rgba(74, 44, 0, .4);      /* обводки внутри плашки */
 
   /* Boot-экран — отдельная «терминальная» палитра (см. #boot-screen) */
   --boot-bg: #07090d;
@@ -186,7 +199,7 @@
   --gold-glow: oklch(0.72 0.15 78 / 0.55);
   --gold-card-bg: linear-gradient(135deg, oklch(0.78 0.14 82 / 0.22), transparent 70%);
   --gold-card-border: oklch(0.68 0.13 78 / 0.45);
-  --gold-row: linear-gradient(90deg, oklch(0.88 0.07 83 / 0.5), oklch(0.83 0.13 83 / 0.55), oklch(0.88 0.07 83 / 0.5));
+  /* --gold-plate-* не переопределяем: плашка первого места одна на обе темы */
 
   /* Boot-экран тоже светлый: он показывается первым, и «чёрный экран →
      белый сайт» бил бы по глазам ровно тем, ради чего тема и делалась. */
@@ -1738,17 +1751,61 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .top-prev-name { flex: 1; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
 .top-prev-count { font-size: 12px; font-weight: 700; color: var(--gold-soft); }
 
-.top-row-gold {
-  background: var(--gold-row);
-  background-size: 200% 100%;
+/* Первое место — сплошная золотая плашка, по которой раз в цикл проходит
+   блик: и по фону, и по тексту. Анимация одна и та же (gold-sweep) с общей
+   длительностью, поэтому блик на фоне и на тексте идёт синхронно — даже
+   когда список дорисовывается из JS: оба класса появляются в один момент.
+
+   Раскладка фона: первый слой — блик шириной 280% (ездит), второй — заливка
+   100% (позиция на неё не влияет, стоит на месте). Селектор с двумя классами
+   нужен, чтобы border пережил .top-row:last-child (единственная строка). */
+.top-row.top-row-gold {
+  background-color: var(--gold-plate);
+  background-image: var(--gold-sweep), var(--gold-plate-fill);
+  background-size: 280% 100%, 100% 100%;
+  border: 1px solid var(--gold-plate-border);
   border-radius: 10px;
-  animation: gold-shimmer 2.4s ease-in-out infinite;
+  animation: gold-sweep 5.5s ease-in-out infinite;
 }
-.top-row-gold .top-rank { color: var(--gold); }
-.top-row-gold .top-avatar { border-color: var(--gold); box-shadow: 0 0 12px var(--gold-glow); }
-@keyframes gold-shimmer {
-  0%, 100% { background-position: 0% 50%; }
-  50%      { background-position: 100% 50%; }
+/* Номер, имя и число записей: тот же блик, но вырезанный по буквам.
+   Специфичность 0-2-0 — перебивает color у .top-rank/.top-score. */
+.top-row-gold .gold-text {
+  background-image: var(--gold-text-sweep);
+  background-size: 280% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gold-sweep 5.5s ease-in-out infinite;
+}
+.top-row-gold .top-breakdown { color: var(--gold-ink-soft); }
+/* Подложка светлая: у кого нет фото, тёмный кружок темы читался бы дыркой
+   в плашке. Под самим фото её всё равно не видно. */
+.top-row-gold .top-avatar {
+  background: rgba(255, 255, 255, .38);
+  border-color: var(--gold-hair);
+  box-shadow: none;
+}
+/* Роль-префикс на золоте: цветная плашка «мода» на золотом фоне не читается */
+.top-row-gold .role-prefix {
+  background: rgba(74, 44, 0, .1);
+  border: 1px solid var(--gold-hair);
+  color: var(--gold-ink);
+}
+/* Блик уезжает влево и держится за краем до конца цикла — отсюда пауза */
+@keyframes gold-sweep {
+  0%   { background-position: 130% 50%; }
+  70%  { background-position: -30% 50%; }
+  100% { background-position: -30% 50%; }
+}
+/* Без анимации фиксируем «паузу», где блика в кадре нет: ровное золото и
+   тёмно-коричневый текст. Обнулить одну animation мало — позиция фона
+   вернулась бы к 0% и блик замер бы посреди строки. */
+@media (prefers-reduced-motion: reduce) {
+  .top-row.top-row-gold,
+  .top-row-gold .gold-text {
+    animation: none;
+    background-position: -30% 50%;
+  }
 }
 
 /* ── Профиль ────────────────────────────────────────────────────── */
