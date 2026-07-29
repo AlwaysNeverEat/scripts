@@ -271,7 +271,7 @@
 
 .rc-skel-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .rc-skel-name { height: 11px; flex: 1; max-width: 150px; }
-.rc-skel-pill { height: 19px; width: 78px; border-radius: 999px; }
+.rc-skel-pill { height: 21px; width: 78px; border-radius: 4px; }
 .rc-skel-pill-s { width: 54px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -360,24 +360,40 @@
     gap: 5px;
 }
 
-/* Таблетки: цветом говорит только «свободно» — сколько мест ещё осталось. */
+/* Плашки под названием: у каждой величины свой цвет и своя рамка — иначе
+   четыре одинаковые серые пилюли читаются как один шум, и «свободно» в них
+   теряется. Форма прямоугольная (радиус 4): так они не спорят с круглыми
+   счётчиками и лучше держат строку. */
 .rc-pill {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 9px;
-    border-radius: 999px;
+    padding: 3px 7px;
+    border-radius: 4px;
     font-size: 10.5px;
+    font-weight: 500;
     line-height: 1.4;
     white-space: nowrap;
     border: 1px solid transparent;
 }
 
-.rc-pill-mute { background: var(--bg3); color: var(--sub); }
-.rc-pill-ok { background: var(--green-dim); color: var(--green); }
-.rc-pill-low { background: var(--accent-dim); color: var(--accent); }
-.rc-pill-none { background: var(--red-dim); color: var(--red); }
-.rc-pill-queue { background: var(--blue-dim); color: var(--blue); }
+.rc-pill-tone {
+    background: var(--bg3);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+/* Свободно — единственная величина, которая меняет цвет по значению. */
+.rc-pill-ok { background: var(--green-dim); color: var(--green); border-color: color-mix(in oklab, var(--green) 40%, transparent); }
+.rc-pill-low { background: var(--accent-dim); color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, transparent); }
+.rc-pill-none { background: var(--red-dim); color: var(--red); border-color: color-mix(in oklab, var(--red) 45%, transparent); }
+
+/* Остальные — постоянные цвета: записи, боксы, ворота, очередь. */
+.rc-pill-booked { background: var(--bg3); color: var(--text); border-color: var(--border-strong); }
+.rc-pill-boxes { background: var(--blue-dim); color: var(--blue); border-color: color-mix(in oklab, var(--blue) 40%, transparent); }
+.rc-pill-gate { background: var(--violet-dim); color: var(--violet); border-color: color-mix(in oklab, var(--violet) 40%, transparent); }
+.rc-pill-queue { background: var(--accent-dim); color: var(--accent); border-color: color-mix(in oklab, var(--accent) 45%, transparent); }
+.rc-pill-mute { background: var(--bg3); color: var(--sub); border-color: var(--border); }
 
 /* ── Вид станции ───────────────────────────────────────────────── */
 
@@ -407,53 +423,69 @@
 
 .rc-station-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 
+/* Чипы в шапке станции — той же прямоугольной формы и той же цветовой
+   раскладки, что и плашки в карточках обзора. */
 .rc-chip-meta {
-    font-size: 10.5px;
-    color: var(--sub);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 3px 9px;
-    background: var(--card);
-}
-
-.rc-chip-note { color: var(--accent); border-color: var(--accent-dim); }
-
-/* Оснащение: «гидростойки нет» — не тревога, а факт, поэтому просто тише
-   остальных чипов. Кондиционер, наоборот, повод выделиться. */
-.rc-chip-off { opacity: 0.65; }
-
-.rc-chip-ac {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    font-size: 10.5px;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 7px;
+    background: var(--bg3);
+}
+
+.rc-chip-note { color: var(--accent); background: var(--accent-dim); border-color: color-mix(in oklab, var(--accent) 45%, transparent); }
+.rc-chip-metro { color: var(--sub); background: var(--card); }
+.rc-chip-layout { color: var(--blue); background: var(--blue-dim); border-color: color-mix(in oklab, var(--blue) 40%, transparent); }
+.rc-chip-gate { color: var(--violet); background: var(--violet-dim); border-color: color-mix(in oklab, var(--violet) 40%, transparent); }
+.rc-chip-hydro { color: var(--green); background: var(--green-dim); border-color: color-mix(in oklab, var(--green) 40%, transparent); }
+
+/* «Гидростойки нет» — не тревога, а факт: тише остальных чипов. */
+.rc-chip-off { color: var(--sub); background: var(--card); }
+
+.rc-chip-ac {
     color: var(--blue);
+    background: var(--blue-dim);
     border-color: color-mix(in oklab, var(--blue) 45%, transparent);
 }
 
-/* Код перевода звонка («##01»). Всегда две цифры через две решётки — это
-   номер, который набирают, поэтому моноширинный и с табличными цифрами. */
+/* Код перевода звонка («##01»). Это номер, который набирают, — он должен
+   читаться с первого взгляда, поэтому не приглушённый: цвет основного текста,
+   полужирный, моноширинный, с табличными цифрами и заметной рамкой. */
 .rc-code {
     flex: none;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 10px;
+    font-size: 10.5px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
     line-height: 1.5;
-    color: var(--sub);
+    color: var(--text);
     background: var(--bg3);
-    border-radius: 6px;
-    padding: 1px 5px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    padding: 0 5px;
     vertical-align: 1px;
 }
 
-.rc-code-lg { font-size: 12px; padding: 2px 7px; }
+.rc-code-lg { font-size: 12.5px; padding: 1px 7px; }
 
-/* Снежинка = на станции заправляют кондиционер. */
+/* Снежинка = на станции заправляют кондиционер. Голая иконка терялась среди
+   текста, поэтому это отдельный синий значок с подложкой и рамкой. */
 .rc-ac {
     flex: none;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     color: var(--blue);
-    vertical-align: -2px;
+    background: var(--blue-dim);
+    border: 1px solid color-mix(in oklab, var(--blue) 45%, transparent);
+    border-radius: 4px;
+    padding: 1px 2px;
+    vertical-align: -3px;
 }
 
 .rc-station-head .btn-pri {
@@ -1180,13 +1212,24 @@
 .rc-pin-stripe { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
 .rc-pin-code {
-    color: var(--sub);
+    color: var(--text);
     font-size: 9px;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
+    background: var(--bg3);
+    border-radius: 3px;
+    padding: 1px 3px;
 }
 
-.rc-pin-ac { display: inline-flex; align-items: center; color: var(--blue); }
+.rc-pin-ac {
+    display: inline-flex;
+    align-items: center;
+    color: var(--blue);
+    background: var(--blue-dim);
+    border-radius: 3px;
+    padding: 1px;
+}
 
 /* Счётчик свободных получасов. Цвет — весь смысл плашки: красный «мест нет»
    видно, не читая цифру. */
