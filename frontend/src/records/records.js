@@ -800,29 +800,35 @@ function renderStation() {
         // слоты рисуем нерабочими — записи в них (если их завели мимо клона)
         // остаются на месте, но новых там не предложим.
         const afterHours = !isBookableTime(t);
-        // Ячейки нет и время уже прошло — станция работала, просто никто не
-        // приехал: в прошлом оригинал не печатает ссылок «добавить», поэтому
-        // пустой получас неотличим от закрытого по одним данным. «Закрыто»
-        // тут враньё, отсюда отдельная подпись.
-        const nobody = !cell && !afterHours && slotIsPast(t);
-        const closed = !cell && !afterHours && !nobody;
-        // Пустые боксы прошедших получасов штрихуем поштучно: второй бокс мог
-        // простоять пустым и тогда, когда в первом стояла запись, — по одной
-        // штриховке на всю строку этого не видно.
+        const past = slotIsPast(t);
+        // Мёртвые боксы: не заняты, и кнопки «записать» в них уже не будет —
+        // либо получас прошёл, либо оригинал не отдаёт ближайший час. Считаем
+        // их поштучно, ровно как считаются кнопки: второй бокс мог простоять
+        // пустым и тогда, когда в первом стояла запись, — по штриховке на всю
+        // строку этого не видно, а белое пятно читается как «тут что-то есть».
         let bookable = cell && !afterHours ? cell.free : 0;
-        const blanks = !afterHours && slotIsPast(t) ? busy[i].map((taken, lane) => {
-            if (taken) return '';
-            if (bookable > 0) { bookable--; return ''; } // тут ещё стоит кнопка «записать»
-            return `<i style="left:calc((100% / ${lanes}) * ${lane}); width:calc(100% / ${lanes})"></i>`;
-        }).join('') : '';
+        const blankLanes = [];
+        if (!afterHours) {
+            busy[i].forEach((taken, lane) => {
+                if (taken) return;
+                if (bookable > 0) { bookable--; return; } // тут стоит кнопка «записать»
+                blankLanes.push(lane);
+            });
+        }
+        // Пустовали все боксы — штрихуем строку целиком, как нерабочее время:
+        // делить на боксы нечего, а обрубок штриховки по ширине сетки читался
+        // как «тут что-то есть». Подпись только у таких строк: если в соседнем
+        // боксе кто-то был, «никого» — враньё.
+        const allBlank = lanes > 0 && blankLanes.length === lanes;
         return `
-        <div class="rc-row ${closed || afterHours ? 'rc-row-closed' : ''} ${nobody ? 'rc-row-nobody' : ''}" style="top:${i * ROW_H}px">
+        <div class="rc-row ${afterHours || allBlank ? 'rc-row-closed' : ''}" style="top:${i * ROW_H}px">
             <span class="rc-row-time">${esc(t)}</span>
-            ${blanks ? `<span class="rc-row-lanes">${blanks}</span>` : ''}
-            ${closed ? '<span class="rc-row-closed-label">закрыто</span>'
-                : afterHours ? '<span class="rc-row-closed-label" title="Станция работает до 21:00">не работаем</span>'
-                : nobody ? '<span class="rc-row-closed-label" title="Станция работала — записей в этот получас не было">никого</span>'
-                : ''}
+            ${allBlank || !blankLanes.length ? '' : `<span class="rc-row-lanes">${blankLanes.map(lane =>
+                `<i style="left:calc((100% / ${lanes}) * ${lane}); width:calc(100% / ${lanes})"></i>`).join('')}</span>`}
+            ${afterHours ? '<span class="rc-row-closed-label" title="Станция работает до 21:00">не работаем</span>'
+                : !allBlank ? ''
+                : past ? '<span class="rc-row-closed-label" title="Станция работала — в этот получас никто не приехал">никого</span>'
+                : '<span class="rc-row-closed-label" title="Записать можно не позже чем за час до начала">запись минимум за час</span>'}
         </div>`;
     }).join('');
 
@@ -1149,10 +1155,12 @@ function timelineHtml(ctx) {
     const rows = ctx.board.timeSlots.map(t => {
         const cell = byTime[t];
         const closed = !cell;
-        const afterHours = !closed && !isBookableTime(t); // сетка оригинала шире рабочего дня
-        // Прошедший получас без записей — не «закрыто»: станция работала,
-        // просто никто не приехал (см. slotIsPast).
-        const nobody = closed && isBookableTime(t) && slotIsPast(t, ctx.date);
+        const afterHours = !isBookableTime(t); // сетка оригинала шире рабочего дня
+        // Пустой получас без ячейки — это либо прошлое (станция работала, но
+        // никто не приехал), либо ближайший час, на который оригинал уже не
+        // отдаёт ссылок «добавить». «Закрыто» не про то и не про другое.
+        const nobody = closed && !afterHours && slotIsPast(t, ctx.date);
+        const tooSoon = closed && !afterHours && !nobody;
         const freeN = cell ? cell.free : 0;
         const recs = (cell?.records || []).filter(r => !del.has(String(r.id)));
         const ghost = ghostAt.get(t);
@@ -1168,9 +1176,9 @@ function timelineHtml(ctx) {
         });
         if (ghost) chips.push(`<i class="rc-tl-rec rc-tl-rec-ghost" title="В очереди — создастся, когда админка оживёт">${esc(ghost.name || 'в очереди')}</i>`);
 
-        const tag = nobody ? '<i class="rc-tl-tag">никого</i>'
-            : closed ? '<i class="rc-tl-tag">закрыто</i>'
-            : afterHours ? '<i class="rc-tl-tag">не работаем</i>'
+        const tag = afterHours ? '<i class="rc-tl-tag">не работаем</i>'
+            : nobody ? '<i class="rc-tl-tag">никого</i>'
+            : tooSoon ? '<i class="rc-tl-tag">минимум за час</i>'
             : freeN > 0 ? `<i class="rc-tl-tag rc-tl-tag-free">${freeN} своб.</i>`
             : '<i class="rc-tl-tag">занято</i>';
 
@@ -1178,9 +1186,9 @@ function timelineHtml(ctx) {
         <button class="rc-tl-row ${closed || afterHours ? 'rc-tl-closed' : ''} ${ctx.ownTimes.has(t) ? 'rc-tl-mine' : ''}"
             data-action="tl-pick" data-time="${esc(t)}" ${pickable ? '' : 'disabled'}
             title="${pickable ? `Начать в ${esc(t)}`
+                : afterHours ? 'Станция работает до 21:00'
                 : nobody ? 'Время уже прошло — записей в нём не было'
-                : closed ? 'Слот закрыт'
-                : afterHours ? 'Станция работает до 21:00' : 'Слот занят'}">
+                : tooSoon ? 'Записать можно не позже чем за час до начала' : 'Слот занят'}">
             <span class="rc-tl-time">${esc(t)}</span>
             <span class="rc-tl-body">${chips.join('')}</span>
             ${tag}
