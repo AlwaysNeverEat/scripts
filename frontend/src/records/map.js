@@ -38,8 +38,12 @@ export function uniqueStations() {
     return out;
 }
 
-// Зазор между разведёнными плашками (см. layoutPins).
+// Зазор, с которого плашки считаются налезающими (см. layoutPins).
 const PIN_GAP = 3;
+
+// Перелёт к станции — украшение, и при «поменьше движения» его быть не должно.
+const REDUCED_MOTION = typeof matchMedia === 'function'
+    && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // container — DOM-узел; onPick(meta) — клик по плашке станции;
 // view — {lat, lng, zoom} стартового положения (переживает перерисовку окна);
@@ -90,19 +94,22 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         const ac = meta.ac
             ? `<span class="rc-pin-ac" title="Заправка кондиционера">${icons.snowflake(11)}</span>` : '';
         const code = meta.boxNo ? `<span class="rc-pin-code">${esc(meta.boxNo)}</span>` : '';
-        // Поводок — пунктир от разведённой плашки к её настоящей точке; пока
-        // плашка стоит на месте, он спрятан (см. layoutPins).
-        return `<span class="rc-pin${meta.ac ? ' rc-pin-ac-st' : ''}${active ? ' rc-pin-active' : ''}">`
-            + `<i class="rc-pin-leader" style="display:none"></i>`
+        return `<span class="rc-pin${meta.ac ? ' rc-pin-ac-st' : ''}${active ? ' rc-pin-active' : ''}"`
+            + ` title="${esc(meta.short)}">`
             + `<span class="rc-pin-stripe" style="background:${color}"></span>${code}`
             + `<span class="rc-pin-name">${esc(meta.short)}</span>${ac}${badge}</span>`;
     };
 
+    // Якорь [8, 28] вместо [0, 14] + transform: раньше плашку смещал CSS, и
+    // кликабельная коробка Leaflet оставалась там, где плашки уже не видно —
+    // по краю попадаешь в соседнюю станцию. Теперь коробка ровно под плашкой.
+    // rc-pin-on на обёртке — открытая станция всегда лежит поверх остальных
+    // (порядок слоёв задаёт CSS, см. .rc-pin-wrap).
     const makeIcon = (meta, active = false) => L.divIcon({
-        className: 'rc-pin-wrap',
+        className: `rc-pin-wrap${active ? ' rc-pin-on' : ''}`,
         html: pinHtml(meta, meta.short in freeCounts ? freeCounts[meta.short] : null, active),
         iconSize: null,
-        iconAnchor: [0, 14],
+        iconAnchor: [8, 28],
     });
 
     const stations = uniqueStations();
@@ -120,88 +127,84 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         if (!stations.length) return;
         map.fitBounds(stations.map(s => [s.lat, s.lng]), { padding: [45, 45] });
     };
-    // Плашка растёт ВПРАВО от своей точки (iconAnchor слева), поэтому справа
-    // оставляем места на целую подпись — иначе соседи упираются в край и
-    // читаются как «##35 Кузнец…». 140px не хватало на самые длинные названия
-    // («Охтинская 9/1, Мурино» — под 200px вместе с кодом и снежинкой).
+    // Плашка растёт ВПРАВО от своей точки, поэтому справа оставляем места на
+    // целую подпись — иначе соседи упираются в край и читаются как
+    // «##35 Кузнец…». 200px — под самое длинное название («Охтинская 9/1,
+    // Мурино» вместе с кодом и снежинкой).
+    const FIT_PAD = {
+        paddingTopLeft: [16, 30],
+        paddingBottomRight: [200, 40],
+        // У Фучика соседняя станция в 700 м: чтобы две плашки разошлись, зум
+        // нужен сильный, и упираться в 14 тут нечего.
+        maxZoom: 16,
+    };
     const fitStart = () => {
-        if (fit && fit.length) {
-            map.fitBounds(fit, {
-                paddingTopLeft: [16, 30],
-                paddingBottomRight: [200, 40],
-                maxZoom: 14,
-            });
-        } else fitAll();
+        if (fit && fit.length) map.fitBounds(fit, FIT_PAD);
+        else fitAll();
     };
     if (!view) fitStart();
 
-    let activeShort = null; // открытая станция — её плашка и красится, и не двигается
+    let activeShort = null; // открытая станция — её плашка и красится, и не жмётся
 
-    // ── Разведение плашек ────────────────────────────────────────────────────
-    // На общем виде города станции стоят так плотно, что плашки налезали друг
-    // на друга и превращались в кашу. Отъезжать зумом нельзя — тогда не
-    // прочитать названия, — поэтому раздвигаем не карту, а сами плашки: после
-    // каждого зума считаем их прямоугольники в пикселях и сдвигаем по
-    // вертикали ровно настолько, чтобы они встали ВПРИТЫК друг к другу, а не
-    // внахлёст. От настоящей точки к уехавшей плашке тянется пунктирный
-    // поводок — иначе непонятно, чья она.
+    // ── Плотность подписей ───────────────────────────────────────────────────
+    // На общем виде города станции стоят так плотно, что полные плашки лезут
+    // друг на друга. Двигать их с места нельзя — карта начинает врать, да и
+    // мимо кликаешь. Поэтому меняем не положение, а СОДЕРЖИМОЕ: где тесно,
+    // плашка ужимается до кода перевода звонка со счётчиком, а где совсем
+    // тесно — до одной точки линии метро. Название всегда возвращается под
+    // курсором (CSS, .rc-pin:hover), так что ни одна станция не пропадает.
     //
-    // Пересчитывать нужно только на зуме: при перетаскивании все плашки едут
-    // вместе, их взаимное расположение не меняется, и старая раскладка
-    // остаётся верной.
+    // Пересчитываем только на зуме: при перетаскивании плашки едут вместе,
+    // их взаимное расположение не меняется, и прошлая раскладка верна.
+    // Класс вида вешаем на ОБЁРТКУ маркера, а не на саму плашку: по нему же
+    // CSS раскладывает плашки по слоям — подписи поверх точек, чтобы точка,
+    // которой не хватило места, не села на читаемое название.
+    const MODES = ['', 'rc-pin-mid', 'rc-pin-dot'];
+    const setMode = (wrap, mode) => {
+        wrap.classList.toggle('rc-pin-mid', mode === 'rc-pin-mid');
+        wrap.classList.toggle('rc-pin-dot', mode === 'rc-pin-dot');
+    };
+
     let layoutRaf = 0;
     const layoutPins = () => {
         const contRect = container.getBoundingClientRect();
         if (!contRect.width) return;
         const items = [];
         for (const [short, { marker }] of markers) {
-            const pin = marker.getElement()?.firstElementChild;
-            if (!pin) continue;
-            // Сбрасываем прошлый сдвиг ДО замеров: иначе каждая перекладка
-            // считала бы от уже сдвинутой плашки и ошибка копилась бы.
-            pin.style.setProperty('--dy', '0px');
-            items.push({ short, pin });
+            const wrap = marker.getElement();
+            const pin = wrap?.firstElementChild;
+            if (pin) items.push({ short, wrap, pin });
         }
-        // Замеры — отдельным проходом: браузер пересчитает вёрстку один раз, а
-        // не по разу на каждую плашку.
-        for (const it of items) {
-            const r = it.pin.getBoundingClientRect();
-            it.x = r.left - contRect.left;
-            it.w = r.width;
-            it.h = r.height;
-            it.base = r.top - contRect.top;
-        }
-        // Открытая станция встаёт первой — её место настоящее, двигаются
-        // соседи. Дальше сверху вниз: верхняя плашка остаётся, следующие
-        // подставляются под неё столбиком.
-        items.sort((a, b) =>
-            (b.short === activeShort) - (a.short === activeShort) || a.base - b.base);
+        if (!items.length) return;
+        // Размеры всех трёх видов: сначала переключаем ВСЕ плашки, потом
+        // читаем — браузер пересчитает вёрстку по разу на вид, а не на плашку.
+        const boxes = MODES.map((mode) => {
+            for (const it of items) setMode(it.wrap, mode);
+            return items.map((it) => {
+                const r = it.pin.getBoundingClientRect();
+                return { x: r.left - contRect.left, y: r.top - contRect.top, w: r.width, h: r.height };
+            });
+        });
+        // Открытая станция разбирается первой — она остаётся с полным именем
+        // при любой тесноте. Остальные сверху вниз: порядок не зависит от
+        // доски, поэтому подписи не пляшут при каждом обновлении.
+        const order = items.map((it, i) => i).sort((a, b) =>
+            (items[b].short === activeShort) - (items[a].short === activeShort)
+            || boxes[0][a].y - boxes[0][b].y);
         const placed = [];
-        const hit = (it, y) => placed.find(p =>
-            it.x < p.x + p.w + PIN_GAP && p.x < it.x + it.w + PIN_GAP
-            && y < p.y + p.h + PIN_GAP && p.y < y + it.h + PIN_GAP);
-        for (const it of items) {
-            let y = it.base;
-            // Каждый шаг сдвигает строго вниз, так что цикл конечен; guard —
-            // страховка от вырожденных размеров (нулевая высота плашки).
-            for (let guard = 0; guard < 60; guard++) {
-                const p = hit(it, y);
-                if (!p) break;
-                y = p.y + p.h + PIN_GAP;
+        const clash = (b) => placed.some(p =>
+            b.x < p.x + p.w + PIN_GAP && p.x < b.x + b.w + PIN_GAP
+            && b.y < p.y + p.h + PIN_GAP && p.y < b.y + b.h + PIN_GAP);
+        for (const i of order) {
+            // Берём самый подробный вид, который ещё никому не мешает. Если
+            // мешает даже точка — всё равно точка: станция должна остаться
+            // на карте, а не исчезнуть.
+            let mode = MODES.length - 1;
+            for (let m = 0; m < MODES.length; m++) {
+                if (!clash(boxes[m][i])) { mode = m; break; }
             }
-            it.y = y;
-            placed.push({ x: it.x, y, w: it.w, h: it.h });
-        }
-        for (const it of items) {
-            const dy = Math.round(it.y - it.base);
-            it.pin.style.setProperty('--dy', `${dy}px`);
-            const leader = it.pin.querySelector('.rc-pin-leader');
-            if (!leader) continue;
-            leader.style.display = dy ? '' : 'none';
-            leader.style.height = `${Math.abs(dy)}px`;
-            // Плашка ушла вниз — поводок тянется от неё вверх, к своей точке.
-            leader.style.top = dy > 0 ? 'auto' : '50%';
-            leader.style.bottom = dy > 0 ? '50%' : 'auto';
+            setMode(items[i].wrap, MODES[mode]);
+            placed.push(boxes[mode][i]);
         }
     };
     const relayout = () => {
@@ -209,6 +212,7 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         layoutRaf = requestAnimationFrame(layoutPins);
     };
     map.on('zoomend', relayout);
+    map.on('moveend', relayout);
     map.on('viewreset', relayout);
     relayout();
 
@@ -227,11 +231,7 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
 
     const refresh = () => {
         for (const [short, { marker, meta }] of markers) {
-            const active = short === activeShort;
-            marker.setIcon(makeIcon(meta, active));
-            // Открытая станция — поверх соседей, иначе её плашку подрезали бы
-            // те, что южнее (Leaflet сортирует маркеры по широте).
-            marker.setZIndexOffset(active ? 1000 : 0);
+            marker.setIcon(makeIcon(meta, short === activeShort));
         }
         relayout();
     };
@@ -248,6 +248,20 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
                 map.invalidateSize();
                 if (!view) fitStart();
                 relayout();
+            }, 60);
+        },
+        // Перелёт к станции и её соседям. Карта пересобирается на каждой
+        // перерисовке доски, поэтому анимировать переход можно только так:
+        // новая карта стартует там, где стояла прошлая (view из state), и
+        // сама подъезжает к новому охвату. Полсекунды ожидания — тот же
+        // приём, что и в invalidate(): контейнер к этому моменту уже разложен,
+        // иначе flyToBounds считал бы охват по нулевому размеру.
+        flyFit(points) {
+            if (!points || !points.length) return;
+            beQuiet();
+            setTimeout(() => {
+                map.invalidateSize();
+                map.flyToBounds(points, { ...FIT_PAD, duration: REDUCED_MOTION ? 0 : 0.8 });
             }, 60);
         },
         focus(lat, lng, zoom = 13) { beQuiet(); map.setView([lat, lng], zoom); },
