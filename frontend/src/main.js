@@ -11,6 +11,11 @@ import { initTagSearch } from './tagSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { carCardInner } from './carCard.js';
+import { initTheme } from './theme.js';
+
+// Тема уже применена inline-скриптом из <head> (иначе страница мигнула бы
+// тёмной перед светлой) — здесь только вешаем обработчики на переключатели.
+initTheme();
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.

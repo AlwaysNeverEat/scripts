@@ -33,10 +33,33 @@ function buildEdges(positions, maxEdges) {
     return dists.slice(0, maxEdges).map(e => [e.a, e.b]);
 }
 
-// Золото → серый (глубина), подсветка при наведении
-const GOLD = { r: 212, g: 160, b: 23 };
-const GRAY = { r: 107, g: 114, b: 128 };
-const HIGHLIGHT = { r: 253, g: 224, b: 132 };
+// Палитра узлов: цвет плывёт от «дальнего» (GRAY) к «ближнему» (GOLD),
+// HIGHLIGHT добавляется под курсором. Канвас не знает про CSS-переменные,
+// поэтому у каждой темы свой набор.
+//
+// В светлой теме логика зеркальная: дальние узлы уходят в светло-серый (почти
+// сливаются с белым фоном), ближние — в тёмную бронзу, а подложка карточки
+// становится белой с тёмным текстом. Тот же золотой, что на чёрном, на белом
+// был бы нечитаемым пятном.
+const PALETTES = {
+    dark: {
+        gold: { r: 212, g: 160, b: 23 },
+        gray: { r: 107, g: 114, b: 128 },
+        highlight: { r: 253, g: 224, b: 132 },
+        // Подложка карточки — затемнённый вариант её же цвета
+        card: (r, g, b) => `rgba(${Math.round(r * 0.15)},${Math.round(g * 0.18)},${Math.round(b * 0.12)},0.92)`,
+    },
+    light: {
+        gold: { r: 148, g: 100, b: 12 },
+        gray: { r: 158, g: 165, b: 176 },
+        highlight: { r: 120, g: 62, b: 0 },
+        card: () => 'rgba(255,255,255,0.92)',
+    },
+};
+
+const themeName = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+let pal = PALETTES[themeName()];
+document.addEventListener('themechange', () => { pal = PALETTES[themeName()]; });
 
 function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
@@ -155,6 +178,7 @@ export function startSphere(canvas, initialNodes) {
             const depthT = (rz2 + 1) / 2;
             const pulseT = Math.min(1, hoverT * 0.7);
             const colorT = Math.min(1, depthT + pulseT * 0.35);
+            const { gold: GOLD, gray: GRAY, highlight: HIGHLIGHT } = pal;
             const fr = Math.round(GRAY.r + (GOLD.r - GRAY.r) * colorT + (HIGHLIGHT.r - GOLD.r) * pulseT * 0.5);
             const fg = Math.round(GRAY.g + (GOLD.g - GRAY.g) * colorT + (HIGHLIGHT.g - GOLD.g) * pulseT * 0.5);
             const fb = Math.round(GRAY.b + (GOLD.b - GRAY.b) * colorT + (HIGHLIGHT.b - GOLD.b) * pulseT * 0.5);
@@ -169,6 +193,7 @@ export function startSphere(canvas, initialNodes) {
             const pb = proj[b];
             const avgDepth = (pa.depthT + pb.depthT) / 2;
             const lAlpha = (0.10 + avgDepth * 0.22) * Math.min(pa.alpha, pb.alpha);
+            const { gold: GOLD, gray: GRAY } = pal;
             const lr = Math.round(GRAY.r + (GOLD.r - GRAY.r) * avgDepth);
             const lg = Math.round(GRAY.g + (GOLD.g - GRAY.g) * avgDepth);
             const lb = Math.round(GRAY.b + (GOLD.b - GRAY.b) * avgDepth);
@@ -205,7 +230,7 @@ export function startSphere(canvas, initialNodes) {
             }
 
             ctx.globalAlpha = p.alpha * 0.82;
-            ctx.fillStyle = `rgba(${Math.round(p.colorR * 0.15)},${Math.round(p.colorG * 0.18)},${Math.round(p.colorB * 0.12)},0.92)`;
+            ctx.fillStyle = pal.card(p.colorR, p.colorG, p.colorB);
             roundRect(ctx, x, y, cardW, cardH, rr);
             ctx.fill();
 

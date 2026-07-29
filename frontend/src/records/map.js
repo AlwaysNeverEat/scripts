@@ -9,6 +9,15 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { STATIONS_META, LINE_COLORS, nearestStations } from '../../../shared/stationsMeta.js';
+import { currentTheme } from '../theme.js';
+
+// Тайлы под тему сайта: на светлой теме тёмная карта была бы чёрным пятном
+// посреди белой страницы. У CARTO это те же тайлы в двух вариантах, так что
+// смена темы меняет только слой — вид, зум и маркеры остаются на месте.
+const TILE_URL = {
+    dark:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+};
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -41,10 +50,20 @@ export function createStationsMap(container, { onPick, view } = {}) {
         zoomSnap: 0.25,
         zoomDelta: 1,
     }).setView(start[0], start[1]);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    const makeTiles = (theme) => L.tileLayer(TILE_URL[theme] || TILE_URL.dark, {
         subdomains: 'abcd',
         maxZoom: 19,
-    }).addTo(map);
+    });
+    let tiles = makeTiles(currentTheme()).addTo(map);
+
+    // Новый слой добавляем ПЕРЕД снятием старого: иначе между кадрами
+    // проглядывает пустая подложка и карта успевает моргнуть.
+    const onThemeChange = (e) => {
+        const next = makeTiles(e.detail?.theme).addTo(map);
+        map.removeLayer(tiles);
+        tiles = next;
+    };
+    document.addEventListener('themechange', onThemeChange);
 
     const markers = new Map(); // short → { marker, meta }
     let busyCounts = {};
@@ -105,7 +124,10 @@ export function createStationsMap(container, { onPick, view } = {}) {
             const c = map.getCenter();
             return { lat: c.lat, lng: c.lng, zoom: map.getZoom() };
         },
-        destroy() { map.remove(); },
+        destroy() {
+            document.removeEventListener('themechange', onThemeChange);
+            map.remove();
+        },
     };
 }
 
