@@ -738,13 +738,15 @@ function renderStationSkeleton() {
     const heads = Array.from({ length: lastStationLanes }, () =>
         '<span class="rc-lane-head"><span class="rc-skel rc-skel-lane"></span></span>').join('');
     return `
-    <main class="rc-station rc-skeleton" aria-busy="true" aria-label="Загрузка станции">
+    <main class="rc-station rc-skeleton" style="--lanes:${lastStationLanes}" aria-busy="true" aria-label="Загрузка станции">
         <div class="rc-station-head">
+            <div class="rc-station-headline">
+                <div class="rc-station-title"><span class="rc-skel rc-skel-name"></span></div>
+            </div>
             <button class="btn btn-sec rc-back" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
-            <div class="rc-station-title"><span class="rc-skel rc-skel-dot"></span><span class="rc-skel rc-skel-name"></span></div>
         </div>
         <div class="rc-station-body">
-            <div class="rc-board" style="--lanes:${lastStationLanes}">
+            <div class="rc-board">
                 <div class="rc-lanes-heads">${heads}</div>
                 <div class="rc-grid" style="height:${lastStationRows * ROW_H}px; --row-h:${ROW_H}px">
                     <div class="rc-rows">${rows}</div>
@@ -959,26 +961,27 @@ function renderStation() {
         `<span class="rc-lane-head">Бокс ${i + 1}</span>`).join('');
 
     return `
-    <main class="rc-station ${state.enterAnim ? 'rc-in' : ''}">
+    <main class="rc-station ${state.enterAnim ? 'rc-in' : ''}" style="--lanes:${lanes}">
         <div class="rc-station-head">
+            <div class="rc-station-headline">
+                <h1 class="rc-station-title" title="${esc(addr.title)}">
+                    ${esc(meta?.short || addr.title)}
+                    ${meta?.boxNo ? `<span class="rc-station-code" title="Код для перевода звонка">${esc(meta.boxNo)}</span>` : ''}
+                </h1>
+                <div class="rc-station-chips">
+                    ${meta?.metro ? `<span class="rc-chip-meta rc-chip-metro">${esc(meta.metro)}${meta.line ? ` · ${esc(LINE_NAMES[meta.line] || '')}` : ''}</span>` : ''}
+                    ${meta?.layout ? `<span class="rc-chip-meta rc-chip-layout">${esc(meta.layout)}</span>` : ''}
+                    ${meta?.height ? `<span class="rc-chip-meta rc-chip-gate">ворота ${esc(meta.height)}</span>` : ''}
+                    ${meta?.hydro === true ? `<span class="rc-chip-meta rc-chip-hydro">гидростойка есть</span>` : ''}
+                    ${meta?.hydro === false ? `<span class="rc-chip-meta rc-chip-off">гидростойки нет</span>` : ''}
+                    ${meta?.ac ? `<span class="rc-chip-meta rc-chip-ac">${icons.snowflake(11)}заправка кондиционера</span>` : ''}
+                    ${meta?.note ? `<span class="rc-chip-meta rc-chip-note">${esc(meta.note)}</span>` : ''}
+                </div>
+            </div>
             <button class="btn btn-sec rc-back" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
-            <div class="rc-station-title">
-                <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
-                ${boxCodeHtml(meta, 'rc-code-lg')}
-                <b title="${esc(addr.title)}">${esc(meta?.short || addr.title)}</b>
-            </div>
-            <div class="rc-station-chips">
-                ${meta?.metro ? `<span class="rc-chip-meta rc-chip-metro">${esc(meta.metro)}${meta.line ? ` · ${esc(LINE_NAMES[meta.line] || '')}` : ''}</span>` : ''}
-                ${meta?.layout ? `<span class="rc-chip-meta rc-chip-layout">${esc(meta.layout)}</span>` : ''}
-                ${meta?.height ? `<span class="rc-chip-meta rc-chip-gate">ворота ${esc(meta.height)}</span>` : ''}
-                ${meta?.hydro === true ? `<span class="rc-chip-meta rc-chip-hydro">гидростойка есть</span>` : ''}
-                ${meta?.hydro === false ? `<span class="rc-chip-meta rc-chip-off">гидростойки нет</span>` : ''}
-                ${meta?.ac ? `<span class="rc-chip-meta rc-chip-ac">${icons.snowflake(11)}заправка кондиционера</span>` : ''}
-                ${meta?.note ? `<span class="rc-chip-meta rc-chip-note">${esc(meta.note)}</span>` : ''}
-            </div>
         </div>
         <div class="rc-station-body">
-            <div class="rc-board" style="--lanes:${lanes}">
+            <div class="rc-board">
                 <div class="rc-lanes-heads">${laneHeads}</div>
                 <div class="rc-grid" style="height:${gridH}px; --row-h:${ROW_H}px">
                     <div class="rc-rows">${rows}</div>

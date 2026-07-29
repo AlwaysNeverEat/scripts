@@ -277,8 +277,15 @@
 .rc-skel-time { flex: none; width: 34px; height: 8px; margin: 0 15px; }
 .rc-skel-lane { display: inline-block; width: 46px; height: 8px; }
 /* Название станции ещё неизвестно — держим ширину, иначе полоска схлопнется
-   в ноль (в шапке она flex: 1 от пустого содержимого). */
-.rc-station-title .rc-skel-name { flex: none; width: 150px; }
+   в ноль. Высота — по размеру самого заголовка: скелет должен быть той же
+   величины, что и текст, который придёт ему на смену. */
+.rc-station-title .rc-skel-name {
+    flex: none;
+    width: 280px;
+    max-width: 60vw;
+    height: calc(var(--row-h-ref) * 0.75);
+    border-radius: 8px;
+}
 .rc-skel-pill { height: 21px; width: 78px; border-radius: 4px; }
 .rc-skel-pill-s { width: 54px; }
 
@@ -419,40 +426,75 @@
 
 .rc-station {
     margin-top: 16px;
-    /* Опорная ширина: по ней режется кнопка «Все станции» в шапке, под ней
-       выравнивается строка чипов, и с неё начинает расти панель с картой
-       справа от сетки. Уже 240px карта становится нечитаемой. */
+    /* Опорная ширина: с неё начинает расти панель с картой справа от сетки.
+       Уже 240px карта становится нечитаемой. */
     --side-w: 262px;
     /* Высота строки «БОКС 1 / БОКС 2» над сеткой. */
     --heads-h: 23px;
+    /* Высота получаса в сетке (ROW_H в records.js). Ею мерится и название
+       станции: шапка и расписание должны читаться как один масштаб. */
+    --row-h-ref: 44px;
+    /* Ширина дорожки-бокса. Живёт на всей станции, а не только на теле: по ней
+       же считается ширина кнопки «Все станции» в шапке. */
+    --lane-w: 320px;
 }
 
+/* Шапка станции — две строки: название (с кодом и чипами) и под ним возврат в
+   общий список. Раньше кнопка стояла слева от названия и забирала себе начало
+   строки — теперь начало строки принадлежит станции. */
 .rc-station-head {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
 }
 
-.rc-station-title {
+/* Название, код и чипы — одна строка. Её высота задана в получасах сетки
+   (1.7 слота): название стало главным объектом экрана, и вокруг него нужен
+   воздух, иначе крупный шрифт выглядит просто съехавшим. */
+.rc-station-headline {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 15px;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    min-height: calc(var(--row-h-ref) * 1.7);
+    width: 100%;
 }
 
-/* Чипы станции всегда своей строкой под адресом: по месту они то влезали в
-   строку с названием, то нет, и шапка прыгала при каждом переходе между
-   станциями. Отступ слева — ширина кнопки «Все станции»: строка чипов встаёт
-   ровно под названием, а не под кнопкой. */
+/* Адрес станции — крупно и без цвета линии: цвет линии и без того есть в чипе
+   метро, а точка рядом с большим заголовком читалась как случайная клякса.
+   Размер — примерно получас сетки по высоте букв. */
+.rc-station-title {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+    margin: 0;
+    font-size: clamp(26px, 5.6vw, calc(var(--row-h-ref) * 1.05));
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+}
+
+/* Код перевода звонка при большом названии — не плашка-тег, а приписка тем же
+   шрифтом: он нужен, когда его ищут, и не должен спорить с адресом. */
+.rc-station-code {
+    flex: none;
+    font-size: 0.42em;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    opacity: 0.42;
+}
+
+/* Чипы станции — справа от названия, своей группой: если места нет, группа
+   целиком переезжает на следующую строку и шапка не рассыпается. */
 .rc-station-chips {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
-    flex-basis: 100%;
-    margin-top: -4px;
-    padding-left: calc(var(--side-w) + 12px);
+    min-width: 0;
 }
 
 /* Чипы в шапке станции — той же прямоугольной формы и той же цветовой
@@ -505,8 +547,6 @@
     vertical-align: 1px;
 }
 
-.rc-code-lg { font-size: 12.5px; padding: 1px 7px; }
-
 /* Снежинка = на станции заправляют кондиционер. Голая иконка терялась среди
    текста, поэтому это отдельный синий значок с подложкой и рамкой. */
 .rc-ac {
@@ -531,10 +571,14 @@
     display: flex;
     align-items: stretch;
     gap: 14px;
-    --lane-w: 320px;
 }
 
-.rc-station-head .rc-back { flex: 0 0 var(--side-w); justify-content: flex-start; }
+/* Кнопка возврата — ровно по ширине сетки под ней: шапка и расписание стоят на
+   одной вертикали, а подпись читается по центру своей полосы. */
+.rc-station-head .rc-back {
+    width: min(100%, calc(64px + var(--lanes, 1) * var(--lane-w)));
+    justify-content: center;
+}
 
 .rc-board {
     flex: 0 1 auto;
@@ -1589,7 +1633,8 @@
     .rc-big-map { height: 52vh; }
     /* Рядом с сеткой карте места уже нет — уводим её под сетку во всю ширину.
        Липкость там вредна: панель начала бы ездить поверх расписания. */
-    .rc-station-body { flex-wrap: wrap; --lane-w: 280px; }
+    .rc-station { --lane-w: 280px; }
+    .rc-station-body { flex-wrap: wrap; }
     .rc-board { flex-basis: 100%; }
     /* Карта уехала под сетку — равняться сверху уже не на что, а липкость
        мешала бы: панель ездила бы поверх расписания. */
@@ -1603,10 +1648,8 @@
     .rc-btn-label { display: none; }
     .rc-searchbox { order: 10; flex-basis: 100%; max-width: none; }
     .rc-field-row { flex-direction: column; gap: 0; }
-    .rc-station-body { --lane-w: 240px; }
-    /* Подпись у кнопки спрятана — растягивать её на ширину колонки незачем,
-       а вместе с ней уезжает и отступ у строки чипов: равняться уже не на что. */
-    .rc-station-head .rc-back { flex: 0 0 auto; }
-    .rc-station-chips { padding-left: 0; }
+    .rc-station { --lane-w: 240px; }
+    /* Подпись у кнопки спрятана — растягивать её на ширину сетки незачем. */
+    .rc-station-head .rc-back { width: auto; }
     .rc-side-map { height: 52vh; }
 }
