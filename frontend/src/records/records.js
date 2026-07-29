@@ -63,10 +63,16 @@ const state = {
     modal: null,           // { kind, ... } | null
     enterAnim: false,      // ближайший render() проявляет содержимое анимацией
     details: {},           // карточки записей: id → { loading, record, error }
+    // Карта рядом с сеткой станции: запрос в её поиске и текущее положение
+    // (переживает перерисовку — иначе карту отбрасывало бы к станции при
+    // каждом обновлении доски).
+    stationMap: { query: '', view: null, near: null },
 };
 
 let mapCtl = null;         // Leaflet-контроллер открытой карты (модалки)
+let stationMapCtl = null;  // …и карты сбоку от сетки станции
 let geocodeTimer = 0;
+let stationGeocodeTimer = 0;
 let boardReloadTimers = [];
 
 // ── Загрузка данных ──────────────────────────────────────────────────────────
@@ -546,6 +552,12 @@ function render() {
         try { state.modal.mapView = mapCtl.getView(); } catch { /* карта уже снята */ }
     }
     if (state.modal) state.modal.mapViewForced = false;
+    // То же и с картой станции: её узел сейчас уедет вместе с разметкой, так
+    // что запоминаем положение и снимаем карту — bind() соберёт её заново.
+    if (stationMapCtl) {
+        try { state.stationMap.view = stationMapCtl.getView(); } catch { /* карта уже снята */ }
+        destroyStationMapCtl();
+    }
     if (state.credsNeeded) {
         root.innerHTML = renderCredsGate();
         bindCredsGate();
@@ -925,7 +937,6 @@ function renderStation() {
             </div>
         </div>
         <div class="rc-station-body">
-            ${otherStationsHtml(addr.id)}
             <div class="rc-board" style="--lanes:${lanes}">
                 <div class="rc-lanes-heads">${laneHeads}</div>
                 <div class="rc-grid" style="height:${gridH}px">
@@ -938,38 +949,81 @@ function renderStation() {
                     </div>
                 </div>
             </div>
+            ${stationMapHtml()}
         </div>
     </main>`;
 }
 
-// Список станций — колонкой слева, прямо под кнопкой «Все станции»: переход к
-// соседней станции в один клик, без возврата в общий список. Место под него
-// освободилось после того, как записи стали шириной с бокс.
-function otherStationsHtml(currentId) {
-    const items = state.board.addresses
-        .map(a => ({ addr: a, meta: metaFor(a) }))
-        .sort((x, y) =>
-            (x.meta?.line || 9) - (y.meta?.line || 9)
-            || String(x.meta?.short || x.addr.title).localeCompare(String(y.meta?.short || y.addr.title), 'ru'))
-        .map(({ addr, meta }) => {
-            const { free, booked } = stationCounts(addr);
-            const active = String(addr.id) === String(currentId);
+// Карта рядом с сеткой — вместо колонки со списком станций. Список отвечал на
+// один вопрос («куда ещё можно записать»), но не отвечал на главный: клиент
+// называет улицу, а не название станции. Карта отвечает на оба сразу —
+// открытая станция в центре, соседние вокруг со счётчиком свободного, плюс
+// поиск: свои станции ищутся мгновенно, чужие улицы — через геокодер.
+function stationMapHtml() {
+    return `
+    <aside class="rc-side-map">
+        <div class="rc-map-search rc-side-map-search">
+            ${icons.search(14)}
+            <input id="rc-station-map-q" type="search" placeholder="Улица или станция…"
+                autocomplete="off" value="${esc(state.stationMap.query)}"/>
+        </div>
+        <div id="rc-station-map-hits" class="rc-side-map-hits ${state.stationMap.query.trim() ? '' : 'hidden'}">
+            ${stationMapHitsHtml()}
+        </div>
+        <div id="rc-station-map" class="rc-side-map-canvas"></div>
+        <div class="rc-map-legend rc-side-map-legend">
+            <span><i class="rc-lg-dot rc-pin-count-ok"></i>свободно много</span>
+            <span><i class="rc-lg-dot rc-pin-count-low"></i>мало (≤5)</span>
+            <span><i class="rc-lg-dot rc-pin-count-none"></i>мест нет</span>
+            <span class="rc-lg-ac">${icons.snowflake(12)}кондиционер</span>
+        </div>
+    </aside>`;
+}
+
+// Совпадения по своим станциям: название, код перевода звонка, метро и полный
+// адрес из админки. Сеть для этого не нужна — станций три десятка.
+function stationHits(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return (state.board?.addresses || [])
+        .map(addr => ({ addr, meta: metaFor(addr) }))
+        .filter(({ addr, meta }) =>
+            addr.title.toLowerCase().includes(q)
+            || String(meta?.short || '').toLowerCase().includes(q)
+            || String(meta?.metro || '').toLowerCase().includes(q)
+            || String(meta?.boxNo || '').includes(q))
+        .slice(0, 8);
+}
+
+function stationMapHitsHtml() {
+    const q = state.stationMap.query.trim();
+    if (!q) return '';
+    const hits = stationHits(q);
+    if (hits.length) {
+        return hits.map(({ addr, meta }) => {
+            const { free } = stationCounts(addr);
             const tone = free === 0 ? 'rc-side-none' : free <= 5 ? 'rc-side-low' : '';
             return `
-            <button class="rc-side-item ${meta?.ac ? 'rc-side-ac' : ''} ${active ? 'rc-side-active' : ''}" data-action="open-station"
-                data-id="${esc(addr.id)}" title="${esc(stationLabel(addr, meta))} · ${esc(addr.title)} · ${booked} зап., ${free} свободно">
+            <button class="rc-side-map-hit ${String(addr.id) === String(state.stationId) ? 'rc-side-map-hit-on' : ''}"
+                data-action="open-station" data-id="${esc(addr.id)}" title="${esc(addr.title)}">
                 <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
                 ${boxCodeHtml(meta)}
                 <b>${esc(meta?.short || addr.title)}</b>
                 ${acHtml(meta, 10)}
-                <span class="rc-side-free ${tone}">${free}</span>
+                <span class="rc-side-free ${tone}" title="Свободно получасов">${free}</span>
             </button>`;
         }).join('');
-    return `
-    <aside class="rc-side">
-        <div class="rc-side-head">Станции · свободно</div>
-        <div class="rc-side-list">${items}</div>
-    </aside>`;
+    }
+    // Своих совпадений нет — показываем то, что нашлось по улице (заполняется
+    // геокодером, см. bindStationMap).
+    const near = state.stationMap.near;
+    if (near) {
+        return `<div class="rc-near-head">${esc(near.label)}</div>`
+            + near.items.map(nearItemHtml).join('');
+    }
+    return `<div class="rc-empty-note">${q.length < 3
+        ? 'Название станции, код ##NN или улица'
+        : 'Ищу улицу…'}</div>`;
 }
 
 // ── Модалки ──────────────────────────────────────────────────────────────────
@@ -1749,6 +1803,89 @@ function focusPickedStation(meta) {
     state.modal.mapViewForced = true; // ближайший render() этот вид не тронет
 }
 
+// ── Карта сбоку от сетки станции ─────────────────────────────────────────────
+
+// Сколько соседей должно попасть в кадр вместе с открытой станцией. Пять —
+// столько, чтобы был виден весь «куст» вокруг, и не столько, чтобы карта
+// отъехала до общего вида города.
+const STATION_MAP_NEIGHBOURS = 5;
+
+function destroyStationMapCtl() {
+    if (stationMapCtl) { try { stationMapCtl.destroy(); } catch { /* уже снят */ } stationMapCtl = null; }
+}
+
+function initStationMap() {
+    const el = document.getElementById('rc-station-map');
+    if (!el) return;
+    destroyStationMapCtl();
+    const meta = metaFor(stationById(state.stationId));
+    // nearestStations отдаёт станцию первой (расстояние 0), поэтому просим на
+    // одну больше — в кадр попадут она сама и её соседи.
+    const fit = meta
+        ? stationsNear(meta.lat, meta.lng, STATION_MAP_NEIGHBOURS + 1).map(s => [s.lat, s.lng])
+        : null;
+    stationMapCtl = createStationsMap(el, {
+        view: state.stationMap.view,
+        fit,
+        onPick: (m) => {
+            const id = addrIdByMeta(m);
+            if (!id || String(id) === String(state.stationId)) return;
+            openStation(id);
+        },
+    });
+    stationMapCtl.setFree(freeCountByShort());
+    if (meta) stationMapCtl.highlight(meta.short);
+    stationMapCtl.invalidate();
+}
+
+// Список совпадений перерисовываем точечно: полный render() снёс бы карту и
+// выбил курсор из поля поиска на первой же букве.
+function paintStationMapHits() {
+    const box = document.getElementById('rc-station-map-hits');
+    if (!box) return;
+    box.classList.toggle('hidden', !state.stationMap.query.trim());
+    box.innerHTML = stationMapHitsHtml();
+}
+
+function bindStationMap() {
+    initStationMap();
+    const q = document.getElementById('rc-station-map-q');
+    if (!q) return;
+    q.oninput = () => {
+        clearTimeout(stationGeocodeTimer);
+        state.stationMap.query = q.value;
+        state.stationMap.near = null;
+        paintStationMapHits();
+        const val = q.value.trim();
+        // Свои станции нашлись — за улицей в сеть не ходим.
+        if (val.length < 3 || stationHits(val).length) return;
+        stationGeocodeTimer = setTimeout(async () => {
+            let hits;
+            try {
+                hits = await geocodeStreet(val);
+            } catch {
+                if (state.stationMap.query.trim() !== val) return;
+                const box = document.getElementById('rc-station-map-hits');
+                if (box) box.innerHTML = '<div class="rc-empty-note">Поиск по улице сейчас недоступен — выбери станцию на карте.</div>';
+                return;
+            }
+            // Пока ходили в сеть, могли уйти со станции или дописать запрос.
+            if (state.view !== 'station' || state.stationMap.query.trim() !== val) return;
+            if (!hits.length) {
+                const box = document.getElementById('rc-station-map-hits');
+                if (box) box.innerHTML = '<div class="rc-empty-note">Такой улицы не нашлось. Попробуй иначе: «Оптиков 2», «проспект Ветеранов».</div>';
+                return;
+            }
+            state.stationMap.near = { label: hits[0].label, items: stationsNear(hits[0].lat, hits[0].lng, 6) };
+            // Вид кладём и в state, и в живую карту: перерисовка доски создаёт
+            // карту заново и берёт положение как раз отсюда.
+            state.stationMap.view = { lat: hits[0].lat, lng: hits[0].lng, zoom: 13 };
+            stationMapCtl?.focus(hits[0].lat, hits[0].lng, 13);
+            paintStationMapHits();
+        }, 500);
+    };
+}
+
 // Стартовый вид мини-карты — вокруг уже выбранной станции.
 function ensureMapViewFor(addressId) {
     if (!state.modal || state.modal.mapView) return;
@@ -2022,6 +2159,9 @@ function bind() {
         };
     }
     bindCredsForm();
+    // Карта станции — часть страницы, а не модалки: собирается при каждой
+    // перерисовке вида станции.
+    if (state.view === 'station' && state.board) bindStationMap();
     // Расписание и длительность (окна записи, продления и переноса)
     if (state.modal?.kind === 'create' || state.modal?.kind === 'extend' || state.modal?.kind === 'move') bindPick();
 
@@ -2032,10 +2172,7 @@ function bind() {
             if (id) {
                 destroyMapCtl();
                 state.modal = null;
-                state.view = 'station';
-                state.stationId = id;
-                state.enterAnim = true;
-                render();
+                openStation(id);
             }
         }, state.view === 'station' ? metaFor(stationById(state.stationId))?.short : null);
         const q = document.getElementById('rc-map-q');
@@ -2139,6 +2276,19 @@ function keepEditFields() {
 
 // ── Действия (делегирование) ─────────────────────────────────────────────────
 
+// Переход на станцию — из карточки обзора, из поиска и с карты сбоку. Вид
+// карты сбрасываем: новая станция должна встать в центр со своими соседями, а
+// не остаться там, куда карту увели на прошлой станции.
+function openStation(id, highlightId = null) {
+    if (!id) return;
+    if (String(id) !== String(state.stationId)) state.stationMap.view = null;
+    state.view = 'station';
+    state.stationId = id;
+    state.highlightId = highlightId;
+    state.enterAnim = true;
+    return render();
+}
+
 async function handleAction(btn, ev) {
     const a = btn.dataset.action;
 
@@ -2159,13 +2309,7 @@ async function handleAction(btn, ev) {
         apiFetch('/api/records/refresh', { method: 'POST' }).catch(() => {});
         return loadBoard({ silent: true });
     }
-    if (a === 'open-station') {
-        state.view = 'station';
-        state.stationId = btn.dataset.id;
-        state.highlightId = null;
-        state.enterAnim = true;
-        return render();
-    }
+    if (a === 'open-station') return openStation(btn.dataset.id);
     if (a === 'back') {
         state.view = 'overview';
         state.highlightId = null;
@@ -2183,17 +2327,18 @@ async function handleAction(btn, ev) {
     if (a === 'close-modal') { destroyMapCtl(); state.modal = null; return render(); }
 
     if (a === 'search-pick') {
-        state.view = 'station';
-        state.stationId = btn.dataset.station;
-        state.highlightId = btn.dataset.head;
         state.search = '';
-        state.enterAnim = true;
-        return render();
+        return openStation(btn.dataset.station, btn.dataset.head);
     }
     if (a === 'near-pick') {
-        // Клик по «ближайшей станции» в поиске по улице
-        mapCtl?.focus(Number(btn.dataset.lat), Number(btn.dataset.lng), 13);
-        mapCtl?.highlight(btn.dataset.short);
+        // Клик по «ближайшей станции» в поиске по улице — в модалке и в панели
+        // сбоку от сетки это разные карты.
+        const ctl = state.modal ? mapCtl : stationMapCtl;
+        const lat = Number(btn.dataset.lat);
+        const lng = Number(btn.dataset.lng);
+        ctl?.focus(lat, lng, 13);
+        ctl?.highlight(btn.dataset.short);
+        if (!state.modal) state.stationMap.view = { lat, lng, zoom: 13 };
         return;
     }
 
@@ -2747,6 +2892,7 @@ function startPolling() {
 function stopPolling() {
     for (const t of timers.splice(0)) clearInterval(t);
     clearTimeout(geocodeTimer);
+    clearTimeout(stationGeocodeTimer);
     for (const t of boardReloadTimers.splice(0)) clearTimeout(t);
     if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
 }
@@ -2775,6 +2921,7 @@ export function resumeRecords() {
     // Карта в открытом окне считала свои размеры на скрытом контейнере —
     // после возвращения ей нужно пересчитать их, иначе останутся серые поля.
     mapCtl?.invalidate();
+    stationMapCtl?.invalidate();
     startPolling();
     loadViewer(); // пока раздел стоял, могли войти под своим аккаунтом
     loadStatus();
@@ -2784,6 +2931,7 @@ export function resumeRecords() {
 export function stopRecords() {
     stopPolling();
     destroyMapCtl();
+    destroyStationMapCtl();
     if (root && onClick) root.removeEventListener('click', onClick);
     onClick = null;
     onVisibility = null;

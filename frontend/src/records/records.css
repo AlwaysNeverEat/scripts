@@ -410,10 +410,9 @@
 
 .rc-station {
     margin-top: 16px;
-    /* Ширина левой колонки: по ней же режется кнопка «Все станции» в шапке —
-       список станций встаёт ровно под ней. Держим пошире: в строке рядом с
-       названием стоят код станции, снежинка и счётчик, и на 210px адрес
-       обрезался до «Кузнецовск…». */
+    /* Опорная ширина: по ней режется кнопка «Все станции» в шапке, под ней
+       выравнивается строка чипов, и с неё начинает расти панель с картой
+       справа от сетки. Уже 240px карта становится нечитаемой. */
     --side-w: 262px;
 }
 
@@ -434,8 +433,8 @@
 
 /* Чипы станции всегда своей строкой под адресом: по месту они то влезали в
    строку с названием, то нет, и шапка прыгала при каждом переходе между
-   станциями. Отступ слева — ширина колонки со списком станций: строка чипов
-   встаёт ровно под названием, а не под кнопкой «Все станции». */
+   станциями. Отступ слева — ширина кнопки «Все станции»: строка чипов встаёт
+   ровно под названием, а не под кнопкой. */
 .rc-station-chips {
     display: flex;
     gap: 6px;
@@ -835,34 +834,43 @@
 .rc-st-late { background: var(--red-dim); color: var(--red); }
 .rc-st-new { background: var(--accent-dim); color: var(--accent); }
 
-/* ── Колонка станций слева от сетки ────────────────────────────── */
-/* Стоит под кнопкой «Все станции» и занимает место, освободившееся после того,
-   как записи стали шириной с бокс: переход на соседнюю станцию — в один клик,
-   без возврата в общий список. */
+/* ── Карта справа от сетки ─────────────────────────────────────── */
+/* Раньше тут стоял список станций. Он отвечал только на «куда ещё можно
+   записать», а спрашивают обычно про улицу — карта отвечает на оба вопроса
+   сразу: открытая станция в центре, соседние вокруг со счётчиком свободного.
+   Панель липкая: сетка станции длиннее экрана, и карта не должна уезжать
+   вверх, пока листаешь вечер. */
 
-.rc-side {
-    flex: 0 0 var(--side-w);
-    min-width: 0;
+.rc-side-map {
+    position: sticky;
+    top: 10px;
+    align-self: flex-start;
+    /* Забирает всё, что осталось от сетки боксов: пустое поле справа от карты
+       выглядело бы недоделанной страницей. */
+    flex: 1 1 var(--side-w);
+    min-width: 240px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    /* Ровно по высоте сетки боксов, но не выше экрана — иначе липкая панель
+       сама начинает прокручиваться и карта уходит под сгиб. */
+    height: min(760px, calc(100vh - 90px));
 }
 
-.rc-side-head {
-    font-size: 10px;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    color: var(--sub);
-    padding: 4px 0;
-}
+.rc-side-map-search { margin-bottom: 8px; padding: 7px 11px; }
+.rc-side-map-search input { font-size: 12.5px; }
 
-.rc-side-list {
+/* Совпадения ложатся НАД картой и ограничены по высоте: список нужен на
+   секунду — выбрать и уйти, — а карта должна оставаться на виду. */
+.rc-side-map-hits {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    max-height: 216px;
+    overflow: auto;
+    margin-bottom: 8px;
 }
 
-.rc-side-item {
+.rc-side-map-hit {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -878,14 +886,20 @@
     transition: border-color 0.12s, background 0.12s;
 }
 
-.rc-side-item:hover { border-color: var(--accent); background: var(--bg2); }
+.rc-side-map-hit:hover { border-color: var(--accent); background: var(--bg2); }
+.rc-side-map-hit b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+/* Станция, которая и так открыта, — чтобы не кликать по ней второй раз. */
+.rc-side-map-hit-on { border-color: var(--accent); background: var(--bg2); }
 
-/* Станции с заправкой кондиционера — голубее, как и карточки в обзоре. */
-.rc-side-ac { background: color-mix(in oklab, var(--blue) 13%, var(--card)); border-color: color-mix(in oklab, var(--blue) 30%, var(--border)); }
-.rc-side-ac:hover { border-color: var(--accent); background: color-mix(in oklab, var(--blue) 17%, var(--bg2)); }
-.rc-side-item b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.rc-side-map-canvas {
+    flex: 1;
+    min-height: 220px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
 
-.rc-side-active { border-color: var(--accent); background: var(--bg2); }
+.rc-side-map-legend { margin: 8px 2px 0; gap: 4px 10px; }
 
 /* Счётчик свободных получасов: цветом кричит только «мало» и «нет». */
 .rc-side-free {
@@ -1424,12 +1438,15 @@
     .rc-map-layout { grid-template-columns: 1fr; }
     .rc-map-near { max-height: 160px; }
     .rc-big-map { height: 52vh; }
-    /* Колонке станций слева места уже нет — уводим её под сетку и
-       раскладываем плиткой (в столбик такой список был бы бесконечным). */
+    /* Рядом с сеткой карте места уже нет — уводим её под сетку во всю ширину.
+       Липкость там вредна: панель начала бы ездить поверх расписания. */
     .rc-station-body { flex-wrap: wrap; --lane-w: 280px; }
-    .rc-board { order: -1; flex-basis: 100%; }
-    .rc-side { flex-basis: 100%; }
-    .rc-side-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 5px; }
+    .rc-board { flex-basis: 100%; }
+    .rc-side-map {
+        position: static;
+        flex-basis: 100%;
+        height: 60vh;
+    }
 }
 
 @media (max-width: 700px) {
@@ -1441,5 +1458,5 @@
        а вместе с ней уезжает и отступ у строки чипов: равняться уже не на что. */
     .rc-station-head .rc-back { flex: 0 0 auto; }
     .rc-station-chips { padding-left: 0; }
-    .rc-side-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .rc-side-map { height: 52vh; }
 }

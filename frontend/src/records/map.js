@@ -39,9 +39,11 @@ export function uniqueStations() {
 }
 
 // container — DOM-узел; onPick(meta) — клик по плашке станции;
-// view — {lat, lng, zoom} стартового положения (переживает перерисовку окна).
+// view — {lat, lng, zoom} стартового положения (переживает перерисовку окна);
+// fit — [[lat, lng], …] точки, которые должны поместиться в кадр, когда view
+// нет (карта станции: она сама и её соседи).
 // Возвращает { setFree, highlight, invalidate, focus, getView, destroy }.
-export function createStationsMap(container, { onPick, view } = {}) {
+export function createStationsMap(container, { onPick, view, fit } = {}) {
     const start = view && Number.isFinite(view.lat)
         ? [[view.lat, view.lng], view.zoom || 12]
         : [[59.93, 30.32], 10];
@@ -103,12 +105,26 @@ export function createStationsMap(container, { onPick, view } = {}) {
     }
 
     // Без явного view показываем сразу все станции целиком, а не кусок
-    // города с пустотой снизу.
+    // города с пустотой снизу. С fit — только заданные точки: так карта
+    // станции сама подбирает зум, при котором соседи ещё в кадре (у
+    // Ветеранов ближайшая в 7 км, у Фучика — в 700 м, одним зумом не обойтись).
     const fitAll = () => {
         if (!stations.length) return;
         map.fitBounds(stations.map(s => [s.lat, s.lng]), { padding: [45, 45] });
     };
-    if (!view) fitAll();
+    // Плашка растёт ВПРАВО от своей точки (iconAnchor слева), поэтому справа
+    // оставляем места на целую подпись — иначе соседи упираются в край и
+    // читаются как «##35 Кузнец…».
+    const fitStart = () => {
+        if (fit && fit.length) {
+            map.fitBounds(fit, {
+                paddingTopLeft: [16, 30],
+                paddingBottomRight: [140, 30],
+                maxZoom: 14,
+            });
+        } else fitAll();
+    };
+    if (!view) fitStart();
 
     let activeShort = null;
     const refresh = () => {
@@ -126,7 +142,7 @@ export function createStationsMap(container, { onPick, view } = {}) {
         invalidate() {
             setTimeout(() => {
                 map.invalidateSize();
-                if (!view) fitAll();
+                if (!view) fitStart();
             }, 60);
         },
         focus(lat, lng, zoom = 13) { map.setView([lat, lng], zoom); },
