@@ -145,15 +145,16 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
     const widestLabel = (points) => points.reduce(
         (w, p) => Math.max(w, labelOf(p).w), 0) || FALLBACK_LABEL.w;
 
-    // Подпись растёт ВПРАВО от точки и висит чуть выше неё, поэтому поля кадра
-    // несимметричны: справа — целая подпись, слева хватает мелкого отступа.
-    // С прежними «на глаз» полями подписи ближайших станций резались краем.
-    // Сверху и снизу поверх карты лежат ещё и свои панели (строка поиска,
-    // легенда) — станция, поставленная впритык к краю, пряталась под ними.
-    const UI_TOP = 58;    // строка поиска
+    // Поля кадра. Считаются для ТОЧЕК станций, а плашка висит не на точке:
+    // она уходит вверх на PIN_ABOVE (это iconAnchor) и вправо на свою ширину.
+    // Забыть про этот подъём — ровно то, из-за чего станция, поставленная у
+    // верхней границы, всё равно оказывалась под строкой поиска.
+    // Сверху и снизу поверх карты лежат ещё и свои панели.
+    const PIN_ABOVE = 28; // на столько плашка выше своей точки (iconAnchor[1])
+    const UI_TOP = 50;    // строка поиска
     const UI_BOTTOM = 24; // легенда невысокая, но налезать на неё незачем
     const fitPads = (points) => ({
-        paddingTopLeft: L.point(12, UI_TOP),
+        paddingTopLeft: L.point(12, UI_TOP + PIN_ABOVE),
         paddingBottomRight: L.point(Math.round(widestLabel(points)) + 12, UI_BOTTOM),
     });
 
@@ -187,40 +188,30 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
     const frameView = (points) => {
         const pads = fitPads(points);
         const pad = pads.paddingTopLeft.add(pads.paddingBottomRight);
-        let z = map.getBoundsZoom(L.latLngBounds(points), false, pad);
+        // Зум, на котором соседи влезают целиком…
+        const zFit = map.getBoundsZoom(L.latLngBounds(points), false, pad);
+        let z = zFit;
         if (points.length > 1) {
-            // Вверх до шага зума: getBoundsZoom округляет вниз, и «впритык»
-            // превратилось бы в «на пиксель не хватило».
+            // …и зум, на котором подписи станции и ближайшего соседа
+            // расходятся. Вверх до шага зума: getBoundsZoom округляет вниз, и
+            // «впритык» превращалось бы в «на пиксель не хватило».
             const need = Math.ceil(zoomToSeparate(points[0], points[1]) / ZOOM_SNAP) * ZOOM_SNAP;
             z = Math.max(z, need);
         }
         z = Math.min(z, MAX_FIT_ZOOM);
-        // Центр — по всем соседям, как у обычного fitBounds: иначе дальние
-        // вылезают за край и читаются как «…ссе 212к8». Но когда зум задан
-        // читаемостью (Фучика), охват в кадр уже не влезает, и тогда центр
-        // зажимаем: открытая станция и ближайший к ней сосед обязаны остаться
-        // внутри области, свободной от полей. Половина этой области:
-        const size = map.getSize();
-        const half = L.point(
-            Math.max(10, (size.x - pads.paddingTopLeft.x - pads.paddingBottomRight.x) / 2),
-            Math.max(10, (size.y - pads.paddingTopLeft.y - pads.paddingBottomRight.y) / 2),
-        );
-        const at = (pt) => map.project(L.latLng(pt), z);
-        const mid = at(L.latLngBounds(points).getCenter());
-        const must = points.slice(0, 2).map(at);
-        // lo > hi значит, что даже эти двое в область не помещаются, — тогда
-        // ставим их посередине и жертвуем полями, а не станцией.
-        const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi));
-        const focus = L.point(
-            clamp(mid.x, Math.max(...must.map(m => m.x)) - half.x,
-                Math.min(...must.map(m => m.x)) + half.x),
-            clamp(mid.y, Math.max(...must.map(m => m.y)) - half.y,
-                Math.min(...must.map(m => m.y)) + half.y),
-        );
+        // Куда целиться центром. Пока зум влезает в охват — по всем соседям,
+        // как обычный fitBounds: иначе дальние вылезают за край и читаются
+        // как «…ссе 212к8». Но если зум пришлось поднять ради читаемости
+        // (Фучика), соседи в кадр всё равно не помещаются — и целиться в их
+        // общий центр значит увести карту в сторону от самих станций. Тогда
+        // центр — ровно между открытой станцией и ближайшей к ней.
+        const focus = (z > zFit && points.length > 1)
+            ? L.latLngBounds([points[0], points[1]]).getCenter()
+            : L.latLngBounds(points).getCenter();
         // Сдвиг под несимметричные поля — та же арифметика, что внутри
         // fitBounds: подписи растут вправо и вверх, значит место им нужно там.
         const shift = pads.paddingBottomRight.subtract(pads.paddingTopLeft).divideBy(2);
-        return { center: map.unproject(focus.add(shift), z), zoom: z };
+        return { center: map.unproject(map.project(focus, z).add(shift), z), zoom: z };
     };
 
     const fitStart = () => {
