@@ -1,7 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Вкладка «Топ»: рейтинг по числу СДЕЛАННЫХ ЗАПИСЕЙ за текущий месяц.
 // Эмодзи запрещены — только инлайновые SVG из records/icons.js.
-// 1-е место переливается золотым (см. .top-row-gold в style.css).
+// 1-е место — золотая плашка, по которой раз в 5.5 с проходит блик: и по
+// фону строки, и по буквам номера/имени/счёта (.top-row-gold, .gold-text
+// в style.css).
 //
 // Месяц закрывается сам: 1-го числа список начинается с нуля, а над ним
 // остаётся карточка «Топ в прошлом месяце» — кто был первым к концу месяца
@@ -48,10 +50,11 @@ function monthLabel(month) {
 }
 
 // Правая колонка: крупно число записей, под ним слово с правильным окончанием.
-function countHtml(row) {
+// gold — первая строка: по цифре идёт блик (.gold-text в style.css).
+function countHtml(row, gold) {
     return `
         <div class="top-count">
-            <span class="top-score">${row.records}</span>
+            <span class="top-score${gold ? ' gold-text' : ''}">${row.records}</span>
             <span class="top-breakdown">${recordsWord(row.records)}</span>
         </div>`;
 }
@@ -102,14 +105,20 @@ function render(body, data) {
     const previous = data.previous || null;
     const label = monthLabel(data.month);
 
+    // Имя всегда в отдельном span: блик по буквам (background-clip: text)
+    // должен резать только само имя, но не плашку роль-префикса рядом.
     const listHtml = rows.length
-        ? rows.map((row, i) => `
-            <div class="top-row ${row.rank === 1 ? 'top-row-gold' : ''}" data-top-idx="${i}" title="Открыть профиль">
-                <span class="top-rank">${row.rank}</span>
+        ? rows.map((row, i) => {
+            const gold = row.rank === 1;
+            const t = gold ? ' gold-text' : '';
+            return `
+            <div class="top-row ${gold ? 'top-row-gold' : ''}" data-top-idx="${i}" title="Открыть профиль">
+                <span class="top-rank${t}">${row.rank}</span>
                 <div class="top-avatar">${avatarHtml(row)}</div>
-                <div class="top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
-                ${countHtml(row)}
-            </div>`).join('')
+                <div class="top-name">${rolePrefixHtml(row.role_prefix)}<span class="${t.trim()}">${esc(row.display_name)}</span></div>
+                ${countHtml(row, gold)}
+            </div>`;
+        }).join('')
         : '<div class="search-empty">В этом месяце записей ещё никто не сделал</div>';
 
     body.innerHTML = previousHtml(previous)
