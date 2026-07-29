@@ -1876,9 +1876,12 @@ function initStationMap() {
     destroyStationMapCtl();
     const meta = metaFor(stationById(state.stationId));
     // nearestStations отдаёт станцию первой (расстояние 0), поэтому просим на
-    // одну больше — в кадр попадут она сама и её соседи.
+    // одну больше — в кадр попадут она сама и её соседи. Порядок (по
+    // возрастанию расстояния) важен: карта по нему решает, какую пару подписей
+    // обязана развести. short нужен ей, чтобы взять их настоящие размеры.
     const fit = meta
-        ? stationsNear(meta.lat, meta.lng, STATION_MAP_NEIGHBOURS + 1).map(s => [s.lat, s.lng])
+        ? stationsNear(meta.lat, meta.lng, STATION_MAP_NEIGHBOURS + 1)
+            .map(s => ({ lat: s.lat, lng: s.lng, short: s.short }))
         : null;
     stationMapCtl = createStationsMap(el, {
         view: state.stationMap.view,

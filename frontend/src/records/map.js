@@ -41,6 +41,10 @@ export function uniqueStations() {
 // Зазор, с которого плашки считаются налезающими (см. layoutPins).
 const PIN_GAP = 3;
 
+// Шаг зума карты (см. zoomSnap у L.map): до него же округляется зум,
+// подобранный под читаемость подписей.
+const ZOOM_SNAP = 0.25;
+
 // Перелёт к станции — украшение, и при «поменьше движения» его быть не должно.
 const REDUCED_MOTION = typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -56,12 +60,12 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
     const start = view && Number.isFinite(view.lat)
         ? [[view.lat, view.lng], view.zoom || 12]
         : [[59.93, 30.32], 10];
-    // zoomSnap: 0.25 — иначе fitBounds округляет зум вниз до целого и все
+    // zoomSnap: 0.25 — иначе подбор охвата округляет зум вниз до целого и все
     // станции жмутся в середину, оставляя половину карты пустой.
     const map = L.map(container, {
         zoomControl: true,
         attributionControl: false,
-        zoomSnap: 0.25,
+        zoomSnap: ZOOM_SNAP,
         zoomDelta: 1,
     }).setView(start[0], start[1]);
     const makeTiles = (theme) => L.tileLayer(TILE_URL[theme] || TILE_URL.dark, {
@@ -121,26 +125,109 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
 
     // Без явного view показываем сразу все станции целиком, а не кусок
     // города с пустотой снизу. С fit — только заданные точки: так карта
-    // станции сама подбирает зум, при котором соседи ещё в кадре (у
-    // Ветеранов ближайшая в 7 км, у Фучика — в 700 м, одним зумом не обойтись).
+    // станции сама подбирает зум, при котором соседи ещё читаются (у
+    // Ветеранов ближайшая в 7 км, у Фучика — в 112 м, одним зумом не обойтись).
     const fitAll = () => {
         if (!stations.length) return;
         map.fitBounds(stations.map(s => [s.lat, s.lng]), { padding: [45, 45] });
     };
-    // Плашка растёт ВПРАВО от своей точки, поэтому справа оставляем места на
-    // целую подпись — иначе соседи упираются в край и читаются как
-    // «##35 Кузнец…». 200px — под самое длинное название («Охтинская 9/1,
-    // Мурино» вместе с кодом и снежинкой).
-    const FIT_PAD = {
-        paddingTopLeft: [16, 30],
-        paddingBottomRight: [200, 40],
-        // У Фучика соседняя станция в 700 м: чтобы две плашки разошлись, зум
-        // нужен сильный, и упираться в 14 тут нечего.
-        maxZoom: 16,
+    // У Фучика соседняя станция в 112 м: чтобы две подписи разошлись, зум
+    // нужен сильный, и упираться в 14 тут нечего.
+    const MAX_FIT_ZOOM = 16;
+
+    // Размеры подписей в ПОЛНОМ виде: по ним считаются и поля кадра, и зум,
+    // при котором соседние подписи перестают налезать. Заполняет layoutPins —
+    // он и так меряет каждую плашку полной. До первой раскладки берём
+    // заведомо крупную оценку, чтобы ничего не обрезать.
+    const FALLBACK_LABEL = { w: 200, h: 26 };
+    const labelBoxes = new Map(); // short → { w, h }
+    const labelOf = (p) => labelBoxes.get(p && p.short) || FALLBACK_LABEL;
+    const widestLabel = (points) => points.reduce(
+        (w, p) => Math.max(w, labelOf(p).w), 0) || FALLBACK_LABEL.w;
+
+    // Подпись растёт ВПРАВО от точки и висит чуть выше неё, поэтому поля кадра
+    // несимметричны: справа — целая подпись, слева хватает мелкого отступа.
+    // С прежними «на глаз» полями подписи ближайших станций резались краем.
+    // Сверху и снизу поверх карты лежат ещё и свои панели (строка поиска,
+    // легенда) — станция, поставленная впритык к краю, пряталась под ними.
+    const UI_TOP = 58;    // строка поиска
+    const UI_BOTTOM = 24; // легенда невысокая, но налезать на неё незачем
+    const fitPads = (points) => ({
+        paddingTopLeft: L.point(12, UI_TOP),
+        paddingBottomRight: L.point(Math.round(widestLabel(points)) + 12, UI_BOTTOM),
+    });
+
+    // Зум, начиная с которого подписи двух станций перестают пересекаться:
+    // достаточно развести их ЛИБО по горизонтали на ширину подписи, ЛИБО по
+    // вертикали на её высоту — что дешевле, то и берём.
+    // SLACK — запас на округления: зум шагает по 0.25, координаты по пикселю,
+    // и расчёт «впритык» промахивался на пиксель, после чего подпись всё
+    // равно ужималась до точки.
+    const SLACK = 6;
+    const zoomToSeparate = (a, b) => {
+        const pa = map.project(L.latLng(a), 0);
+        const pb = map.project(L.latLng(b), 0);
+        const dx = Math.abs(pa.x - pb.x);
+        const dy = Math.abs(pa.y - pb.y);
+        // Развести нужно на размер той подписи, что стоит выше/левее — она и
+        // налезает на соседнюю.
+        const top = pa.y <= pb.y ? a : b;
+        const left = pa.x <= pb.x ? a : b;
+        const zx = dx > 0 ? Math.log2((labelOf(left).w + PIN_GAP + SLACK) / dx) : Infinity;
+        const zy = dy > 0 ? Math.log2((labelOf(top).h + PIN_GAP + SLACK) / dy) : Infinity;
+        return Math.min(zx, zy);
     };
+
+    // Кадр вокруг станции. Зум — максимум из двух требований: «соседи влезли»
+    // и «подпись ближайшего соседа не слиплась с подписью самой станции».
+    // Раньше было только первое, и у Фучика (соседняя станция в 112 м) кадр
+    // выходил такой, что 23А ужималась до точки и пряталась под 14к4 — станции
+    // как будто не было. Отбрасывать дальних соседей ради этого не нужно:
+    // сколько влезет на нужном зуме, столько и покажем.
+    const frameView = (points) => {
+        const pads = fitPads(points);
+        const pad = pads.paddingTopLeft.add(pads.paddingBottomRight);
+        let z = map.getBoundsZoom(L.latLngBounds(points), false, pad);
+        if (points.length > 1) {
+            // Вверх до шага зума: getBoundsZoom округляет вниз, и «впритык»
+            // превратилось бы в «на пиксель не хватило».
+            const need = Math.ceil(zoomToSeparate(points[0], points[1]) / ZOOM_SNAP) * ZOOM_SNAP;
+            z = Math.max(z, need);
+        }
+        z = Math.min(z, MAX_FIT_ZOOM);
+        // Центр — по всем соседям, как у обычного fitBounds: иначе дальние
+        // вылезают за край и читаются как «…ссе 212к8». Но когда зум задан
+        // читаемостью (Фучика), охват в кадр уже не влезает, и тогда центр
+        // зажимаем: открытая станция и ближайший к ней сосед обязаны остаться
+        // внутри области, свободной от полей. Половина этой области:
+        const size = map.getSize();
+        const half = L.point(
+            Math.max(10, (size.x - pads.paddingTopLeft.x - pads.paddingBottomRight.x) / 2),
+            Math.max(10, (size.y - pads.paddingTopLeft.y - pads.paddingBottomRight.y) / 2),
+        );
+        const at = (pt) => map.project(L.latLng(pt), z);
+        const mid = at(L.latLngBounds(points).getCenter());
+        const must = points.slice(0, 2).map(at);
+        // lo > hi значит, что даже эти двое в область не помещаются, — тогда
+        // ставим их посередине и жертвуем полями, а не станцией.
+        const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi));
+        const focus = L.point(
+            clamp(mid.x, Math.max(...must.map(m => m.x)) - half.x,
+                Math.min(...must.map(m => m.x)) + half.x),
+            clamp(mid.y, Math.max(...must.map(m => m.y)) - half.y,
+                Math.min(...must.map(m => m.y)) + half.y),
+        );
+        // Сдвиг под несимметричные поля — та же арифметика, что внутри
+        // fitBounds: подписи растут вправо и вверх, значит место им нужно там.
+        const shift = pads.paddingBottomRight.subtract(pads.paddingTopLeft).divideBy(2);
+        return { center: map.unproject(focus.add(shift), z), zoom: z };
+    };
+
     const fitStart = () => {
-        if (fit && fit.length) map.fitBounds(fit, FIT_PAD);
-        else fitAll();
+        if (fit && fit.length) {
+            const v = frameView(fit);
+            map.setView(v.center, v.zoom);
+        } else fitAll();
     };
     if (!view) fitStart();
 
@@ -157,12 +244,12 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
     // Пересчитываем только на зуме: при перетаскивании плашки едут вместе,
     // их взаимное расположение не меняется, и прошлая раскладка верна.
     // Класс вида вешаем на ОБЁРТКУ маркера, а не на саму плашку: по нему же
-    // CSS раскладывает плашки по слоям — подписи поверх точек, чтобы точка,
-    // которой не хватило места, не села на читаемое название.
+    // CSS решает, что лежит выше (см. .rc-pin-wrap в records.css).
     const MODES = ['', 'rc-pin-mid', 'rc-pin-dot'];
-    const setMode = (wrap, mode) => {
+    const setMode = (wrap, mode, cramped) => {
         wrap.classList.toggle('rc-pin-mid', mode === 'rc-pin-mid');
         wrap.classList.toggle('rc-pin-dot', mode === 'rc-pin-dot');
+        wrap.classList.toggle('rc-pin-cramped', !!cramped);
     };
 
     let layoutRaf = 0;
@@ -185,6 +272,9 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
                 return { x: r.left - contRect.left, y: r.top - contRect.top, w: r.width, h: r.height };
             });
         });
+        // Полные размеры подписей — по ним fitPads() считает поля кадра, а
+        // zoomToSeparate() — зум, на котором соседи ещё читаются.
+        items.forEach((it, i) => labelBoxes.set(it.short, { w: boxes[0][i].w, h: boxes[0][i].h }));
         // Открытая станция разбирается первой — она остаётся с полным именем
         // при любой тесноте. Остальные сверху вниз: порядок не зависит от
         // доски, поэтому подписи не пляшут при каждом обновлении.
@@ -195,15 +285,26 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         const clash = (b) => placed.some(p =>
             b.x < p.x + p.w + PIN_GAP && p.x < b.x + b.w + PIN_GAP
             && b.y < p.y + p.h + PIN_GAP && p.y < b.y + b.h + PIN_GAP);
+        // Плашка, наполовину уехавшая за край карты, читается как «…ссе 212к8».
+        // Для тех, кто попал в кадр случайно (не сосед открытой станции, поля
+        // под них никто не считал), край — такая же теснота, как чужая
+        // подпись: ужимаем тем же порядком. Целиком уехавшие за край не в счёт.
+        const clipped = (b) =>
+            b.x < contRect.width && b.x + b.w > 0 && b.y < contRect.height && b.y + b.h > 0
+            && (b.x < 0 || b.y < 0 || b.x + b.w > contRect.width || b.y + b.h > contRect.height);
         for (const i of order) {
-            // Берём самый подробный вид, который ещё никому не мешает. Если
-            // мешает даже точка — всё равно точка: станция должна остаться
-            // на карте, а не исчезнуть.
+            // Берём самый подробный вид, который ещё никому не мешает.
             let mode = MODES.length - 1;
+            let cramped = true;
             for (let m = 0; m < MODES.length; m++) {
-                if (!clash(boxes[m][i])) { mode = m; break; }
+                if (!clash(boxes[m][i]) && !clipped(boxes[m][i])) { mode = m; cramped = false; break; }
             }
-            setMode(items[i].wrap, MODES[mode]);
+            // Места не нашлось даже точке. Такую станцию поднимаем НАД
+            // подписями: внизу она оказалась бы целиком под чужим названием и
+            // пропала бы с карты совсем — именно так терялась Фучика 23А
+            // рядом с Фучика 14к4. Точка маленькая, чужое имя ей не закрыть,
+            // зато станцию видно и по ней можно кликнуть.
+            setMode(items[i].wrap, MODES[mode], cramped);
             placed.push(boxes[mode][i]);
         }
     };
@@ -261,7 +362,8 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
             beQuiet();
             setTimeout(() => {
                 map.invalidateSize();
-                map.flyToBounds(points, { ...FIT_PAD, duration: REDUCED_MOTION ? 0 : 0.8 });
+                const v = frameView(points);
+                map.flyTo(v.center, v.zoom, { duration: REDUCED_MOTION ? 0 : 0.8 });
             }, 60);
         },
         focus(lat, lng, zoom = 13) { beQuiet(); map.setView([lat, lng], zoom); },
