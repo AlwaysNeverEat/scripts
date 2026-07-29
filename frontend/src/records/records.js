@@ -233,6 +233,21 @@ function acHtml(meta, size = 11) {
         : '';
 }
 
+// Строка «ближайшая станция» в окне карты — одна и та же в первой отрисовке и
+// в обновлении после геокодера, поэтому разметка живёт здесь, а не в двух
+// местах (в одном из них уже потерялись код и снежинка).
+function nearItemHtml(s) {
+    return `
+    <button class="rc-near-item ${s.ac ? 'rc-near-ac' : ''}" data-action="near-pick"
+        data-short="${esc(s.short)}" data-lat="${s.lat}" data-lng="${s.lng}">
+        <span class="rc-line-dot" style="background:${LINE_COLORS[s.line] || 'var(--sub)'}"></span>
+        ${boxCodeHtml(s)}
+        <b>${esc(s.short)}</b>
+        ${acHtml(s, 10)}
+        <span class="rc-near-dist">${s.distanceKm < 1 ? `${Math.round(s.distanceKm * 1000)} м` : `${s.distanceKm.toFixed(1)} км`}</span>
+    </button>`;
+}
+
 // Текстовый вариант для <option> и title, куда разметку не вставить.
 function stationLabel(addr, meta = metaFor(addr)) {
     const name = meta?.short || addr?.title || '';
@@ -858,7 +873,6 @@ function renderStation() {
                 ${meta?.ac ? `<span class="rc-chip-meta rc-chip-ac">${icons.snowflake(11)}заправка кондиционера</span>` : ''}
                 ${meta?.note ? `<span class="rc-chip-meta rc-chip-note">${esc(meta.note)}</span>` : ''}
             </div>
-            <button class="btn btn-pri" data-action="create-at" data-time="">${icons.plus(14)} Новая запись</button>
         </div>
         <div class="rc-station-body">
             ${otherStationsHtml(addr.id)}
@@ -892,7 +906,7 @@ function otherStationsHtml(currentId) {
             const active = String(addr.id) === String(currentId);
             const tone = free === 0 ? 'rc-side-none' : free <= 5 ? 'rc-side-low' : '';
             return `
-            <button class="rc-side-item ${active ? 'rc-side-active' : ''}" data-action="open-station"
+            <button class="rc-side-item ${meta?.ac ? 'rc-side-ac' : ''} ${active ? 'rc-side-active' : ''}" data-action="open-station"
                 data-id="${esc(addr.id)}" title="${esc(stationLabel(addr, meta))} · ${esc(addr.title)} · ${booked} зап., ${free} свободно">
                 <span class="rc-line-dot" style="background:${meta?.line ? LINE_COLORS[meta.line] : 'var(--sub)'}"></span>
                 ${boxCodeHtml(meta)}
@@ -1536,14 +1550,7 @@ function modalMap(m) {
         </div>
         <div class="rc-map-layout">
             <div id="rc-map-near" class="rc-map-near">
-                ${m.near ? m.near.map(s => `
-                    <button class="rc-near-item" data-action="near-pick" data-short="${esc(s.short)}" data-lat="${s.lat}" data-lng="${s.lng}">
-                        <span class="rc-line-dot" style="background:${LINE_COLORS[s.line] || 'var(--sub)'}"></span>
-                        ${boxCodeHtml(s)}
-                        <b>${esc(s.short)}</b>
-                        ${acHtml(s, 10)}
-                        <span class="rc-near-dist">${s.distanceKm < 1 ? `${Math.round(s.distanceKm * 1000)} м` : `${s.distanceKm.toFixed(1)} км`}</span>
-                    </button>`).join('')
+                ${m.near ? m.near.map(nearItemHtml).join('')
                     : '<div class="rc-empty-note">Введи улицу — подскажу, какие станции рядом. Клик по плашке на карте открывает станцию.</div>'}
             </div>
             <div id="rc-big-map" class="rc-big-map"></div>
@@ -1998,12 +2005,7 @@ function bind() {
                     mapCtl?.focus(hits[0].lat, hits[0].lng, 13);
                     setNearHtml(
                         `<div class="rc-near-head">${esc(hits[0].label)}</div>`
-                        + state.modal.near.map(s => `
-                            <button class="rc-near-item" data-action="near-pick" data-short="${esc(s.short)}" data-lat="${s.lat}" data-lng="${s.lng}">
-                                <span class="rc-line-dot" style="background:${LINE_COLORS[s.line] || 'var(--sub)'}"></span>
-                                <b>${esc(s.short)}</b>
-                                <span class="rc-near-dist">${s.distanceKm < 1 ? `${Math.round(s.distanceKm * 1000)} м` : `${s.distanceKm.toFixed(1)} км`}</span>
-                            </button>`).join(''),
+                        + state.modal.near.map(nearItemHtml).join(''),
                     );
                 }, 500);
             };
