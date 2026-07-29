@@ -571,8 +571,39 @@
 }
 
 .rc-row-closed { background: repeating-linear-gradient(-45deg, transparent 0 8px, var(--stripe) 8px 16px); }
-.rc-row-closed .rc-row-time { opacity: 0.4; }
-.rc-row-closed-label { color: var(--sub); opacity: 0.4; font-size: 10px; margin-left: auto; margin-right: 10px; }
+.rc-row-closed .rc-row-time,
+.rc-row-nobody .rc-row-time { opacity: 0.4; }
+
+/* Подпись строки лежит поверх штриховки боксов (та — absolute), поэтому ей
+   тоже нужен position, иначе «никого» окажется под полосками. */
+.rc-row-closed-label {
+    position: relative;
+    color: var(--sub);
+    opacity: 0.4;
+    font-size: 10px;
+    margin-left: auto;
+    margin-right: 10px;
+}
+
+/* Прошедшие получасы штрихуем по боксам, а не по всей строке: во втором боксе
+   могло быть пусто и тогда, когда в первом стояла запись, — по строке целиком
+   этого не видно. Колонку времени штриховка не трогает: «никого» — про боксы,
+   а не про станцию, в отличие от «закрыто». */
+.rc-row-lanes {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 64px;
+    right: 6px;
+    pointer-events: none;
+}
+
+.rc-row-lanes i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(-45deg, transparent 0 8px, var(--stripe) 8px 16px);
+}
 
 /* Кнопка «записать» стоит там же, где встанет сама запись: в своей дорожке и
    на своей строке времени. Подпись — время слота, чтобы не гадать, куда
