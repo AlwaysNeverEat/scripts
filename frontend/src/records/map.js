@@ -83,7 +83,7 @@ export function createStationsMap(container, { onPick, view } = {}) {
         const ac = meta.ac
             ? `<span class="rc-pin-ac" title="Заправка кондиционера">${icons.snowflake(11)}</span>` : '';
         const code = meta.boxNo ? `<span class="rc-pin-code">${esc(meta.boxNo)}</span>` : '';
-        return `<span class="rc-pin${active ? ' rc-pin-active' : ''}">`
+        return `<span class="rc-pin${meta.ac ? ' rc-pin-ac-st' : ''}${active ? ' rc-pin-active' : ''}">`
             + `<span class="rc-pin-stripe" style="background:${color}"></span>${code}`
             + `<span class="rc-pin-name">${esc(meta.short)}</span>${ac}${badge}</span>`;
     };

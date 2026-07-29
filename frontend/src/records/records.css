@@ -411,8 +411,10 @@
 .rc-station {
     margin-top: 16px;
     /* Ширина левой колонки: по ней же режется кнопка «Все станции» в шапке —
-       список станций встаёт ровно под ней. */
-    --side-w: 210px;
+       список станций встаёт ровно под ней. Держим пошире: в строке рядом с
+       названием стоят код станции, снежинка и счётчик, и на 210px адрес
+       обрезался до «Кузнецовск…». */
+    --side-w: 262px;
 }
 
 .rc-station-head {
@@ -497,13 +499,6 @@
     border-radius: 4px;
     padding: 1px 2px;
     vertical-align: -3px;
-}
-
-.rc-station-head .btn-pri {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
 }
 
 /* Слева — колонка станций (под кнопкой «Все станции»), справа — сетка дня.
@@ -844,6 +839,10 @@
 }
 
 .rc-side-item:hover { border-color: var(--accent); background: var(--bg2); }
+
+/* Станции с заправкой кондиционера — голубее, как и карточки в обзоре. */
+.rc-side-ac { background: color-mix(in oklab, var(--blue) 13%, var(--card)); border-color: color-mix(in oklab, var(--blue) 30%, var(--border)); }
+.rc-side-ac:hover { border-color: var(--accent); background: color-mix(in oklab, var(--blue) 17%, var(--bg2)); }
 .rc-side-item b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 
 .rc-side-active { border-color: var(--accent); background: var(--bg2); }
@@ -1218,6 +1217,12 @@
     transition: transform 0.12s, border-color 0.12s;
 }
 
+/* Кондей — голубая плашка, как карточка в обзоре и строка в списке станций. */
+.rc-pin-ac-st {
+    background: color-mix(in oklab, var(--blue) 16%, var(--bg2));
+    border-color: color-mix(in oklab, var(--blue) 35%, var(--border));
+}
+
 .rc-pin:hover, .rc-pin-active { border-color: var(--accent); transform: translate(-8px, -14px) scale(1.08); }
 
 .rc-pin-stripe { width: 8px; height: 8px; border-radius: 50%; flex: none; }
@@ -1312,6 +1317,7 @@
     text-align: left;
 }
 
+.rc-near-ac { background: color-mix(in oklab, var(--blue) 13%, var(--bg2)); border-color: color-mix(in oklab, var(--blue) 30%, var(--border)); }
 .rc-near-item:hover { border-color: var(--accent); }
 .rc-near-dist { margin-left: auto; color: var(--sub); font-size: 10.5px; }
 
@@ -1384,5 +1390,4 @@
     /* Подпись у кнопки спрятана — растягивать её на ширину колонки незачем. */
     .rc-station-head .rc-back { flex: 0 0 auto; }
     .rc-side-list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-    .rc-station-head .btn-pri { margin-left: 0; width: 100%; justify-content: center; }
 }
