@@ -13,7 +13,8 @@
 | Прочие CRM-хелперы | `*.user.js` / `*.user(N).js` в корне | Рабочие, самостоятельные |
 | **Записи** (клон админки ZMS) | `frontend/records.html` + `backend/src/records/` | Рабочий: кеш + офлайн-очередь + карта |
 | Backend (REST API) | `backend/` | Рабочий: Node.js + Express + PostgreSQL |
-| Сайт (вкладки: профиль / калькулятор / записи / скрипты / топ) | `frontend/` | Рабочий: Vite + vanilla JS, за гейтом входа; топ — по записям за месяц |
+| Сайт (вкладки: профиль / калькулятор / записи / скрипты / что нового / топ) | `frontend/` | Рабочий: Vite + vanilla JS, за гейтом входа; топ — по записям за месяц |
+| Панель «Наличие на станции» + привязка учётки CRM | `backend/src/crm/` + `frontend/src/crmPanel.js` | Рабочая: автовход по сохранённой учётке, выход с подтверждением от CRM |
 | Аккаунты и сессии | `backend/src/auth/` | Рабочий: bcryptjs, сессии, автовыход в полночь МСК |
 | Telegram-админка (заявки, юзеры, машины) | `backend/src/bot/` | Рабочий: long-polling в том же процессе |
 | Общая логика | `shared/` | Каталог масел, подбор, отчёт — единый источник |
@@ -250,6 +251,7 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 | Калькулятор | `#/` и `#/car/:id` | поиск по базе и страница машины |
 | Записи | `#/records` | клон админки ZMS (ленивый чанк + Leaflet) |
 | Скрипты | `#/scripts` | фид юзерскриптов для Tampermonkey |
+| Что нового? | `#/news` | посты об изменениях сайта (`src/newsData.js`) |
 | Топ | `#/top` | рейтинг по добавленным/отредактированным машинам |
 
 Переключение вкладок **не сбрасывает работу**: страницы не пересобираются, а
@@ -259,6 +261,49 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 (`lastRoute` в `main.js`), а раздел записей при уходе замирает (`pauseRecords()`)
 и оживает при возврате (`resumeRecords()`) — фоновых опросов вне вкладки нет.
 При выходе из аккаунта сохранённое состояние вкладок сбрасывается.
+
+### Вкладка «Что нового?»
+
+Лента постов об изменениях сайта. Единственное место правки — массив
+`NEWS_POSTS` в `frontend/src/newsData.js`: новый пост добавляется объектом
+**в начало** массива (`id`, `date`, `tag`, `title`, `lead`, `sections`).
+`id` менять нельзя — по нему запоминается, что пост прочитан.
+
+* Текст постов — для пользователей, а не для разработчиков: без терминов,
+  путей и кода. **Эмодзи не используются** — оформление только inline SVG
+  (иконки разделов задаются полем `icon`, набор — `ICONS` в `newsFeed.js`).
+* Непрочитанное. Прочитанные посты лежат списком id в `localStorage`
+  (`news_seen_post_ids`) — не «датой последнего визита»: посты можно править и
+  переставлять, а список id от этого не врёт. На вкладке горит счётчик
+  непрочитанного, он гаснет в момент захода на вкладку; плашка «новое» у самих
+  постов остаётся до ухода со вкладки, иначе непонятно, что именно было новым.
+* Дев-песочница: `npx vite` → `/dev-news.html` (кнопки гоняют состояние
+  «прочитано / не прочитано» и счётчик).
+
+### Учётка CRM привязана к аккаунту сайта
+
+Панель «Наличие на станции» на странице машины спрашивает логин и пароль CRM
+**один раз**: пара запоминается за пользователем (`crm_links`, пароль
+зашифрован AES-256-GCM ключом `CRM_LINK_SECRET`), и дальше сессия CRM
+поднимается сама — при входе на сайт (`warmCrmSession()` в `main.js`) и при
+любом запросе к CRM, если сессию закрыли извне. Пароль в CRM сменили —
+автовход получает `crm_auth_failed`, привязка стирается, панель просит войти
+заново. Нет `CRM_LINK_SECRET` — пароли не запоминаются вовсе, панель работает
+как раньше (вход руками каждый раз).
+
+Выход доведён до конца и по порядку: `POST /api/crm/logout` закрывает сессию
+**в самой CRM** и проверяет это отдельным запросом, и только на успешном ответе
+сайт гасит свою сессию (`frontend/src/profile.js`). Не подтвердилось —
+из аккаунта не выходим, показываем ошибку и предлагаем повторить (и отдельную
+кнопку «Всё равно выйти», если CRM недоступна надолго). Кнопка «Выйти» в самой
+панели делает то же плюс снимает привязку (`unlink: true`).
+
+> CRM завершает сессию аккаунта везде. Если под одной учёткой CRM работают
+> несколько человек, выход одного завершит сессию и у остальных — раньше
+> сессию намеренно не закрывали именно поэтому.
+>
+> Дев-песочница панели: `npx vite` → `/dev-crm-panel.html?state=linked`
+> (`fresh`, `rejected`, `&logout=fail`) — фейковый бэкенд, без CRM.
 
 ### Темы оформления
 
@@ -401,6 +446,11 @@ below) — sessions expire for everyone at midnight Moscow time.
 | `GET`    | `/api/profile/stats` | `{added, edited}` counts for the current user |
 | `GET`    | `/api/profile/achievements` | Empty extensible placeholder feed |
 | `GET`    | `/api/top` | Top users ranked by (cars added + cars edited); `{rows, excluded}` |
+| `GET`    | `/api/crm/status` | CRM session state; signs in via the stored link if needed |
+| `POST`   | `/api/crm/login` | `{login, password, remember?}` → CRM login, links the account |
+| `POST`   | `/api/crm/logout` | Closes the CRM session (verified) — `{unlink}` also drops the link |
+| `GET`    | `/api/crm/stations` | Station list parsed from CRM `/analyse/free` |
+| `POST`   | `/api/crm/availability` | `{stationId, items}` → per-item CRM stock rows |
 
 ### Аутентификация
 
@@ -456,12 +506,13 @@ scripts/
 │   │   ├── db/client.js
 │   │   ├── auth/                    ← пароли, сессии, полночь МСК, валидация
 │   │   ├── bot/                     ← Telegram long-polling + команды админки
+│   │   ├── crm/                     ← клиент CRM: привязка учётки, автовход, выход
 │   │   ├── storage/                 ← загрузка аватарок в Supabase Storage
-│   │   └── routes/{cars,auth,profile,top}.js
+│   │   └── routes/{cars,auth,profile,crm,top}.js
 │   ├── Dockerfile
 │   └── package.json
 ├── frontend/
-│   ├── src/{main,authGate,profile,top,carPage,calculator,theme,style.css}
+│   ├── src/{main,authGate,profile,top,carPage,calculator,crmPanel,newsData,newsFeed,theme,style.css}
 │   ├── index.html / Dockerfile / nginx.conf
 │   └── package.json
 ├── shared/

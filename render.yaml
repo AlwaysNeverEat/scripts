@@ -26,3 +26,8 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_KEY # Project Settings → API → service_role (не anon!)
         sync: false
+      # Ключ шифрования пароля CRM: с ним учётка CRM привязывается к аккаунту
+      # сайта и вход в CRM происходит сам. Свой, НЕ API_KEY — тот публичен.
+      # Render сгенерирует значение сам; пусто = привязки нет, пароли не хранятся.
+      - key: CRM_LINK_SECRET
+        generateValue: true

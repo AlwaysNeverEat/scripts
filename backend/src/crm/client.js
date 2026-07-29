@@ -1,27 +1,48 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Клиент внутренней CRM (crm.zamena-masla-spot.ru) с ПЕРСОНАЛЬНЫМИ сессиями:
-// каждый работник логинится через сайт под своей учёткой CRM, пароль нигде
-// не хранится — только куки сессии (таблица crm_sessions, переживает рестарты
-// бэкенда). Выход через сайт только забывает куки этого работника — сессию на
-// стороне CRM не завершаем: CRM гасит её «везде», и под общей учёткой это
-// разлогинивало коллег. Если CRM закрыла сессию сама, первый же запрос это
-// видит, чистит куки и просит войти заново.
+// каждый работник логинится через сайт под своей учёткой CRM.
 //
-// Запросы ко CRM идут через общую последовательную очередь с троттлингом
-// 400 мс (как в проверенном SPOT-скрипте) — CRM не заваливаем.
+// Учётка CRM ПРИВЯЗАНА к аккаунту сайта: логин и (зашифрованный, см.
+// secretBox.js) пароль запоминаются в crm_links, куки живой сессии — в
+// crm_sessions. Дальше вход в CRM происходит сам: сайт видит, что живой
+// сессии нет, и логинится теми же данными, которыми работник входил в
+// прошлый раз. Пароль в CRM сменили — автовход получает crm_auth_failed,
+// привязка стирается и панель просит ввести данные заново.
+//
+// Выход, наоборот, доведён до конца: сначала закрываем сессию на стороне CRM
+// и ПРОВЕРЯЕМ, что она действительно закрыта, и только потом забываем куки
+// (и, если просили, привязку). Сайт выходит из аккаунта лишь после этого
+// подтверждения — см. routes/crm.js и frontend/src/profile.js.
+// ВАЖНО: CRM гасит сессию аккаунта везде. Если под одной учёткой CRM работают
+// несколько человек, выход одного разлогинит и остальных — так теперь и
+// задумано (раньше сессию намеренно не закрывали).
+//
+// Запросы ко CRM идут через общую последовательную очередь, а каждый запрос
+// вдобавок разнесён на 400 мс (как в проверенном SPOT-скрипте) — CRM не
+// заваливаем.
 //
 // Env (всё необязательное): CRM_BASE_URL — база CRM; CRM_LOGIN_PATH /
 // CRM_LOGIN_FIELD / CRM_PASSWORD_FIELD — переопределения, если форма логина
-// CRM не распознаётся автоматически; CRM_FETCH_TIMEOUT_MS — таймаут запроса.
+// CRM не распознаётся автоматически; CRM_LOGOUT_PATH — если ссылку выхода не
+// удаётся найти в разметке; CRM_FETCH_TIMEOUT_MS — таймаут запроса;
+// CRM_THROTTLE_MS — пауза между запросами (по умолчанию 400);
+// CRM_LINK_SECRET — ключ шифрования пароля (без него привязки нет).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { query } from '../db/client.js';
 import { parseAnalyseFree } from '../../../shared/crmAnalyse.js';
+import { linkSecretConfigured, openSecret, sealSecret } from './secretBox.js';
 
 const BASE = (process.env.CRM_BASE_URL || 'https://crm.zamena-masla-spot.ru').replace(/\/$/, '');
 const BASE_URL = new URL(`${BASE}/`);
 const CRM_ORIGIN = BASE_URL.origin;
-const THROTTLE_MS = 400;
+// Пауза между запросами к CRM. Читается на каждый запрос, а не один раз при
+// импорте: так её можно занулить в тестах (CRM_THROTTLE_MS=0), не завязываясь
+// на порядок импортов.
+const throttleMs = () => {
+    const raw = Number(process.env.CRM_THROTTLE_MS);
+    return Number.isFinite(raw) && raw >= 0 ? raw : 400;
+};
 const FETCH_TIMEOUT_MS = Math.max(1_000, Number(process.env.CRM_FETCH_TIMEOUT_MS) || 15_000);
 
 export class CrmError extends Error {
@@ -29,6 +50,7 @@ export class CrmError extends Error {
         super(message || code);
         // crm_auth_required — нет живой сессии CRM (не залогинен / разлогинен);
         // crm_auth_failed — CRM не приняла логин/пароль;
+        // crm_logout_failed — CRM не подтвердила, что сессия закрыта;
         // crm_unavailable — сеть/таймаут/5xx/сломанный redirect.
         this.code = code;
     }
@@ -77,10 +99,80 @@ async function dropJar(userId) {
     await query('DELETE FROM crm_sessions WHERE user_id = $1', [userId]);
 }
 
-export async function crmHasSession(userId) {
-    const jar = await loadJar(userId);
-    return Boolean(jar && jar.size);
+// ── Привязка учётки CRM к аккаунту сайта ─────────────────────────────────────
+// Логин лежит как есть, пароль — зашифрованным (secretBox.js). Нет ключа
+// шифрования — привязки просто нет: сохранять пароль в открытом виде мы не
+// станем даже ценой удобства.
+
+// Пока миграция 021 не прогнана, таблицы нет — это не повод ронять панель:
+// привязки просто не существует, вход руками работает как раньше.
+let missingTableWarned = false;
+
+async function linkQuery(sql, params) {
+    try {
+        return await query(sql, params);
+    } catch (err) {
+        if (err?.code !== '42P01') throw err; // undefined_table
+        if (!missingTableWarned) {
+            missingTableWarned = true;
+            console.warn('нет таблицы crm_links — прогоните db/migrations/021_crm_link.sql');
+        }
+        return { rows: [] };
+    }
 }
+
+async function saveLink(userId, login, password) {
+    const sealed = sealSecret(password);
+    if (!sealed) return false; // CRM_LINK_SECRET не задан — не запоминаем
+    const r = await linkQuery(
+        `INSERT INTO crm_links (user_id, crm_login, password_enc, linked_at, last_login_at)
+         VALUES ($1, $2, $3, now(), now())
+         ON CONFLICT (user_id) DO UPDATE
+            SET crm_login = $2, password_enc = $3, linked_at = now(), last_login_at = now()
+         RETURNING user_id`,
+        [userId, login, sealed],
+    );
+    return r.rows.length > 0;
+}
+
+// { login, password } — или null, если привязки нет либо пароль не
+// расшифровывается (сменили CRM_LINK_SECRET, битая строка): такую привязку
+// сразу убираем, чтобы не притворяться, будто автовход возможен.
+async function loadLink(userId) {
+    if (!linkSecretConfigured()) return null;
+    const r = await linkQuery('SELECT crm_login, password_enc FROM crm_links WHERE user_id = $1', [userId]);
+    const row = r.rows[0];
+    if (!row) return null;
+    const password = openSecret(row.password_enc);
+    if (!password) {
+        await dropLink(userId);
+        return null;
+    }
+    return { login: row.crm_login, password };
+}
+
+async function hasLink(userId) {
+    if (!linkSecretConfigured()) return false;
+    const r = await linkQuery('SELECT 1 FROM crm_links WHERE user_id = $1', [userId]);
+    return r.rows.length > 0;
+}
+
+async function dropLink(userId) {
+    await linkQuery('DELETE FROM crm_links WHERE user_id = $1', [userId]);
+}
+
+async function touchLink(userId) {
+    await linkQuery('UPDATE crm_links SET last_login_at = now() WHERE user_id = $1', [userId]);
+}
+
+// Логин CRM, к которому привязан аккаунт (панель показывает его в подсказке).
+export async function crmLinkedLogin(userId) {
+    if (!linkSecretConfigured()) return null;
+    const r = await linkQuery('SELECT crm_login FROM crm_links WHERE user_id = $1', [userId]);
+    return r.rows[0]?.crm_login || null;
+}
+
+export { linkSecretConfigured };
 
 // ── HTTP со сбором Set-Cookie в переданный jar ───────────────────────────────
 
@@ -104,6 +196,9 @@ function networkErrorDetail(err) {
 
 async function rawFetch(path, jar, opts = {}) {
     const target = resolveCrmUrl(path);
+    // Троттлинг на КАЖДЫЙ запрос, а не на операцию: логин и выход состоят из
+    // нескольких запросов подряд, и разносить их тоже нужно.
+    await pace();
     const cookie = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -197,87 +292,255 @@ export function parseLoginForm(html) {
 
 // ── Вход / выход / запросы ───────────────────────────────────────────────────
 
-// Логин под учёткой работника. Пароль используется однократно и не сохраняется.
-export async function crmLogin(userId, login, password) {
-    const jar = new Map();
-    await enqueue(async () => {
-        const entryPath = process.env.CRM_LOGIN_PATH || '/analyse/free';
-        let res = await followRedirects(await rawFetch(entryPath, jar), jar);
-        const html = await res.text();
-        const form = parseLoginForm(html);
+// Один вход в CRM в переданный jar. Без очереди и без записи в базу — это
+// кирпич, из которого собраны и ручной вход, и автовход по привязке.
+async function loginIntoJar(jar, login, password) {
+    const entryPath = process.env.CRM_LOGIN_PATH || '/analyse/free';
+    const res = await followRedirects(await rawFetch(entryPath, jar), jar);
+    const html = await res.text();
+    const form = parseLoginForm(html);
 
-        const loginField = process.env.CRM_LOGIN_FIELD || form?.loginField;
-        const passwordField = process.env.CRM_PASSWORD_FIELD || form?.passwordField;
-        if (!loginField || !passwordField) {
-            // формы нет — возможно, эта пара кук уже залогинена (маловероятно
-            // для пустого jar) или CRM сменила разметку
-            throw new CrmError('crm_auth_failed', 'не удалось распознать форму логина CRM');
-        }
-        const actionPath = form?.action
-            ? resolveCrmUrl(form.action, res.url || BASE_URL)
-            : entryPath;
+    const loginField = process.env.CRM_LOGIN_FIELD || form?.loginField;
+    const passwordField = process.env.CRM_PASSWORD_FIELD || form?.passwordField;
+    if (!loginField || !passwordField) {
+        // формы нет — возможно, эта пара кук уже залогинена (маловероятно
+        // для пустого jar) или CRM сменила разметку
+        throw new CrmError('crm_auth_failed', 'не удалось распознать форму логина CRM');
+    }
+    const actionPath = form?.action
+        ? resolveCrmUrl(form.action, res.url || BASE_URL)
+        : entryPath;
 
-        const body = new URLSearchParams({
-            ...(form?.hidden || {}),
-            [loginField]: login,
-            [passwordField]: password,
-        });
-        const post = await rawFetch(actionPath, jar, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString(),
-        });
-        if (post.status >= 400) {
-            throw new CrmError('crm_auth_failed', `CRM ответила ${post.status} на логин`);
-        }
-        const check = await followRedirects(await rawFetch('/analyse/free', jar), jar);
-        const checkHtml = check.status >= 300 ? '' : await check.text();
-        if (!checkHtml || parseAnalyseFree(checkHtml).loginPage) {
-            throw new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
-        }
+    const body = new URLSearchParams({
+        ...(form?.hidden || {}),
+        [loginField]: login,
+        [passwordField]: password,
     });
+    const post = await rawFetch(actionPath, jar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+    });
+    if (post.status >= 400) {
+        throw new CrmError('crm_auth_failed', `CRM ответила ${post.status} на логин`);
+    }
+    const check = await followRedirects(await rawFetch('/analyse/free', jar), jar);
+    const checkHtml = check.status >= 300 ? '' : await check.text();
+    if (!checkHtml || parseAnalyseFree(checkHtml).loginPage) {
+        throw new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
+    }
+}
+
+// Ручной вход из панели: логинимся и, если есть чем шифровать пароль,
+// запоминаем учётку за аккаунтом сайта — со следующего раза сайт войдёт сам.
+export async function crmLogin(userId, login, password, { remember = true } = {}) {
+    const jar = new Map();
+    await enqueue(() => loginIntoJar(jar, login, password));
     await saveJar(userId, jar);
+    const linked = remember ? await saveLink(userId, login, password) : false;
+    if (!remember) await dropLink(userId);
+    return { linked };
 }
 
-// Выход: только забываем куки этого работника. Ссылку «выход» в самой CRM
-// НЕ дёргаем — CRM завершает сессию аккаунта везде, и под общей учёткой это
-// разлогинивало остальных работников. Куки живут только в нашей БД, так что
-// после dropJar сессией всё равно никто не воспользуется.
-export async function crmLogout(userId) {
-    await dropJar(userId);
-}
-
-// GET страницы CRM под сессией работника. Если CRM отдала страницу логина —
-// сессию завершили (напр., «выход» в самой CRM) → чистим куки и просим войти.
-export async function crmGetHtml(userId, path) {
+// Живая сессия CRM для этого работника: есть куки — берём их, нет — входим
+// сами по привязке. Возвращаем не только факт входа, но и причину отказа:
+// панели надо показать разное на «привязки нет», «пароль больше не подходит»
+// и «CRM не отвечает».
+export async function crmEnsureSession(userId) {
     const jar = await loadJar(userId);
-    if (!jar || !jar.size) {
+    if (jar && jar.size) return { loggedIn: true, linked: await hasLink(userId), auto: false };
+
+    const link = await loadLink(userId);
+    if (!link) return { loggedIn: false, linked: false, auto: false };
+
+    const fresh = new Map();
+    try {
+        await enqueue(() => loginIntoJar(fresh, link.login, link.password));
+    } catch (err) {
+        if (err instanceof CrmError && err.code === 'crm_auth_failed') {
+            // Пароль в CRM сменили (или учётку закрыли) — привязка мертва.
+            await dropLink(userId);
+            return { loggedIn: false, linked: false, auto: false, linkRejected: true };
+        }
+        // CRM недоступна — привязку не рвём, попробуем в следующий раз.
+        return {
+            loggedIn: false,
+            linked: true,
+            auto: false,
+            unavailable: err instanceof CrmError ? err.message : 'CRM недоступна',
+        };
+    }
+    await saveJar(userId, fresh);
+    await touchLink(userId);
+    return { loggedIn: true, linked: true, auto: true };
+}
+
+// Вход заново посреди уже начатой операции (сессию закрыли, пока мы работали).
+// Без enqueue: вызывается ИЗНУТРИ enqueue-задачи, см. комментарий у очереди.
+async function reloginIntoJar(userId, jar) {
+    const link = await loadLink(userId);
+    if (!link) return false;
+    jar.clear();
+    try {
+        await loginIntoJar(jar, link.login, link.password);
+    } catch (err) {
+        if (err instanceof CrmError && err.code === 'crm_auth_failed') await dropLink(userId);
+        return false;
+    }
+    await saveJar(userId, jar);
+    await touchLink(userId);
+    return true;
+}
+
+// ── Выход из CRM ─────────────────────────────────────────────────────────────
+// Пути выхода на случай, если ссылку не удалось найти в разметке страницы.
+const LOGOUT_FALLBACK_PATHS = ['/logout', '/site/logout', '/auth/logout', '/user/logout'];
+const LOGOUT_HINT_RE = /logout|log-?out|sign-?out|выход|выйти/i;
+
+// Ссылка (или форма) выхода на странице CRM. Разметка CRM заранее неизвестна,
+// поэтому ищем по href/тексту, а метод берём из data-method (Yii2 отправляет
+// выход POST-ом). Экспортируем для теста.
+export function findLogoutLink(html) {
+    const src = String(html || '');
+    const anchorRe = /<a\b[^>]*>[\s\S]*?<\/a>/gi;
+    let m;
+    while ((m = anchorRe.exec(src))) {
+        const tag = m[0];
+        const href = (tag.match(/\bhref=["']([^"']+)["']/i) || [])[1];
+        if (!href || /^(#|javascript:|mailto:)/i.test(href.trim())) continue;
+        const text = tag.replace(/<[^>]*>/g, ' ');
+        if (!LOGOUT_HINT_RE.test(href) && !LOGOUT_HINT_RE.test(text)) continue;
+        const method = (tag.match(/\bdata-method=["']([^"']+)["']/i) || [])[1] || 'GET';
+        return { path: href.trim(), method: /post/i.test(method) ? 'POST' : 'GET' };
+    }
+    const formRe = /<form\b[^>]*>/gi;
+    while ((m = formRe.exec(src))) {
+        const action = (m[0].match(/\baction=["']([^"']+)["']/i) || [])[1];
+        if (action && LOGOUT_HINT_RE.test(action)) return { path: action.trim(), method: 'POST' };
+    }
+    return null;
+}
+
+// Сессия действительно закрыта? Единственная надёжная проверка — попросить
+// защищённую страницу теми же куками: пустила → сессия ещё жива.
+async function sessionClosed(jar) {
+    const res = await followRedirects(await rawFetch('/analyse/free', jar), jar);
+    if (res.status >= 300) return true; // не пустила даже после редиректов
+    const html = await res.text();
+    return !html || parseAnalyseFree(html).loginPage;
+}
+
+// Закрываем сессию на стороне CRM и проверяем результат. true — закрыта
+// (это и подтверждение для выхода из аккаунта сайта), false — CRM всё ещё
+// пускает по этим кукам. Работает только с jar, без базы — поэтому его можно
+// проверить тестом на подменённом fetch.
+export async function closeCrmSession(jar) {
+    const candidates = [];
+    const explicit = process.env.CRM_LOGOUT_PATH;
+    if (explicit) {
+        candidates.push({ path: explicit, method: 'GET' });
+    } else {
+        const page = await followRedirects(await rawFetch('/analyse/free', jar), jar);
+        const html = page.status >= 300 ? '' : await page.text();
+        // CRM уже сама закрыла сессию — закрывать нечего, это успех.
+        if (!html || parseAnalyseFree(html).loginPage) return true;
+        const found = findLogoutLink(html);
+        if (found) {
+            candidates.push({
+                path: resolveCrmUrl(found.path, page.url || BASE_URL),
+                method: found.method,
+            });
+        }
+    }
+    for (const path of LOGOUT_FALLBACK_PATHS) candidates.push({ path, method: 'GET' });
+
+    for (const c of candidates) {
+        const opts = c.method === 'POST'
+            ? { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: '' }
+            : {};
+        // 404 на угаданном пути — не повод падать: пробуем следующий. А вот
+        // «CRM недоступна» пробрасываем: подтвердить закрытие мы не можем.
+        await followRedirects(await rawFetch(c.path, jar, opts), jar);
+        if (await sessionClosed(jar)) return true;
+    }
+    return false;
+}
+
+// Выход: сначала закрываем сессию в самой CRM и убеждаемся, что она закрыта,
+// и только потом забываем куки. Не подтвердилось — бросаем crm_logout_failed,
+// и сайт НЕ выходит из аккаунта (frontend/src/profile.js).
+//
+// unlink: true — заодно снять привязку учётки (кнопка «Выйти» в панели CRM);
+// false — привязку сохранить, чтобы следующий вход на сайт снова поднял
+// сессию CRM сам (выход из аккаунта сайта).
+export async function crmLogout(userId, { unlink = false } = {}) {
+    const jar = await loadJar(userId);
+    const hadSession = Boolean(jar && jar.size);
+
+    if (hadSession) {
+        const closed = await enqueue(() => closeCrmSession(jar));
+        if (!closed) {
+            throw new CrmError(
+                'crm_logout_failed',
+                'CRM не подтвердила закрытие сессии — попробуйте ещё раз',
+            );
+        }
+    }
+    await dropJar(userId);
+    if (unlink) await dropLink(userId);
+    return { closed: hadSession, unlinked: unlink };
+}
+
+// GET страницы CRM под сессией работника. Сессии нет — поднимаем по привязке;
+// CRM отдала страницу логина (сессию завершили извне) — один раз входим заново
+// и повторяем запрос, и только потом просим войти руками.
+export async function crmGetHtml(userId, path) {
+    const ready = await crmEnsureSession(userId);
+    if (!ready.loggedIn) {
+        // Привязка есть, но CRM не ответила — это не «войдите заново», а
+        // «CRM недоступна»: панель не должна зря просить пароль.
+        if (ready.unavailable) throw new CrmError('crm_unavailable', ready.unavailable);
         throw new CrmError('crm_auth_required', 'нет сессии CRM — войдите');
     }
+    const jar = await loadJar(userId);
     return enqueue(async () => {
-        const res = await followRedirects(await rawFetch(path, jar), jar);
-        const html = res.status >= 300 ? '' : await res.text();
-        if (!html || parseAnalyseFree(html).loginPage) {
-            await dropJar(userId);
-            throw new CrmError('crm_auth_required', 'сессия CRM завершена — войдите заново');
+        let html = await fetchPage(jar, path);
+        if (html) return html;
+        if (await reloginIntoJar(userId, jar)) {
+            html = await fetchPage(jar, path);
+            if (html) return html;
         }
-        return html;
+        await dropJar(userId);
+        throw new CrmError('crm_auth_required', 'сессия CRM завершена — войдите заново');
     });
+}
+
+// Страница или '' — если CRM вместо неё показала логин (сессии больше нет).
+async function fetchPage(jar, path) {
+    const res = await followRedirects(await rawFetch(path, jar), jar);
+    const html = res.status >= 300 ? '' : await res.text();
+    return !html || parseAnalyseFree(html).loginPage ? '' : html;
 }
 
 // Последовательная очередь + троттлинг: одна на процесс, чтобы N работников
-// суммарно не превращались в шквал запросов к CRM.
+// суммарно не превращались в шквал запросов к CRM. Очередь держит операции
+// (логин, страница, выход) неперекрывающимися, pace() — разносит сами запросы.
+//
+// ВАЖНО: внутри enqueue-задачи нельзя вызывать enqueue снова — задача ждала бы
+// сама себя. Поэтому «войти заново по привязке» посреди запроса делает
+// reloginIntoJar, который дёргает loginIntoJar напрямую, без очереди.
 let queue = Promise.resolve();
 let lastRequestAt = 0;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+async function pace() {
+    const wait = lastRequestAt + throttleMs() - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastRequestAt = Date.now();
+}
+
 function enqueue(fn) {
-    const run = queue.then(async () => {
-        const wait = lastRequestAt + THROTTLE_MS - Date.now();
-        if (wait > 0) await sleep(wait);
-        lastRequestAt = Date.now();
-        return fn();
-    });
+    const run = queue.then(() => fn());
     queue = run.catch(() => {});
     return run;
 }

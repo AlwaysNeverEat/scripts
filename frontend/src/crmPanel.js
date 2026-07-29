@@ -1,14 +1,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Панель «Наличие на станции»: работник входит в CRM через сайт под СВОЕЙ
-// учёткой (пароль бэкенд не хранит — только куки сессии), выбирает адрес —
-// сайт сам проверяет в CRM наличие фильтров машины по артикулам и моторных
-// масел по вязкости. Остаток масла декодируется «÷10 в литры», предупреждаем,
-// когда остатка меньше двух заправок этой машины.
+// учёткой, выбирает адрес — сайт сам проверяет в CRM наличие фильтров машины
+// по артикулам и моторных масел по вязкости. Остаток масла декодируется
+// «÷10 в литры», предупреждаем, когда остатка меньше двух заправок машины.
 //
-// Кнопка «Выйти из CRM» чистит только куки ЭТОГО работника на бэкенде и не
-// завершает сессию на стороне CRM — иначе под общей учёткой CRM выход одного
-// разлогинивал остальных. Если сессию завершит сама CRM, первый же запрос
-// отсюда получит crm_auth_required, и панель снова покажет форму входа.
+// Учётка CRM привязана к аккаунту сайта: логин вводят ОДИН раз, дальше сайт
+// входит в CRM теми же данными сам (бэкенд держит логин и зашифрованный пароль,
+// см. backend/src/crm/client.js). Поэтому здесь есть состояние «вхожу по
+// сохранённым данным…», а форма появляется только когда привязки нет или CRM
+// перестала принимать сохранённый пароль.
+//
+// Кнопка «Выйти» — полный выход: бэкенд закрывает сессию в самой CRM, ждёт
+// подтверждения и снимает привязку. Не подтвердилось — показываем ошибку и
+// НЕ делаем вид, что вышли.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import './crmPanel.css';
@@ -34,6 +38,10 @@ export function initCrmPanel(record, { apiFetch }) {
         crmAuth: null,           // null = выясняем, true = в CRM, false = нужен вход
         authNote: '',            // пояснение над формой входа («сессия завершена…»)
         loggingIn: false,
+        loggingOut: false,       // ждём, пока CRM подтвердит закрытие сессии
+        linkedLogin: null,       // логин CRM, привязанный к аккаунту (или null)
+        autoLogin: false,        // сессию поднял сам сайт по привязке
+        canLink: true,           // бэкенду есть чем шифровать пароль (CRM_LINK_SECRET)
         stations: null,          // [{id, name}] | null пока грузится
         stationId: localStorage.getItem(STATION_KEY) || '',
         // Стартуем с вязкости калькулятора (он инициализируется раньше) —
@@ -80,11 +88,23 @@ export function initCrmPanel(record, { apiFetch }) {
         return false;
     }
 
+    // Статус заодно поднимает сессию CRM по привязке (см. routes/crm.js), так
+    // что первый заход на страницу машины обычно сразу оказывается «в CRM».
     async function checkStatus() {
         try {
-            const { loggedIn } = await apiFetch('/api/crm/status');
-            state.crmAuth = loggedIn;
-            if (loggedIn) return loadStations();
+            const st = await apiFetch('/api/crm/status');
+            state.crmAuth = st.loggedIn;
+            state.linkedLogin = st.crmLogin || null;
+            state.autoLogin = Boolean(st.autoLogin);
+            state.canLink = st.canLink !== false;
+            if (st.linkRejected) {
+                state.authNote = 'Сохранённые данные CRM больше не подходят (сменился пароль?) — войди заново.';
+            } else if (st.unavailable && !st.loggedIn) {
+                state.authNote = `CRM не ответила на автоматический вход: ${st.unavailable}`;
+            } else {
+                state.authNote = '';
+            }
+            if (st.loggedIn) return loadStations();
         } catch (e) {
             state.crmAuth = false;
             state.authNote = '';
@@ -97,10 +117,12 @@ export function initCrmPanel(record, { apiFetch }) {
         state.error = null;
         render();
         try {
-            await apiFetch('/api/crm/login', { method: 'POST', body: { login, password } });
+            const resp = await apiFetch('/api/crm/login', { method: 'POST', body: { login, password } });
             state.crmAuth = true;
             state.authNote = '';
             state.loggingIn = false;
+            state.linkedLogin = resp.linked ? login : null;
+            state.autoLogin = false;
             await loadStations();
         } catch (e) {
             state.loggingIn = false;
@@ -109,9 +131,25 @@ export function initCrmPanel(record, { apiFetch }) {
         }
     }
 
+    // Полный выход: сначала CRM должна подтвердить, что сессия закрыта, и
+    // только тогда панель возвращается к форме. Привязку снимаем — человек
+    // именно этого и просил кнопкой «Выйти».
     async function doLogout() {
-        try { await apiFetch('/api/crm/logout', { method: 'POST', body: {} }); } catch { /* куки чистятся и так */ }
+        state.loggingOut = true;
+        state.error = null;
+        render();
+        try {
+            await apiFetch('/api/crm/logout', { method: 'POST', body: { unlink: true } });
+        } catch (e) {
+            state.loggingOut = false;
+            state.error = { code: e.code || 'network', message: e.message };
+            render();
+            return;
+        }
+        state.loggingOut = false;
         state.crmAuth = false;
+        state.linkedLogin = null;
+        state.autoLogin = false;
         state.authNote = '';
         dropResults();
         state.error = null;
@@ -187,11 +225,12 @@ export function initCrmPanel(record, { apiFetch }) {
             <div class="ctrl-section crm-panel">
                 <div class="crm-head">
                     <div class="sec-title">Наличие на станции</div>
-                    ${state.crmAuth === true ? `<button class="crm-logout" id="crm-logout" title="Забыть сессию CRM на этом сайте">
+                    ${state.crmAuth === true ? `<button class="crm-logout" id="crm-logout" ${state.loggingOut ? 'disabled' : ''} title="Закрыть сессию в CRM и забыть привязанную учётку">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                        <span>Выйти</span></button>` : ''}
+                        <span>${state.loggingOut ? 'выхожу…' : 'Выйти'}</span></button>` : ''}
                 </div>
-                ${state.crmAuth === null ? '<div class="crm-loading">Проверяю сессию CRM…</div>' : ''}
+                ${state.crmAuth === null ? '<div class="crm-loading">Вхожу в CRM по сохранённым данным…</div>' : ''}
+                ${state.crmAuth === true && state.linkedLogin ? renderLinkNote() : ''}
                 ${state.crmAuth === false ? renderLoginForm() : ''}
                 ${state.crmAuth === true ? renderStationRow() : ''}
                 ${state.error ? renderError() : ''}
@@ -202,12 +241,25 @@ export function initCrmPanel(record, { apiFetch }) {
         bind();
     }
 
+    // Привязка видна в панели: понятно, под какой учёткой сайт вошёл в CRM и
+    // что вход был автоматическим (данные никто заново не вводил).
+    function renderLinkNote() {
+        return `
+            <div class="crm-link-note">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L10.6 5.24"/><path d="M14 11a5 5 0 0 0-7.07 0L4.8 13.12a5 5 0 0 0 7.07 7.07L13.4 18.76"/></svg>
+                <span>CRM: ${esc(state.linkedLogin)}${state.autoLogin ? ' — вошли автоматически' : ''}</span>
+            </div>`;
+    }
+
     function renderLoginForm() {
+        const hint = state.canLink
+            ? 'Войди своей учёткой CRM — сайт запомнит её и в следующий раз войдёт сам.'
+            : 'Войди своей учёткой CRM — на этом сервере запоминание пароля выключено.';
         return `
             ${state.authNote ? `<div class="warn-box">${esc(state.authNote)}</div>` : ''}
-            <div class="crm-dim" style="margin-bottom:6px">Войди своей учёткой CRM — пароль на сайте не хранится.</div>
+            <div class="crm-dim" style="margin-bottom:6px">${hint}</div>
             <form id="crm-login-form" class="crm-login-form" autocomplete="off">
-                <input type="text" id="crm-login" class="crm-input" placeholder="логин CRM" autocomplete="username" ${state.loggingIn ? 'disabled' : ''}/>
+                <input type="text" id="crm-login" class="crm-input" placeholder="логин CRM" autocomplete="username" value="${esc(state.linkedLogin || '')}" ${state.loggingIn ? 'disabled' : ''}/>
                 <input type="password" id="crm-password" class="crm-input" placeholder="пароль CRM" autocomplete="current-password" ${state.loggingIn ? 'disabled' : ''}/>
                 <button class="btn" type="submit" ${state.loggingIn ? 'disabled' : ''}>${state.loggingIn ? 'вхожу…' : 'Войти в CRM'}</button>
             </form>
@@ -234,6 +286,7 @@ export function initCrmPanel(record, { apiFetch }) {
         const texts = {
             crm_auth_failed: 'CRM не приняла логин или пароль.',
             crm_unavailable: state.error.message || 'CRM недоступна. Попробуйте ещё раз.',
+            crm_logout_failed: 'CRM не подтвердила, что сессия закрыта — вы всё ещё в CRM. Попробуйте выйти ещё раз.',
             parse_failed: 'CRM ответила в неожиданном формате — возможно, изменилась разметка.',
         };
         return `<div class="warn-box">${esc(texts[state.error.code] || state.error.message || 'Ошибка')}
@@ -473,7 +526,10 @@ export function initCrmPanel(record, { apiFetch }) {
         const refresh = root.querySelector('#crm-refresh');
         if (refresh) refresh.onclick = () => runCheck();
         const retry = root.querySelector('#crm-retry');
-        if (retry) retry.onclick = () => (state.stations === null || !state.stations.length) ? loadStations() : runCheck();
+        if (retry) retry.onclick = () => {
+            if (state.error?.code === 'crm_logout_failed') return doLogout();
+            return (state.stations === null || !state.stations.length) ? loadStations() : runCheck();
+        };
         // Свернуть/развернуть полный список масел (по умолчанию свёрнут)
         const oilsToggle = root.querySelector('#crm-oils-toggle');
         if (oilsToggle) oilsToggle.onclick = () => { state.showOils = !state.showOils; render(); };

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!-- Дев-песочница панели «Наличие на станции»: фейковый бэкенд, без CRM.
+     Открыть: npx vite → /dev-crm-panel.html
+       ?state=linked   — учётка привязана, сайт вошёл сам (по умолчанию)
+       ?state=fresh    — привязки нет, ждём ручной вход
+       ?state=rejected — сохранённый пароль CRM больше не подходит
+       ?logout=fail    — CRM не подтверждает закрытие сессии
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: панель CRM</title>
+  <link rel="stylesheet" href="/src/style.css"/>
+</head>
+<body>
+  <div id="page-calc">
+    <div id="crm-panel"></div>
+  </div>
+  <script type="module">
+    import { initCrmPanel } from '/src/crmPanel.js';
+
+    const params = new URLSearchParams(location.search);
+    const state = params.get('state') || 'linked';
+    const logoutFails = params.get('logout') === 'fail';
+
+    const record = {
+      filter_part_numbers: {
+        vf: { part: 'W 712/95' }, mf: { part: 'C 2695' }, sf: { part: null, absent: true },
+      },
+      car_approvals: ['ACEA A3/B4'],
+      fluid_capacities: { engine: { volumeService: 4.5 } },
+      recommended_oils: [{ key: 'engine', oil1: { v: '5W-30' } }],
+    };
+
+    const fail = (code, message) => {
+      const e = new Error(message);
+      e.code = code;
+      return e;
+    };
+
+    // Фейковый бэкенд: те же формы ответов, что у /api/crm/* (routes/crm.js).
+    let loggedIn = state === 'linked';
+    let linked = state === 'linked';
+
+    async function apiFetch(path, opts = {}) {
+      await new Promise(r => setTimeout(r, 350)); // видно состояния «вхожу…»
+      if (path === '/api/crm/status') {
+        return {
+          loggedIn, linked, autoLogin: loggedIn,
+          linkRejected: state === 'rejected',
+          unavailable: null,
+          crmLogin: linked || loggedIn ? 'ivanov' : null,
+          canLink: true,
+        };
+      }
+      if (path === '/api/crm/login') {
+        loggedIn = true; linked = true;
+        return { ok: true, linked: true };
+      }
+      if (path === '/api/crm/logout') {
+        if (logoutFails) throw fail('crm_logout_failed', 'CRM не подтвердила закрытие сессии');
+        loggedIn = false; linked = false;
+        return { ok: true, closed: true, unlinked: opts.body?.unlink === true };
+      }
+      if (path === '/api/crm/stations') {
+        return { stations: [{ id: '1', name: 'Пулковское шоссе, 30' }, { id: '2', name: 'Софийская, 6' }] };
+      }
+      if (path === '/api/crm/availability') {
+        return {
+          stationId: '1',
+          results: [
+            { key: 'vf', rows: [{ id: 'a1', name: 'Фильтр воздушный MANN C 2695', priceRaw: 890, count: 3 }] },
+            { key: 'mf', rows: [{ id: 'a2', name: 'Фильтр масляный MANN W 712/95', priceRaw: 540, count: 5 }] },
+            { key: 'oil', rows: [{ id: 'o1', name: 'Масло Liqui Moly Leichtlauf HC 7 5W-30', priceRaw: 210, count: 120 }] },
+          ],
+        };
+      }
+      throw fail('bad_request', 'нет такого пути в песочнице: ' + path);
+    }
+
+    initCrmPanel(record, { apiFetch });
+  </script>
+</body>
+</html>
