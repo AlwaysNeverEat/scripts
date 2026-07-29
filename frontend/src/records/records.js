@@ -992,23 +992,31 @@ function renderStation() {
 // называет улицу, а не название станции. Карта отвечает на оба сразу —
 // открытая станция в центре, соседние вокруг со счётчиком свободного, плюс
 // поиск: свои станции ищутся мгновенно, чужие улицы — через геокодер.
+// Поиск и легенда лежат НА карте, а не над и под ней: панель тогда начинается
+// ровно там же, где сетка боксов, и кончается вместе с ней — две колонки
+// читаются как одна таблица. Заодно поиск не уезжает вверх при прокрутке: он
+// прибит к карте, а карта липкая.
 function stationMapHtml() {
     return `
     <aside class="rc-side-map">
-        <div class="rc-map-search rc-side-map-search">
-            ${icons.search(14)}
-            <input id="rc-station-map-q" type="search" placeholder="Улица или станция…"
-                autocomplete="off" value="${esc(state.stationMap.query)}"/>
-        </div>
-        <div id="rc-station-map-hits" class="rc-side-map-hits ${state.stationMap.query.trim() ? '' : 'hidden'}">
-            ${stationMapHitsHtml()}
-        </div>
-        <div id="rc-station-map" class="rc-side-map-canvas"></div>
-        <div class="rc-map-legend rc-side-map-legend">
-            <span><i class="rc-lg-dot rc-pin-count-ok"></i>свободно много</span>
-            <span><i class="rc-lg-dot rc-pin-count-low"></i>мало (≤5)</span>
-            <span><i class="rc-lg-dot rc-pin-count-none"></i>мест нет</span>
-            <span class="rc-lg-ac">${icons.snowflake(12)}кондиционер</span>
+        <div class="rc-side-map-stick">
+            <div id="rc-station-map" class="rc-side-map-canvas"></div>
+            <div class="rc-side-map-ui">
+                <div class="rc-map-search rc-side-map-search">
+                    ${icons.search(14)}
+                    <input id="rc-station-map-q" type="search" placeholder="Улица или станция…"
+                        autocomplete="off" value="${esc(state.stationMap.query)}"/>
+                </div>
+                <div id="rc-station-map-hits" class="rc-side-map-hits ${state.stationMap.query.trim() ? '' : 'hidden'}">
+                    ${stationMapHitsHtml()}
+                </div>
+            </div>
+            <div class="rc-map-legend rc-side-map-legend">
+                <span><i class="rc-lg-dot rc-pin-count-ok"></i>свободно много</span>
+                <span><i class="rc-lg-dot rc-pin-count-low"></i>мало (≤5)</span>
+                <span><i class="rc-lg-dot rc-pin-count-none"></i>мест нет</span>
+                <span class="rc-lg-ac">${icons.snowflake(12)}кондиционер</span>
+            </div>
         </div>
     </aside>`;
 }
