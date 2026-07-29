@@ -423,6 +423,8 @@
        выравнивается строка чипов, и с неё начинает расти панель с картой
        справа от сетки. Уже 240px карта становится нечитаемой. */
     --side-w: 262px;
+    /* Высота строки «БОКС 1 / БОКС 2» над сеткой. */
+    --heads-h: 23px;
 }
 
 .rc-station-head {
@@ -520,13 +522,14 @@
     vertical-align: -3px;
 }
 
-/* Слева — колонка станций (под кнопкой «Все станции»), справа — сетка дня.
-   Дорожка-бокс имеет разумную ширину (--lane-w), а не растягивается на всю
-   страницу: раньше запись на станции с одним боксом занимала весь экран, и
-   попасть в нужный получас на глаз было тяжело. */
+/* Слева — сетка дня, справа — карта. Дорожка-бокс имеет разумную ширину
+   (--lane-w), а не растягивается на всю страницу: раньше запись на станции с
+   одним боксом занимала весь экран, и попасть в нужный получас на глаз было
+   тяжело. stretch — чтобы панель с картой доставала ровно до низа сетки:
+   высоту ей никто не задаёт, она берёт её у строки. */
 .rc-station-body {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 14px;
     --lane-w: 320px;
 }
@@ -540,20 +543,23 @@
     max-width: 100%;
 }
 
+/* Высота шапки боксов фиксирована: на неё опущена панель с картой справа,
+   чтобы верх карты стоял ровно на верхней границе сетки. */
 .rc-lanes-heads {
     display: grid;
     grid-template-columns: repeat(var(--lanes), 1fr);
     margin-left: 64px;
     gap: 0;
+    height: var(--heads-h);
 }
 
 .rc-lane-head {
     text-align: center;
     color: var(--sub);
     font-size: 10px;
+    line-height: var(--heads-h);
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    padding: 4px 0;
 }
 
 .rc-grid {
@@ -850,33 +856,71 @@
    Панель липкая: сетка станции длиннее экрана, и карта не должна уезжать
    вверх, пока листаешь вечер. */
 
+/* Колонка карты: сверху опущена на шапку боксов, снизу тянется до конца сетки
+   (высоту даёт align-items: stretch у строки). Сама карта внутри — липкая, её
+   высота ограничена экраном, поэтому при прокрутке она едет следом и целиком
+   остаётся на виду, а в самом низу страницы встаёт вровень с концом дня. */
 .rc-side-map {
-    position: sticky;
-    top: 10px;
-    align-self: flex-start;
     /* Забирает всё, что осталось от сетки боксов: пустое поле справа от карты
        выглядело бы недоделанной страницей. */
     flex: 1 1 var(--side-w);
     min-width: 240px;
-    display: flex;
-    flex-direction: column;
-    /* Ровно по высоте сетки боксов, но не выше экрана — иначе липкая панель
-       сама начинает прокручиваться и карта уходит под сгиб. */
-    height: min(760px, calc(100vh - 90px));
+    margin-top: var(--heads-h);
 }
 
-.rc-side-map-search { margin-bottom: 8px; padding: 7px 11px; }
+.rc-side-map-stick {
+    position: sticky;
+    /* Ряд вкладок сайта липкий и непрозрачный: без этого отступа под ним
+       прятался поиск, а от карты откусывало полсотни пикселей. */
+    top: calc(var(--tabs-h, 52px) + 10px);
+    /* Экран минус вкладки, минус свой отступ сверху, минус нижний отступ
+       страницы (48px у .rc-shell). Последнее слагаемое и делает низ ровным:
+       докрутив до конца, панель встаёт нижним краем на конец дня — и при этом
+       не поднимается выше своего sticky-отступа, то есть поиск не ныряет под
+       ряд вкладок. */
+    height: min(100%, calc(100vh - var(--tabs-h, 52px) - 10px - 48px));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+/* Поиск и подсказки лежат поверх карты — как средства управления самой карты,
+   а не как отдельная панель над ней. Слой выше зума Leaflet (1000). */
+.rc-side-map-ui {
+    position: absolute;
+    z-index: 1001;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    /* Во всю ширину карты строка поиска смотрелась бы шапкой панели, а не
+       её инструментом, — и подсказки растягивались бы на пол-экрана. */
+    max-width: 440px;
+    pointer-events: none; /* мимо элементов панели карта тянется мышью как обычно */
+}
+
+.rc-side-map-search {
+    margin: 0;
+    padding: 7px 11px;
+    background: var(--card);
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.28);
+    pointer-events: auto;
+}
+
 .rc-side-map-search input { font-size: 12.5px; }
 
-/* Совпадения ложатся НАД картой и ограничены по высоте: список нужен на
-   секунду — выбрать и уйти, — а карта должна оставаться на виду. */
+/* Кнопки зума уводим под строку поиска. */
+.rc-side-map .leaflet-top { top: 46px; }
+
+/* Совпадения падают из поиска вниз, как подсказки, и ограничены по высоте:
+   список нужен на секунду — выбрать и уйти, — а карта должна оставаться видна. */
 .rc-side-map-hits {
     display: flex;
     flex-direction: column;
     gap: 4px;
     max-height: 216px;
     overflow: auto;
-    margin-bottom: 8px;
+    margin-top: 6px;
+    pointer-events: auto;
 }
 
 .rc-side-map-hit {
@@ -900,15 +944,26 @@
 /* Станция, которая и так открыта, — чтобы не кликать по ней второй раз. */
 .rc-side-map-hit-on { border-color: var(--accent); background: var(--bg2); }
 
-.rc-side-map-canvas {
-    flex: 1;
-    min-height: 220px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-}
+.rc-side-map-canvas { position: absolute; inset: 0; }
 
-.rc-side-map-legend { margin: 8px 2px 0; gap: 4px 10px; }
+/* Легенда — карточка в углу самой карты. Строкой под картой она читалась как
+   случайный текст, прилипший к низу колонки. */
+.rc-side-map-legend {
+    position: absolute;
+    z-index: 1001;
+    left: 8px;
+    bottom: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin: 0;
+    padding: 7px 9px;
+    background: color-mix(in oklab, var(--card) 92%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    backdrop-filter: blur(6px);
+    pointer-events: none;
+}
 
 /* Счётчик свободных получасов: цветом кричит только «мало» и «нет». */
 .rc-side-free {
@@ -1451,11 +1506,12 @@
        Липкость там вредна: панель начала бы ездить поверх расписания. */
     .rc-station-body { flex-wrap: wrap; --lane-w: 280px; }
     .rc-board { flex-basis: 100%; }
-    .rc-side-map {
-        position: static;
-        flex-basis: 100%;
-        height: 60vh;
-    }
+    /* Карта уехала под сетку — равняться сверху уже не на что, а липкость
+       мешала бы: панель ездила бы поверх расписания. */
+    .rc-side-map { flex-basis: 100%; margin-top: 0; height: 60vh; }
+    /* relative, а не static: карта, поиск и легенда внутри лежат абсолютно и
+       должны цепляться именно за эту рамку. */
+    .rc-side-map-stick { position: relative; height: 100%; }
 }
 
 @media (max-width: 700px) {
