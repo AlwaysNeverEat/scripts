@@ -75,8 +75,9 @@ const state = {
     // (переживает перерисовку — иначе карту отбрасывало бы к станции при
     // каждом обновлении доски).
     // hidden — подсказки убраны с глаз, пока крутят карту; вернутся, как только
-    // снова начнут печатать в поиске.
-    stationMap: { query: '', view: null, near: null, hidden: false },
+    // снова начнут печатать в поиске. fly — открыли другую станцию, карте пора
+    // к ней перелететь (флаг одноразовый, гасится в initStationMap).
+    stationMap: { query: '', view: null, near: null, hidden: false, fly: false },
 };
 
 let mapCtl = null;         // Leaflet-контроллер открытой карты (модалки)
@@ -1899,6 +1900,12 @@ function initStationMap() {
     stationMapCtl.setFree(freeCountByShort());
     if (meta) stationMapCtl.highlight(meta.short);
     stationMapCtl.invalidate();
+    // Перелёт — только когда станцию действительно сменили. Обновление доски
+    // (раз в полминуты) тоже пересобирает карту, и лететь на ней некуда.
+    if (state.stationMap.fly) {
+        state.stationMap.fly = false;
+        if (fit) stationMapCtl.flyFit(fit);
+    }
 }
 
 // Список совпадений перерисовываем точечно: полный render() снёс бы карту и
@@ -2354,7 +2361,10 @@ function keepEditFields() {
 // не остаться там, куда карту увели на прошлой станции.
 function openStation(id, highlightId = null) {
     if (!id) return;
-    if (String(id) !== String(state.stationId)) state.stationMap.view = null;
+    // Сменилась станция — карта должна ПЕРЕЛЕТЕТЬ к ней, а не моргнуть новым
+    // кадром. Прошлое положение поэтому не сбрасываем: новая карта стартует
+    // оттуда, где стояла старая, и уже сама подъезжает (см. initStationMap).
+    if (String(id) !== String(state.stationId)) state.stationMap.fly = true;
     state.view = 'station';
     state.stationId = id;
     state.highlightId = highlightId;

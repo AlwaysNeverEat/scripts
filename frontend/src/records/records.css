@@ -1353,21 +1353,27 @@
 .rc-queue-failed { border-color: var(--red-dim); }
 
 /* Карта: плашки-станции */
-.rc-pin-wrap { background: none; border: 0; }
+/* line-height: 0 — чтобы обёртка Leaflet обтянула плашку впритык: строчный
+   «хвост» под ней добавлял пару пикселей к кликабельной коробке.
 
-/* --dy — сдвиг, которым map.js разводит налезающие друг на друга плашки
-   (см. layoutPins). Именно top, а не transform: transform здесь анимирован
-   ради ховера, и раскладка, которая замеряет плашки после каждого зума,
-   ловила бы их на середине перехода — и разводила по неверным координатам.
-   top не анимируется и на соседей не влияет (плашка позиционирована). */
+   Слои задаём здесь, а не через zIndexOffset: Leaflet считает z-index от
+   координаты маркера, и на сильном зуме разброс координат в десятки тысяч
+   съел бы любую надбавку. Порядок простой и от зума не зависит: подписи выше
+   точек (точке, которой не хватило места, нечего садиться на читаемое имя),
+   открытая станция выше всех, а то, на что навели, — поверх вообще всего. */
+.rc-pin-wrap { background: none; border: 0; line-height: 0; z-index: 400 !important; }
+.rc-pin-wrap.rc-pin-mid { z-index: 300 !important; }
+.rc-pin-wrap.rc-pin-dot { z-index: 200 !important; }
+.rc-pin-wrap.rc-pin-on { z-index: 500 !important; }
+.rc-pin-wrap:hover { z-index: 10000 !important; }
+
+/* Плашка стоит ровно там, куда её ставит Leaflet (iconAnchor [8, 28]) — без
+   смещений через CSS. Смещения уже пробовали: кликабельная коробка маркера
+   оставалась на старом месте, и по краю плашки открывалась чужая станция. */
 .rc-pin {
-    --dy: 0px;
-    position: relative;
-    top: var(--dy);
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transform: translate(-8px, -14px);
     background: var(--bg2);
     border: 1px solid var(--border);
     border-radius: 999px;
@@ -1386,7 +1392,30 @@
     border-color: color-mix(in oklab, var(--blue) 35%, var(--border));
 }
 
-.rc-pin:hover { border-color: var(--accent); transform: translate(-8px, -14px) scale(1.08); }
+.rc-pin:hover { border-color: var(--accent); }
+
+/* ── Плотность подписей ─────────────────────────────────────────
+   Где плашки не помещаются рядом, map.js (layoutPins) ужимает их: сначала до
+   кода перевода звонка со счётчиком, потом до одной точки линии метро.
+   С места при этом не двигается НИЧЕГО — станция всегда там, где она есть.
+   :not(:hover) — чтобы под курсором любая плашка снова стала полной: так ни
+   одно название не теряется, даже когда весь город в кадре. */
+.rc-pin-mid:not(:hover) .rc-pin-name,
+.rc-pin-mid:not(:hover) .rc-pin-ac { display: none; }
+
+/* Точка — сама точка линии метро и ничего больше. Кольцо цвета подложки:
+   станции в 700 м друг от друга на общем виде города всё равно окажутся
+   рядом, и без кольца две точки слиплись бы в одно пятно. */
+.rc-pin-dot:not(:hover) .rc-pin {
+    gap: 0;
+    padding: 2px;
+    box-shadow: 0 0 0 1.5px var(--card), var(--shadow-1);
+}
+
+.rc-pin-dot:not(:hover) .rc-pin-name,
+.rc-pin-dot:not(:hover) .rc-pin-ac,
+.rc-pin-dot:not(:hover) .rc-pin-code,
+.rc-pin-dot:not(:hover) .rc-pin-count { display: none; }
 
 /* Открытая станция. Обводки акцентом не хватало — на карте с тремя десятками
    плашек тонкий контур теряется, а «где я сейчас» — первое, что ищут глазами.
@@ -1396,7 +1425,6 @@
     border-color: var(--accent);
     color: var(--accent-fg);
     box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 32%, transparent), var(--shadow-1);
-    transform: translate(-8px, -14px) scale(1.08);
 }
 
 .rc-pin-active .rc-pin-code,
@@ -1404,25 +1432,6 @@
     background: color-mix(in oklab, var(--accent-fg) 22%, transparent);
     color: var(--accent-fg);
 }
-
-/* Поводок от сдвинутой плашки к её настоящей точке — высоту и сторону
-   проставляет map.js, пока плашка на месте, поводка нет вовсе.
-   Постоянно висеть он не должен: на общем виде города сдвиги большие, и два
-   десятка пунктиров читались как мусор поверх карты. Поэтому поводок
-   появляется только под курсором — когда плашку и правда примеряют к месту.
-   Открытой станции он не нужен вовсе: в раскладке она идёт первой и всегда
-   стоит на своей настоящей точке. */
-.rc-pin-leader {
-    position: absolute;
-    left: 9px;
-    width: 0;
-    border-left: 1px dashed color-mix(in oklab, var(--text) 45%, transparent);
-    opacity: 0;
-    transition: opacity 0.12s;
-    pointer-events: none;
-}
-
-.rc-pin:hover .rc-pin-leader { opacity: 1; }
 
 .rc-pin-stripe { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
