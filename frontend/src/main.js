@@ -9,6 +9,7 @@ import { showTopPage, resetTopCache } from './top.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
+import { initNewsFeed, markNewsSeen, unseenNewsCount } from './newsFeed.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { carCardInner } from './carCard.js';
 import { initTheme } from './theme.js';
@@ -85,9 +86,10 @@ const pageCalc    = document.getElementById('page-calc');
 const pageProfile = document.getElementById('page-profile');
 const pageRecords = document.getElementById('page-records');
 const pageScripts = document.getElementById('page-scripts');
+const pageNews    = document.getElementById('page-news');
 const pageTop     = document.getElementById('page-top');
 
-const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageScripts, pageTop];
+const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageScripts, pageNews, pageTop];
 
 function hideAllPages() {
     for (const page of ALL_PAGES) page.classList.add('hidden');
@@ -120,7 +122,9 @@ function enterApp() {
     unlocked = true;
     hideAllPages();
     renderUserBar();
+    renderNewsBadge();
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
+    warmCrmSession();
     renderRoute();
     loadSnapshot();   // прогреваем базу для поиска и тегов
     loadSphere();
@@ -138,6 +142,23 @@ function resetTabsState() {
     Object.assign(lastRoute, DEFAULT_TAB_ROUTE);
 }
 
+// Учётка CRM привязана к аккаунту (см. backend/src/crm/client.js): этот запрос
+// на входе поднимает сессию CRM теми же данными, что вводили в прошлый раз —
+// к моменту, когда откроют машину, панель «Наличие на станции» уже готова.
+// Молча: нет привязки или CRM не отвечает — панель сама покажет, что делать.
+function warmCrmSession() {
+    apiFetch('/api/crm/status').catch(() => { /* панель разберётся на месте */ });
+}
+
+// Счётчик непрочитанных постов на вкладке «Что нового?».
+function renderNewsBadge() {
+    const badge = document.getElementById('news-badge');
+    if (!badge) return;
+    const n = unseenNewsCount();
+    badge.textContent = n ? String(n) : '';
+    badge.classList.toggle('hidden', !n);
+}
+
 // Аватарка живёт в кнопке вкладки «Профиль».
 function renderUserBar() {
     const img = document.getElementById('avatar-img');
@@ -153,7 +174,7 @@ function renderUserBar() {
 }
 
 // ── Вкладки ───────────────────────────────────────────────────────────────────
-// Пять разделов одним рядом сверху. Каждая вкладка помнит свой последний роут,
+// Шесть разделов одним рядом сверху. Каждая вкладка помнит свой последний роут,
 // а страницы не пересобираются при возврате: найденная машина, набранный поиск,
 // открытая станция в записях — всё остаётся ровно таким, каким его оставили.
 
@@ -162,6 +183,7 @@ const DEFAULT_TAB_ROUTE = {
     calc:    '#/',
     records: '#/records',
     scripts: '#/scripts',
+    news:    '#/news',
     top:     '#/top',
 };
 const lastRoute = { ...DEFAULT_TAB_ROUTE };
@@ -173,6 +195,7 @@ let currentRoute = null;
 function tabOfHash(hash) {
     if (hash.startsWith('#/records')) return 'records';
     if (hash === '#/scripts') return 'scripts';
+    if (hash === '#/news') return 'news';
     if (hash === '#/top') return 'top';
     if (hash === '#/profile' || /^#\/user\/[0-9a-f-]{10,}/i.test(hash)) return 'profile';
     return 'calc'; // #/ и #/car/:id
@@ -206,6 +229,7 @@ function restoreScroll(hash) {
 //   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
 //   #/records     — записи по станциям
 //   #/scripts     — фид юзерскриптов
+//   #/news        — «Что нового?»: посты об изменениях сайта
 //   #/top         — рейтинг пользователей
 
 let renderedCarId = null;  // машина, уже отрисованная на #page-calc
@@ -254,6 +278,13 @@ async function renderRoute() {
     } else if (tab === 'scripts') {
         showPage(pageScripts);
         initScriptsFeed(); // фид статичный — собирается один раз
+    } else if (tab === 'news') {
+        showPage(pageNews);
+        // Порядок важен: сначала собираем ленту (она помечает непрочитанные
+        // посты плашкой «новое»), и только потом гасим счётчик на вкладке.
+        initNewsFeed();
+        markNewsSeen();
+        renderNewsBadge();
     } else if (tab === 'top') {
         showPage(pageTop);
         showTopPage({ apiFetch }); // из кеша мгновенно, свежие данные подтянутся

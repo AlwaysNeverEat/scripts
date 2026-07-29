@@ -1,15 +1,17 @@
 import { Router } from 'express';
 import {
-    crmLogin, crmLogout, crmHasSession, crmGetHtml, buildAnalyseFreePath, CrmError,
+    crmLogin, crmLogout, crmEnsureSession, crmLinkedLogin, linkSecretConfigured,
+    crmGetHtml, buildAnalyseFreePath, CrmError,
 } from '../crm/client.js';
 import { parseStations, parseAnalyseFree } from '../../../shared/crmAnalyse.js';
 
 const router = Router();
 
 // Прокси к CRM /analyse/free под ПЕРСОНАЛЬНОЙ сессией работника: каждый входит
-// в CRM через сайт своей учёткой (пароль не хранится — только куки, см.
-// backend/src/crm/client.js). Разбор HTML — shared/crmAnalyse.js, доменная
-// логика (литры, цены, матчинг с каталогом) — на фронте.
+// в CRM через сайт своей учёткой, и эта учётка привязывается к аккаунту сайта —
+// дальше сессия CRM поднимается сама (см. backend/src/crm/client.js). Разбор
+// HTML — shared/crmAnalyse.js, доменная логика (литры, цены, матчинг с
+// каталогом) — на фронте.
 //
 // Важно: ошибки CRM-авторизации отдаём как 403, НЕ 401 — 401 фронт трактует
 // как «сессия САЙТА истекла» и выкидывает на гейт (apiFetch в main.js).
@@ -23,6 +25,8 @@ const availCache = new Map(); // `${stationId}|${query}` → { at, rows } — о
 
 function sendCrmError(res, err) {
     if (err instanceof CrmError) {
+        // crm_logout_failed — 502: CRM ответила, но сессию не закрыла; фронт по
+        // этому коду НЕ выпускает из аккаунта сайта.
         const status = err.code === 'crm_auth_required' ? 403
             : err.code === 'crm_auth_failed' ? 403
             : 502;
@@ -34,32 +38,53 @@ function sendCrmError(res, err) {
 
 // ── Вход/выход/статус ─────────────────────────────────────────────────────────
 
+// Вход руками: заодно привязываем учётку к аккаунту сайта (remember: false —
+// не запоминать, тогда прошлая привязка снимается).
 router.post('/login', async (req, res) => {
     const login = String(req.body?.login || '').trim();
     const password = String(req.body?.password || '');
+    const remember = req.body?.remember !== false;
     if (!login || !password) {
         return res.status(400).json({ error: { code: 'bad_request', message: 'нужны login и password' } });
     }
     try {
-        await crmLogin(req.user.id, login, password);
-        res.json({ ok: true });
+        const { linked } = await crmLogin(req.user.id, login, password, { remember });
+        res.json({ ok: true, linked });
     } catch (err) {
         sendCrmError(res, err);
     }
 });
 
+// Выход. Отвечаем ok только после того, как CRM подтвердила закрытие сессии —
+// на этом ответе фронт и завершает выход из аккаунта сайта.
+//
+// unlink: true — снять и привязку учётки (кнопка выхода в панели CRM);
+// по умолчанию привязка остаётся: выход из аккаунта сайта не должен заставлять
+// человека вводить логин CRM заново при следующем входе.
 router.post('/logout', async (req, res) => {
+    const unlink = req.body?.unlink === true;
     try {
-        await crmLogout(req.user.id);
-        res.json({ ok: true });
+        const result = await crmLogout(req.user.id, { unlink });
+        res.json({ ok: true, ...result });
     } catch (err) {
         sendCrmError(res, err);
     }
 });
 
+// Статус для панели: живая сессия поднимается тут же по привязке, поэтому
+// первый заход на страницу машины уже видит наличие, ничего не спрашивая.
 router.get('/status', async (req, res) => {
     try {
-        res.json({ loggedIn: await crmHasSession(req.user.id) });
+        const state = await crmEnsureSession(req.user.id);
+        res.json({
+            loggedIn: state.loggedIn,
+            linked: state.linked,
+            autoLogin: Boolean(state.auto),
+            linkRejected: Boolean(state.linkRejected),
+            unavailable: state.unavailable || null,
+            crmLogin: state.loggedIn || state.linked ? await crmLinkedLogin(req.user.id) : null,
+            canLink: linkSecretConfigured(),
+        });
     } catch (err) {
         sendCrmError(res, err);
     }

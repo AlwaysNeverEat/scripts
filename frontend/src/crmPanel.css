@@ -7,6 +7,19 @@
   padding: 0 16px;
 }
 
+/* Строка «под какой учёткой CRM работаем»: приписка, а не заголовок —
+   в норме на неё не смотрят, она нужна, когда что-то пошло не так. */
+.crm-link-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: var(--sub);
+}
+
+.crm-link-note svg { flex: none; opacity: .8; }
+
 /* Компактная форма входа в CRM: на широком экране поля не растягиваются
    на всю ширину панели, на узком — аккуратно перестраиваются. */
 .crm-login-form {

@@ -2,6 +2,12 @@
 // Страница профиля: аватар (загрузка + обрезка кроппером в Supabase Storage),
 // ник (клик-редактирование), статистика «добавлено/отредактировано», пустой
 // расширяемый фид достижений-заглушка, кнопка «Выйти».
+//
+// «Выйти» выходит по порядку: сначала бэкенд закрывает сессию в CRM и ждёт от
+// неё подтверждения, и только при успехе гасится сессия сайта. Иначе человек
+// уходил бы с открытой сессией CRM, о которой уже никто не помнит. Привязку
+// учётки CRM при этом не снимаем — следующий вход на сайт снова поднимет
+// сессию CRM сам (снять привязку можно кнопкой «Выйти» в панели CRM).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { openAvatarCropper } from './avatarCropper.js';
@@ -102,6 +108,8 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
                 <div id="profile-error" class="edit-error hidden"></div>
                 <button class="btn btn-sec profile-logout" id="btn-logout">Выйти</button>
+                <!-- появляется только если CRM не подтвердила закрытие сессии -->
+                <button class="btn btn-sec profile-logout-force hidden" id="btn-logout-force">Всё равно выйти из аккаунта</button>
             </div>
         `;
         bind();
@@ -213,9 +221,40 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             });
         };
 
-        document.getElementById('btn-logout').onclick = async () => {
+        // Выход: CRM → аккаунт сайта. Порядок именно такой, и второй шаг
+        // делается только после подтверждения первого.
+        const logoutBtn = document.getElementById('btn-logout');
+        const forceBtn = document.getElementById('btn-logout-force');
+
+        async function dropSiteSession() {
             try { await apiFetch('/api/auth/logout', { method: 'POST' }); } catch { /* всё равно разлогиниваем локально */ }
             onLogout();
+        }
+
+        logoutBtn.onclick = async () => {
+            errBox.classList.add('hidden');
+            forceBtn.classList.add('hidden');
+            logoutBtn.disabled = true;
+            logoutBtn.textContent = 'Закрываю сессию CRM…';
+            try {
+                // Привязку не снимаем: unlink не передаём.
+                await apiFetch('/api/crm/logout', { method: 'POST', body: {} });
+            } catch (err) {
+                logoutBtn.disabled = false;
+                logoutBtn.textContent = 'Выйти';
+                showErr(err.code === 'crm_logout_failed'
+                    ? 'CRM не подтвердила, что сессия закрыта — из аккаунта не выходим. Попробуй ещё раз.'
+                    : `Не удалось закрыть сессию CRM: ${err.message}. Из аккаунта не выходим — попробуй ещё раз.`);
+                // Если CRM недоступна надолго, из аккаунта всё-таки надо уметь
+                // выйти — но это осознанное решение человека, а не молчаливый
+                // обход проверки.
+                forceBtn.classList.remove('hidden');
+                return;
+            }
+            logoutBtn.textContent = 'Выхожу…';
+            await dropSiteSession();
         };
+
+        forceBtn.onclick = () => dropSiteSession();
     }
 }

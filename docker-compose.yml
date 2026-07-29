@@ -33,6 +33,10 @@ services:
       ADMIN_TELEGRAM_ID: '691442300'
       SUPABASE_URL: ''
       SUPABASE_SERVICE_KEY: ''
+      # Ключ шифрования пароля CRM: с ним учётка CRM привязывается к аккаунту
+      # сайта (вход в CRM запоминается). Локально годится любая длинная строка,
+      # в проде — свой секрет, НЕ API_KEY (см. DEPLOY.md).
+      CRM_LINK_SECRET: local-dev-crm-link-secret
     ports:
       - '3001:3001'
     depends_on:
