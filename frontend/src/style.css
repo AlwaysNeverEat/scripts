@@ -299,7 +299,11 @@ input, button, select, textarea { font-family: inherit; }
 .app-tabs {
   position: sticky;
   top: 0;
-  z-index: 200;
+  /* Выше модалок (500), но ниже тостов ачивок (600). Ряд вкладок остаётся
+     кликабельным и при открытом окне: из наполовину заполненной записи можно
+     уйти на калькулятор, посчитать стоимость и вернуться — черновик ждёт на
+     месте (см. records.js, pauseRecords/resumeRecords). */
+  z-index: 520;
   height: var(--tabs-h);
   background: color-mix(in oklab, var(--card) 90%, transparent);
   backdrop-filter: blur(10px);
@@ -354,6 +358,25 @@ input, button, select, textarea { font-family: inherit; }
 .app-tab.active { color: var(--accent); }
 .app-tab.active svg { opacity: 1; }
 .app-tab.active::after { background: var(--accent); }
+
+/* Пока открыта модалка, шапка лежит поверх затемнения. Полупрозрачный фон на
+   нём читается как часть подложки — делаем его сплошным и приподнимаем тенью,
+   чтобы было видно: по вкладкам можно кликать. */
+body.modal-open .app-tabs {
+  background: var(--card);
+  box-shadow: var(--shadow-1);
+}
+/* Точка на вкладке «Записи», пока висит незакрытый черновик записи: ушёл
+   считать стоимость — видно, что есть куда вернуться. */
+.app-tab.has-draft::before {
+  content: '';
+  position: absolute;
+  top: 9px; right: 7px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--card);
+}
 
 /* Аватарка вместо иконки у вкладки «Профиль» (перебиваем размер .avatar-circle) */
 .app-tab-avatar.avatar-circle {
@@ -1632,7 +1655,13 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .role-prefix-green { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
 
 /* ── Модалки (общие) ────────────────────────────────────────────── */
-.modal { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; padding: 16px; }
+/* Отступ сверху — на высоту ряда вкладок: он лежит поверх модалки (см.
+   .app-tabs), и окно не должно заезжать под него. */
+.modal {
+  position: fixed; inset: 0; z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(var(--tabs-h) + 16px) 16px 16px;
+}
 .modal-backdrop { position: absolute; inset: 0; background: var(--overlay); backdrop-filter: blur(2px); }
 .modal-win {
   position: relative;

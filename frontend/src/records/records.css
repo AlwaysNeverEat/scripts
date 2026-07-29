@@ -875,6 +875,16 @@
 .rc-modal-body { max-height: min(76vh, 720px); overflow: auto; }
 .rc-modal-body-map { max-height: none; overflow: visible; }
 
+/* Подпись под заголовком окна: про неё нужно знать один раз, поэтому она
+   тихая — вкладки сверху остаются кликабельными и черновик переживает уход. */
+.rc-modal-note {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--sub);
+}
+
 .rc-field-row { display: flex; gap: 10px; }
 .rc-grow { flex: 1; }
 
