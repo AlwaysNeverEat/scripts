@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Проверка доступности — что режется без VPN</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 24px;
+    background: #0f0f12; color: #e8e8ec;
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .sub { color: #9a9aa8; margin: 0 0 20px; font-size: 14px; }
+  .field { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  input {
+    flex: 1; min-width: 260px; padding: 9px 12px;
+    background: #17171c; color: inherit;
+    border: 1px solid #2c2c36; border-radius: 8px; font: inherit;
+  }
+  button {
+    padding: 9px 18px; border-radius: 8px; border: 0; cursor: pointer;
+    background: #4f7cff; color: #fff; font: inherit; font-weight: 600;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button.sec { background: #2c2c36; color: #e8e8ec; }
+  .hint { color: #7a7a88; font-size: 13px; margin: 0 0 20px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #23232c; }
+  th { color: #9a9aa8; font-weight: 500; font-size: 13px; }
+  td.host { font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all; }
+  td.what { color: #9a9aa8; font-size: 13px; }
+  td.res { white-space: nowrap; font-weight: 600; }
+  .ok { color: #56d364; }
+  .bad { color: #ff6b6b; }
+  .wait { color: #9a9aa8; font-weight: 400; }
+  .slow { color: #e3b341; }
+  pre {
+    background: #17171c; border: 1px solid #2c2c36; border-radius: 8px;
+    padding: 14px; white-space: pre-wrap; word-break: break-all;
+    font: 13px/1.5 ui-monospace, Consolas, monospace; color: #c9c9d4;
+  }
+  .verdict { border-left: 3px solid #4f7cff; padding-left: 14px; margin: 18px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Что режется без VPN</h1>
+<p class="sub">
+  Открой этот файл <b>без VPN</b> — он по очереди стучится во все хосты, из
+  которых собран сайт, и показывает, какие отвечают, а какие нет. Потом можно
+  повторить с VPN и сравнить.
+</p>
+
+<div class="field">
+  <input id="api" placeholder="URL backend'а на Render, например https://cars-db-backend.onrender.com"/>
+  <button id="run">Проверить</button>
+</div>
+<p class="hint">
+  Поле можно оставить пустым — тогда backend просто не проверится, остальное
+  проверится всё равно. URL берётся из настроек Render (или из repository
+  variable <code>VITE_API_BASE</code>) — без слэша в конце.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Хост</th><th>Что это</th><th>Результат</th></tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<div id="verdict"></div>
+
+<h1 style="font-size:16px">Итог для отправки</h1>
+<p class="sub">Скопируй это и пришли — по нему видно, какой участок чинить.</p>
+<pre id="report">— запусти проверку —</pre>
+<button class="sec" id="copy">Скопировать итог</button>
+
+</div>
+
+<script>
+// Как это работает: fetch в режиме no-cors. Прочитать ответ нельзя (браузер
+// отдаёт opaque), но нам и не нужно — важен сам факт, что соединение
+// установилось и ответ пришёл. Если хост режется, fetch падает или виснет до
+// таймаута. Именно так это видит и сам сайт.
+const TIMEOUT = 12000;
+const SLOW = 3000; // дольше этого — «доходит, но еле-еле», тоже симптом шейпинга
+
+const targets = [
+  {
+    key: 'pages',
+    url: 'https://alwaysnevereat.github.io/scripts/',
+    what: 'Сам сайт (GitHub Pages) — если красный, страница не откроется вообще',
+  },
+  {
+    key: 'api',
+    url: null, // подставляется из поля ввода
+    what: 'Backend (Render) — если красный, сайт виснет на чёрном boot-экране',
+  },
+  {
+    key: 'raw',
+    url: 'https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/package.json',
+    what: 'Раздача юзерскриптов — если красный, не работают кнопки «Установить»',
+  },
+  {
+    key: 'fonts',
+    url: 'https://fonts.googleapis.com/css2?family=Unbounded&display=swap',
+    what: 'Шрифты Google — если красный, страница долго белая',
+  },
+  {
+    key: 'tiles',
+    url: 'https://a.basemaps.cartocdn.com/dark_all/3/4/2.png',
+    what: 'Тайлы карты — если красный, в «Записях» серая карта без подложки',
+  },
+  {
+    key: 'geo',
+    url: 'https://nominatim.openstreetmap.org/search?q=spb&format=json',
+    what: 'Геокодер карты — если красный, не ищутся адреса станций',
+  },
+];
+
+const rowsEl = document.getElementById('rows');
+const reportEl = document.getElementById('report');
+const verdictEl = document.getElementById('verdict');
+const runBtn = document.getElementById('run');
+const apiInput = document.getElementById('api');
+
+// Пробуем один хост. Возвращает { ok, ms, err }.
+async function probe(url) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT);
+  const t0 = performance.now();
+  try {
+    await fetch(url, { mode: 'no-cors', cache: 'no-store', signal: ctl.signal });
+    return { ok: true, ms: Math.round(performance.now() - t0) };
+  } catch (err) {
+    return {
+      ok: false,
+      ms: Math.round(performance.now() - t0),
+      err: err.name === 'AbortError' ? 'таймаут — соединение повисло' : 'соединение не установилось',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function run() {
+  runBtn.disabled = true;
+  rowsEl.textContent = '';
+  verdictEl.textContent = '';
+
+  const base = apiInput.value.trim().replace(/\/+$/, '');
+  const list = targets.map(t => ({
+    ...t,
+    url: t.key === 'api' ? (base ? base + '/health' : null) : t.url,
+  }));
+
+  const results = {};
+  const cells = {};
+
+  for (const t of list) {
+    const tr = document.createElement('tr');
+    const host = document.createElement('td');
+    host.className = 'host';
+    host.textContent = t.url ? new URL(t.url).host : '— не задан —';
+    const what = document.createElement('td');
+    what.className = 'what';
+    what.textContent = t.what;
+    const res = document.createElement('td');
+    res.className = 'res wait';
+    res.textContent = t.url ? '…' : 'пропущен';
+    tr.append(host, what, res);
+    rowsEl.appendChild(tr);
+    cells[t.key] = res;
+  }
+
+  // Последовательно, а не параллельно: параллельные запросы делят канал и
+  // портят замер времени, а время тут — половина диагноза.
+  for (const t of list) {
+    if (!t.url) { results[t.key] = { skipped: true }; continue; }
+    const r = await probe(t.url);
+    results[t.key] = r;
+    const cell = cells[t.key];
+    cell.className = 'res ' + (r.ok ? (r.ms > SLOW ? 'slow' : 'ok') : 'bad');
+    cell.textContent = r.ok
+      ? (r.ms > SLOW ? `медленно, ${r.ms} мс` : `ок, ${r.ms} мс`)
+      : `нет, ${r.err}`;
+  }
+
+  render(results, base);
+  runBtn.disabled = false;
+}
+
+function render(r, base) {
+  const dead = k => r[k] && !r[k].skipped && !r[k].ok;
+  const slow = k => r[k] && r[k].ok && r[k].ms > SLOW;
+
+  const lines = [];
+  if (dead('pages')) {
+    lines.push('Не открывается сам сайт (GitHub Pages). Правки в коде тут не помогут — нужен другой адрес для входа: свой домен на хостинге, который виден из РФ.');
+  }
+  if (dead('api')) {
+    lines.push('Не отвечает backend на Render. Сайт откроется, но повиснет на boot-экране. Лечится прокси: свой домен принимает запросы и переправляет их на Render.');
+  }
+  if (!dead('pages') && !dead('api') && (slow('pages') || slow('api'))) {
+    lines.push('Оба хоста отвечают, но медленно — это шейпинг. Симптом плавающий: то грузится, то нет. Тот же рецепт, что и при полной блокировке, только менее срочно.');
+  }
+  if (!dead('pages') && !dead('api') && !slow('pages') && !slow('api')) {
+    lines.push('Главные два хоста в порядке — значит в момент проверки канал был живой. Если сайт при этом не открывался, повтори проверку именно тогда, когда он не работает.');
+  }
+  if (dead('raw'))   lines.push('Не отдаётся raw.githubusercontent.com — кнопки «Установить скрипт» не сработают.');
+  if (dead('fonts')) lines.push('Не отвечают шрифты Google — страница будет долго белой.');
+  if (dead('tiles') || dead('geo')) lines.push('Не отвечает карта (тайлы/геокодер) — раздел «Записи» будет без подложки.');
+
+  verdictEl.innerHTML = '';
+  for (const line of lines) {
+    const p = document.createElement('p');
+    p.className = 'verdict';
+    p.textContent = line;
+    verdictEl.appendChild(p);
+  }
+
+  const rows = targets.map(t => {
+    const v = r[t.key];
+    if (!v || v.skipped) return `${t.key}: пропущен`;
+    return `${t.key}: ${v.ok ? 'ok' : 'FAIL (' + v.err + ')'} ${v.ms} мс`;
+  });
+  reportEl.textContent = [
+    'Проверка доступности, ' + new Date().toLocaleString('ru-RU'),
+    'backend: ' + (base || 'не задан'),
+    '',
+    ...rows,
+  ].join('\n');
+}
+
+document.getElementById('copy').onclick = () => {
+  navigator.clipboard.writeText(reportEl.textContent);
+};
+runBtn.onclick = run;
+</script>
+</body>
+</html>

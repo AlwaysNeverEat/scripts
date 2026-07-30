@@ -49,16 +49,25 @@ export async function apiFetch(path, { method = 'GET', body, isMultipart = false
 
     const res = await fetchRetry(API_BASE + path, { method, headers, body: fetchBody });
 
-    if (res.status === 401 && unlocked) {
-        // Полночь МСК (или бан) разлогинили нас посреди работы — назад к гейту.
-        unlocked = false;
-        setToken('');
-        currentUser = null;
-        showGate('Сессия истекла — войдите заново');
-        throw new Error('сессия истекла');
-    }
-
     const json = await res.json().catch(() => null);
+
+    if (res.status === 401 && unlocked) {
+        // 401 прилетает из двух разных мест, и путать их нельзя:
+        //   requireSession → 'invalid or expired session' — полночь МСК или бан,
+        //     сессии правда конец, гасим токен и уводим на гейт;
+        //   гейт x-api-key в index.js → 'invalid or missing x-api-key' — это
+        //     проблема деплоя (ключ на Render разъехался с ключом в сборке), а
+        //     токен юзера при этом целый. Стереть его тут — значит разлогинить
+        //     всех разом из-за серверной оплошности и заставить входить заново.
+        const reason = (json && typeof json.error === 'string') ? json.error : '';
+        if (!reason.includes('x-api-key')) {
+            unlocked = false;
+            setToken('');
+            currentUser = null;
+            showGate('Сессия истекла — войдите заново');
+            throw new Error('сессия истекла');
+        }
+    }
     if (!res.ok) {
         // error бывает строкой (старые роуты) или объектом {code, message} (CRM-прокси)
         const errVal = json && json.error;
