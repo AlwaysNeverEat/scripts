@@ -2,6 +2,7 @@ import { initCarPage } from './carPage.js';
 import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
 import { fetchRetry } from './netRetry.js';
+import { startKeepAlive } from './keepAlive.js';
 import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
@@ -598,6 +599,10 @@ async function bootPrepare(log) {
 window.addEventListener('hashchange', renderRoute);
 
 bootScreen((API_BASE || '') + '/health', { prepare: bootPrepare }).then(async (result) => {
+    // Соединение до бэкенда дорого только на этапе установки — дальше держим
+    // его открытым, чтобы каждый клик не начинался с нового хендшейка.
+    startKeepAlive((API_BASE || '') + '/health');
+
     let authed = result && result.authed;
     if (authed === undefined) {
         // Skip-путь: юзер нажал «Continue» до пробуждения сервера — как раньше.
