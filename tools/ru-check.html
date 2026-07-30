@@ -92,8 +92,13 @@ const SLOW = 3000; // дольше этого — «доходит, но еле-
 const targets = [
   {
     key: 'pages',
-    url: 'https://alwaysnevereat.github.io/scripts/',
-    what: 'Сам сайт (GitHub Pages) — если красный, страница не откроется вообще',
+    url: 'https://k-spot.ru/',
+    what: 'Сам сайт (свой домен на GitHub Pages) — если красный, страница не откроется вообще',
+  },
+  {
+    key: 'apidomain',
+    url: 'https://api.k-spot.ru/health',
+    what: 'Backend под своим именем — ради него всё и затевалось, см. итог ниже',
   },
   {
     key: 'api',
@@ -224,6 +229,14 @@ function render(r, base) {
   if (!dead('pages') && !dead('api') && !slow('pages') && !slow('api')) {
     lines.push('Главные два хоста в порядке — значит в момент проверки канал был живой. Если сайт при этом не открывался, повтори проверку именно тогда, когда он не работает.');
   }
+  // Итог главного эксперимента: тот же сервер Render, но под своим именем.
+  // Если он жив, а onrender.com мёртв — режут по имени, и переезд состоялся.
+  if (r.apidomain && r.apidomain.ok && dead('api')) {
+    lines.push('ПОЛУЧИЛОСЬ: api.k-spot.ru отвечает, а onrender.com — нет. Это один и тот же сервер, разница только в имени хоста. Значит режут по имени, и свой домен проблему снял. Осталось прописать его в VITE_API_BASE и перевыкатить сайт.');
+  } else if (r.apidomain && !r.apidomain.skipped && !r.apidomain.ok && dead('api')) {
+    lines.push('НЕ ПОМОГЛО: не отвечает ни onrender.com, ни api.k-spot.ru. Раз имя сменилось, а результат тот же — режут по адресам Cloudflare, за которым живёт Render. Своим доменом это не обойти, нужна точка входа вне Cloudflare (VPS).');
+  }
+
   if (dead('raw'))   lines.push('Не отдаётся raw.githubusercontent.com — кнопки «Установить скрипт» не сработают.');
   if (dead('fonts')) lines.push('Не отвечают шрифты Google — страница будет долго белой.');
   if (dead('tiles') || dead('geo')) lines.push('Не отвечает карта (тайлы/геокодер) — раздел «Записи» будет без подложки.');
