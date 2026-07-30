@@ -1160,6 +1160,53 @@ input[data-edit-filter-absent]:checked::after {
 .appr-hit  { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
 .appr-hier { background: var(--blue-dim);  border: 1px solid var(--blue);  color: var(--blue); }
 .appr-other, .appr-tag { background: var(--bg3); border: 1px solid var(--border); color: var(--sub); }
+/* Разбор допусков машины: ранг значимости + панель с объяснением.
+   Цвет здесь — не украшение: он показывает, что решает выбор масла, а что
+   попало в список из паспорта чужого масла и на подбор не влияет. */
+.appr-summary {
+  font-size: 11.5px; color: var(--sub); line-height: 1.5;
+  padding: 8px 10px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 7px;
+}
+.appr-summary b { color: var(--text); }
+.appr-class {
+  display: inline-block; margin-left: 6px; padding: 1px 7px;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: 5px; font-size: 10.5px;
+}
+.appr-warn {
+  margin-top: 6px; padding: 7px 10px; font-size: 11px; line-height: 1.5;
+  background: var(--red-dim); border: 1px solid var(--red); border-radius: 7px;
+  color: var(--text); cursor: help;
+}
+.appr-group { margin-top: 8px; }
+.appr-group-h {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--sub); margin-bottom: 3px;
+}
+.appr-chip {
+  display: inline-block; font-size: 10.5px; border-radius: 5px;
+  padding: 2px 7px; margin: 2px 2px 0 0; line-height: 1.5;
+  cursor: help; outline: none;
+}
+.appr-chip:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.appr-critical  { background: var(--red-dim);   border: 1px solid var(--red);    color: var(--red); font-weight: 600; }
+.appr-important { background: var(--green-dim); border: 1px solid var(--green);  color: var(--green); }
+.appr-minor     { background: var(--blue-dim);  border: 1px solid var(--blue);   color: var(--blue); }
+.appr-conflict  { background: var(--bg3);       border: 1px dashed var(--red);   color: var(--sub); text-decoration: line-through; }
+.appr-info      { background: var(--bg3);       border: 1px solid var(--border); color: var(--sub); }
+.appr-noise     { background: transparent;      border: 1px solid var(--border); color: var(--sub); opacity: .55; }
+.appr-noise:hover { opacity: 1; }
+/* Допуск, которого в списке машины не было — добавлен по рекомендации Motul */
+.appr-added b { color: inherit; }
+.appr-why {
+  margin-top: 10px; padding: 9px 11px; min-height: 46px;
+  font-size: 11.5px; line-height: 1.55; color: var(--sub);
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 7px;
+  white-space: pre-line;
+}
+.appr-why b { color: var(--text); }
+
 .appr-more {
   font-size: 11px; color: var(--sub); cursor: pointer; text-decoration: underline dotted;
 }
@@ -1200,6 +1247,7 @@ input[data-edit-filter-absent]:checked::after {
 .oil-pick-opt.cur { border-color: var(--accent); background: var(--accent-dim); }
 .oil-pick-hits { color: var(--green); font-size: 10.5px; }
 .oil-pick-miss { color: var(--red); font-size: 10.5px; }
+.oil-pick-block { color: var(--red); font-size: 10.5px; font-weight: 600; cursor: help; }
 
 /* ── Итого ──────────────────────────────────────────────────────── */
 .total-block {

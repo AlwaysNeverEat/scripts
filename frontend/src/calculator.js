@@ -3,7 +3,7 @@ import {
     roundL, getAggregates, shouldDefaultToPartial,
     filtersTotal, anyFilterEnabled, calcForAggregate,
     pickAtfOils, totalAggLabel, totalOilLabel, computeTotalSum,
-    splitOilApprovals, matchOilToReglament, manualWarnText,
+    splitOilApprovals, matchOilToReglament, manualWarnText, sapsLabel,
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
 import { extractViscosity } from '../../shared/crmAnalyse.js';
@@ -452,7 +452,12 @@ function renderAggCard(agg, calcState, carApprovals) {
     }
 
     const showApp = calcState.showApprovals.has(agg.key);
-    const appCount = agg.group === 'engine' ? carApprovals.length : (agg.approvals || []).length;
+    // У ДВС считаем по разбору, а не по сырому списку: в разбор дописываются
+    // допуска, подтверждённые Motul, но потерянные источником, — иначе на
+    // кнопке «29», а внутри «из 31».
+    const appCount = agg.group === 'engine'
+        ? (agg.approvalAnalysis ? agg.approvalAnalysis.items.length : carApprovals.length)
+        : (agg.approvals || []).length;
     // Допуска агрегатов теперь правятся вручную («Нашли ошибку?»), поэтому у
     // всех неспецифичных агрегатов подпись одна — «Допуска» (раньше у штатных
     // стояло «Продукты Motul», хотя это тот же список).
@@ -476,12 +481,85 @@ function renderAggCard(agg, calcState, carApprovals) {
     `;
 }
 
+// Порядок рангов сверху вниз: сначала то, что решает, потом фон.
+const RANK_ORDER = ['critical', 'important', 'minor', 'conflict', 'info', 'noise'];
+const RANK_TITLE = {
+    critical:  'решают выбор',
+    important: 'важны физически',
+    minor:     'перекрыты более строгими',
+    conflict:  'противоречат профилю',
+    info:      'уровень качества',
+    noise:     'к этой машине не относятся',
+};
+
+// Итог разбора одной строкой: что мотору реально нужно и на чём это основано.
+function approvalsSummary(a) {
+    if (!a) return '';
+    if (a.notOil) {
+        return 'В допусках этой машины лежит паспорт охлаждающей жидкости, а не масла. ' +
+               'Подбор идёт как для машины без допусков — проверь вручную.';
+    }
+    const bits = [];
+    if (a.profile.ash != null) bits.push(`${sapsLabel(a.profile.ash)} (зола ≤ ${a.profile.ash}%)`);
+    if (a.profile.hthsMin != null) bits.push(`HTHS ≥ ${a.profile.hthsMin}`);
+    const need = bits.length ? bits.join(', ') : 'определить не удалось';
+    const src = { high: 'подтверждено рекомендацией Motul по этой машине',
+                  medium: 'выведено по родным допускам марки',
+                  low: 'выведено только по классам ACEA — родных допусков в списке нет' }[a.confidence] || '';
+    return `Мотору нужно: ${need}. ${src ? '(' + src + ')' : ''}`;
+}
+
 function renderApprovalsBlock(agg, carApprovals) {
     const list = agg.group === 'engine' ? carApprovals : (agg.approvals || []);
-    if (!list.length) return '';
+    const a = agg.group === 'engine' ? agg.approvalAnalysis : null;
+
+    // Не ДВС либо режим «игнорировать допуска» — разбора нет, показываем как было.
+    if (!a) {
+        if (!list.length) return '';
+        return `<div class="approvals-block">
+            ${list.map(x => `<span class="appr-tag">${esc(x)}</span>`).join(' ')}
+        </div>`;
+    }
+    if (!a.items.length) return '';
+
+    const decisive = a.items.filter(i => i.rank === 'critical' || i.rank === 'important').length;
+    const groups = RANK_ORDER
+        .map(rank => ({ rank, items: a.items.filter(i => i.rank === rank) }))
+        .filter(g => g.items.length);
+
+    const chip = (it) => {
+        // title — нативная подсказка (работает всегда и на любом устройстве),
+        // data-why — текст для панели под списком.
+        const tip = `${it.label}\n${it.what}\n\n${it.why}`;
+        return `<span class="appr-chip appr-${it.rank}${it.fromEvidence ? ' appr-added' : ''}"
+            data-appr-why="${esc(it.why)}" data-appr-what="${esc(it.label + ' — ' + it.what)}"
+            tabindex="0" title="${esc(tip)}">${esc(it.label)}${it.fromEvidence ? ' <b>+</b>' : ''}</span>`;
+    };
+
+    const conflictNote = a.unionSuspect ? `
+        <div class="appr-warn" title="${esc(
+            (a.conflicts[0] && a.conflicts[0].note) ||
+            'В списке допуска сразу нескольких чужих марок.')}">
+            ⚠ Список собран из паспортов рекомендованных масел, а не из требований мотора —
+            поэтому строк так много и часть из них противоречит друг другу.
+        </div>` : '';
+
     return `
         <div class="approvals-block">
-            ${list.map(a => `<span class="appr-tag">${esc(a)}</span>`).join(' ')}
+            <div class="appr-summary">
+                <b>Решают ${decisive} из ${a.items.length}.</b> ${esc(approvalsSummary(a))}
+                ${agg.requiredClass ? `<span class="appr-class">класс ${esc(agg.requiredClass)}</span>` : ''}
+            </div>
+            ${conflictNote}
+            ${groups.map(g => `
+                <div class="appr-group">
+                    <div class="appr-group-h">${RANK_TITLE[g.rank]} (${g.items.length})</div>
+                    <div class="appr-group-list">${g.items.map(chip).join(' ')}</div>
+                </div>
+            `).join('')}
+            <div class="appr-why" data-appr-panel>
+                Наведи курсор на допуск — здесь появится, почему он важен или почему на него можно закрыть глаза.
+            </div>
         </div>
     `;
 }
@@ -627,6 +705,12 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                             if (rk && rk.classMiss) {
                                 hits += ` <span class="oil-pick-miss" title="У масла нет требуемого класса ACEA ${esc(rk.classMiss)} — предлагать с осторожностью">не ${esc(rk.classMiss)}</span>`;
                             }
+                            // Физически опасно для этого мотора (зола/HTHS) — из
+                            // основного выбора исключено, но показываем с причиной:
+                            // решение всё равно за оператором.
+                            if (rk && rk.blocked) {
+                                hits += ` <span class="oil-pick-block" title="${esc('Не подходит: ' + (rk.fitNotes || []).join('; '))}">⚠ не по допускам</span>`;
+                            }
                             const adsTip = (oil.ad || []).length ? ` title="${esc(oil.ad.join(', '))}"` : '';
                             const sL = stockLiters(calcState, oil);
                             const sHtml = sL === null ? '' : (sL > 0
@@ -727,6 +811,23 @@ function bindEvents(container, car, data, calcState, carApprovals) {
     // Flush chips
     container.querySelectorAll('[data-flush]').forEach(b => {
         b.onclick = () => { calcState.flush = b.dataset.flush; rerender(); };
+    });
+
+    // Подсказка по допуску: наведение мышью или фокус с клавиатуры пишет
+    // причину в панель под списком. Нативный title тоже стоит — на тач-экранах
+    // hover не существует, а long-press показывает именно его.
+    container.querySelectorAll('.approvals-block').forEach(block => {
+        const panel = block.querySelector('[data-appr-panel]');
+        if (!panel) return;
+        const idle = panel.textContent;
+        const show = (el) => {
+            panel.innerHTML = `<b>${esc(el.dataset.apprWhat || '')}</b><br>${esc(el.dataset.apprWhy || '')}`;
+        };
+        block.querySelectorAll('[data-appr-why]').forEach(chip => {
+            chip.addEventListener('mouseenter', () => show(chip));
+            chip.addEventListener('focus', () => show(chip));
+        });
+        block.addEventListener('mouseleave', () => { panel.textContent = idle; });
     });
 
     // Ignore approvals

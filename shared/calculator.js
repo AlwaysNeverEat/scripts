@@ -9,6 +9,11 @@
 
 import { getShopOils, getDefaults, getReglamentForBrand } from './oils.js';
 import { isDieselFuel } from './fuel.js';
+import {
+    analyzeCarApprovals, specsFromProductNames, oilFitsProfile, aceaClassOfProfile,
+} from './approvals.js';
+
+export { analyzeCarApprovals, specsFromProductNames, oilFitsProfile, aceaClassOfProfile, sapsLabel, RANKS } from './approvals.js';
 
 export const roundL = (x) => {
     const n = Number(x);
@@ -328,6 +333,68 @@ export function anyFilterEnabled(calcState) {
 // ── Engine oil picker ─────────────────────────────────────────────────────────
 // carApprovals: string[] from Ravenol/Rolf lookup (GM_getValue in userscript,
 // empty array or DB-stored value in frontend).
+//
+// ВАЖНО про скоринг. Раньше каждый совпавший допуск давал +10 независимо от
+// того, что это за допуск. Но список допусков машины — это объединение
+// паспортов рекомендованных масел (см. shared/approvals.js): у 97.6% машин там
+// допуска сразу трёх и более чужих марок. При равном весе побеждало масло с
+// самым длинным паспортом, а не подходящее мотору. Теперь вес допуска — это
+// цена ошибки по нему: родной допуск марки 100, физический класс ACEA 40,
+// перекрытая ветка 12, уровень API 2, чужая марка 0.
+
+// Одно обязательство — один балл. VW 504 00 и VW 507 00 в списке машины это
+// бензиновая и дизельная версии ОДНОГО требования, а «ACEA C2» и «ACEA C3»
+// рядом — вообще след того, что список собран из паспортов разных масел.
+// Складывая их, мы снова считали бы длину паспорта: у Skoda Citigo побеждало
+// Top Tec за 2400₽ только потому, что у него в списке лишняя строка C2, хотя
+// ROLF Professional C3 за 1700₽ закрывает ровно те же требования.
+// Поэтому баллы группируются по источнику обязательства (марка или «ACEA»),
+// и внутри группы берётся лучшее совпадение, а не сумма.
+function requirementGroup(item) {
+    if (item.role === 'acea') return 'ACEA';
+    if (item.role === 'api') return 'API';
+    return item.family || item.role || item.label;
+}
+
+// Строит функцию оценки масла по разобранным допускам машины.
+// Возвращает { oil, score, direct, hier, blocked, fitNotes }.
+function buildOilRater(analysis) {
+    const scoredItems = analysis ? analysis.items.filter(i => i.weight > 0) : [];
+    return (oil) => {
+        const oilTokens = tokenSet(oil.a);
+        const covered = expandCoveredTokens(oilTokens);
+        const best = new Map();
+        const direct = [], hier = [];
+        for (const item of scoredItems) {
+            // Иерархию проверяем в старой нормализации (normApproval/tokenSet):
+            // таблица APPROVAL_SUPERSEDES_RULES построена в ней же.
+            const tk = tokenSet(item.parts);
+            let hit = false;
+            for (const t of tk) if (oilTokens.has(t)) { hit = true; break; }
+            let gained = 0;
+            if (hit) {
+                gained = item.weight;
+                direct.push(item.label);
+            } else {
+                let via = null;
+                for (const t of tk) { const lab = covered.get(t); if (lab) { via = lab.via; break; } }
+                // Старший допуск покрывает младший, но это не прямое
+                // одобрение — засчитываем 70% веса.
+                if (via) { gained = Math.round(item.weight * 0.7); hier.push({ covers: item.label, via }); }
+            }
+            if (!gained) continue;
+            const key = requirementGroup(item);
+            if (gained > (best.get(key) || 0)) best.set(key, gained);
+        }
+        let score = 0;
+        for (const v of best.values()) score += v;
+        const fit = analysis
+            ? oilFitsProfile(oil.a, analysis)
+            : { blocked: false, penalty: 0, notes: [] };
+        return { oil, score: score - fit.penalty, direct, hier,
+                 blocked: fit.blocked, fitNotes: fit.notes };
+    };
+}
 
 export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const mileage = calcState.mileage;
@@ -350,12 +417,10 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         const visc0w = mileage === '0w20' ? '0W-20' : '0W-30';
         const oils0w = shopOils.filter(o => o.v === visc0w && !o.isSpot);
         const carApp0w = Array.isArray(carApprovals) ? carApprovals : [];
-        const carTok0w = calcState.ignoreApprovals ? new Set() : tokenSet(carApp0w);
-        const rated0w = oils0w.map(oil => {
-            const oilTok = tokenSet(oil.a); let score = 0;
-            if (!calcState.ignoreApprovals) for (const t of carTok0w) if (oilTok.has(t)) score += 10;
-            return { oil, score };
-        });
+        const analysis0w = calcState.ignoreApprovals ? null : analyzeApprovalsFor(agg, calcState, carApp0w);
+        const rate0w = buildOilRater(analysis0w);
+        const rated0w = oils0w.map(rate0w);
+        agg.approvalAnalysis = analysis0w;
         rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
         const fallback0w = mileage === '0w20'
             ? { b:'ZIC', n:'X9 FE 0W-20', price:1550, v:'0W-20', a:['API SP'], ad:[] }
@@ -379,6 +444,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const approvals = Array.isArray(carApprovals) ? carApprovals : [];
     const carTokens = tokenSet(approvals);
     const effectiveCarTokens = calcState.ignoreApprovals ? new Set() : carTokens;
+    const analysis = calcState.ignoreApprovals ? null : analyzeApprovalsFor(agg, calcState, approvals);
 
     const needA5B5 = [...effectiveCarTokens].some(t => /A5B5|ACEAA5B5|ACEAA5|ACEAB5/.test(t));
     const needC3   = [...effectiveCarTokens].some(t => /ACEAC3|^C3$/.test(t));
@@ -396,59 +462,50 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         return true;
     };
 
+    // Требуемый класс берём из выведенного профиля — он учитывает и родство
+    // марки, и второй источник. Старое сканирование сырых строк оставлено
+    // запасным путём: там, где физику вывести не удалось, оно всё ещё лучше,
+    // чем ничего. Порядок в нём — от более жидкого к более густому, потому что
+    // ошибка «залили гуще» дешевле, чем «залили жиже».
     let requiredClass = null;
     if (!calcState.ignoreApprovals) {
-        if (needA5B5) requiredClass = 'A5B5';
-        else if (needC3) requiredClass = 'C3';
-        else if (needC2) requiredClass = 'C2';
-        else if (needC1) requiredClass = 'C1';
-        else if (needA3B4) requiredClass = 'A3B4';
+        requiredClass = aceaClassOfProfile(analysis && analysis.profile);
+        if (!requiredClass) {
+            if (needA5B5) requiredClass = 'A5B5';
+            else if (needC3) requiredClass = 'C3';
+            else if (needC2) requiredClass = 'C2';
+            else if (needC1) requiredClass = 'C1';
+            else if (needA3B4) requiredClass = 'A3B4';
+        }
     }
 
     const poolAll = shopOils.filter(o => o.v === targetVisc && !o.isSpot);
-    let candidates = poolAll;
-    if (requiredClass) {
-        const filtered = poolAll.filter(o => hasAceaClass(o, requiredClass));
-        if (filtered.length) candidates = filtered;
+
+    // Отдельные бонусы «та же марка, что у машины» больше не нужны: родство
+    // марки теперь учтено в самом весе допуска (родной допуск = 100, чужой = 0).
+    const rateOil = buildOilRater(analysis);
+
+    // Оцениваем ВСЮ вязкость сразу: пикеру нужен полный список, а основной
+    // выбор берём из безопасного подмножества.
+    const ratedAll = poolAll.map(rateOil);
+    for (const r of ratedAll) {
+        if (!requiredClass) continue;
+        if (hasAceaClass(r.oil, requiredClass)) r.score += 30;
+        else r.classMiss = requiredClass;
     }
+    ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
 
-    const carMake  = (car.makeShort || '').toUpperCase();
-    const hasFord  = carMake === 'FORD' || [...effectiveCarTokens].some(t => /FORDWSS|WSSM2C/.test(t));
-    const hasMB    = [...effectiveCarTokens].some(t => /^MB\d/.test(t));
-    const hasVW    = [...effectiveCarTokens].some(t => /^VW\d|^VW50/.test(t));
-    const hasBMW   = [...effectiveCarTokens].some(t => /^LL\d|LL01|LL04|LL98/.test(t));
-    const hasRN    = [...effectiveCarTokens].some(t => /^RN\d|RN0700|RN0710/.test(t));
-    const hasGM    = [...effectiveCarTokens].some(t => /^GM\d|DEXOS/.test(t));
+    // Основной выбор (идёт в отчёт) исключает только физически опасные масла.
+    // Промах мимо требуемого класса ACEA сам по себе НЕ исключает: ограничение
+    // одностороннее. Мотору, которому хватает полнозольного (BMW LL-01), можно
+    // лить среднезольное C3 — оно строже, а строже всегда безопасно. Обратное
+    // (полнозольное в мотор с сажевым фильтром) как раз и ловит blocked.
+    // Совпадение класса влияет через бонус к рейтингу, а не через фильтр.
+    let eligible = ratedAll.filter(r => !r.blocked);
+    if (!eligible.length) eligible = ratedAll;
 
-    const rateOil = (oil) => {
-        const oilTokens = tokenSet(oil.a); let score = 0;
-        const direct = [], hier = [];
-        if (!calcState.ignoreApprovals) {
-            // прямое совпадение допуска — вес 10
-            for (const carTok of effectiveCarTokens) {
-                if (oilTokens.has(carTok)) { score += 10; direct.push(carTok); }
-            }
-            // покрытие через иерархию (MB 229.5 ⊃ 229.3 и т.п.) — вес 7
-            const covered = expandCoveredTokens(oilTokens);
-            for (const carTok of effectiveCarTokens) {
-                if (oilTokens.has(carTok)) continue;
-                const label = covered.get(carTok);
-                if (label) { score += 7; hier.push({ covers: carTok, via: label.via }); }
-            }
-            if (hasFord && [...oilTokens].some(t => /FORDWSS|WSSM2C/.test(t))) score += 5;
-            if (hasMB   && [...oilTokens].some(t => /^MB\d/.test(t))) score += 3;
-            if (hasVW   && [...oilTokens].some(t => /^VW\d|^VW50/.test(t))) score += 3;
-            if (hasBMW  && [...oilTokens].some(t => /^LL\d|LL01|LL04/.test(t))) score += 3;
-            if (hasRN   && [...oilTokens].some(t => /^RN\d/.test(t))) score += 3;
-            if (hasGM   && [...oilTokens].some(t => /^GM\d|DEXOS/.test(t))) score += 3;
-        }
-        return { oil, score, direct, hier };
-    };
-
-    const rated = candidates.map(rateOil);
-    rated.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-    const maxScore   = rated[0] ? rated[0].score : 0;
-    const topMatches = rated.filter(r => r.score === maxScore);
+    const maxScore   = eligible[0] ? eligible[0].score : 0;
+    const topMatches = eligible.filter(r => r.score === maxScore);
     topMatches.sort((a, b) => a.oil.price - b.oil.price);
     const midIdx = topMatches.length <= 2 ? 0 : Math.floor(topMatches.length / 2);
     const mid = topMatches[midIdx].oil;
@@ -466,30 +523,36 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         spot = spotCandidates.find(o => o.tier === (needPro ? 'pro' : 'optimal')) || spotCandidates[0];
     }
 
-    // Полный рейтинг по ВСЕЙ вязкости — для пикера. Требуемый класс ACEA не
-    // прячет масла: совпадение класса — бонус к рейтингу, несовпадение —
-    // пометка classMiss (UI показывает «не C3»), выбор за оператором.
-    // Основной выбор (mid, идёт в отчёт) по-прежнему только из масел
-    // требуемого класса — это защита от опасных рекомендаций (DPF и т.п.).
-    let ratedAll = rated;
-    if (candidates !== poolAll) {
-        ratedAll = poolAll.map(oil => {
-            const r = rateOil(oil);
-            if (hasAceaClass(oil, requiredClass)) r.score += 8;
-            else r.classMiss = requiredClass;
-            return r;
-        });
-        ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-    }
-
     agg.approvals = approvals;
     agg.isDiesel = isDieselVehicle;
     agg.requiredClass = requiredClass;
+    // Разбор допусков — для подсказок в UI («почему этот допуск важен»)
+    agg.approvalAnalysis = analysis;
     agg.allCandidates = ratedAll.map(r => r.oil);
     agg.topCandidates = topMatches.map(r => r.oil);
-    // полный рейтинг с деталями совпадений — для пикера масел в UI
-    agg.ranked = ratedAll.map(r => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier, classMiss: r.classMiss || null }));
+    // Полный рейтинг с деталями совпадений — для пикера масел в UI. Масла с
+    // промахом по классу и заблокированные по физике не прячем: показываем с
+    // пометкой, решение за оператором.
+    agg.ranked = ratedAll.map(r => ({
+        oil: r.oil, score: r.score, direct: r.direct, hier: r.hier,
+        classMiss: r.classMiss || null,
+        blocked: r.blocked || false,
+        fitNotes: r.fitNotes || [],
+    }));
     return { mid, spot };
+}
+
+// Разбор допусков машины с подмешиванием второго источника — продуктов Motul
+// по этому же двигателю. Отдельная функция, потому что нужна и обычной ветке
+// подбора, и режимам 0W-20/0W-30.
+function analyzeApprovalsFor(agg, calcState, approvals) {
+    const car = calcState.car || {};
+    return analyzeCarApprovals(approvals, {
+        make: car.makeShort || car.make || '',
+        fuelType: car.fuelType,
+        yearFrom: car.yearFrom,
+        evidence: specsFromProductNames(agg.motulProducts || []),
+    });
 }
 
 // ── МКПП: спецификации, под которые у нас нет масла ──────────────────────────

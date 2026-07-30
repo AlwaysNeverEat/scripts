@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-    roundL, normApproval, tokenSet, anyMatch, splitOilApprovals,
+    roundL, normApproval, tokenSet, anyMatch, splitOilApprovals, sapsLabel,
     matchOilToReglament, extractAtfSpecs, oilAtfMatches, pickAtfOils,
     getAggregates, shouldDefaultToPartial,
     totalAggLabel, totalOilLabel, computeTotalSum,
@@ -1261,9 +1261,12 @@ function calcForAggregate(agg) {
                     ? `<div class="zm-bath-msg">🛁 послан в баню!</div>`
                     : calc.html}
                 <button class="zm-app-btn" data-app="${agg.key}">
-                    ${showApp ? '▾' : '▸'} ${agg.group === 'engine' ? 'допуска машины' : 'продукты Motul'} (${(agg.approvals||[]).length})
+                    ${showApp ? '▾' : '▸'} ${agg.group === 'engine' ? 'допуска машины' : 'продукты Motul'} (${
+                        agg.group === 'engine' && agg.approvalAnalysis
+                            ? agg.approvalAnalysis.items.length
+                            : (agg.approvals||[]).length})
                 </button>
-                ${showApp ? `<div class="zm-app-list">${(agg.approvals||[]).map(x=>`<span class="zm-app-tag">${x}</span>`).join('') || '<i>не определены</i>'}</div>` : ''}
+                ${showApp ? renderApprovalsList(agg) : ''}
             </div>`;
         }).join('');
 
@@ -1524,6 +1527,55 @@ function calcForAggregate(agg) {
             .replace(/[ёе]/g, 'е')
             .replace(/[\s\-\/]+/g, '')
             .trim();
+    }
+
+    // ── Список допусков машины с разбором значимости ──
+    // Ранг допуска (решает / фон / шум) и причина в title: у машины их бывает
+    // 30+, и без пометок оператор не видит, какие 2-3 из них реально
+    // определяют выбор масла. Разбор живёт в shared/approvals.js.
+    const RANK_ORDER_ZM = ['critical', 'important', 'minor', 'conflict', 'info', 'noise'];
+    const RANK_TITLE_ZM = {
+        critical:  'решают выбор',
+        important: 'важны физически',
+        minor:     'перекрыты более строгими',
+        conflict:  'противоречат профилю',
+        info:      'уровень качества',
+        noise:     'к этой машине не относятся',
+    };
+
+    function renderApprovalsList(agg) {
+        const a = agg.group === 'engine' ? agg.approvalAnalysis : null;
+        const plain = (agg.approvals || []).map(x => `<span class="zm-app-tag">${escapeHtml(x)}</span>`).join('');
+        if (!a || !a.items.length) {
+            return `<div class="zm-app-list">${plain || '<i>не определены</i>'}</div>`;
+        }
+
+        const decisive = a.items.filter(i => i.rank === 'critical' || i.rank === 'important').length;
+        const need = [];
+        if (a.profile.ash != null) need.push(`${sapsLabel(a.profile.ash)} (зола ≤ ${a.profile.ash}%)`);
+        if (a.profile.hthsMin != null) need.push(`HTHS ≥ ${a.profile.hthsMin}`);
+
+        const groups = RANK_ORDER_ZM.map(rank => ({
+            rank, items: a.items.filter(i => i.rank === rank),
+        })).filter(g => g.items.length);
+
+        const warn = a.unionSuspect
+            ? `<div class="zm-app-warn" title="${escapeHtmlSafe((a.conflicts[0] && a.conflicts[0].note) || '')}">⚠ список собран из паспортов рекомендованных масел, а не из требований мотора</div>`
+            : '';
+
+        return `<div class="zm-app-list zm-app-list-col">
+            <div class="zm-app-sum"><b>решают ${decisive} из ${a.items.length}</b>${
+                need.length ? ' · мотору нужно: ' + escapeHtml(need.join(', ')) : ''
+            }${agg.requiredClass ? ' · класс ' + escapeHtml(agg.requiredClass) : ''}</div>
+            ${warn}
+            ${groups.map(g => `
+                <div class="zm-app-grp">
+                    <div class="zm-app-grp-h">${RANK_TITLE_ZM[g.rank]} (${g.items.length})</div>
+                    <div>${g.items.map(it =>
+                        `<span class="zm-app-tag zm-app-${it.rank}" title="${escapeHtmlSafe(it.label + '\n' + it.what + '\n\n' + it.why)}">${escapeHtml(it.label)}${it.fromEvidence ? ' +' : ''}</span>`
+                    ).join('')}</div>
+                </div>`).join('')}
+        </div>`;
     }
 
     // ── Рендер блока "допуска масла" + "присадки" (под строкой масла) ──
@@ -2419,7 +2471,21 @@ function calcForAggregate(agg) {
             .zm-app-btn{background:transparent;border:none;color:#7986cb;font-size:10px;cursor:pointer;padding:4px 0;margin-top:6px}
             .zm-app-btn:hover{color:#E67E00}
             .zm-app-list{padding:6px 8px;background:#0a0c12;border-radius:4px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}
-            .zm-app-tag{background:#1e2040;color:#9aa0b0;padding:2px 6px;border-radius:3px;font-size:10px;font-family:monospace}
+            .zm-app-tag{background:#1e2040;color:#9aa0b0;padding:2px 6px;border-radius:3px;font-size:10px;font-family:monospace;
+                margin:2px 3px 0 0;display:inline-block;cursor:help}
+            .zm-app-list-col{display:block}
+            .zm-app-sum{font-size:10px;color:#9aa0b0;line-height:1.5;margin-bottom:4px}
+            .zm-app-sum b{color:#E67E00}
+            .zm-app-warn{font-size:10px;color:#ff8a80;line-height:1.4;margin-bottom:6px;cursor:help}
+            .zm-app-grp{margin-top:5px}
+            .zm-app-grp-h{font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:#5a6070;margin-bottom:2px}
+            /* цвет = что решает выбор, а что попало в список из чужого паспорта */
+            .zm-app-critical{background:#3a1420;color:#ff8a80;border:1px solid #b04a4a}
+            .zm-app-important{background:#12301c;color:#7fd18a;border:1px solid #3f7a4a}
+            .zm-app-minor{background:#14203a;color:#7fa8e8;border:1px solid #3a5a8a}
+            .zm-app-conflict{background:#1a1a20;color:#8a8a95;border:1px dashed #b04a4a;text-decoration:line-through}
+            .zm-app-info{background:#1a1c28;color:#7a8090}
+            .zm-app-noise{background:transparent;color:#5a6070;border:1px solid #2a2d40}
             .zm-motul-prods{background:#0a0c12;border-radius:4px;padding:6px 8px;margin-top:6px}
             .zm-motul-t{color:#5a6070;font-size:10px;margin-bottom:3px}
             .zm-motul-p{display:inline-block;background:#1e2040;color:#7986cb;padding:1px 5px;border-radius:3px;font-size:10px;margin:1px;font-family:monospace}

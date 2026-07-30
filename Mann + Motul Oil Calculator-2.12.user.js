@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.407
+// @version      2.23.408
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -471,6 +471,1604 @@
     ).join("");
   }
 
+  // shared/approvals.js
+  var ASH_FULL = 1.5;
+  var ASH_MID = 0.8;
+  var ASH_LOW = 0.5;
+  var HTHS_HIGH = [3.5, Infinity];
+  var HTHS_MID = [2.9, 3.5];
+  var HTHS_LOW = [2.6, 2.9];
+  var FAMILY_MAKES = {
+    MB: ["MERCEDES", "MERCEDESBENZ", "MB", "SMART", "MAYBACH"],
+    VW: ["VW", "VOLKSWAGEN", "AUDI", "SKODA", "SEAT", "CUPRA", "PORSCHE"],
+    BMW: ["BMW", "MINI", "ROLLSROYCE"],
+    // Лада ставит допуска Renault на моторы H4M/HR16 и на 21179 — альянс общий
+    RN: ["RENAULT", "DACIA", "NISSAN", "INFINITI", "LADA", "ВАЗ", "ЛАДА", "VAZ"],
+    PSA: ["PEUGEOT", "CITROEN", "CITROËN", "DS", "OPEL", "VAUXHALL"],
+    GM: ["OPEL", "VAUXHALL", "CHEVROLET", "CADILLAC", "BUICK", "GMC", "SAAB", "DAEWOO", "RAVON"],
+    FORD: ["FORD"],
+    JLR: ["JAGUAR", "LANDROVER", "LAND ROVER"],
+    FIAT: ["FIAT", "ALFAROMEO", "ALFA", "LANCIA", "JEEP", "CHRYSLER", "DODGE", "RAM", "IVECO"],
+    PORSCHE: ["PORSCHE"],
+    VOLVO: ["VOLVO"],
+    VAZ: ["LADA", "ВАЗ", "ЛАДА", "VAZ"]
+  };
+  var FAMILY_LABEL = {
+    MB: "Mercedes-Benz",
+    VW: "концерн VAG",
+    BMW: "BMW",
+    RN: "Renault-Nissan",
+    PSA: "Stellantis (PSA)",
+    GM: "GM/Opel",
+    FORD: "Ford",
+    JLR: "Jaguar Land Rover",
+    FIAT: "Fiat/Stellantis",
+    PORSCHE: "Porsche",
+    VOLVO: "Volvo",
+    VAZ: "АвтоВАЗ"
+  };
+  var CYR_LOOKALIKE = {
+    А: "A",
+    В: "B",
+    Е: "E",
+    К: "K",
+    М: "M",
+    Н: "H",
+    О: "O",
+    Р: "P",
+    С: "C",
+    Т: "T",
+    У: "Y",
+    Х: "X"
+  };
+  function normSpec(s) {
+    return String(s || "").toUpperCase().replace(/АВТОВАЗ|ВАЗ/g, "VAZ").replace(/[АВЕКМНОРСТУХ]/g, (c) => CYR_LOOKALIKE[c]).replace(/MERCEDES[\s-]*BENZ|MERCEDES/g, "MB").replace(/VOLKSWAGEN/g, "VW").replace(/LONG\s*LIFE|LONGLIFE/g, "LL").replace(/RENAULT/g, "RN").replace(/JAGUAR\s*LAND\s*ROVER|LAND\s*ROVER|JAGUAR/g, "").replace(/APPROVAL|LICENSE.*$/g, "").replace(/[^A-Z0-9]/g, "").replace(/^(RN|MB|VW)\1/, "$1").replace(/^LL(?=\d)/, "BMWLL");
+  }
+  var SPEC_ALIASES = {
+    VW508: "VW50800",
+    VW509: "VW50900",
+    VW506: "VW50600",
+    VW507: "VW50700",
+    VW504: "VW50400",
+    VW502: "VW50200",
+    VW505: "VW50500",
+    DEXOS2: "GMDEXOS2",
+    DEXOS1: "GMDEXOS1"
+  };
+  var ACEA_PAIR_RE = /^\s*(?:ACEA\s*)?[AB]\d\s*\/\s*[AB]\d\s*$/i;
+  function splitCompound(raw) {
+    const s = String(raw || "").trim();
+    if (!s || !s.includes("/")) return s ? [s] : [];
+    if (ACEA_PAIR_RE.test(s)) return [s];
+    const parts = s.split("/").map((x) => x.trim()).filter(Boolean);
+    if (parts.length < 2) return [s];
+    const head = parts[0];
+    const prefixes = [];
+    const dash = head.lastIndexOf("-");
+    if (dash > 0) prefixes.push(head.slice(0, dash + 1));
+    const space = head.lastIndexOf(" ");
+    if (space > 0) prefixes.push(head.slice(0, space + 1));
+    const word = head.match(/^([A-Za-zА-Яа-я]+)\s+/);
+    if (word) prefixes.push(word[1] + " ");
+    const out = [head];
+    for (const part of parts.slice(1)) {
+      let picked = null;
+      for (const p of prefixes) {
+        const cand = p + part;
+        if (findSpec(cand, true)) {
+          picked = cand;
+          break;
+        }
+      }
+      out.push(picked || (prefixes[0] || "") + part);
+    }
+    if (!findSpec(out[0], true)) {
+      const last = out[out.length - 1];
+      for (let i = 1; i < last.length; i++) {
+        const cand = head + last.slice(i);
+        if (findSpec(cand, true)) {
+          out[0] = cand;
+          break;
+        }
+      }
+    }
+    return out;
+  }
+  var SPECS = [
+    // ── ACEA: европейские классы. Задают физику напрямую, марка не важна ──
+    {
+      id: "ACEAA3B4",
+      label: "ACEA A3/B4",
+      role: "acea",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное масло с HTHS ≥ 3.5. Полный пакет присадок, но зола забивает сажевый фильтр — только для моторов без DPF/GPF."
+    },
+    {
+      id: "ACEAA3B3",
+      label: "ACEA A3/B3",
+      role: "acea",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное с HTHS ≥ 3.5, предшественник A3/B4. Без сажевого фильтра."
+    },
+    {
+      id: "ACEAA5B5",
+      label: "ACEA A5/B5",
+      role: "acea",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Топливосберегающее, HTHS 2.9–3.5. Лить только в мотор, спроектированный под низкий HTHS: Ford Duratec/TDCi, Renault, Jaguar. В мотор под A3/B4 — риск износа вкладышей."
+    },
+    {
+      id: "ACEAA7B7",
+      label: "ACEA A7/B7",
+      role: "acea",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Развитие A3/B4 (2021): та же зольность и HTHS ≥ 3.5, плюс защита от LSPI и износа цепи."
+    },
+    {
+      id: "ACEAC1",
+      label: "ACEA C1",
+      role: "acea",
+      ash: ASH_LOW,
+      hths: HTHS_MID,
+      what: "Самый жёсткий по золе класс (≤0.5%) при HTHS 2.9–3.5. Ford/JLR под сажевый фильтр."
+    },
+    {
+      id: "ACEAC2",
+      label: "ACEA C2",
+      role: "acea",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Среднезольное (≤0.8%) и топливосберегающее, HTHS 2.9–3.5. Дизели PSA/Toyota с сажевым фильтром."
+    },
+    {
+      id: "ACEAC3",
+      label: "ACEA C3",
+      role: "acea",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Рабочая лошадка «под сажевый фильтр»: зола ≤0.8% при полноценном HTHS ≥ 3.5. Основа для MB 229.51, VW 504 00, LL-04, dexos2."
+    },
+    {
+      id: "ACEAC4",
+      label: "ACEA C4",
+      role: "acea",
+      ash: ASH_LOW,
+      hths: HTHS_HIGH,
+      what: "Малозольное (≤0.5%) при HTHS ≥ 3.5. Практически только Renault RN0720."
+    },
+    {
+      id: "ACEAC5",
+      label: "ACEA C5",
+      role: "acea",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      what: "HTHS 2.6–2.9 — сверхтекучее, ради экономии топлива. Только для моторов, где завод его прямо требует."
+    },
+    {
+      id: "ACEAC6",
+      label: "ACEA C6",
+      role: "acea",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      what: "HTHS 2.6–2.9 с защитой от LSPI (2021). Новые турбо-бензиновые с прямым впрыском."
+    },
+    {
+      id: "ACEAA1B1",
+      label: "ACEA A1/B1",
+      role: "acea",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Устаревший топливосберегающий класс с HTHS 2.9–3.5. Отменён ACEA, встречается только в старых паспортах."
+    },
+    {
+      id: "ACEAA2B2",
+      label: "ACEA A2/B2",
+      role: "acea",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Устаревший базовый класс, предшественник A3/B3."
+    },
+    // ── API / ILSAC: уровень качества, а не допуск ──
+    {
+      id: "APISP",
+      label: "API SP",
+      role: "api",
+      ash: null,
+      hths: null,
+      what: "Уровень качества API для бензиновых (2020): защита от LSPI и износа цепи. Обратно совместим с SN/SM/SL."
+    },
+    {
+      id: "APISNPLUS",
+      label: "API SN Plus",
+      role: "api",
+      ash: null,
+      hths: null,
+      what: "API SN с добавленной защитой от LSPI. Промежуточная ступень между SN и SP."
+    },
+    {
+      id: "APISN",
+      label: "API SN",
+      role: "api",
+      ash: null,
+      hths: null,
+      what: "Уровень качества API для бензиновых (2010)."
+    },
+    { id: "APISM", label: "API SM", role: "api", ash: null, hths: null, what: "Уровень качества API (2004)." },
+    { id: "APISL", label: "API SL", role: "api", ash: null, hths: null, what: "Уровень качества API (2001)." },
+    { id: "APISJ", label: "API SJ", role: "api", ash: null, hths: null, what: "Уровень качества API (1996)." },
+    { id: "APISQ", label: "API SQ", role: "api", ash: null, hths: null, what: "Новейший уровень качества API для бензиновых." },
+    {
+      id: "APICF",
+      label: "API CF",
+      role: "api",
+      ash: null,
+      hths: null,
+      what: "Старый дизельный уровень качества API (1994). На современный подбор не влияет."
+    },
+    {
+      id: "ILSACGF6A",
+      label: "ILSAC GF-6A",
+      role: "api",
+      ash: null,
+      hths: HTHS_MID,
+      what: "API SP + топливная экономичность. Японские и американские моторы под 0W-20/5W-30."
+    },
+    {
+      id: "ILSACGF5",
+      label: "ILSAC GF-5",
+      role: "api",
+      ash: null,
+      hths: HTHS_MID,
+      what: "API SN + топливная экономичность (2010)."
+    },
+    { id: "ILSACGF4", label: "ILSAC GF-4", role: "api", ash: null, hths: HTHS_MID, what: "Предшественник GF-5." },
+    {
+      id: "ILSACGF7A",
+      label: "ILSAC GF-7A",
+      role: "api",
+      ash: null,
+      hths: HTHS_MID,
+      what: "Новейший уровень ILSAC (2025) поверх API SQ. Обратно совместим с GF-6A."
+    },
+    {
+      id: "ILSACGF6B",
+      label: "ILSAC GF-6B",
+      role: "api",
+      ash: null,
+      hths: HTHS_LOW,
+      visc: ["0W-16"],
+      what: "Ветка ILSAC для сверхтекучих 0W-16. С GF-6A не взаимозаменяем."
+    },
+    // ── Mercedes-Benz ──
+    {
+      id: "MB2291",
+      label: "MB 229.1",
+      role: "oem",
+      family: "MB",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Базовый допуск MB 1990-х. Полнозольное, HTHS ≥ 3.5, обычный интервал."
+    },
+    {
+      id: "MB2293",
+      label: "MB 229.3",
+      role: "oem",
+      family: "MB",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Полнозольное с увеличенным интервалом. Для моторов БЕЗ сажевого фильтра."
+    },
+    {
+      id: "MB2295",
+      label: "MB 229.5",
+      role: "oem",
+      family: "MB",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Полнозольное, выше требования к экономии и интервалу, чем 229.3. Тоже без сажевого фильтра."
+    },
+    {
+      id: "MB22931",
+      label: "MB 229.31",
+      role: "oem",
+      family: "MB",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Среднезольное (≤0.8%) при HTHS ≥ 3.5 — версия 229.3 для моторов с сажевым фильтром."
+    },
+    {
+      id: "MB22951",
+      label: "MB 229.51",
+      role: "oem",
+      family: "MB",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Основной современный допуск MB: среднезольное, HTHS ≥ 3.5, сажевый фильтр + увеличенный интервал."
+    },
+    {
+      id: "MB22952",
+      label: "MB 229.52",
+      role: "oem",
+      family: "MB",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Ужесточённый 229.51: выше топливная экономичность и стойкость к окислению."
+    },
+    {
+      id: "MB2296",
+      label: "MB 229.6",
+      role: "oem",
+      family: "MB",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "Новое поколение MB (2019+), пониженный HTHS ради экономии топлива."
+    },
+    {
+      id: "MB22961",
+      label: "MB 229.61",
+      role: "oem",
+      family: "MB",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "Новое поколение MB для дизелей с сажевым фильтром: среднезольное с пониженным HTHS."
+    },
+    {
+      id: "MB2265",
+      label: "MB 226.5",
+      role: "oem",
+      family: "MB",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Для моторов MB на базе Renault (A/B-класс, Citan). Полнозольное, HTHS 2.9–3.5."
+    },
+    {
+      id: "MB2266",
+      label: "MB 226.6",
+      role: "oem",
+      family: "MB",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Версия 226.5 для моторов с сажевым фильтром."
+    },
+    // ── VAG ──
+    {
+      id: "VW50000",
+      label: "VW 500 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Старый энергосберегающий допуск VAG (до 1999)."
+    },
+    {
+      id: "VW50101",
+      label: "VW 501 01",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Базовый допуск VAG для атмосферных моторов (до 2000)."
+    },
+    {
+      id: "VW50200",
+      label: "VW 502 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное для бензиновых VAG, фиксированный интервал. Мотор БЕЗ сажевого фильтра."
+    },
+    {
+      id: "VW50300",
+      label: "VW 503 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "LongLife II для бензиновых: пониженный HTHS, интервал до 30 тыс. км."
+    },
+    {
+      id: "VW50301",
+      label: "VW 503 01",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "LongLife для нагруженных бензиновых (Audi S/RS-серии)."
+    },
+    {
+      id: "VW50400",
+      label: "VW 504 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "LongLife III для бензиновых: среднезольное (≤0.8%) при HTHS ≥ 3.5, интервал до 30 тыс. км, совместимо с сажевым фильтром."
+    },
+    {
+      id: "VW50500",
+      label: "VW 505 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное для дизелей VAG, фиксированный интервал. Без сажевого фильтра."
+    },
+    {
+      id: "VW50501",
+      label: "VW 505 01",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Для дизелей с насос-форсунками (PD-TDI): усиленная противозадирная защита кулачков."
+    },
+    {
+      id: "VW50600",
+      label: "VW 506 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "LongLife II для дизелей: пониженный HTHS, увеличенный интервал."
+    },
+    {
+      id: "VW50601",
+      label: "VW 506 01",
+      role: "oem",
+      family: "VW",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "LongLife II для дизелей с насос-форсунками."
+    },
+    {
+      id: "VW50700",
+      label: "VW 507 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "LongLife III для дизелей: среднезольное при HTHS ≥ 3.5. Обязательно при сажевом фильтре — полнозольное его убивает."
+    },
+    {
+      id: "VW50800",
+      label: "VW 508 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      drain: "long",
+      what: "HTHS 2.6–2.9, только 0W-20. Совершенно не взаимозаменяем с 504 00: другая вязкость и другой класс."
+    },
+    {
+      id: "VW50900",
+      label: "VW 509 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      drain: "long",
+      what: "Дизельный аналог 508 00: HTHS 2.6–2.9, только 0W-20."
+    },
+    {
+      id: "VW51100",
+      label: "VW 511 00",
+      role: "oem",
+      family: "VW",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "Новый LongLife VAG с пониженным HTHS для моторов последних поколений."
+    },
+    // ── BMW ──
+    {
+      id: "BMWLL98",
+      label: "BMW LL-98",
+      role: "oem",
+      family: "BMW",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Longlife-98: полнозольное, HTHS ≥ 3.5, моторы после 1998."
+    },
+    {
+      id: "BMWLL01",
+      label: "BMW LL-01",
+      role: "oem",
+      family: "BMW",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Longlife-01: полнозольное с увеличенным интервалом. Моторы БЕЗ сажевого фильтра."
+    },
+    {
+      id: "BMWLL01FE",
+      label: "BMW LL-01 FE",
+      role: "oem",
+      family: "BMW",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "Longlife-01 FE: пониженный HTHS 2.9–3.5. НЕ заменяет LL-01 — подходит не всем моторам, только тем, где завод его указал."
+    },
+    {
+      id: "BMWLL04",
+      label: "BMW LL-04",
+      role: "oem",
+      family: "BMW",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Longlife-04: среднезольное при HTHS ≥ 3.5. Обязательно для моторов с сажевым фильтром."
+    },
+    {
+      id: "BMWLL12FE",
+      label: "BMW LL-12 FE",
+      role: "oem",
+      family: "BMW",
+      ash: ASH_LOW,
+      hths: HTHS_MID,
+      drain: "long",
+      what: "Longlife-12 FE: малозольное 0W-30 с пониженным HTHS для дизелей BMW."
+    },
+    {
+      id: "BMWLL14FE",
+      label: "BMW LL-14 FE+",
+      role: "oem",
+      family: "BMW",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      drain: "long",
+      what: "HTHS 2.6–2.9, 0W-20. Только для моторов, где BMW его прямо требует."
+    },
+    {
+      id: "BMWLL17FE",
+      label: "BMW LL-17 FE+",
+      role: "oem",
+      family: "BMW",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      drain: "long",
+      what: "Развитие LL-14 FE+: HTHS 2.6–2.9, 0W-20."
+    },
+    // ── Renault-Nissan ──
+    {
+      id: "RN0700",
+      label: "RN 0700",
+      role: "oem",
+      family: "RN",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Базовый допуск Renault: бензин и атмосферный дизель, полнозольное. Допускает и A3/B4, и A5/B5 — сам по себе вязкость не определяет."
+    },
+    {
+      id: "RN0710",
+      label: "RN 0710",
+      role: "oem",
+      family: "RN",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Усиленный RN0700 для турбодизелей без сажевого фильтра: полнозольное, HTHS ≥ 3.5."
+    },
+    {
+      id: "RN0720",
+      label: "RN 0720",
+      role: "oem",
+      family: "RN",
+      ash: ASH_LOW,
+      hths: HTHS_HIGH,
+      what: "ACEA C4: малозольное (≤0.5%) для дизелей dCi с сажевым фильтром. Полнозольные RN0700/0710 сюда лить нельзя."
+    },
+    {
+      id: "RN17",
+      label: "RN 17",
+      role: "oem",
+      family: "RN",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Новое поколение допусков Renault для моторов Euro 6."
+    },
+    {
+      id: "VAZ",
+      label: "АвтоВАЗ",
+      role: "oem",
+      family: "VAZ",
+      ash: null,
+      hths: null,
+      what: "Одобрение АвтоВАЗа. Подтверждает пригодность для моторов Лады, физику масла не задаёт."
+    },
+    // ── PSA / Stellantis ──
+    {
+      id: "PSAB712290",
+      label: "PSA B71 2290",
+      role: "oem",
+      family: "PSA",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "ACEA C2: среднезольное с пониженным HTHS для дизелей PSA с сажевым фильтром (FAP)."
+    },
+    {
+      id: "PSAB712294",
+      label: "PSA B71 2294",
+      role: "oem",
+      family: "PSA",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Среднезольное с HTHS ≥ 3.5 (уровень C3) для моторов PSA."
+    },
+    {
+      id: "PSAB712295",
+      label: "PSA B71 2295",
+      role: "oem",
+      family: "PSA",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Старый полнозольный допуск PSA для моторов до 1998."
+    },
+    {
+      id: "PSAB712296",
+      label: "PSA B71 2296",
+      role: "oem",
+      family: "PSA",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное A3/B4 для бензиновых PSA без сажевого фильтра."
+    },
+    {
+      id: "PSAB712297",
+      label: "PSA B71 2297",
+      role: "oem",
+      family: "PSA",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Среднезольное (уровень C3) для бензиновых PSA Euro 5+."
+    },
+    {
+      id: "PSAB712293",
+      label: "PSA B71 2293",
+      role: "oem",
+      family: "PSA",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное для моторов PSA среднего возраста."
+    },
+    {
+      id: "PSAB712312",
+      label: "PSA B71 2312",
+      role: "oem",
+      family: "PSA",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Современный допуск Stellantis уровня C2 для моторов с сажевым фильтром."
+    },
+    // ── GM / Opel ──
+    {
+      id: "GMLLA025",
+      label: "GM-LL-A-025",
+      role: "oem",
+      family: "GM",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Полнозольное (A3) для бензиновых GM/Opel с увеличенным интервалом."
+    },
+    {
+      id: "GMLLB025",
+      label: "GM-LL-B-025",
+      role: "oem",
+      family: "GM",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Полнозольное (B3/B4) для дизелей GM/Opel без сажевого фильтра."
+    },
+    {
+      id: "GMDEXOS2",
+      label: "GM dexos2",
+      role: "oem",
+      family: "GM",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      drain: "long",
+      what: "Универсальный европейский допуск GM уровня C3: среднезольное при HTHS ≥ 3.5, совместимо с сажевым фильтром."
+    },
+    {
+      id: "GMDEXOS1",
+      label: "GM dexos1",
+      role: "oem",
+      family: "GM",
+      ash: null,
+      hths: HTHS_MID,
+      visc: ["0W-20", "5W-30"],
+      what: "Американский допуск GM на базе ILSAC: только маловязкие бензиновые масла. С dexos2 не взаимозаменяем."
+    },
+    {
+      id: "GMDEXOS1GEN3",
+      label: "GM dexos1 Gen 3",
+      role: "oem",
+      family: "GM",
+      ash: null,
+      hths: HTHS_MID,
+      visc: ["0W-20", "5W-30"],
+      what: "Актуальная версия dexos1 с защитой от LSPI."
+    },
+    {
+      id: "GMDEXOS1GEN2",
+      label: "GM dexos1 Gen 2",
+      role: "oem",
+      family: "GM",
+      ash: null,
+      hths: HTHS_MID,
+      visc: ["0W-20", "5W-30"],
+      what: "Предыдущая версия dexos1. С dexos2 не взаимозаменяема."
+    },
+    {
+      id: "GMDEXOSD",
+      label: "GM dexosD",
+      role: "oem",
+      family: "GM",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Дизельный допуск GM уровня C2/C3 для моторов с сажевым фильтром."
+    },
+    {
+      id: "OPELOV0401547",
+      label: "OPEL OV0401547",
+      role: "oem",
+      family: "GM",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Допуск Opel после перехода к Stellantis, преемник dexos2 (уровень C3)."
+    },
+    // ── Ford ──
+    {
+      id: "FORDWSSM2C913A",
+      label: "Ford WSS-M2C913-A",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Ford на базе ACEA A1/B1: пониженный HTHS. Ранняя ступень серии 913."
+    },
+    {
+      id: "FORDWSSM2C913B",
+      label: "Ford WSS-M2C913-B",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Ford на базе ACEA A5/B5, HTHS 2.9–3.5. Заменяет 913-A."
+    },
+    {
+      id: "FORDWSSM2C913C",
+      label: "Ford WSS-M2C913-C",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Ford A5/B5 с повышенной стойкостью к окислению. Заменяет 913-B."
+    },
+    {
+      id: "FORDWSSM2C913D",
+      label: "Ford WSS-M2C913-D",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Актуальная ступень серии 913: A5/B5, HTHS 2.9–3.5, совместимо с биодизелем. Полнозольное A3/B4 сюда лить нельзя — мотор рассчитан на низкий HTHS."
+    },
+    {
+      id: "FORDWSSM2C917A",
+      label: "Ford WSS-M2C917-A",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное A3/B4 для дизелей 1.8 TDCi. Единственная «густая» спецификация в линейке Ford."
+    },
+    {
+      id: "FORDWSSM2C934B",
+      label: "Ford WSS-M2C934-B",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_LOW,
+      hths: HTHS_HIGH,
+      what: "Малозольное (уровень C1) для дизелей Ford с сажевым фильтром."
+    },
+    {
+      id: "FORDWSSM2C948B",
+      label: "Ford WSS-M2C948-B",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      what: "HTHS 2.6–2.9, 0W-20 для моторов EcoBoost."
+    },
+    {
+      id: "FORDWSSM2C950A",
+      label: "Ford WSS-M2C950-A",
+      role: "oem",
+      family: "FORD",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Среднезольное уровня C2 для моторов Ford с сажевым фильтром."
+    },
+    // ── Jaguar Land Rover / Volvo / Porsche ──
+    {
+      id: "STJLR035003",
+      label: "JLR STJLR.03.5003",
+      role: "oem",
+      family: "JLR",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Jaguar Land Rover на базе ACEA A5/B5: HTHS 2.9–3.5."
+    },
+    {
+      id: "STJLR035004",
+      label: "JLR STJLR.03.5004",
+      role: "oem",
+      family: "JLR",
+      ash: ASH_LOW,
+      hths: HTHS_MID,
+      what: "JLR уровня C1: малозольное для дизелей с сажевым фильтром."
+    },
+    {
+      id: "STJLR035005",
+      label: "JLR STJLR.03.5005",
+      role: "oem",
+      family: "JLR",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "JLR уровня C3: среднезольное при HTHS ≥ 3.5."
+    },
+    {
+      id: "STJLR035006",
+      label: "JLR STJLR.03.5006",
+      role: "oem",
+      family: "JLR",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      what: "JLR 0W-20 с HTHS 2.6–2.9 для моторов Ingenium."
+    },
+    {
+      id: "STJLR035007",
+      label: "JLR STJLR.03.5007",
+      role: "oem",
+      family: "JLR",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Актуальный допуск JLR для моторов Ingenium."
+    },
+    {
+      id: "STJLR",
+      label: "Jaguar STJLR",
+      role: "oem",
+      family: "JLR",
+      ash: null,
+      hths: null,
+      what: "Допуск Jaguar Land Rover без указания ступени — читается только как «производитель одобрил»."
+    },
+    {
+      id: "PORSCHEA40",
+      label: "Porsche A40",
+      role: "oem",
+      family: "PORSCHE",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное с HTHS ≥ 3.5 для атмосферных и турбо Porsche без сажевого фильтра."
+    },
+    {
+      id: "PORSCHEC30",
+      label: "Porsche C30",
+      role: "oem",
+      family: "PORSCHE",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Среднезольное (уровень C3) для Porsche с сажевым фильтром."
+    },
+    {
+      id: "PORSCHEC20",
+      label: "Porsche C20",
+      role: "oem",
+      family: "PORSCHE",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      what: "Porsche 0W-20 с HTHS 2.6–2.9."
+    },
+    {
+      id: "PORSCHEC40",
+      label: "Porsche C40",
+      role: "oem",
+      family: "PORSCHE",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Современный среднезольный допуск Porsche."
+    },
+    {
+      id: "VCC95200377",
+      label: "Volvo VCC 95200377",
+      role: "oem",
+      family: "VOLVO",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Собственный допуск Volvo для моторов Drive-E."
+    },
+    {
+      id: "VCCRBS02AE",
+      label: "Volvo VCC RBS0-2AE",
+      role: "oem",
+      family: "VOLVO",
+      ash: ASH_MID,
+      hths: HTHS_LOW,
+      visc: ["0W-20"],
+      what: "Volvo 0W-20 с HTHS 2.6–2.9 для моторов Drive-E последних поколений."
+    },
+    {
+      id: "MS6395",
+      label: "Chrysler MS-6395",
+      role: "oem",
+      family: "FIAT",
+      ash: null,
+      hths: HTHS_MID,
+      what: "Заводская спецификация Chrysler/Dodge/Jeep на базе API SN/ILSAC."
+    },
+    // ── Fiat / Stellantis ──
+    {
+      id: "FIAT955535H2",
+      label: "FIAT 9.55535-H2",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное A3/B4 для бензиновых Fiat."
+    },
+    {
+      id: "FIAT955535M2",
+      label: "FIAT 9.55535-M2",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное A3/B4 для нагруженных бензиновых Fiat."
+    },
+    {
+      id: "FIAT955535N2",
+      label: "FIAT 9.55535-N2",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное A3/B4 для дизелей Fiat без сажевого фильтра."
+    },
+    {
+      id: "FIAT955535Z2",
+      label: "FIAT 9.55535-Z2",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное A3/B4 общего назначения для Fiat."
+    },
+    {
+      id: "FIAT955535S1",
+      label: "FIAT 9.55535-S1",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Среднезольное уровня C2 для дизелей Fiat с сажевым фильтром."
+    },
+    {
+      id: "FIAT955535S2",
+      label: "FIAT 9.55535-S2",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Среднезольное уровня C3 для моторов Fiat с сажевым фильтром."
+    },
+    {
+      id: "FIAT955535S3",
+      label: "FIAT 9.55535-S3",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_MID,
+      hths: HTHS_HIGH,
+      what: "Среднезольное уровня C3, современная ступень Fiat."
+    },
+    {
+      id: "FIAT955535G1",
+      label: "FIAT 9.55535-G1",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_FULL,
+      hths: HTHS_MID,
+      what: "Топливосберегающее A5/B5 для бензиновых Fiat."
+    },
+    {
+      id: "FIAT955535GH2",
+      label: "FIAT 9.55535-GH2",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_FULL,
+      hths: HTHS_HIGH,
+      what: "Полнозольное A3/B4 нового поколения Fiat."
+    },
+    {
+      id: "FIAT955535CR1",
+      label: "FIAT 9.55535-CR1",
+      role: "oem",
+      family: "FIAT",
+      ash: ASH_MID,
+      hths: HTHS_MID,
+      what: "Современное среднезольное масло Fiat пониженной вязкости."
+    }
+  ];
+  var SPEC_INDEX = (() => {
+    const m = /* @__PURE__ */ new Map();
+    for (const s of SPECS) {
+      m.set(s.id, s);
+      const byLabel = normSpec(s.label);
+      if (!m.has(byLabel)) m.set(byLabel, s);
+    }
+    return m;
+  })();
+  var FALLBACK_RULES = [
+    {
+      re: /^FORDWSSM2C\d/,
+      family: "FORD",
+      label: "Ford WSS-M2C…",
+      what: "Заводская спецификация Ford. Точная ступень неизвестна — учитываем как одобрение марки."
+    },
+    {
+      re: /^FIAT9\d/,
+      family: "FIAT",
+      label: "FIAT 9.55535-…",
+      what: "Заводская спецификация Fiat. Точная ступень неизвестна — учитываем как одобрение марки."
+    },
+    {
+      re: /^STJLR/,
+      family: "JLR",
+      label: "JLR STJLR…",
+      what: "Заводская спецификация Jaguar Land Rover. Точная ступень неизвестна."
+    },
+    {
+      re: /^MB\d/,
+      family: "MB",
+      label: "MB …",
+      what: "Заводской допуск Mercedes-Benz, ступень вне справочника."
+    },
+    {
+      re: /^VW\d/,
+      family: "VW",
+      label: "VW …",
+      what: "Заводской допуск VAG, ступень вне справочника."
+    },
+    {
+      re: /^BMWLL/,
+      family: "BMW",
+      label: "BMW Longlife…",
+      what: "Заводской допуск BMW, ступень вне справочника."
+    },
+    {
+      re: /^PSAB\d/,
+      family: "PSA",
+      label: "PSA B71…",
+      what: "Заводской допуск PSA/Stellantis, ступень вне справочника."
+    },
+    {
+      re: /^RN\d/,
+      family: "RN",
+      label: "Renault RN…",
+      what: "Заводской допуск Renault, ступень вне справочника."
+    }
+  ];
+  function findSpec(raw, exactOnly = false) {
+    const key0 = normSpec(raw);
+    if (!key0) return null;
+    const key = SPEC_ALIASES[key0] || key0;
+    const hit = SPEC_INDEX.get(key);
+    if (hit) return hit;
+    if (exactOnly) return null;
+    for (const rule of FALLBACK_RULES) {
+      if (rule.re.test(key)) {
+        return {
+          id: key,
+          label: String(raw).trim(),
+          role: "oem",
+          family: rule.family,
+          ash: null,
+          hths: null,
+          what: rule.what,
+          approximate: true
+        };
+      }
+    }
+    return null;
+  }
+  var NON_OIL_RE = new RegExp([
+    "\\bG\\s*1[123]\\b",
+    "TL\\s*774",
+    "ASTM\\s*D\\s*(3306|4985)",
+    "\\bD\\s*4985\\b",
+    "SAE\\s*J10[0-9]{2}",
+    "NATO\\s*S\\s*759",
+    "BS\\s*6580",
+    "AFNOR",
+    "JIS\\s*K\\s*2234",
+    "UNE\\s*263",
+    "\\bHEFT\\b",
+    "QL\\s*1301",
+    "\\bESE\\b",
+    "M97B",
+    "\\bMACK\\b",
+    "CUMMINS",
+    "JOHN\\s*DEERE",
+    "LEYLAND",
+    "\\bMAN\\s*324\\b",
+    "\\bMB\\s*32[56]\\b",
+    "антифриз",
+    "coolant",
+    "GM\\s*1899",
+    "AS\\s*2108",
+    "GB\\s*297\\d\\d",
+    "CUNA\\s*NC",
+    "PN-C\\s*40007",
+    "[ÖO]NORM",
+    "\\bLC-\\d\\d\\b",
+    "GS\\s*94000",
+    "SANS\\s*1251",
+    "DFS\\s*93K",
+    "\\bTESLA\\b",
+    "MWM",
+    // тормозная жидкость
+    "FMVSS\\s*116",
+    "ISO\\s*4925",
+    "SAE\\s*J170\\d",
+    "\\bDOT\\s*[345]\\b"
+  ].join("|"), "i");
+  var GEAR_RE = new RegExp([
+    "\\bAPI\\s*GL\\s*-?\\s*[45]\\b",
+    "\\bMT-1\\b",
+    "\\bMAN\\s*342\\b",
+    "DEXRON",
+    "MERCON",
+    "MATIC",
+    "\\bATF\\b",
+    "\\bDCTF?\\b",
+    "JWS\\s*33",
+    "DSIH",
+    "LT\\s*71141",
+    "TYK5",
+    "WSS-M2C922"
+  ].join("|"), "i");
+  var HEAVY_DUTY_RE = new RegExp([
+    "\\bACEA\\s*E\\d",
+    "\\bAPI\\s*C[HIJK]\\s*-\\s*4\\b",
+    "\\bMAN\\s*M?\\s*3[2-9]\\d{2}",
+    "VOLVO\\s*VDS",
+    "\\bRLD\\s*-?\\s*\\d",
+    "\\bMTU\\b",
+    "\\bDEUTZ\\b",
+    "CAT\\s*ECF",
+    "\\bMB\\s*228\\.",
+    "CUMMINS\\s*CES",
+    "JASO\\s*DH",
+    "\\bSCANIA\\b",
+    "ZF\\s*TE-ML",
+    "\\bALLISON\\b",
+    "MACK\\s*EO",
+    "КАМАЗ",
+    "ЛИАЗ",
+    "АВТОДИЗЕЛЬ",
+    "ЯМЗ",
+    "\\bМАЗ\\b"
+  ].join("|"), "i");
+  function nonEngineKind(raw) {
+    const text = String(raw || "");
+    const latin = text.replace(
+      /[АВЕКМНОРСТУХ]/gi,
+      (c) => CYR_LOOKALIKE[c.toUpperCase()] || c
+    );
+    const hit = (re) => re.test(text) || re.test(latin);
+    if (hit(NON_OIL_RE)) return "coolant";
+    if (hit(GEAR_RE)) return "gear";
+    if (hit(HEAVY_DUTY_RE)) return "heavy";
+    return null;
+  }
+  function parseApprovals(list) {
+    const out = [];
+    for (const raw of list || []) {
+      const text = String(raw || "").trim();
+      if (!text) continue;
+      const kind = nonEngineKind(text);
+      if (kind) {
+        out.push({ raw: text, parts: [text], specs: [], nonOil: true, kind });
+        continue;
+      }
+      const parts = splitCompound(text);
+      const specs = parts.map((p) => findSpec(p)).filter(Boolean);
+      out.push({ raw: text, parts, specs, nonOil: false, kind: null });
+    }
+    return out;
+  }
+  var PRODUCT_SPEC_PATTERNS = [
+    [/LL[\s-]*01\s*FE/i, "BMW LL-01 FE"],
+    [/LL[\s-]*12\s*FE/i, "BMW LL-12 FE"],
+    [/LL[\s-]*14\s*FE/i, "BMW LL-14 FE+"],
+    [/LL[\s-]*17\s*FE/i, "BMW LL-17 FE+"],
+    [/LL[\s-]*04/i, "BMW LL-04"],
+    [/LL[\s-]*01/i, "BMW LL-01"],
+    [/\bdexos\s*1\s*GEN\s*3/i, "GM dexos1 Gen 3"],
+    [/\bdexos\s*2\b/i, "GM dexos2"],
+    [/\bdexos\s*1\b/i, "GM dexos1"],
+    [/\b229[\s.]*52\b/, "MB 229.52"],
+    [/\b229[\s.]*51\b/, "MB 229.51"],
+    [/\b229[\s.]*31\b/, "MB 229.31"],
+    [/\b229[\s.]*61\b/, "MB 229.61"],
+    [/\b229[\s.]*6\b/, "MB 229.6"],
+    [/\b229[\s.]*5\b/, "MB 229.5"],
+    [/\b229[\s.]*3\b/, "MB 229.3"],
+    [/\b226[\s.]*5\b/, "MB 226.5"],
+    [/\b0720\b/, "RN 0720"],
+    [/\b0710\b/, "RN 0710"],
+    [/\b0700\b/, "RN 0700"],
+    [/\bSPECIFIC\s+17\b/i, "RN 17"],
+    [/\b913\s*[A-D]\b/i, "Ford WSS-M2C913-D"],
+    [/\b948\s*B\b/i, "Ford WSS-M2C948-B"],
+    [/\b934\s*B\b/i, "Ford WSS-M2C934-B"],
+    [/\b950\s*A\b/i, "Ford WSS-M2C950-A"],
+    [/\bA40\b/, "Porsche A40"],
+    [/\bC30\b/, "Porsche C30"],
+    [/\b2290\b/, "PSA B71 2290"],
+    [/\b2293\b/, "PSA B71 2293"],
+    [/\b2296\b/, "PSA B71 2296"],
+    [/\b2297\b/, "PSA B71 2297"],
+    [/\b2312\b/, "PSA B71 2312"],
+    [/\bRBS0[\s-]*2AE\b/i, "Volvo VCC RBS0-2AE"]
+  ];
+  var VAG_CODE_RE = /\b(5\d\d)[\s.]+(0\d)\b/g;
+  function specsFromProductNames(names) {
+    const out = /* @__PURE__ */ new Set();
+    for (const name of names || []) {
+      const text = String(name || "");
+      if (!text) continue;
+      for (const [re, label] of PRODUCT_SPEC_PATTERNS) if (re.test(text)) out.add(label);
+      VAG_CODE_RE.lastIndex = 0;
+      let m;
+      while (m = VAG_CODE_RE.exec(text)) {
+        const label = `VW ${m[1]} ${m[2]}`;
+        if (findSpec(label, true)) out.add(label);
+      }
+    }
+    return [...out];
+  }
+  function makeFamilies(make) {
+    const m = String(make || "").toUpperCase().replace(/[\s\-_.]/g, "");
+    if (!m) return [];
+    const out = [];
+    for (const [family, makes] of Object.entries(FAMILY_MAKES)) {
+      if (makes.some((x) => {
+        const k = x.replace(/[\s\-_.]/g, "");
+        return m === k || m.startsWith(k) || k.startsWith(m);
+      })) out.push(family);
+    }
+    return out;
+  }
+  function profileOfSpecs(specs) {
+    let ash = null, hthsMin = null, hthsMax = null, visc = null;
+    for (const s of specs) {
+      if (s.ash != null) ash = ash == null ? s.ash : Math.min(ash, s.ash);
+      if (s.hths) {
+        hthsMin = hthsMin == null ? s.hths[0] : Math.max(hthsMin, s.hths[0]);
+        hthsMax = hthsMax == null ? s.hths[1] : Math.max(hthsMax, s.hths[1]);
+      }
+      if (s.visc) visc = visc ? [.../* @__PURE__ */ new Set([...visc, ...s.visc])] : [...s.visc];
+    }
+    return { ash, hthsMin, hthsMax, visc };
+  }
+  function aceaClassOfProfile(profile) {
+    if (!profile || profile.ash == null) return null;
+    const thick = profile.hthsMin == null || profile.hthsMin >= 3.5;
+    if (profile.ash <= ASH_LOW) return thick ? "C4" : "C1";
+    if (profile.ash <= ASH_MID) return thick ? "C3" : "C2";
+    return thick ? "A3B4" : "A5B5";
+  }
+  var sapsLabel = (ash) => ash == null ? "—" : ash <= ASH_LOW ? "малозольное" : ash <= ASH_MID ? "среднезольное" : "полнозольное";
+  function oilProfile(oilApprovals) {
+    const parsed = parseApprovals(oilApprovals);
+    const specs = parsed.flatMap((p) => p.specs);
+    return { ...profileOfSpecs(specs), specs };
+  }
+  function findConflicts(items) {
+    const conflicts = [];
+    const byAsh = { full: [], mid: [], low: [] };
+    for (const it of items) {
+      for (const s of it.specs) {
+        if (s.ash == null) continue;
+        const bucket = s.ash <= ASH_LOW ? "low" : s.ash <= ASH_MID ? "mid" : "full";
+        if (!byAsh[bucket].includes(s.label)) byAsh[bucket].push(s.label);
+      }
+    }
+    const lean = [...byAsh.mid, ...byAsh.low];
+    if (byAsh.full.length && lean.length) {
+      conflicts.push({
+        axis: "saps",
+        hard: true,
+        a: byAsh.full,
+        b: lean,
+        note: "В списке одновременно полнозольные и мало/среднезольные допуска. Одно масло не может удовлетворять обоим — значит список собран из паспортов разных масел."
+      });
+    }
+    const byHths = { high: [], mid: [], low: [] };
+    for (const it of items) {
+      for (const s of it.specs) {
+        if (!s.hths) continue;
+        const bucket = s.hths[0] >= 3.5 ? "high" : s.hths[1] <= 2.9 ? "low" : "mid";
+        if (!byHths[bucket].includes(s.label)) byHths[bucket].push(s.label);
+      }
+    }
+    if (byHths.high.length && byHths.low.length) {
+      conflicts.push({
+        axis: "hths",
+        hard: true,
+        a: byHths.high,
+        b: byHths.low,
+        note: "В списке есть допуска и на густое (HTHS ≥ 3.5), и на сверхтекучее (HTHS < 2.9) масло. Это взаимоисключающие вязкости."
+      });
+    }
+    return conflicts;
+  }
+  var NON_ENGINE_WHAT = {
+    coolant: "Это допуск охлаждающей жидкости, а не моторного масла.",
+    gear: "Это трансмиссионная спецификация, а не допуск моторного масла.",
+    heavy: "Это допуск масла для грузовой техники."
+  };
+  var NON_ENGINE_WHY = {
+    coolant: "Спецификация охлаждающей жидкости, а не масла: источник уехал не в тот продукт. На подбор масла не влияет вообще — строку можно смело удалить.",
+    gear: "Трансмиссионная спецификация (масло в коробку или мост). К подбору масла в ДВС отношения не имеет.",
+    heavy: "Спецификация масла для грузовой техники — тягачей и спецтехники. Это другой класс масла целиком, к легковому мотору отношения не имеет и в подборе не участвует."
+  };
+  var RANKS = {
+    critical: { weight: 100, label: "ключевой", color: "red" },
+    important: { weight: 40, label: "важный", color: "green" },
+    minor: { weight: 12, label: "второстепенный", color: "blue" },
+    info: { weight: 2, label: "справочный", color: "grey" },
+    noise: { weight: 0, label: "шум", color: "grey" },
+    conflict: { weight: 0, label: "противоречие", color: "amber" }
+  };
+  function analyzeCarApprovals(carApprovals, ctx = {}) {
+    const families = makeFamilies(ctx.make);
+    const familySet = new Set(families);
+    const parsed = parseApprovals(carApprovals);
+    const isNative = (s) => !!(s.family && familySet.has(s.family));
+    const evidenceParsed = parseApprovals(ctx.evidence || []);
+    const evidenceSpecs = evidenceParsed.flatMap((p) => p.specs);
+    const evidenceIds = new Set(evidenceSpecs.map((s) => s.id));
+    const evidenceNative = evidenceSpecs.filter(isNative);
+    const conflicts = findConflicts(parsed);
+    const nativeSpecs = parsed.flatMap((p) => p.specs).filter(isNative);
+    const confirmed = [...evidenceNative, ...nativeSpecs.filter((s) => evidenceIds.has(s.id))];
+    const confirmedIds = new Set(confirmed.map((s) => s.id));
+    const nonOilCount = parsed.filter((p) => p.nonOil).length;
+    const notOil = parsed.length >= 5 && nonOilCount >= parsed.length * 0.5;
+    let profileSpecs, confidence;
+    if (notOil) {
+      profileSpecs = [];
+      confidence = "none";
+    } else if (confirmed.length) {
+      profileSpecs = confirmed;
+      confidence = "high";
+    } else if (nativeSpecs.length) {
+      profileSpecs = nativeSpecs;
+      confidence = "medium";
+    } else {
+      profileSpecs = parsed.flatMap((p) => p.specs).filter((s) => s.role === "acea");
+      confidence = "low";
+    }
+    const profile = profileOfSpecs(profileSpecs);
+    const carLabel = String(ctx.make || "этой машины").trim();
+    const items = parsed.map((p) => {
+      const primary = p.specs[0] || null;
+      const nativeSpec = p.specs.find(isNative) || null;
+      const rank = rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidence });
+      return {
+        raw: p.raw,
+        parts: p.parts,
+        label: primary ? p.specs.length > 1 ? p.raw : primary.label : p.raw,
+        family: primary ? primary.family || primary.role : null,
+        role: p.nonOil ? "nonoil" : primary ? primary.role : null,
+        known: p.specs.length > 0,
+        native: !!nativeSpec,
+        confirmed: p.specs.some((s) => confirmedIds.has(s.id)),
+        rank,
+        weight: RANKS[rank].weight,
+        what: p.nonOil ? NON_ENGINE_WHAT[p.kind] : primary ? primary.what : "Строка не опознана справочником допусков.",
+        why: explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence }),
+        ash: primary ? primary.ash : null,
+        hths: primary ? primary.hths : null
+      };
+    });
+    const missing = [];
+    const seen = new Set(parsed.flatMap((p) => p.specs).map((s) => s.id));
+    for (const s of evidenceNative) {
+      if (!seen.has(s.id) && !missing.some((m) => m.id === s.id)) missing.push(s);
+    }
+    for (const s of missing) {
+      items.push({
+        raw: s.label,
+        parts: [s.label],
+        label: s.label,
+        family: s.family,
+        role: s.role,
+        known: true,
+        native: true,
+        confirmed: true,
+        fromEvidence: true,
+        rank: "critical",
+        weight: RANKS.critical.weight,
+        what: s.what,
+        why: `Заводской допуск ${FAMILY_LABEL[s.family] || s.family} для ${carLabel}. В списке машины его нет — источник его потерял, — но Motul предлагает масло именно под него для этой модификации. Добавлен в подбор как требование.` + physicsTail(s),
+        ash: s.ash,
+        hths: s.hths
+      });
+    }
+    const counts = {};
+    for (const it of items) counts[it.rank] = (counts[it.rank] || 0) + 1;
+    return {
+      items,
+      profile,
+      conflicts,
+      confidence,
+      families,
+      counts,
+      notOil,
+      missing,
+      // Список — объединение паспортов масел, а не требования мотора
+      unionSuspect: conflicts.some((c) => c.hard) || countFamilies(parsed) >= 3,
+      decisive: items.filter((i) => i.rank === "critical" || i.rank === "important")
+    };
+  }
+  function countFamilies(parsed) {
+    const fams = /* @__PURE__ */ new Set();
+    for (const p of parsed) for (const s of p.specs) if (s.family) fams.add(s.family);
+    return fams.size;
+  }
+  function rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidence }) {
+    if (p.nonOil) return "noise";
+    if (!primary) return "noise";
+    if (primary.role === "api") return "info";
+    if (confidence === "none") return "noise";
+    const target = nativeSpec || (primary.role === "acea" ? primary : null);
+    if (target) {
+      if (viscConflict(target, profile)) return "conflict";
+      if (looserThanProfile(target, profile)) return "minor";
+    }
+    if (nativeSpec) {
+      if (confirmedIds.has(nativeSpec.id)) return "critical";
+      return confidence === "high" ? "minor" : "critical";
+    }
+    if (primary.role === "acea") {
+      if (matchesProfile(primary, profile)) return "important";
+      return "minor";
+    }
+    return "noise";
+  }
+  function viscConflict(spec, profile) {
+    if (!profile || profile.hthsMin == null || !spec.hths) return false;
+    return spec.hths[1] < profile.hthsMin;
+  }
+  function looserThanProfile(spec, profile) {
+    if (!profile || profile.ash == null || spec.ash == null) return false;
+    return spec.ash > profile.ash;
+  }
+  function matchesProfile(spec, profile) {
+    if (!profile || profile.ash == null) return false;
+    if (spec.ash == null) return false;
+    if (spec.ash > profile.ash) return false;
+    if (profile.hthsMin != null && spec.hths && spec.hths[1] < profile.hthsMin) return false;
+    return true;
+  }
+  function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence }) {
+    const famLabel = primary && primary.family ? FAMILY_LABEL[primary.family] || primary.family : "";
+    if (p.nonOil) return NON_ENGINE_WHY[p.kind] || NON_ENGINE_WHY.coolant;
+    if (rank === "critical") {
+      const conf = confidence === "high" ? " Подтверждён вторым источником — рекомендацией Motul по этой конкретной машине, поэтому подбор опирается прежде всего на него." : " Единственный класс обязательств, который у этой машины настоящий, — по нему и подбираем.";
+      return `Заводской допуск ${famLabel} — обязателен для ${carLabel}.` + conf + physicsTail(primary);
+    }
+    if (rank === "important") {
+      return `Класс ACEA совпадает с тем, что мотору реально нужно (${sapsLabel(profile.ash)}${profile.hthsMin != null ? `, HTHS ≥ ${profile.hthsMin}` : ""}). Марка тут ни при чём: это прямое физическое требование, и по нему масло отбирается даже когда родного допуска в каталоге нет.` + physicsTail(primary);
+    }
+    if (rank === "conflict") {
+      return `Требует вязкости, несовместимой с остальным набором: масло под него будет жиже, чем нужно мотору (HTHS ≥ ${profile.hthsMin}). Перекрыть «более строгим» допуском такое нельзя — это выбор между разными маслами, а не ступени одной лестницы. В подборе не учитывается.` + physicsTail(primary);
+    }
+    if (rank === "minor") {
+      if (looserThanProfile(nativeSpec || primary, profile)) {
+        return `Менее строгая ветка: разрешает ${sapsLabel((nativeSpec || primary).ash)} масло, тогда как по остальному набору мотору нужно ${sapsLabel(profile.ash)}. Масло по строгой ветке подходит и сюда, поэтому подбор идёт по строгой, а этот допуск — фон. Закрыть на него глаза можно: ошибка стоит ресурса масла, а не железа.` + physicsTail(primary);
+      }
+      if (nativeSpec) {
+        return `Родной допуск ${famLabel}, но выбор определяет не он: более строгий допуск той же марки уже задал профиль масла. Совпадение по нему — приятный бонус, не критерий.` + physicsTail(primary);
+      }
+      return "Класс ACEA, который мотору не противоречит, но и не задаёт выбор — ограничение уже установлено более строгим допуском." + physicsTail(primary);
+    }
+    if (rank === "info") {
+      return "Уровень качества API/ILSAC, а не допуск. Есть практически у всех масел каталога, поэтому между ними ничего не различает — работает только как отсечка совсем старых масел.";
+    }
+    if (confidence === "none") {
+      return "Список допусков этой машины собран не по маслу, поэтому ни одна строка в нём не считается требованием. Подбор идёт как для машины без допусков.";
+    }
+    if (primary && primary.role === "oem") {
+      return `Заводской допуск ${famLabel} — к ${carLabel} отношения не имеет. Попал в список потому, что источник отдаёт паспорт рекомендованного масла целиком, а там стоят допуска пары десятков чужих марок. Обязательств не создаёт, в подборе игнорируется.`;
+    }
+    return "Строка не опознана справочником допусков — в подборе не участвует.";
+  }
+  function physicsTail(spec) {
+    if (!spec) return "";
+    const bits = [];
+    if (spec.ash != null) bits.push(`${sapsLabel(spec.ash)} (зола ≤ ${spec.ash}%)`);
+    if (spec.hths) {
+      bits.push(spec.hths[1] === Infinity ? `HTHS ≥ ${spec.hths[0]}` : `HTHS ${spec.hths[0]}–${spec.hths[1]}`);
+    }
+    if (spec.visc) bits.push(`вязкость ${spec.visc.join("/")}`);
+    return bits.length ? `
+Физика: ${bits.join(", ")}.` : "";
+  }
+  function oilFitsProfile(oilApprovals, analysis) {
+    const notes = [];
+    if (!analysis || !analysis.profile) return { blocked: false, penalty: 0, notes };
+    const { profile, confidence } = analysis;
+    const prof = oilProfile(oilApprovals);
+    let blocked = false, penalty = 0;
+    const hardAsh = profile.ash == null ? null : Math.max(profile.ash, ASH_MID);
+    if (hardAsh != null && prof.ash != null && prof.ash > hardAsh) {
+      const note = `масло ${sapsLabel(prof.ash)}, мотору нужно ${sapsLabel(profile.ash)}`;
+      if (confidence === "high" || confidence === "medium") {
+        blocked = true;
+        notes.push(note);
+      } else {
+        penalty += 40;
+        notes.push(note + " (профиль выведен неточно)");
+      }
+    } else if (profile.ash != null && prof.ash != null && prof.ash > profile.ash) {
+      penalty += 15;
+      notes.push(`мотору желательно ${sapsLabel(profile.ash)}, у масла ${sapsLabel(prof.ash)}`);
+    }
+    if (profile.hthsMin != null && prof.hthsMin != null && prof.hthsMin + 1e-3 < profile.hthsMin) {
+      if (confidence === "high") {
+        blocked = true;
+        notes.push(`HTHS масла ниже требуемого ${profile.hthsMin}`);
+      } else {
+        penalty += 25;
+        notes.push(`HTHS масла, похоже, ниже требуемого ${profile.hthsMin}`);
+      }
+    } else if (profile.hthsMax != null && profile.hthsMax !== Infinity && prof.hthsMin != null && prof.hthsMin >= profile.hthsMax) {
+      penalty += 20;
+      notes.push(`мотор рассчитан на HTHS до ${profile.hthsMax}, масло гуще`);
+    }
+    return { blocked, penalty, notes };
+  }
+
   // shared/calculator.js
   var roundL = (x) => {
     const n = Number(x);
@@ -745,6 +2343,60 @@
     if (f.sf.enabled && f.sf.price) sum += f.sf.price + (f.sf.work || 0);
     return sum;
   }
+  function requirementGroup(item) {
+    if (item.role === "acea") return "ACEA";
+    if (item.role === "api") return "API";
+    return item.family || item.role || item.label;
+  }
+  function buildOilRater(analysis) {
+    const scoredItems = analysis ? analysis.items.filter((i) => i.weight > 0) : [];
+    return (oil) => {
+      const oilTokens = tokenSet(oil.a);
+      const covered = expandCoveredTokens(oilTokens);
+      const best = /* @__PURE__ */ new Map();
+      const direct = [], hier = [];
+      for (const item of scoredItems) {
+        const tk = tokenSet(item.parts);
+        let hit = false;
+        for (const t of tk) if (oilTokens.has(t)) {
+          hit = true;
+          break;
+        }
+        let gained = 0;
+        if (hit) {
+          gained = item.weight;
+          direct.push(item.label);
+        } else {
+          let via = null;
+          for (const t of tk) {
+            const lab = covered.get(t);
+            if (lab) {
+              via = lab.via;
+              break;
+            }
+          }
+          if (via) {
+            gained = Math.round(item.weight * 0.7);
+            hier.push({ covers: item.label, via });
+          }
+        }
+        if (!gained) continue;
+        const key = requirementGroup(item);
+        if (gained > (best.get(key) || 0)) best.set(key, gained);
+      }
+      let score = 0;
+      for (const v of best.values()) score += v;
+      const fit = analysis ? oilFitsProfile(oil.a, analysis) : { blocked: false, penalty: 0, notes: [] };
+      return {
+        oil,
+        score: score - fit.penalty,
+        direct,
+        hier,
+        blocked: fit.blocked,
+        fitNotes: fit.notes
+      };
+    };
+  }
   function pickEngineOils(agg, shopOils, calcState2, carApprovals) {
     const mileage = calcState2.mileage;
     const excluded = calcState2.excludeOils instanceof Set ? calcState2.excludeOils : new Set(calcState2.excludeOils || []);
@@ -762,15 +2414,10 @@
       const visc0w = mileage === "0w20" ? "0W-20" : "0W-30";
       const oils0w = shopOils.filter((o) => o.v === visc0w && !o.isSpot);
       const carApp0w = Array.isArray(carApprovals) ? carApprovals : [];
-      const carTok0w = calcState2.ignoreApprovals ? /* @__PURE__ */ new Set() : tokenSet(carApp0w);
-      const rated0w = oils0w.map((oil) => {
-        const oilTok = tokenSet(oil.a);
-        let score = 0;
-        if (!calcState2.ignoreApprovals) {
-          for (const t of carTok0w) if (oilTok.has(t)) score += 10;
-        }
-        return { oil, score };
-      });
+      const analysis0w = calcState2.ignoreApprovals ? null : analyzeApprovalsFor(agg, calcState2, carApp0w);
+      const rate0w = buildOilRater(analysis0w);
+      const rated0w = oils0w.map(rate0w);
+      agg.approvalAnalysis = analysis0w;
       rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
       const fallback0w = mileage === "0w20" ? { b: "ZIC", n: "X9 FE 0W-20", price: 1550, v: "0W-20", a: ["API SP"], ad: [] } : { b: "ZIC", n: "ZERO 0W-30", price: 2150, v: "0W-30", a: ["ACEA C3"], ad: [] };
       const mid0w = rated0w[0] ? rated0w[0].oil : fallback0w;
@@ -789,6 +2436,7 @@
     const approvals = Array.isArray(carApprovals) ? carApprovals : [];
     const carTokens = tokenSet(approvals);
     const effectiveCarTokens = calcState2.ignoreApprovals ? /* @__PURE__ */ new Set() : carTokens;
+    const analysis = calcState2.ignoreApprovals ? null : analyzeApprovalsFor(agg, calcState2, approvals);
     const needA5B5 = [...effectiveCarTokens].some((t) => /A5B5|ACEAA5B5|ACEAA5|ACEAB5/.test(t));
     const needC3 = [...effectiveCarTokens].some((t) => /ACEAC3|^C3$/.test(t));
     const needC2 = [...effectiveCarTokens].some((t) => /ACEAC2|^C2$/.test(t));
@@ -805,58 +2453,28 @@
     };
     let requiredClass = null;
     if (!calcState2.ignoreApprovals) {
-      if (needA5B5) requiredClass = "A5B5";
-      else if (needC3) requiredClass = "C3";
-      else if (needC2) requiredClass = "C2";
-      else if (needC1) requiredClass = "C1";
-      else if (needA3B4) requiredClass = "A3B4";
+      requiredClass = aceaClassOfProfile(analysis && analysis.profile);
+      if (!requiredClass) {
+        if (needA5B5) requiredClass = "A5B5";
+        else if (needC3) requiredClass = "C3";
+        else if (needC2) requiredClass = "C2";
+        else if (needC1) requiredClass = "C1";
+        else if (needA3B4) requiredClass = "A3B4";
+      }
     }
     const poolAll = shopOils.filter((o) => o.v === targetVisc && !o.isSpot);
-    let candidates = poolAll;
-    if (requiredClass) {
-      const filtered = poolAll.filter((o) => hasAceaClass(o, requiredClass));
-      if (filtered.length) candidates = filtered;
+    const rateOil = buildOilRater(analysis);
+    const ratedAll = poolAll.map(rateOil);
+    for (const r of ratedAll) {
+      if (!requiredClass) continue;
+      if (hasAceaClass(r.oil, requiredClass)) r.score += 30;
+      else r.classMiss = requiredClass;
     }
-    const carMake = (car.makeShort || "").toUpperCase();
-    const hasFord = carMake === "FORD" || [...effectiveCarTokens].some((t) => /FORDWSS|WSSM2C/.test(t));
-    const hasMB = [...effectiveCarTokens].some((t) => /^MB\d/.test(t));
-    const hasVW = [...effectiveCarTokens].some((t) => /^VW\d|^VW50/.test(t));
-    const hasBMW = [...effectiveCarTokens].some((t) => /^LL\d|LL01|LL04|LL98/.test(t));
-    const hasRN = [...effectiveCarTokens].some((t) => /^RN\d|RN0700|RN0710/.test(t));
-    const hasGM = [...effectiveCarTokens].some((t) => /^GM\d|DEXOS/.test(t));
-    const rateOil = (oil) => {
-      const oilTokens = tokenSet(oil.a);
-      let score = 0;
-      const direct = [], hier = [];
-      if (!calcState2.ignoreApprovals) {
-        for (const carTok of effectiveCarTokens) {
-          if (oilTokens.has(carTok)) {
-            score += 10;
-            direct.push(carTok);
-          }
-        }
-        const covered = expandCoveredTokens(oilTokens);
-        for (const carTok of effectiveCarTokens) {
-          if (oilTokens.has(carTok)) continue;
-          const label = covered.get(carTok);
-          if (label) {
-            score += 7;
-            hier.push({ covers: carTok, via: label.via });
-          }
-        }
-        if (hasFord && [...oilTokens].some((t) => /FORDWSS|WSSM2C/.test(t))) score += 5;
-        if (hasMB && [...oilTokens].some((t) => /^MB\d/.test(t))) score += 3;
-        if (hasVW && [...oilTokens].some((t) => /^VW\d|^VW50/.test(t))) score += 3;
-        if (hasBMW && [...oilTokens].some((t) => /^LL\d|LL01|LL04/.test(t))) score += 3;
-        if (hasRN && [...oilTokens].some((t) => /^RN\d/.test(t))) score += 3;
-        if (hasGM && [...oilTokens].some((t) => /^GM\d|DEXOS/.test(t))) score += 3;
-      }
-      return { oil, score, direct, hier };
-    };
-    const rated = candidates.map(rateOil);
-    rated.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-    const maxScore = rated[0] ? rated[0].score : 0;
-    const topMatches = rated.filter((r) => r.score === maxScore);
+    ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
+    let eligible = ratedAll.filter((r) => !r.blocked);
+    if (!eligible.length) eligible = ratedAll;
+    const maxScore = eligible[0] ? eligible[0].score : 0;
+    const topMatches = eligible.filter((r) => r.score === maxScore);
     topMatches.sort((a, b) => a.oil.price - b.oil.price);
     const midIdx = topMatches.length <= 2 ? 0 : Math.floor(topMatches.length / 2);
     const mid = topMatches[midIdx].oil;
@@ -872,23 +2490,31 @@
     if (!spot) {
       spot = spotCandidates.find((o) => o.tier === (needPro ? "pro" : "optimal")) || spotCandidates[0];
     }
-    let ratedAll = rated;
-    if (candidates !== poolAll) {
-      ratedAll = poolAll.map((oil) => {
-        const r = rateOil(oil);
-        if (hasAceaClass(oil, requiredClass)) r.score += 8;
-        else r.classMiss = requiredClass;
-        return r;
-      });
-      ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-    }
     agg.approvals = approvals;
     agg.isDiesel = isDieselVehicle;
     agg.requiredClass = requiredClass;
+    agg.approvalAnalysis = analysis;
     agg.allCandidates = ratedAll.map((r) => r.oil);
     agg.topCandidates = topMatches.map((r) => r.oil);
-    agg.ranked = ratedAll.map((r) => ({ oil: r.oil, score: r.score, direct: r.direct, hier: r.hier, classMiss: r.classMiss || null }));
+    agg.ranked = ratedAll.map((r) => ({
+      oil: r.oil,
+      score: r.score,
+      direct: r.direct,
+      hier: r.hier,
+      classMiss: r.classMiss || null,
+      blocked: r.blocked || false,
+      fitNotes: r.fitNotes || []
+    }));
     return { mid, spot };
+  }
+  function analyzeApprovalsFor(agg, calcState2, approvals) {
+    const car = calcState2.car || {};
+    return analyzeCarApprovals(approvals, {
+      make: car.makeShort || car.make || "",
+      fuelType: car.fuelType,
+      yearFrom: car.yearFrom,
+      evidence: specsFromProductNames(agg.motulProducts || [])
+    });
   }
   var MANUAL_UNSUPPORTED_SPECS = [
     { re: /\b70W\b/i, label: "70W" },
@@ -2517,9 +4143,9 @@
                 </div>
                 ${calc.isHighGear ? `<div class="zm-bath-msg">🛁 послан в баню!</div>` : calc.html}
                 <button class="zm-app-btn" data-app="${agg.key}">
-                    ${showApp ? "▾" : "▸"} ${agg.group === "engine" ? "допуска машины" : "продукты Motul"} (${(agg.approvals || []).length})
+                    ${showApp ? "▾" : "▸"} ${agg.group === "engine" ? "допуска машины" : "продукты Motul"} (${agg.group === "engine" && agg.approvalAnalysis ? agg.approvalAnalysis.items.length : (agg.approvals || []).length})
                 </button>
-                ${showApp ? `<div class="zm-app-list">${(agg.approvals || []).map((x) => `<span class="zm-app-tag">${x}</span>`).join("") || "<i>не определены</i>"}</div>` : ""}
+                ${showApp ? renderApprovalsList(agg) : ""}
             </div>`;
     }).join("");
     if (calcState.data.automatic && !calcState.data.automatic.isDct) {
@@ -2749,6 +4375,42 @@
   }
   function normalizeAdditive(s) {
     return String(s || "").toLowerCase().replace(/[ёе]/g, "е").replace(/[\s\-\/]+/g, "").trim();
+  }
+  var RANK_ORDER_ZM = ["critical", "important", "minor", "conflict", "info", "noise"];
+  var RANK_TITLE_ZM = {
+    critical: "решают выбор",
+    important: "важны физически",
+    minor: "перекрыты более строгими",
+    conflict: "противоречат профилю",
+    info: "уровень качества",
+    noise: "к этой машине не относятся"
+  };
+  function renderApprovalsList(agg) {
+    const a = agg.group === "engine" ? agg.approvalAnalysis : null;
+    const plain = (agg.approvals || []).map((x) => `<span class="zm-app-tag">${escapeHtml(x)}</span>`).join("");
+    if (!a || !a.items.length) {
+      return `<div class="zm-app-list">${plain || "<i>не определены</i>"}</div>`;
+    }
+    const decisive = a.items.filter((i) => i.rank === "critical" || i.rank === "important").length;
+    const need = [];
+    if (a.profile.ash != null) need.push(`${sapsLabel(a.profile.ash)} (зола ≤ ${a.profile.ash}%)`);
+    if (a.profile.hthsMin != null) need.push(`HTHS ≥ ${a.profile.hthsMin}`);
+    const groups = RANK_ORDER_ZM.map((rank) => ({
+      rank,
+      items: a.items.filter((i) => i.rank === rank)
+    })).filter((g) => g.items.length);
+    const warn = a.unionSuspect ? `<div class="zm-app-warn" title="${escapeHtmlSafe(a.conflicts[0] && a.conflicts[0].note || "")}">⚠ список собран из паспортов рекомендованных масел, а не из требований мотора</div>` : "";
+    return `<div class="zm-app-list zm-app-list-col">
+            <div class="zm-app-sum"><b>решают ${decisive} из ${a.items.length}</b>${need.length ? " · мотору нужно: " + escapeHtml(need.join(", ")) : ""}${agg.requiredClass ? " · класс " + escapeHtml(agg.requiredClass) : ""}</div>
+            ${warn}
+            ${groups.map((g) => `
+                <div class="zm-app-grp">
+                    <div class="zm-app-grp-h">${RANK_TITLE_ZM[g.rank]} (${g.items.length})</div>
+                    <div>${g.items.map(
+      (it) => `<span class="zm-app-tag zm-app-${it.rank}" title="${escapeHtmlSafe(it.label + "\n" + it.what + "\n\n" + it.why)}">${escapeHtml(it.label)}${it.fromEvidence ? " +" : ""}</span>`
+    ).join("")}</div>
+                </div>`).join("")}
+        </div>`;
   }
   function renderOilDetailsBlock(agg, oil, idx, spotAddsLower) {
     const oilKey = agg.key + "_" + idx + "_" + oil.b + "_" + oil.n;
@@ -3467,7 +5129,21 @@
             .zm-app-btn{background:transparent;border:none;color:#7986cb;font-size:10px;cursor:pointer;padding:4px 0;margin-top:6px}
             .zm-app-btn:hover{color:#E67E00}
             .zm-app-list{padding:6px 8px;background:#0a0c12;border-radius:4px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}
-            .zm-app-tag{background:#1e2040;color:#9aa0b0;padding:2px 6px;border-radius:3px;font-size:10px;font-family:monospace}
+            .zm-app-tag{background:#1e2040;color:#9aa0b0;padding:2px 6px;border-radius:3px;font-size:10px;font-family:monospace;
+                margin:2px 3px 0 0;display:inline-block;cursor:help}
+            .zm-app-list-col{display:block}
+            .zm-app-sum{font-size:10px;color:#9aa0b0;line-height:1.5;margin-bottom:4px}
+            .zm-app-sum b{color:#E67E00}
+            .zm-app-warn{font-size:10px;color:#ff8a80;line-height:1.4;margin-bottom:6px;cursor:help}
+            .zm-app-grp{margin-top:5px}
+            .zm-app-grp-h{font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:#5a6070;margin-bottom:2px}
+            /* цвет = что решает выбор, а что попало в список из чужого паспорта */
+            .zm-app-critical{background:#3a1420;color:#ff8a80;border:1px solid #b04a4a}
+            .zm-app-important{background:#12301c;color:#7fd18a;border:1px solid #3f7a4a}
+            .zm-app-minor{background:#14203a;color:#7fa8e8;border:1px solid #3a5a8a}
+            .zm-app-conflict{background:#1a1a20;color:#8a8a95;border:1px dashed #b04a4a;text-decoration:line-through}
+            .zm-app-info{background:#1a1c28;color:#7a8090}
+            .zm-app-noise{background:transparent;color:#5a6070;border:1px solid #2a2d40}
             .zm-motul-prods{background:#0a0c12;border-radius:4px;padding:6px 8px;margin-top:6px}
             .zm-motul-t{color:#5a6070;font-size:10px;margin-bottom:3px}
             .zm-motul-p{display:inline-block;background:#1e2040;color:#7986cb;padding:1px 5px;border-radius:3px;font-size:10px;margin:1px;font-family:monospace}
