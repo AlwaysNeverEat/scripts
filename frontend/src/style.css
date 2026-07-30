@@ -2560,8 +2560,56 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .news-list li { font-size: 12.5px; line-height: 1.55; color: var(--sub); }
 
+/* Вывод раздела — то, ради чего он написан */
+.news-sec-note {
+  margin-top: 8px;
+  padding: 8px 11px;
+  border-left: 2px solid var(--accent);
+  background: var(--bg3);
+  border-radius: 0 7px 7px 0;
+  font-size: 12.5px; line-height: 1.55; color: var(--text);
+}
+
+/* Заголовок главы: делит длинный пост на части */
+.news-chapter {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 22px;
+  color: var(--accent);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.news-chapter::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+/* У первого раздела главы своя черта уже есть — вторую не рисуем */
+.news-sec-first { border-top: none; padding-top: 10px; margin-top: 0; }
+
+/* Таблицы в разборе. Широкая таблица прокручивается внутри себя,
+   страница по горизонтали не едет. */
+.news-table-wrap { margin-top: 10px; overflow-x: auto; }
+.news-table {
+  width: 100%; min-width: 380px;
+  border-collapse: collapse;
+  font-size: 12px; line-height: 1.5;
+}
+.news-table th, .news-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.news-table th {
+  color: var(--sub); font-weight: 700;
+  font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.news-table td { color: var(--sub); }
+.news-table td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+.news-table tbody tr:last-child td { border-bottom: none; }
+
 @media (max-width: 520px) {
   .news-post { padding: 14px; }
   .news-sec { gap: 10px; }
   .news-sec-icon { width: 26px; height: 26px; border-radius: 8px; }
+  .news-table td:first-child { white-space: normal; }
 }

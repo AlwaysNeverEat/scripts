@@ -66,6 +66,15 @@ const ICONS = {
     key: `${SVG_HEAD}<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="M17 6l3 3"/><path d="M14.5 8.5l2.5 2.5"/></svg>`,
     lock: `${SVG_HEAD}<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><line x1="12" y1="14" x2="12" y2="17"/></svg>`,
     bell: `${SVG_HEAD}<path d="M18 15V10a6 6 0 1 0-12 0v5l-1.6 2.4A1 1 0 0 0 5.2 19h13.6a1 1 0 0 0 .8-1.6L18 15z"/><path d="M9.5 22a2.6 2.6 0 0 0 5 0"/></svg>`,
+    drop: `${SVG_HEAD}<path d="M12 3s6 6.3 6 10.2A6 6 0 0 1 6 13.2C6 9.3 12 3 12 3z"/></svg>`,
+    list: `${SVG_HEAD}<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.5" cy="6" r="1.3"/><circle cx="4.5" cy="12" r="1.3"/><circle cx="4.5" cy="18" r="1.3"/></svg>`,
+    search: `${SVG_HEAD}<circle cx="11" cy="11" r="6.5"/><line x1="15.8" y1="15.8" x2="21" y2="21"/></svg>`,
+    book: `${SVG_HEAD}<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v15H5.5A1.5 1.5 0 0 0 4 19.5z"/><path d="M4 19.5A1.5 1.5 0 0 1 5.5 21H19"/></svg>`,
+    scale: `${SVG_HEAD}<line x1="12" y1="4" x2="12" y2="21"/><line x1="7" y1="21" x2="17" y2="21"/><line x1="4" y1="7" x2="20" y2="7"/><path d="M4 7l-2.2 5a2.6 2.6 0 0 0 4.4 0z"/><path d="M20 7l-2.2 5a2.6 2.6 0 0 0 4.4 0z"/></svg>`,
+    filter: `${SVG_HEAD}<path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg>`,
+    ban: `${SVG_HEAD}<circle cx="12" cy="12" r="8.5"/><line x1="6" y1="18" x2="18" y2="6"/></svg>`,
+    check: `${SVG_HEAD}<circle cx="12" cy="12" r="8.5"/><polyline points="8.2 12.2 11 15 16 9.5"/></svg>`,
+    sliders: `${SVG_HEAD}<line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.2"/><circle cx="15" cy="16" r="2.2"/></svg>`,
     dot: `${SVG_HEAD}<circle cx="12" cy="12" r="4"/></svg>`,
 };
 
@@ -86,18 +95,40 @@ function humanDate(iso) {
     return `${Number(m[3])} ${month} ${m[1]}`;
 }
 
+// Таблица внутри раздела: { head: ['столбец', …], rows: [['ячейка', …], …] }.
+// Нужна там, где сравнение по строкам читается лучше списка. Оборачиваем в
+// прокручиваемый блок: на телефоне широкая таблица не должна распирать страницу.
+function tableHtml(table) {
+    if (!table || !Array.isArray(table.rows) || !table.rows.length) return '';
+    const head = Array.isArray(table.head) && table.head.length
+        ? `<thead><tr>${table.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>`
+        : '';
+    const body = table.rows
+        .map(row => `<tr>${(row || []).map(c => `<td>${esc(c)}</td>`).join('')}</tr>`)
+        .join('');
+    return `<div class="news-table-wrap"><table class="news-table">${head}<tbody>${body}</tbody></table></div>`;
+}
+
 function sectionHtml(sec) {
     const icon = ICONS[sec.icon] || ICONS.dot;
     const list = Array.isArray(sec.list) && sec.list.length
         ? `<ul class="news-list">${sec.list.map(li => `<li>${esc(li)}</li>`).join('')}</ul>`
         : '';
-    return `
-        <section class="news-sec">
+    // Заголовок главы: длинный пост делится на части, чтобы было видно, где
+    // заканчивается «что изменилось» и начинается разбор для желающих.
+    const chapter = sec.chapter
+        ? `<div class="news-chapter"><span>${esc(sec.chapter)}</span></div>`
+        : '';
+    const note = sec.note ? `<p class="news-sec-note">${esc(sec.note)}</p>` : '';
+    return `${chapter}
+        <section class="news-sec${sec.chapter ? ' news-sec-first' : ''}">
             <div class="news-sec-icon">${icon}</div>
             <div class="news-sec-body">
                 <h4 class="news-sec-title">${esc(sec.title)}</h4>
-                <p class="news-sec-text">${esc(sec.text)}</p>
+                ${sec.text ? `<p class="news-sec-text">${esc(sec.text)}</p>` : ''}
+                ${tableHtml(sec.table)}
                 ${list}
+                ${note}
             </div>
         </section>`;
 }
