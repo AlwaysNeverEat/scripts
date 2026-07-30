@@ -61,7 +61,7 @@ export function formatAggText(agg, calc, calcState) {
                 const base     = `${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`;
                 const sumpLine = calcState.showWithSump
                     ? ` + 550₽ (картер) = ${c.total + 550}₽`
-                    : ' (картер)';
+                    : ' + 550₽ (картер)';
                 lines.push(base + sumpLine);
             });
         }
