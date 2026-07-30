@@ -101,6 +101,11 @@ const targets = [
     what: 'Backend (Render) — если красный, сайт виснет на чёрном boot-экране',
   },
   {
+    key: 'cf',
+    url: 'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js',
+    what: 'Cloudflare под другим именем — РЕШАЮЩИЙ тест, см. итог ниже',
+  },
+  {
     key: 'raw',
     url: 'https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/package.json',
     what: 'Раздача юзерскриптов — если красный, не работают кнопки «Установить»',
@@ -202,8 +207,16 @@ function render(r, base) {
   if (dead('pages')) {
     lines.push('Не открывается сам сайт (GitHub Pages). Правки в коде тут не помогут — нужен другой адрес для входа: свой домен на хостинге, который виден из РФ.');
   }
-  if (dead('api')) {
-    lines.push('Не отвечает backend на Render. Сайт откроется, но повиснет на boot-экране. Лечится прокси: свой домен принимает запросы и переправляет их на Render.');
+  // Главная развилка. Render живёт за Cloudflare, и cdnjs.cloudflare.com — тоже
+  // Cloudflare, только под другим именем хоста. Сравнение этих двух строк
+  // говорит, по чему именно нас режут — и это разница между «купить домен за
+  // 200 ₽ в год» и «арендовать VPS».
+  if (dead('api') && r.cf && r.cf.ok) {
+    lines.push('ГЛАВНОЕ: backend не отвечает, а Cloudflare под другим именем (cdnjs) отвечает нормально. Значит режут не по адресу, а по ИМЕНИ хоста — конкретно onrender.com. Лечится своим доменом на Render: имя станет другим, адрес тот же. VPS не нужен, Render остаётся бесплатным, расход — только домен.');
+  } else if (dead('api') && dead('cf')) {
+    lines.push('ГЛАВНОЕ: не отвечает ни backend, ни Cloudflare под другим именем. Значит режут по адресам Cloudflare целиком — свой домен на Render не поможет, нужна точка входа вне Cloudflare (VPS).');
+  } else if (dead('api')) {
+    lines.push('Не отвечает backend на Render. Сайт откроется, но повиснет на boot-экране.');
   }
   if (!dead('pages') && !dead('api') && (slow('pages') || slow('api'))) {
     lines.push('Оба хоста отвечают, но медленно — это шейпинг. Симптом плавающий: то грузится, то нет. Тот же рецепт, что и при полной блокировке, только менее срочно.');
