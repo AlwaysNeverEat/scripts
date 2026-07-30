@@ -38,6 +38,9 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       __API_BASE__: JSON.stringify(env.VITE_API_BASE || ''),
+      // Запасные имена бэкенда через запятую. Обычно не нужны: имя api.<домен>
+      // клиент выводит из адреса сайта сам (см. shared/apiCandidates.js).
+      __API_FALLBACKS__: JSON.stringify(env.VITE_API_FALLBACKS || ''),
       __API_KEY__: JSON.stringify(env.VITE_API_KEY || ''),
     },
   };

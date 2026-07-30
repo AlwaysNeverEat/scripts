@@ -5,8 +5,8 @@
 // подпись оператора в строке для Битрикса. Нет токена — просто гость.
 
 import { fetchRetry } from '../netRetry.js';
+import { getApiBase } from '../apiBase.js';
 
-const API_BASE = (typeof __API_BASE__ !== 'undefined' && __API_BASE__) ? __API_BASE__ : '';
 const API_KEY = (typeof __API_KEY__ !== 'undefined' && __API_KEY__) ? __API_KEY__ : '';
 const TOKEN_KEY = 'cars_db_session_token'; // тот же ключ, что в main.js
 
@@ -20,7 +20,7 @@ export async function apiFetch(path, { method = 'GET', body } = {}) {
         headers['Content-Type'] = 'application/json';
         fetchBody = JSON.stringify(body);
     }
-    const res = await fetchRetry(API_BASE + path, { method, headers, body: fetchBody });
+    const res = await fetchRetry(getApiBase() + path, { method, headers, body: fetchBody });
     const json = await res.json().catch(() => null);
     if (!res.ok) {
         const errVal = json && json.error;

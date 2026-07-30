@@ -3,6 +3,7 @@ import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
 import { fetchRetry } from './netRetry.js';
 import { startKeepAlive } from './keepAlive.js';
+import { connectApi, getApiBase, apiCandidates } from './apiBase.js';
 import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
@@ -16,7 +17,8 @@ import { carCardInner } from './carCard.js';
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
 // In production build, these are injected by vite.config.js define().
-const API_BASE = (typeof __API_BASE__ !== 'undefined' && __API_BASE__) ? __API_BASE__ : '';
+// Адрес бэкенда не константа: у сервера несколько имён, и рабочее выбирается на
+// старте гонкой пингов — см. apiBase.js.
 const API_KEY  = (typeof __API_KEY__  !== 'undefined' && __API_KEY__)  ? __API_KEY__  : '';
 
 // ── Сессия ────────────────────────────────────────────────────────────────────
@@ -48,7 +50,7 @@ export async function apiFetch(path, { method = 'GET', body, isMultipart = false
         fetchBody = JSON.stringify(body);
     }
 
-    const res = await fetchRetry(API_BASE + path, { method, headers, body: fetchBody });
+    const res = await fetchRetry(getApiBase() + path, { method, headers, body: fetchBody });
 
     const json = await res.json().catch(() => null);
 
@@ -598,10 +600,10 @@ async function bootPrepare(log) {
 // приложение.
 window.addEventListener('hashchange', renderRoute);
 
-bootScreen((API_BASE || '') + '/health', { prepare: bootPrepare }).then(async (result) => {
+bootScreen(connectApi, { prepare: bootPrepare }).then(async (result) => {
     // Соединение до бэкенда дорого только на этапе установки — дальше держим
     // его открытым, чтобы каждый клик не начинался с нового хендшейка.
-    startKeepAlive((API_BASE || '') + '/health');
+    startKeepAlive(getApiBase() + '/health');
 
     let authed = result && result.authed;
     if (authed === undefined) {
