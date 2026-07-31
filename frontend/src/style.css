@@ -253,12 +253,24 @@
 }
 
 html, body { height: 100%; }
+html {
+  /* Chrome на Android перезагружает страницу по «потянуть вниз» у верхней
+     кромки. На главной это стреляло регулярно: пролистываешь выдачу поиска
+     вверх, палец доходит до края — и сайт «сам обновляется» с boot-экраном.
+     contain оставляет прокрутку внутри страницы и отключает и pull-to-refresh,
+     и раскачку всей страницы от внутренних списков. */
+  overscroll-behavior-y: contain;
+}
 body {
   background: var(--bg);
   color: var(--text);
   /* Unbounded — дефолтный шрифт везде */
   font: 14px/1.5 "Unbounded", Inter, "Segoe UI", Arial, sans-serif;
   min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: contain;
+  /* Мобильный Safari иначе подгоняет кегль сам, когда меняется ориентация */
+  -webkit-text-size-adjust: 100%;
 }
 input, button, select, textarea { font-family: inherit; }
 
@@ -2612,4 +2624,103 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .news-sec { gap: 10px; }
   .news-sec-icon { width: 26px; height: 26px; border-radius: 8px; }
   .news-table td:first-child { white-space: normal; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   МОБИЛЬНАЯ АДАПТАЦИЯ
+
+   Блок намеренно последний в файле: он правит уже описанную выше вёрстку
+   под палец и маленький экран, поэтому должен выигрывать по порядку
+   каскада. Разбит по причине, а не по разделам сайта:
+     1) ввод с тач-клавиатуры,   2) экран поиска,
+     3) размеры под палец,        4) вырезы и «безопасные зоны»,
+     5) плотность на узком экране.
+   ───────────────────────────────────────────────────────────────── */
+
+/* 1. Кегль полей ввода на тач-экранах ─────────────────────────────
+   iOS Safari зумит всю страницу, когда фокус уходит в поле с кеглем меньше
+   16px, и обратно сам не отматывает: после тапа по строке поиска сайт
+   оставался в увеличенном виде, с уехавшей за край вёрсткой. Лечится только
+   кеглем — никакие maximum-scale в viewport этого не отменяют (и не должны:
+   зум пальцами нужен). */
+@media (pointer: coarse) {
+  #search-input,
+  .tag-combo-input,
+  .edit-field input, .edit-field select,
+  .edit-filter-row input[type="text"], .edit-filter-row input[type="number"],
+  .head-card-edit textarea,
+  .auth-form input,
+  input[type="text"], input[type="search"], input[type="password"],
+  input[type="number"], input[type="email"], select, textarea {
+    font-size: 16px;
+  }
+}
+
+/* 2. Экран поиска ────────────────────────────────────────────────
+   На вертикальном экране строку поиска незачем держать по центру: сверху
+   оставалась пустая половина экрана, а выдача уезжала под нижний край, и
+   первую же найденную машину приходилось искать прокруткой. Поднимаем ввод
+   к шапке — выдача разворачивается на весь оставшийся экран.
+   Второе условие — телефон, положенный набок: ширины там хватает, а высоты
+   в 360px на центрирование уже нет. */
+@media (max-width: 700px), (max-height: 560px) {
+  .search-ui {
+    justify-content: flex-start;
+    padding: 18px 12px 0;
+    gap: 14px;
+  }
+  /* Сфера остаётся фоном, но перестаёт спорить с текстом: её подписи шире
+     экрана и лезли прямо под строку ввода. */
+  #sphere-canvas { opacity: 0.45; }
+  .search-mode-toggle { margin-bottom: 10px; }
+  /* Выдача ограничена реальной высотой экрана, а не фиксированными 420px */
+  .search-results { max-height: calc(100dvh - var(--tabs-h) - 140px); }
+  .tag-results { max-height: calc(100dvh - var(--tabs-h) - 200px); }
+  .tag-combo { max-width: none; }
+}
+
+/* Списки прокручиваются сами по себе и не тянут за собой страницу (а с ней —
+   pull-to-refresh браузера). */
+.search-results, .tag-combo-list, .modal-win {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 3. Размеры под палец ───────────────────────────────────────────
+   Рекомендованный минимум цели касания — 44px. Заодно убираем серую
+   вспышку подсветки и 300ms задержку до клика на старых движках. */
+@media (pointer: coarse) {
+  button, .btn, .chip, .app-tab, a.btn {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .search-mode-toggle .chip { padding: 10px 22px; }
+  .tag-combo-clear { width: 30px; height: 30px; }
+  .btn { min-height: 38px; }
+  .app-tab { padding: 0 12px; }
+}
+
+/* 4. Вырезы, скруглённые углы и полоса жеста ────────────────────── */
+@supports (padding: max(0px, env(safe-area-inset-left))) {
+  .app-tabs-inner {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
+  .page-body { padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
+  .calc-layout { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+  .search-ui { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+}
+
+/* 5. Плотность на узком экране ───────────────────────────────────
+   Карточки и шапки сделаны под десктопные отступы: на 360px они съедали
+   треть ширины под воздух. */
+@media (max-width: 560px) {
+  .head-card { padding: 16px; margin: 14px auto; border-radius: 12px; }
+  .page-head { padding: 18px 14px 10px; }
+  .page-body { padding-left: 14px; padding-right: 14px; }
+  .calc-layout { padding-left: 12px; padding-right: 12px; gap: 14px; }
+  .calc-topbar::after { display: none; }  /* балансир под кнопку «назад» */
+  .report-output { font-size: 11.5px; padding: 12px; }
+  /* Длинные названия масел и допусков не должны распирать карточку */
+  .oil-name, .head-title, .calc-car-title { overflow-wrap: anywhere; }
 }

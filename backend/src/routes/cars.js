@@ -567,21 +567,39 @@ router.get('/tags/results', async (req, res) => {
 // уже посчитан в БД) и каскада тегов. version = count + ':' + max(updated_at) —
 // дешёвый валидатор, по которому клиент решает, устарел ли его снимок.
 // Должен стоять ВЫШЕ '/:id', иначе тот перехватит 'index' как id.
+//
+// ?known=<version> — «у меня уже есть вот этот снимок». Если версия совпала,
+// отдаём {version, unchanged:true} и НЕ шлём машины: клиент обновляет снимок по
+// возвращении на вкладку, а перекачка и пересборка ~13к машин каждый раз — это
+// и трафик, и пик памяти на телефоне (см. frontend/src/main.js).
 
-router.get('/index', async (_req, res) => {
+const INDEX_ROWS_SQL = `
+  SELECT id, brand, model, generation, engine_code, engine_volume,
+         kw, bhp, year_from, year_to, name_normalized
+    FROM cars
+   ORDER BY brand, model, year_from`;
+
+const INDEX_META_SQL = 'SELECT count(*)::int AS n, max(updated_at) AS max_updated FROM cars';
+
+const indexVersion = (meta) => {
+  const { n, max_updated } = meta.rows[0];
+  return `${n}:${max_updated ? new Date(max_updated).getTime() : 0}`;
+};
+
+router.get('/index', async (req, res) => {
   try {
-    const [rows, meta] = await Promise.all([
-      query(
-        `SELECT id, brand, model, generation, engine_code, engine_volume,
-                kw, bhp, year_from, year_to, name_normalized
-           FROM cars
-          ORDER BY brand, model, year_from`,
-      ),
-      query('SELECT count(*)::int AS n, max(updated_at) AS max_updated FROM cars'),
-    ]);
-    const { n, max_updated } = meta.rows[0];
-    const version = `${n}:${max_updated ? new Date(max_updated).getTime() : 0}`;
-    res.json({ version, cars: rows.rows });
+    const known = req.query.known;
+    if (known) {
+      // Клиент проверяет свежесть: сначала дешёвая мета, машины — только если
+      // снимок и правда устарел.
+      const meta = await query(INDEX_META_SQL);
+      const version = indexVersion(meta);
+      if (known === version) return res.json({ version, unchanged: true });
+      const rows = await query(INDEX_ROWS_SQL);
+      return res.json({ version, cars: rows.rows });
+    }
+    const [rows, meta] = await Promise.all([query(INDEX_ROWS_SQL), query(INDEX_META_SQL)]);
+    res.json({ version: indexVersion(meta), cars: rows.rows });
   } catch (err) {
     console.error('GET /api/cars/index', err);
     res.status(500).json({ error: err.message });

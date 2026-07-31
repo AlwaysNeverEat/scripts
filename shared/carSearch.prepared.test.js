@@ -74,6 +74,27 @@ test('prepareCars не мутирует вход', () => {
   assert.ok(!input.some(c => c._search || c.search_text));
 });
 
+// Ради этого prepareCars и переписывалась: Set строк на каждую машину давал
+// ~46 МБ на 13к машин, и на телефоне вкладку выгружало прямо во время поиска
+// (см. комментарий в carSearch.js). Тест держит компактное представление —
+// общий словарь снимка + Uint32Array id — чтобы оно не уехало назад к Set-ам.
+test('prepareCars: триграммы лежат в общем словаре, а не в Set на каждую машину', () => {
+  const prepared = prepareCars(RAW);
+  const dict = prepared[0]._search.dict;
+  assert.ok(dict instanceof Map);
+  for (const c of prepared) {
+    assert.equal(c._search.dict, dict, 'словарь должен быть один на снимок');
+    assert.ok(c._search.nameIds instanceof Uint32Array);
+    assert.equal(c._search.nameIds.length, c._search.nameSize);
+    assert.ok(c._search.modelIds === null || c._search.modelIds instanceof Uint32Array);
+    assert.equal(typeof c._search.hay, 'string');
+    assert.ok(!('nameSet' in c._search), 'Set триграмм на машину — тот самый перерасход памяти');
+  }
+  // id отсортированы: пересечение считается слиянием
+  const ids = [...prepared[0]._search.nameIds];
+  assert.deepEqual(ids, [...ids].sort((a, b) => a - b));
+});
+
 test('результаты rankCars по prepared-снимку без служебных полей не теряют машин', () => {
   const rows = rankCars('форд фокус', prepareCars(RAW));
   assert.ok(rows.length > 0);

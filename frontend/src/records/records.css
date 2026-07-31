@@ -1653,3 +1653,39 @@
     .rc-station-head .rc-back { width: auto; }
     .rc-side-map { height: 52vh; }
 }
+
+/* ── Мобильная адаптация ──────────────────────────────────────────
+   Блок последний в файле намеренно: он правит описанное выше под палец,
+   поэтому должен выигрывать по порядку каскада. */
+
+/* iOS Safari зумит страницу при фокусе в поле с кеглем меньше 16px и обратно
+   не отматывает — на записях это ловилось на каждом поиске клиента. */
+@media (pointer: coarse) {
+    .rc-searchbox input,
+    .rc-side-map-search input,
+    .rc-map-search input,
+    .rc-date-input,
+    .rc-station-select select,
+    .rc-dur-input,
+    input[type="text"], input[type="search"], input[type="tel"],
+    input[type="number"], input[type="password"], select, textarea {
+        font-size: 16px;
+    }
+    /* Цели касания: строки ленты и кнопки панели были рассчитаны на курсор */
+    .rc-tl-row { height: 36px; }
+    .rc-btn { min-height: 38px; }
+}
+
+/* Высоту карты и списков считаем по dvh: с vh на телефоне в них попадает
+   ещё и адресная строка, и низ блока уезжает под кромку экрана. */
+@media (max-width: 900px) {
+    .rc-big-map { height: 52dvh; }
+    .rc-side-map { height: 60dvh; }
+}
+@media (max-width: 700px) {
+    .rc-side-map { height: 52dvh; }
+    .rc-map-near { max-height: min(50dvh, 520px); }
+    .rc-modal-body { max-height: min(70dvh, 720px); }
+    /* Полоса жеста «домой» на iPhone перекрывала нижний ряд кнопок окна */
+    .rc-modal .modal-actions { padding-bottom: env(safe-area-inset-bottom); }
+}
