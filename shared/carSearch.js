@@ -26,6 +26,46 @@ function trigramSet(str) {
   return set;
 }
 
+// ── Триграммы как id поверх словаря снимка ───────────────────────────────────
+// Set строк на каждую машину — самая дорогая часть подготовленного снимка: на
+// ~13к машин это под 30 МБ (нехватка памяти на телефоне = браузер молча
+// выгружает вкладку и она «сама перезагружается»). Триграмм на весь снимок
+// при этом всего ~7 тысяч, поэтому храним один словарь «триграмма → id» и по
+// машине — отсортированный Uint32Array из этих id: ~100 байт вместо ~2 КБ.
+// Пересечение считается слиянием двух отсортированных массивов — результат
+// бит-в-бит тот же, что у Set-версии, а работает быстрее.
+
+// Отсортированные (по возрастанию) id триграмм строки без повторов.
+// add=false — режим запроса: триграммы, которых нет в словаре снимка, просто
+// пропускаем (пересечение с ними всё равно нулевое), но в размер множества они
+// входят — его считаем по set.size, а не по длине массива.
+function trigramIds(set, dict, add) {
+  const ids = new Uint32Array(set.size);
+  let n = 0;
+  for (const t of set) {
+    let id = dict.get(t);
+    if (id === undefined) {
+      if (!add) continue;
+      id = dict.size;
+      dict.set(t, id);
+    }
+    ids[n++] = id;
+  }
+  const out = n === ids.length ? ids : ids.slice(0, n);
+  out.sort();
+  return out;
+}
+
+function intersectionSizeIds(a, b) {
+  let i = 0, j = 0, n = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { n++; i++; j++; }
+    else if (a[i] < b[j]) i++;
+    else j++;
+  }
+  return n;
+}
+
 function intersectionSize(a, b) {
   // Итерируем по меньшему множеству — дешевле.
   const [small, big] = a.size <= b.size ? [a, b] : [b, a];
@@ -35,10 +75,13 @@ function intersectionSize(a, b) {
 }
 
 // similarity(a,b) = |A∩B| / |A∪B| (Жаккар, как pg_trgm similarity()).
+function jaccard(inter, sizeA, sizeB) {
+  if (!sizeA || !sizeB) return 0;
+  return inter / (sizeA + sizeB - inter);
+}
+
 function similarityFromSets(A, B) {
-  if (!A.size || !B.size) return 0;
-  const inter = intersectionSize(A, B);
-  return inter / (A.size + B.size - inter);
+  return jaccard(intersectionSize(A, B), A.size, B.size);
 }
 
 // word_similarity(a,b) ≈ |A∩B| / |A| — какая доля триграмм запроса a есть в b.
@@ -75,13 +118,27 @@ function variantTokens(variant) {
 // Доля токенов варианта, каждый из которых является префиксом какого-то слова
 // стога. 1 → сработал бы префиксный tsquery (используется и как фильтр, и как
 // прокси ts_rank).
-function prefixCoverage(tokens, hayTokens) {
-  if (!tokens.length) return 0;
+//
+// hay — стог одной строкой, приведённый к нижнему регистру и с ведущим
+// пробелом (см. padHay). Массив слов тут был бы вторым по весу куском снимка
+// (~14 МБ на 13к машин), а «какое-то слово начинается с t» — это ровно
+// вхождение подстроки « t». Токены приходят уже с ведущим пробелом (padTokens):
+// склеивать их здесь значило бы аллоцировать строку на каждую машину снимка.
+function prefixCoverage(paddedTokens, hay) {
+  if (!paddedTokens.length) return 0;
   let hit = 0;
-  for (const t of tokens) {
-    if (hayTokens.some(ht => ht.startsWith(t))) hit++;
+  for (const t of paddedTokens) {
+    if (hay.includes(t)) hit++;
   }
-  return hit / tokens.length;
+  return hit / paddedTokens.length;
+}
+
+const padTokens = (tokens) => tokens.map(t => ' ' + t);
+
+// Стог в виде, который ждёт prefixCoverage: нижний регистр + ведущий пробел,
+// чтобы первое слово искалось тем же « t», что и остальные.
+function padHay(searchText) {
+  return ' ' + String(searchText || '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 // Расширенный стог для одной машины = name_normalized + синонимы/транслит
@@ -97,6 +154,11 @@ export function buildCarSearchText(car) {
   return `${base} ${synonymTokens.join(' ')}`.trim();
 }
 
+function carName(car) {
+  return car.name_normalized
+    || normalize([car.brand, car.model, car.generation, car.engine_code].filter(Boolean).join(' '));
+}
+
 /**
  * Досчитать поле search_text каждой машине снимка (один раз после загрузки).
  * rankCars умеет работать и без него, но тогда стог считается на каждый ввод.
@@ -106,24 +168,39 @@ export function augmentCars(cars) {
 }
 
 /**
- * augmentCars + предвычисленные структуры скоринга в поле _search: триграммы
- * имени/модели и токены стога. Считается один раз на снимок, чтобы scoreCar не
- * пересобирал их на каждую машину при каждом вводе. Идемпотентна, вход не
- * мутирует; rankCars даёт бит-в-бит ту же выдачу с _search и без него.
+ * Предвычисленные структуры скоринга в поле _search: id-триграммы имени и
+ * модели поверх общего словаря снимка + стог одной строкой. Считается один раз
+ * на снимок, чтобы scoreCar не пересобирал их на каждую машину при каждом
+ * вводе. Идемпотентна, вход не мутирует; rankCars даёт бит-в-бит ту же выдачу
+ * с _search и без него.
+ *
+ * Словарь триграмм общий на снимок и лежит в самом _search — по нему rankCars
+ * понимает, что машины подготовлены им же, и переводит запрос в те же id.
  */
 export function prepareCars(cars) {
-  return augmentCars(cars).map(c => {
-    if (c._search) return c;
-    const name = c.name_normalized
-      || normalize([c.brand, c.model, c.generation, c.engine_code].filter(Boolean).join(' '));
+  let dict = null;
+  return cars.map(c => {
+    // Уже подготовленная машина едет как есть, а её словарь подхватываем —
+    // повторный prepareCars по своему же снимку ничего не пересобирает.
+    if (c._search) { dict = dict || c._search.dict; return c; }
+    if (!dict) dict = new Map();
+    const name = carName(c);
     const modelLower = String(c.model || '').toLowerCase();
+    const nameSet = trigramSet(name);
+    const modelSet = modelLower ? trigramSet(modelLower) : null;
+    // search_text на объекте не держим: он нужен только чтобы собрать hay, а
+    // это ещё ~6 МБ на снимок, которые незачем возить в память телефона.
+    const { search_text: _drop, ...rest } = c;
     return {
-      ...c,
+      ...rest,
       _search: {
-        nameSet: trigramSet(name),
+        dict,
+        nameIds: trigramIds(nameSet, dict, true),
+        nameSize: nameSet.size,
         nameLower: name.toLowerCase(),
-        hayTokens: c.search_text.toLowerCase().split(/\s+/).filter(Boolean),
-        modelSet: modelLower ? trigramSet(modelLower) : null,
+        hay: padHay(c.search_text || buildCarSearchText(c)),
+        modelIds: modelSet ? trigramIds(modelSet, dict, true) : null,
+        modelSize: modelSet ? modelSet.size : 0,
       },
     };
   });
@@ -134,24 +211,29 @@ const SIMILARITY_THRESHOLD = 0.3;
 // word_similarity-ветка WHERE в серверном запросе.
 const WSIM_THRESHOLD = 0.35;
 
-function scoreCar(car, ctx) {
-  const { variantData, queryWordSets, nums, base } = ctx;
+// Пер-машинные структуры для «сырой» машины (без prepareCars): тот же набор
+// полей, но триграммы — обычными Set-ами, без словаря.
+function looseSearch(car) {
+  const name = carName(car);
+  const modelLower = String(car.model || '').toLowerCase();
+  return {
+    dict: null,
+    nameSet: trigramSet(name),
+    nameLower: name.toLowerCase(),
+    hay: padHay(car.search_text || buildCarSearchText(car)),
+    modelSet: modelLower ? trigramSet(modelLower) : null,
+  };
+}
 
-  // Пер-машинные структуры: из _search (prepareCars, один раз на снимок) или
-  // на лету — старое поведение для «сырых» машин.
-  let nameSet, nameLower, hayTokens, modelSet;
-  if (car._search) {
-    ({ nameSet, nameLower, hayTokens, modelSet } = car._search);
-  } else {
-    const name = car.name_normalized
-      || normalize([car.brand, car.model, car.generation, car.engine_code].filter(Boolean).join(' '));
-    nameSet = trigramSet(name);
-    nameLower = name.toLowerCase();
-    const hay = car.search_text || buildCarSearchText(car);
-    hayTokens = hay.toLowerCase().split(/\s+/).filter(Boolean);
-    const modelLower = String(car.model || '').toLowerCase();
-    modelSet = modelLower ? trigramSet(modelLower) : null;
-  }
+function scoreCar(car, ctx) {
+  const { variantData, queryWordSets, nums, base, dict } = ctx;
+
+  // Из _search (prepareCars, один раз на снимок) — или на лету, старое
+  // поведение для «сырых» машин и для снимков, подготовленных другим словарём.
+  const prepared = dict && car._search && car._search.dict === dict;
+  const s = prepared ? car._search : looseSearch(car);
+  const nameSize = prepared ? s.nameSize : s.nameSet.size;
+  const modelSize = prepared ? s.modelSize : (s.modelSet ? s.modelSet.size : 0);
 
   let maxSim = 0;
   let maxWsim = 0;
@@ -159,24 +241,31 @@ function scoreCar(car, ctx) {
   let tsMatch = false;
   let trigramMatch = false;
 
-  for (const { set: vSet, tokens } of variantData) {
-    const sim = similarityFromSets(nameSet, vSet);   // по name_normalized (латиница)
-    const wsim = wordSimilarityFromSets(vSet, nameSet);
+  for (const v of variantData) {
+    // по name_normalized (латиница)
+    const inter = prepared
+      ? intersectionSizeIds(s.nameIds, v.ids)
+      : intersectionSize(s.nameSet, v.set);
+    const sim = jaccard(inter, nameSize, v.size);
+    const wsim = v.size ? inter / v.size : 0;
     if (sim > maxSim) maxSim = sim;
     if (wsim > maxWsim) maxWsim = wsim;
     if (sim >= SIMILARITY_THRESHOLD) trigramMatch = true;
 
-    const cov = prefixCoverage(tokens, hayTokens); // по расширенному стогу
+    const cov = prefixCoverage(v.tokens, s.hay); // по расширенному стогу
     if (cov > maxPrefix) maxPrefix = cov;
     if (cov >= 1) tsMatch = true;
   }
 
   // Модельный бонус: каждое слово запроса против модели отдельно.
   let modelSim = 0;
-  if (modelSet) {
-    for (const qwSet of queryWordSets) {
-      const s = similarityFromSets(modelSet, qwSet);
-      if (s > modelSim) modelSim = s;
+  if (modelSize) {
+    for (const qw of queryWordSets) {
+      const inter = prepared
+        ? intersectionSizeIds(s.modelIds, qw.ids)
+        : intersectionSize(s.modelSet, qw.set);
+      const sm = jaccard(inter, modelSize, qw.size);
+      if (sm > modelSim) modelSim = sm;
     }
   }
 
@@ -191,7 +280,7 @@ function scoreCar(car, ctx) {
     if (Math.abs(Number(car.engine_volume) - nums.vol) < 0.15) volBoost = 0.2;
   }
 
-  const substringMatch = base.length > 0 && nameLower.includes(base);
+  const substringMatch = base.length > 0 && s.nameLower.includes(base);
   const match = tsMatch || trigramMatch || maxWsim >= WSIM_THRESHOLD || substringMatch;
 
   const score = maxSim * 0.3
@@ -220,10 +309,23 @@ export function rankCars(rawQuery, cars, { limit = 20 } = {}) {
     .filter(w => w.length >= 3 && !/^\d/.test(w))
     .slice(0, 12);
   const nums = parseNums(rawQuery);
+  // Словарь снимка (если он подготовлен) — по нему переводим запрос в те же id.
+  const dict = cars.length && cars[0]._search ? cars[0]._search.dict : null;
   // Пер-запросные структуры считаются один раз, а не в scoreCar на каждую машину.
-  const variantData = variants.map(v => ({ set: trigramSet(v), tokens: variantTokens(v) }));
-  const queryWordSets = queryWords.map(w => trigramSet(w));
-  const ctx = { variantData, queryWordSets, nums, base };
+  const variantData = variants.map(v => {
+    const set = trigramSet(v);
+    return {
+      set,
+      size: set.size,
+      ids: dict ? trigramIds(set, dict, false) : null,
+      tokens: padTokens(variantTokens(v)),
+    };
+  });
+  const queryWordSets = queryWords.map(w => {
+    const set = trigramSet(w);
+    return { set, size: set.size, ids: dict ? trigramIds(set, dict, false) : null };
+  });
+  const ctx = { variantData, queryWordSets, nums, base, dict };
 
   const scored = [];
   for (const car of cars) {
@@ -236,4 +338,4 @@ export function rankCars(rawQuery, cars, { limit = 20 } = {}) {
 }
 
 // Экспорт внутренностей для тестов/отладки.
-export const _internals = { trigramSet, similarity, wordSimilarityFromSets, prefixCoverage, parseNums };
+export const _internals = { trigramSet, similarity, wordSimilarityFromSets, prefixCoverage, padHay, parseNums };

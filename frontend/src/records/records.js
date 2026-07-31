@@ -2959,7 +2959,10 @@ export function startRecords(mount) {
 
     onVisibility = () => {
         if (document.hidden) return;
+        // Пока страница была скрыта, тики простаивали — догоняем разом.
         loadStatus();
+        renderStatusOnly();
+        syncNow();
         if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
     };
     startPolling();
@@ -2971,18 +2974,21 @@ export function startRecords(mount) {
     })();
 }
 
+// Все тики проверяют document.hidden: со свёрнутым браузером ни запрос, ни
+// перерисовка никому не нужны, а на телефоне это разбуженный радиомодуль и
+// съеденная батарея. Возврат к странице догоняет всё сам — см. onVisibility.
 function startPolling() {
     document.addEventListener('visibilitychange', onVisibility);
-    timers.push(setInterval(loadStatus, 30_000));
+    timers.push(setInterval(() => { if (!document.hidden) loadStatus(); }, 30_000));
     timers.push(setInterval(() => {
         // не дёргаем доску, пока открыта модалка или гейт кредов
         // (перерисовка сбила бы ввод)
         if (!document.hidden && !state.modal && !state.credsNeeded) loadBoard({ silent: true });
     }, 45_000));
-    timers.push(setInterval(renderStatusOnly, 10_000));
+    timers.push(setInterval(() => { if (!document.hidden) renderStatusOnly(); }, 10_000));
     // маркер «сейчас» и отсчёты — отдельным тиком: их можно двигать и при
     // открытой модалке, ведь это не перерисовка, а top и текст бейджа
-    timers.push(setInterval(syncNow, 15_000));
+    timers.push(setInterval(() => { if (!document.hidden) syncNow(); }, 15_000));
 }
 
 function stopPolling() {

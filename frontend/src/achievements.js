@@ -79,7 +79,9 @@ export function initAchievements({ apiFetch }) {
     apiFetchRef = apiFetch;
     checkAchievementsNow();
     clearInterval(pollTimer);
-    pollTimer = setInterval(checkAchievementsNow, POLL_INTERVAL_MS);
+    // Со свёрнутым браузером ачивки никто не увидит: тик пропускаем, чтобы не
+    // будить сеть на телефоне каждые две минуты. Вернутся — тост дождётся.
+    pollTimer = setInterval(() => { if (!document.hidden) checkAchievementsNow(); }, POLL_INTERVAL_MS);
 }
 
 // Дёргается после любых действий, которые могли изменить счётчики

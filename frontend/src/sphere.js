@@ -17,6 +17,13 @@ function fibonacciSphere(n) {
     });
 }
 
+// Длина подписи узла: на узком экране плашки шире экрана бессмысленны.
+const LABEL_MAX = typeof matchMedia === 'function' && matchMedia('(max-width: 700px)').matches ? 20 : 0;
+const clipLabel = (s) => {
+    const text = String(s || '');
+    return text.length > LABEL_MAX ? text.slice(0, LABEL_MAX - 1).trimEnd() + '…' : text;
+};
+
 // Кратчайшие рёбра между узлами (паутина)
 function buildEdges(positions, maxEdges) {
     const n = positions.length;
@@ -77,13 +84,39 @@ function roundRect(ctx, x, y, w, h, r) {
 
 // Пересчитать позиции узлов и рёбра под новый набор машин (режим «Теги»:
 // сфера сужается по мере выбора марки/модели/объёма).
-function buildLayout(nodes) {
+function buildLayout(rawNodes) {
+    // Подписи вроде «MERCEDES-BENZ Класс GLC/купе X254 / C254» шире всего
+    // телефона: плашки налезали друг на друга и на строку поиска. Диаметр
+    // сферы на 400px экрана всё равно меньше такой строки — обрезаем.
+    const nodes = LABEL_MAX ? rawNodes.map(n => ({ ...n, label: clipLabel(n.label) })) : rawNodes;
     const basePos = fibonacciSphere(nodes.length);
     // ~3 ребра на узел, чтобы паутина оставалась плотной
     const edgeCount = Math.min(Math.max(nodes.length * 3, 20), 200);
     const edges = buildEdges(basePos, edgeCount);
-    return { nodes, basePos, edges };
+    // Спроецированные узлы переиспользуем между кадрами: на телефоне создавать
+    // полсотни объектов 60 раз в секунду — заметная работа для сборщика мусора.
+    const proj = nodes.map(() => ({
+        sx: 0, sy: 0, rz2: 0, ps: 1, depthT: 0,
+        colorR: 0, colorG: 0, colorB: 0, alpha: 1, hoverT: 0, node: null,
+    }));
+    return { nodes, basePos, edges, proj, order: nodes.map((_, i) => i), baseW: new Float64Array(nodes.length) };
 }
+
+// Ширину подписи меряем один раз на узел (в базовом кегле) и дальше просто
+// масштабируем: measureText на каждый узел в каждом кадре был самой дорогой
+// строкой всей анимации. Ширина глифов линейна по кеглю, поэтому картинка та же.
+const BASE_FONT_PX = 10;
+const fontOf = (px) => `500 ${px}px 'Unbounded', sans-serif`;
+
+// Мобильный режим: тач-экран без мыши. Подсветки под курсором там всё равно
+// нет, зато есть слабый GPU, экран 3× и батарея — поэтому и кадров вдвое
+// меньше, и буфер не крупнее 2×.
+const isTouchOnly = typeof matchMedia === 'function'
+    && matchMedia('(hover: none) and (pointer: coarse)').matches;
+const prefersReducedMotion = typeof matchMedia === 'function'
+    && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MAX_DPR = isTouchOnly ? 2 : 3;
+const MIN_FRAME_MS = isTouchOnly ? 1000 / 30 : 0;
 
 /**
  * @param {HTMLCanvasElement} canvas
@@ -109,7 +142,10 @@ export function startSphere(canvas, initialNodes) {
         const w = canvas.offsetWidth;
         const h = canvas.offsetHeight;
         if (!w || !h) return false;
-        const dpr = window.devicePixelRatio || 1;
+        // DPR режем: у телефонов он 3, и буфер 3× — это девятикратная площадь
+        // заливки на каждый кадр ради разницы, которой на этих подписях не
+        // видно. Всё, что тяжелее 2×, мобильная сфера просто не окупает.
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
         const bw = Math.round(w * dpr);
         const bh = Math.round(h * dpr);
         if (canvas.width !== bw || canvas.height !== bh) {
@@ -149,26 +185,37 @@ export function startSphere(canvas, initialNodes) {
     const OFF = -9999;
     const hasMouse = () => mouse.x > -999;
 
-    let proj = [];
     let prevTime = 0;
     let rafId = 0;
+    let lastFrame = 0;
+    let running = false;
 
     const draw = (time) => {
-        rafId = requestAnimationFrame(draw);
         const W = canvas.offsetWidth;
         const H = canvas.offsetHeight;
         // Страница поиска скрыта, сфера спрятана (мало вариантов в режиме тегов),
-        // узлов ноль или контекст отобран браузером — не рисуем
-        if (W === 0 || !visible || layout.nodes.length === 0 || contextLost) {
+        // узлов ноль, вкладка в фоне или контекст отобран браузером — не рисуем.
+        // И цикл на это время останавливаем совсем: раньше кадры продолжали
+        // запрашиваться на любой другой вкладке сайта, впустую будя телефон
+        // шестьдесят раз в секунду. Обратно его заводит kick() — по возврату
+        // вкладки, по setVisible/setNodes и по ResizeObserver (страница поиска
+        // снова получила размер).
+        if (W === 0 || !visible || layout.nodes.length === 0 || contextLost || document.hidden) {
             if (W !== 0 && !contextLost) ctx.clearRect(0, 0, W, H);
             prevTime = 0;
+            running = false;
             return;
         }
+        rafId = requestAnimationFrame(draw);
+        // На тач-экранах держим ~30 кадров: подсветки под курсором там нет, а
+        // разницу между 30 и 60 на медленном вращении видно только по нагреву.
+        if (MIN_FRAME_MS && time - lastFrame < MIN_FRAME_MS) return;
+        lastFrame = time;
         if (!syncSize()) {
             prevTime = 0;
             return;
         }
-        const { nodes, basePos, edges } = layout;
+        const { nodes, basePos, edges, proj, order, baseW } = layout;
 
         ctx.clearRect(0, 0, W, H);
 
@@ -196,11 +243,13 @@ export function startSphere(canvas, initialNodes) {
         const cx = W / 2;
         const cy = H / 2;
 
-        proj = basePos.map((p, i) => {
-            let rx = p.x * cosY - p.z * sinY;
-            let rz = p.x * sinY + p.z * cosY;
-            let ry2 = p.y * cosX - rz * sinX;
-            let rz2 = p.y * sinX + rz * cosX;
+        const { gold: GOLD, gray: GRAY, highlight: HIGHLIGHT } = pal;
+        for (let i = 0; i < basePos.length; i++) {
+            const p = basePos[i];
+            const rx = p.x * cosY - p.z * sinY;
+            const rz = p.x * sinY + p.z * cosY;
+            const ry2 = p.y * cosX - rz * sinX;
+            const rz2 = p.y * sinX + rz * cosX;
 
             const ps = FOV / (FOV - rz2 * 0.8);
             const sx = cx + rx * R * ps;
@@ -217,14 +266,14 @@ export function startSphere(canvas, initialNodes) {
             const depthT = (rz2 + 1) / 2;
             const pulseT = Math.min(1, hoverT * 0.7);
             const colorT = Math.min(1, depthT + pulseT * 0.35);
-            const { gold: GOLD, gray: GRAY, highlight: HIGHLIGHT } = pal;
-            const fr = Math.round(GRAY.r + (GOLD.r - GRAY.r) * colorT + (HIGHLIGHT.r - GOLD.r) * pulseT * 0.5);
-            const fg = Math.round(GRAY.g + (GOLD.g - GRAY.g) * colorT + (HIGHLIGHT.g - GOLD.g) * pulseT * 0.5);
-            const fb = Math.round(GRAY.b + (GOLD.b - GRAY.b) * colorT + (HIGHLIGHT.b - GOLD.b) * pulseT * 0.5);
-            const alpha = 0.35 + depthT * 0.65;
-
-            return { sx, sy, rz2, ps, depthT, colorR: fr, colorG: fg, colorB: fb, alpha, hoverT, node: nodes[i] };
-        });
+            const o = proj[i];
+            o.sx = sx; o.sy = sy; o.rz2 = rz2; o.ps = ps; o.depthT = depthT; o.hoverT = hoverT;
+            o.colorR = Math.round(GRAY.r + (GOLD.r - GRAY.r) * colorT + (HIGHLIGHT.r - GOLD.r) * pulseT * 0.5);
+            o.colorG = Math.round(GRAY.g + (GOLD.g - GRAY.g) * colorT + (HIGHLIGHT.g - GOLD.g) * pulseT * 0.5);
+            o.colorB = Math.round(GRAY.b + (GOLD.b - GRAY.b) * colorT + (HIGHLIGHT.b - GOLD.b) * pulseT * 0.5);
+            o.alpha = 0.35 + depthT * 0.65;
+            o.node = nodes[i];
+        }
 
         // Рёбра
         for (const [a, b] of edges) {
@@ -232,7 +281,6 @@ export function startSphere(canvas, initialNodes) {
             const pb = proj[b];
             const avgDepth = (pa.depthT + pb.depthT) / 2;
             const lAlpha = (0.10 + avgDepth * 0.22) * Math.min(pa.alpha, pb.alpha);
-            const { gold: GOLD, gray: GRAY } = pal;
             const lr = Math.round(GRAY.r + (GOLD.r - GRAY.r) * avgDepth);
             const lg = Math.round(GRAY.g + (GOLD.g - GRAY.g) * avgDepth);
             const lb = Math.round(GRAY.b + (GOLD.b - GRAY.b) * avgDepth);
@@ -245,12 +293,17 @@ export function startSphere(canvas, initialNodes) {
         }
 
         // Узлы, сзади → вперёд
-        const order = proj.map((_, i) => i).sort((a, b) => proj[a].rz2 - proj[b].rz2);
+        order.sort((a, b) => proj[a].rz2 - proj[b].rz2);
         for (const i of order) {
             const p = proj[i];
             const fontSize = Math.max(6.5, 8.5 * p.ps * 0.82);
-            ctx.font = `500 ${fontSize}px 'Unbounded', sans-serif`;
-            const textW = ctx.measureText(p.node.label).width;
+            ctx.font = fontOf(fontSize);
+            if (!baseW[i]) {
+                ctx.font = fontOf(BASE_FONT_PX);
+                baseW[i] = ctx.measureText(p.node.label).width || 1;
+                ctx.font = fontOf(fontSize);
+            }
+            const textW = baseW[i] * (fontSize / BASE_FONT_PX);
             const cardW = textW + 16 * p.ps * 0.82;
             const cardH = 19 * p.ps * 0.82;
             const rr = 4 * p.ps * 0.82;
@@ -287,12 +340,21 @@ export function startSphere(canvas, initialNodes) {
 
             ctx.globalAlpha = 1;
         }
+
+        // «Меньше движения» в системе — рисуем один кадр и замираем: сфера
+        // остаётся на месте, но вкладка перестаёт быть вечной анимацией.
+        if (prefersReducedMotion) {
+            cancelAnimationFrame(rafId);
+            running = false;
+        }
     };
     // Единственная точка входа в цикл: cancelAnimationFrame перед новым
     // запросом гарантирует, что параллельных циклов не появится
     const kick = () => {
         cancelAnimationFrame(rafId);
         prevTime = 0;
+        lastFrame = 0;
+        running = true;
         rafId = requestAnimationFrame(draw);
     };
     kick();
@@ -300,6 +362,23 @@ export function startSphere(canvas, initialNodes) {
     // возобновить rAF сама — перезапускаем цикл, когда страница снова видна
     document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
     window.addEventListener('pageshow', kick);
+    // Цикл останавливается, когда канвас нулевого размера (ушли с поиска на
+    // другую вкладку сайта) — ResizeObserver будит его, когда страница поиска
+    // снова получает размер.
+    if (typeof ResizeObserver === 'function') {
+        new ResizeObserver(() => {
+            if (!running && canvas.offsetWidth) kick();
+        }).observe(canvas);
+    }
+    // Фирменный шрифт приезжает с задержкой (и может не приехать вовсе):
+    // измеренные до него ширины подписей надо забыть, иначе плашки останутся
+    // по размеру системного шрифта.
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+            layout.baseW.fill(0);
+            if (!running) kick();
+        }).catch(() => { /* без фирменного шрифта тоже жить можно */ });
+    }
 
     // Указатель слушаем на контейнере страницы, а не на канвасе. Строка поиска
     // с переключателем и результатами лежит поверх канваса и, в отличие от
@@ -335,11 +414,15 @@ export function startSphere(canvas, initialNodes) {
 
     return {
         // Подменить набор узлов без пересоздания canvas/анимации (режим «Теги»)
-        setNodes(nodes) { layout = buildLayout(nodes); },
+        setNodes(nodes) {
+            layout = buildLayout(nodes);
+            if (!running) kick();
+        },
         // Спрятать/показать сферу (режим «Теги»: < 5 вариантов — сфера не нужна)
         setVisible(v) {
             visible = v;
             if (!v) forgetMouse();
+            else if (!running) kick();
         },
     };
 }
