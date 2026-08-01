@@ -52,6 +52,30 @@ let lastStationCount = 12;
 let lastStationLanes = 2;
 let lastStationRows = 28;
 
+// ── Порядок станций в обзоре ─────────────────────────────────────────────────
+// «Как на доске» — исходный порядок клона: сперва линия метро, внутри линии по
+// алфавиту (так станции лежали всегда, поэтому это и есть значение по
+// умолчанию). «По алфавиту» — один сплошной список без оглядки на линии: когда
+// клиент называет адрес, линия не помогает. «По метро» — те же карточки, но
+// разложенные по столбикам линий, каждый столбик в цвете своей линии.
+const SORTS = [
+    { id: 'default', label: 'Как на доске', title: 'Сначала по линии метро, внутри линии — по алфавиту' },
+    { id: 'alpha', label: 'По алфавиту', title: 'Один список по названию станции' },
+    { id: 'metro', label: 'По метро', title: 'Столбики по линиям метро, в цвете линии' },
+];
+
+// Выбранный порядок переживает перезагрузку: у диспетчера он один и тот же изо
+// дня в день, и переставлять его каждое утро заново — лишняя работа.
+const SORT_KEY = 'zm_records_sort';
+
+function readSort() {
+    try {
+        const saved = localStorage.getItem(SORT_KEY);
+        if (SORTS.some(s => s.id === saved)) return saved;
+    } catch { /* приватный режим */ }
+    return 'default';
+}
+
 const state = {
     status: null,          // GET /status
     viewer: null,          // залогиненный пользователь сайта (или null — гость)
@@ -65,6 +89,7 @@ const state = {
     boardLoading: false,
     ops: [],               // последние операции (очередь)
     view: 'overview',      // 'overview' | 'station'
+    sort: readSort(),      // порядок карточек в обзоре: см. SORTS
     stationId: null,
     search: '',
     highlightId: null,     // подсветить запись после перехода из поиска
@@ -694,16 +719,78 @@ function renderBanner() { return ''; } // баннер живёт внутри h
 
 // ── Обзор всех станций ───────────────────────────────────────────────────────
 
+// Станции обзора в выбранном порядке. Станции без меты (в справочнике нет —
+// например новая точка) сортируются как «линия 9»: они уезжают в конец списка
+// и в свой столбик «без метро», но не пропадают.
+function sortedStations() {
+    const withMeta = (state.board?.addresses || []).map(a => ({ addr: a, meta: metaFor(a) }));
+    const byName = (x, y) => String(x.meta?.short || x.addr.title)
+        .localeCompare(String(y.meta?.short || y.addr.title), 'ru');
+    if (state.sort === 'alpha') return withMeta.sort(byName);
+    // 'metro' раскладывает по столбикам сам, но внутри столбика порядок тот же,
+    // что и по умолчанию, — поэтому обе ветки сортируются одинаково.
+    return withMeta.sort((x, y) => (x.meta?.line || 9) - (y.meta?.line || 9) || byName(x, y));
+}
+
+// Столбики «по метро»: линия → её станции, по номеру линии. Станции без линии
+// собираются в отдельный столбик в конце.
+function stationsByLine(list) {
+    const groups = new Map();
+    for (const item of list) {
+        const line = item.meta?.line || 0;
+        if (!groups.has(line)) groups.set(line, []);
+        groups.get(line).push(item);
+    }
+    return [...groups.entries()].sort((a, b) => (a[0] || 9) - (b[0] || 9));
+}
+
+// Переключатель порядка. Стоит над сеткой, а не в шапке: он про обзор станций,
+// а на виде станции его нет вовсе — там нечего сортировать.
+function renderSortBar() {
+    return `
+    <div class="rc-sortbar">
+        <span class="rc-sortbar-label">${icons.filter(13)}Станции</span>
+        ${SORTS.map(s => `
+            <button class="chip chip-sm ${state.sort === s.id ? 'active' : ''}"
+                data-action="set-sort" data-sort="${esc(s.id)}" title="${esc(s.title)}">${esc(s.label)}</button>`).join('')}
+    </div>`;
+}
+
 function renderOverview() {
-    const addrs = [...state.board.addresses];
-    const withMeta = addrs.map(a => ({ addr: a, meta: metaFor(a) }));
-    withMeta.sort((x, y) =>
-        (x.meta?.line || 9) - (y.meta?.line || 9)
-        || String(x.meta?.short || x.addr.title).localeCompare(String(y.meta?.short || y.addr.title), 'ru'));
+    const withMeta = sortedStations();
     if (withMeta.length) lastStationCount = withMeta.length;
 
-    return `<main class="rc-overview ${state.enterAnim ? 'rc-in' : ''}">${
-        withMeta.map(({ addr, meta }, i) => overviewCard(addr, meta, i)).join('')}</main>`;
+    const grid = state.sort === 'metro'
+        ? renderOverviewByLine(withMeta)
+        : `<main class="rc-overview ${state.enterAnim ? 'rc-in' : ''}">${
+            withMeta.map(({ addr, meta }, i) => overviewCard(addr, meta, i)).join('')}</main>`;
+    return renderSortBar() + grid;
+}
+
+// Тот же обзор, но карточки разложены по столбикам линий метро. Цвет линии
+// берёт на себя шапка столбика и его верхняя черта — сами карточки остаются
+// прежними, иначе пять цветов в сетке начинают спорить с плашками внутри.
+function renderOverviewByLine(withMeta) {
+    const groups = stationsByLine(withMeta);
+    let i = 0; // сквозной счётчик для каскада проявления: он идёт по столбикам
+    const cols = groups.map(([line, items]) => {
+        const color = line ? LINE_COLORS[line] : 'var(--sub)';
+        return `
+        <section class="rc-line-col" style="--line:${color}">
+            <div class="rc-line-head">
+                <span class="rc-line-dot" style="background:${color}"></span>
+                <b>${esc(line ? LINE_NAMES[line] : 'Без метро')}</b>
+                <span class="rc-line-count">${items.length}</span>
+            </div>
+            <div class="rc-line-cards">${
+                items.map(({ addr, meta }) => overviewCard(addr, meta, i++)).join('')}</div>
+        </section>`;
+    }).join('');
+    // --cols: сколько линий на доске. Сетка раскладывает столбики ровно по
+    // этому числу, а не «сколько влезет»: иначе последний уезжает на вторую
+    // строку и висит под самым длинным соседом.
+    return `<main class="rc-overview rc-overview-lines ${state.enterAnim ? 'rc-in' : ''}"
+        style="--cols:${groups.length}">${cols}</main>`;
 }
 
 // Скелет обзора вместо станций прошлого дня: пока едет новая доска, кликать
@@ -725,7 +812,11 @@ function renderSkeleton() {
         </div>`).join('');
     // Скелет проявляется целиком, без каскада: каскад — язык «данные пришли»,
     // и два каскада подряд за полторы секунды выглядели бы суетой.
-    return `<main class="rc-overview rc-skeleton" aria-busy="true" aria-label="Загрузка станций">${cards}</main>`;
+    // Столбиков «по метро» тут нет намеренно: какая станция на какой линии,
+    // станет известно только вместе с доской, а гадать — значит переставлять
+    // карточки прямо под курсором.
+    return renderSortBar()
+        + `<main class="rc-overview rc-skeleton" aria-busy="true" aria-label="Загрузка станций">${cards}</main>`;
 }
 
 // Скелет станции — для смены дня, не выходя со станции: экран не должен на
@@ -2378,6 +2469,16 @@ function openStation(id, highlightId = null) {
     return render();
 }
 
+// Смена порядка станций. Карточки переезжают на новые места, поэтому включаем
+// то же проявление, что и при загрузке дня: иначе сетка просто дёргается.
+function setSort(id) {
+    if (!SORTS.some(s => s.id === id) || state.sort === id) return;
+    state.sort = id;
+    try { localStorage.setItem(SORT_KEY, id); } catch { /* приватный режим */ }
+    state.enterAnim = true;
+    render();
+}
+
 async function handleAction(btn, ev) {
     const a = btn.dataset.action;
 
@@ -2398,6 +2499,7 @@ async function handleAction(btn, ev) {
         apiFetch('/api/records/refresh', { method: 'POST' }).catch(() => {});
         return loadBoard({ silent: true });
     }
+    if (a === 'set-sort') return setSort(btn.dataset.sort);
     if (a === 'open-station') return openStation(btn.dataset.id);
     if (a === 'back') {
         state.view = 'overview';
