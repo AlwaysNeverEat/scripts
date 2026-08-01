@@ -19,7 +19,9 @@ import './records.css';
 import { apiFetch } from './api.js';
 import { icons } from './icons.js';
 import { createStationsMap, geocodeStreet, stationsNear } from './map.js';
-import { findStationMeta, LINE_COLORS, LINE_NAMES } from '../../../shared/stationsMeta.js';
+import {
+    findStationMeta, baseStationMeta, setStationOverrides, LINE_COLORS, LINE_NAMES,
+} from '../../../shared/stationsMeta.js';
 import {
     detectChains, assignLanes, flattenAddressRecords, buildCopyLine,
     timeToMin, addMinutes, formatRuPhone, isBookableTime,
@@ -88,6 +90,9 @@ const state = {
     boardError: '',
     boardLoading: false,
     ops: [],               // последние операции (очередь)
+    // Правки справочника станций и предупреждения, расставленные модераторами:
+    // ключ станции → { patch, warning, updatedAt, updatedBy }. См. loadOverrides.
+    overrides: {},
     view: 'overview',      // 'overview' | 'station'
     sort: readSort(),      // порядок карточек в обзоре: см. SORTS
     stationId: null,
@@ -113,15 +118,50 @@ let boardReloadTimers = [];
 
 // ── Загрузка данных ──────────────────────────────────────────────────────────
 
-// Кто смотрит раздел. Нужен только ради подписи оператора в строке для
-// Битрикса: записи открыты и без аккаунта сайта, поэтому 401 — не ошибка.
+// Кто смотрит раздел. Нужен ради подписи оператора в строке для Битрикса и
+// ради прав модератора (правка карточек станций, логин/пароль админки):
+// записи открыты и без аккаунта сайта, поэтому 401 — не ошибка, а гость.
 async function loadViewer() {
+    const wasMod = isMod();
     try {
         const me = await apiFetch('/api/auth/me');
         state.viewer = me?.user || null;
     } catch {
         state.viewer = null;
     }
+    // Роль решает, видно ли кнопки модератора и форму кредов. Она приезжает
+    // отдельным запросом и часто позже первой отрисовки — тогда экран надо
+    // обновить. Открытое окно не трогаем: там набирают текст.
+    if (root && !state.modal && isMod() !== wasMod) render();
+}
+
+// Модератор. Кнопки, спрятанные от остальных, — только половина дела: те же
+// проверки стоят на бэкенде (routes/records.js, modOnly), иначе «спрятали» и
+// «запретили» — разные вещи.
+function isMod() {
+    return ['mod', 'admin'].includes(state.viewer?.role);
+}
+
+// Правки справочника и предупреждения. Открыты всем: предупреждение «кондей не
+// работает» нужно как раз тому, кто записывает, а не тому, кто его повесил.
+async function loadOverrides() {
+    try {
+        const data = await apiFetch('/api/records/stations');
+        state.overrides = data.stations || {};
+    } catch {
+        state.overrides = {}; // правок нет — раздел работает по справочнику из кода
+    }
+    // Справочник знает о правках сам: с ними работают и карточки станций, и
+    // плашки на карте, и подсказка «ближайшие станции».
+    setStationOverrides(patchesByKey());
+}
+
+function patchesByKey() {
+    const out = {};
+    for (const [key, row] of Object.entries(state.overrides)) {
+        if (row?.patch && Object.keys(row.patch).length) out[key] = row.patch;
+    }
+    return out;
 }
 
 async function loadStatus() {
@@ -165,8 +205,9 @@ async function loadBoard({ silent = false } = {}) {
         if (err.code === 'zms_credentials_required') {
             state.credsNeeded = true;
             state.boardLoading = false;
-            // Гейт уже показан? Не перерисовываем — там кто-то вводит пароль.
-            if (!root?.querySelector('#rc-creds-form')) render();
+            // Гейт уже показан? Не перерисовываем — там кто-то вводит пароль
+            // (а если не модератор, то и перерисовывать нечего: гейт статичен).
+            if (!root?.querySelector('.rc-gate-card')) render();
             return;
         }
         if (!state.board) {
@@ -257,7 +298,42 @@ function stationById(id, board = state.board) {
 }
 
 function metaFor(addr) {
-    return addr ? findStationMeta(addr.title) : null;
+    if (!addr) return null;
+    const meta = findStationMeta(addr.title); // уже с правками модераторов
+    if (meta) return meta;
+    // Станции нет в справочнике (открыли новую точку) — карточку ей может
+    // собрать модератор, и тогда она живёт целиком в правках. Имя тут одно
+    // на всех — заголовок колонки из админки, он же ключ правки.
+    const patch = state.overrides[addr.title]?.patch;
+    return patch && Object.keys(patch).length ? { short: addr.title, ...patch } : null;
+}
+
+// Ключ станции в правках: `short` из справочника, а для незнакомой точки —
+// заголовок её колонки из админки. Алиасы («Мурино» = «Охтинская») делят один
+// `short`, поэтому правка у них общая — станция-то одна.
+function stationKeyFor(addr, meta = metaFor(addr)) {
+    return baseStationMeta(addr?.title)?.short || meta?.short || addr?.title || '';
+}
+
+function overrideFor(addr) {
+    return state.overrides[stationKeyFor(addr)] || null;
+}
+
+// Предупреждение по станции («заправка кондея не работает»). Показывается всем
+// и там, где о нём вспоминают: на карточке в обзоре, над расписанием станции и
+// в окне новой записи — то есть до того, как что-то пообещали клиенту.
+function warningFor(addr) {
+    return overrideFor(addr)?.warning || '';
+}
+
+function warnBannerHtml(addr, { compact = false } = {}) {
+    const warn = warningFor(addr);
+    if (!warn) return '';
+    const by = overrideFor(addr)?.updatedBy;
+    return `
+    <div class="rc-warn ${compact ? 'rc-warn-sm' : ''}"${by ? ` title="Предупреждение поставил ${esc(by)}"` : ''}>
+        ${icons.alert(compact ? 13 : 15)}<span>${esc(warn)}</span>
+    </div>`;
 }
 
 // Код станции («##01») — то, что набирают, чтобы перевести на неё звонок,
@@ -636,7 +712,7 @@ function syncModalChrome() {
 function renderStatusOnly() {
     if (state.modal) return;
     if (state.credsNeeded) {
-        if (root?.querySelector('#rc-creds-form')) return; // форма уже на экране
+        if (root?.querySelector('.rc-gate-card')) return; // гейт уже на экране
         render();
         return;
     }
@@ -690,7 +766,7 @@ function renderHeader() {
                 ${failed ? `<span class="rc-queue-badge rc-queue-badge-err">${failed}</span>` : ''}
             </button>
             <button class="btn btn-sec" data-action="refresh" title="Обновить сейчас">${icons.refresh(15)}</button>
-            <button class="btn btn-sec" data-action="open-creds" title="Сменить логин/пароль админки">${icons.key(15)}</button>
+            ${isMod() ? `<button class="btn btn-sec" data-action="open-creds" title="Сменить логин/пароль админки">${icons.key(15)}</button>` : ''}
         </div>
     </header>
     <div class="rc-statusline">
@@ -878,14 +954,17 @@ function overviewCard(addr, meta, i = 0) {
     // цветом выделена только эта таблетка; остальные держим нейтральными,
     // чтобы сетка не пестрела.
     const freeTone = free === 0 ? 'rc-pill-none' : free <= 5 ? 'rc-pill-low' : 'rc-pill-ok';
+    const warn = warningFor(addr);
     return `
-    <button class="rc-card ${meta?.ac ? 'rc-card-ac' : ''}" data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
+    <button class="rc-card ${meta?.ac ? 'rc-card-ac' : ''} ${warn ? 'rc-card-warn' : ''}"
+        data-action="open-station" data-id="${esc(addr.id)}" style="--i:${i}">
         <div class="rc-card-head">
             <span class="rc-line-dot" style="background:${line ? LINE_COLORS[line] : 'var(--sub)'}"></span>
             ${boxCodeHtml(meta)}
             <b class="rc-card-name">${esc(meta?.short || addr.title)}</b>
             ${acHtml(meta)}
         </div>
+        ${warnBannerHtml(addr, { compact: true })}
         <div class="rc-card-strip">${ticks}</div>
         <div class="rc-card-foot">
             <span class="rc-pill ${freeTone}">${free} свободно</span>
@@ -1069,8 +1148,13 @@ function renderStation() {
                     ${meta?.note ? `<span class="rc-chip-meta rc-chip-note">${esc(meta.note)}</span>` : ''}
                 </div>
             </div>
-            <button class="btn btn-sec rc-back" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
+            <div class="rc-station-btns">
+                ${isMod() ? `<button class="btn btn-sec" data-action="edit-station" data-id="${esc(addr.id)}"
+                    title="Поправить карточку станции и предупреждение">${icons.edit(15)}<span class="rc-btn-label">Изменить</span></button>` : ''}
+                <button class="btn btn-sec rc-back" data-action="back">${icons.back(15)}<span class="rc-btn-label">Все станции</span></button>
+            </div>
         </div>
+        ${warnBannerHtml(addr)}
         <div class="rc-station-body">
             <div class="rc-board">
                 <div class="rc-lanes-heads">${laneHeads}</div>
@@ -1189,6 +1273,7 @@ function renderModal() {
         : m.kind === 'queue' ? modalQueue(m)
         : m.kind === 'map' ? modalMap(m)
         : m.kind === 'creds' ? modalCreds()
+        : m.kind === 'station-edit' ? modalStationEdit(m)
         : '';
     return `
     <div class="modal rc-modal">
@@ -1491,6 +1576,7 @@ function modalCreate(m) {
             <div class="rc-sub">Станция — ${boxCodeHtml(meta)}<b>${esc(meta?.short || addr?.title || '')}</b>${acHtml(meta, 10)}
                 <button class="btn btn-sec rc-mini-btn" data-action="toggle-create-map">${icons.map(13)} сменить на карте</button>
             </div>
+            ${warnBannerHtml(addr)}
             <div class="rc-station-select">
                 <select id="rc-f-station">
                     ${(board?.addresses || state.board.addresses).map(a => {
@@ -1727,6 +1813,7 @@ function modalMove(m) {
             <button class="btn btn-sec rc-mini-btn" data-action="toggle-move-map">${icons.map(13)} карта</button>
         </div>
         <div id="rc-move-map" class="rc-create-map ${m.showMap ? '' : 'hidden'}"></div>
+        ${warnBannerHtml(stationById(targetAddrId, ctx.board))}
         <div class="rc-sub">Расписание ${esc(m.targetDate || '')} — выберите окно</div>
         <div class="rc-pick">
             ${timelineHtml(ctx)}
@@ -1849,14 +1936,166 @@ function credsFormHtml() {
     </form>`;
 }
 
+// Кредов ещё нет — без них раздел пуст. Форму показываем только модератору:
+// вводить логин/пароль оригинальной админки — его дело (и бэкенд примет их
+// только от него). Остальным честно говорим, чего ждать и от кого.
 function renderCredsGate() {
     return `
     <div class="rc-shell rc-gate">
         <div class="rc-gate-card">
             <div class="rc-brand rc-gate-brand">${icons.pin(20)}<span>Записи</span></div>
-            ${credsFormHtml()}
+            ${isMod() ? credsFormHtml() : `
+            <p class="rc-creds-note">Раздел ещё не подключён к оригинальной админке
+            (zamena-masla-spot.ru). Логин и пароль вводит модератор — одного раза
+            хватит, дальше записи откроются у всех.</p>`}
         </div>
     </div>`;
+}
+
+// ── Карточка станции: правка модератором ─────────────────────────────────────
+// Справочник станций лежит в коде, но ворота перевешивают, гидростойку ставят,
+// кондиционер снимают — и ждать релиза ради одной строчки незачем. Модератор
+// правит карточку здесь, и правка сразу видна всем.
+//
+// В патч уходят ТОЛЬКО заполненные поля: пустое поле означает «как в
+// справочнике», а не «пусто». Поэтому в подсказке каждого поля стоит значение
+// из кода — видно, поверх чего пишешь, и что останется, если стереть.
+//
+// Отдельно от всего — предупреждение: это не справочная величина, а состояние
+// точки («заправка кондея не работает»), и живёт оно ровно до тех пор, пока
+// его не снимут.
+
+// Поля справочника, которые модератор может перекрыть. Порядок — как в
+// карточке станции: сначала «где», потом «что внутри».
+const EDIT_TEXT_FIELDS = [
+    { id: 'boxNo', label: 'Код перевода звонка', placeholder: '##04' },
+    { id: 'metro', label: 'Метро' },
+    { id: 'layout', label: 'Конфигурация', placeholder: '2 бокса / 1 подъёмник' },
+    { id: 'height', label: 'Высота ворот', placeholder: '2.3 м' },
+    { id: 'note', label: 'Заметка', placeholder: 'Во дворе' },
+];
+
+// Трёхзначные поля: «как в справочнике» — это отсутствие в патче, а не «нет».
+const EDIT_FLAG_FIELDS = [
+    { id: 'hydro', label: 'Гидростойка', yes: 'есть', no: 'нет' },
+    { id: 'ac', label: 'Заправка кондиционера', yes: 'делаем', no: 'не делаем' },
+];
+
+function flagLabel(field, value) {
+    if (value === true) return field.yes;
+    if (value === false) return field.no;
+    return 'не указано';
+}
+
+function modalStationEdit(m) {
+    const addr = stationById(m.addressId);
+    if (!addr) return modalShell('Карточка станции', '<div class="rc-empty-note">Станции больше нет на доске</div>');
+    const key = stationKeyFor(addr);
+    const base = baseStationMeta(addr.title); // справочник как он есть в коде
+    const row = state.overrides[key] || {};
+    const patch = row.patch || {};
+    const meta = metaFor(addr);
+
+    const textField = (f) => `
+        <label class="edit-field rc-grow"><span>${esc(f.label)}</span>
+            <input id="rc-so-${f.id}" type="text" value="${esc(patch[f.id] ?? '')}"
+                placeholder="${esc(base?.[f.id] ?? f.placeholder ?? 'не задано')}"/>
+        </label>`;
+
+    const flagField = (f) => `
+        <label class="edit-field rc-grow"><span>${esc(f.label)}</span>
+            <select id="rc-so-${f.id}">
+                <option value="">как в справочнике (${esc(flagLabel(f, base?.[f.id]))})</option>
+                <option value="yes" ${patch[f.id] === true ? 'selected' : ''}>${esc(f.yes)}</option>
+                <option value="no" ${patch[f.id] === false ? 'selected' : ''}>${esc(f.no)}</option>
+            </select>
+        </label>`;
+
+    const lineOptions = [1, 2, 3, 4, 5].map(n => `
+        <option value="${n}" ${patch.line === n ? 'selected' : ''}>${esc(LINE_NAMES[n])}</option>`).join('');
+
+    const body = `
+    <div class="rc-station-edit">
+        <div class="rc-sub">${boxCodeHtml(meta)}<b>${esc(meta?.short || addr.title)}</b>
+            <span class="rc-dim">${esc(addr.title)}</span></div>
+        <p class="rc-creds-note">Пустое поле — значение из справочника (оно в подсказке).
+        Заполненное перекрывает справочник и видно всем сразу.</p>
+
+        <div class="rc-field-row">${EDIT_TEXT_FIELDS.slice(0, 2).map(textField).join('')}</div>
+        <div class="rc-field-row">
+            <label class="edit-field rc-grow"><span>Линия метро</span>
+                <select id="rc-so-line">
+                    <option value="">как в справочнике (${esc(base?.line ? LINE_NAMES[base.line] : 'не указана')})</option>
+                    ${lineOptions}
+                </select>
+            </label>
+            <label class="edit-field rc-grow"><span>Боксов продаём</span>
+                <input id="rc-so-boxes" type="number" min="1" max="10" value="${esc(patch.boxes ?? '')}"
+                    placeholder="${esc(base?.boxes ?? 'не задано')}"/>
+            </label>
+        </div>
+        <div class="rc-field-row">${EDIT_TEXT_FIELDS.slice(2, 4).map(textField).join('')}</div>
+        <div class="rc-field-row">${EDIT_FLAG_FIELDS.map(flagField).join('')}</div>
+        <div class="rc-field-row">${textField(EDIT_TEXT_FIELDS[4])}</div>
+
+        <label class="edit-field"><span>Предупреждение по станции</span>
+            <textarea id="rc-so-warning" rows="2" maxlength="300"
+                placeholder="Заправка кондея не работает">${esc(row.warning || '')}</textarea></label>
+        <div class="rc-pick-hint">Предупреждение видно всем: на карточке станции в списке,
+            над её расписанием и в окне новой записи. Пустое поле снимает предупреждение.</div>
+
+        ${row.updatedBy ? `<div class="rc-dim rc-so-by">Последняя правка — ${esc(row.updatedBy)}${
+            row.updatedAt ? `, ${new Date(row.updatedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}</div>` : ''}
+        ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
+        <div class="modal-actions">
+            ${Object.keys(patch).length || row.warning
+                ? `<button class="btn btn-sec" data-action="reset-station"
+                    title="Убрать все правки — станция вернётся к справочнику">${icons.trash(14)} Сбросить</button>`
+                : ''}
+            <button class="btn btn-pri" data-action="submit-station">${icons.check(14)} Сохранить</button>
+        </div>
+    </div>`;
+    return modalShell('Карточка станции', body, { wide: true, note: `правка справочника · ${key}` });
+}
+
+// Что набрали в форме правки. Пустая строка = «поля в патче нет».
+function readStationForm() {
+    const patch = {};
+    for (const f of EDIT_TEXT_FIELDS) {
+        const v = document.getElementById(`rc-so-${f.id}`)?.value.trim();
+        if (v) patch[f.id] = v;
+    }
+    for (const f of EDIT_FLAG_FIELDS) {
+        const v = document.getElementById(`rc-so-${f.id}`)?.value;
+        if (v === 'yes') patch[f.id] = true;
+        if (v === 'no') patch[f.id] = false;
+    }
+    const line = Number(document.getElementById('rc-so-line')?.value);
+    if (line >= 1 && line <= 5) patch.line = line;
+    const boxes = Number(document.getElementById('rc-so-boxes')?.value);
+    if (boxes >= 1 && boxes <= 10) patch.boxes = Math.round(boxes);
+    return { patch, warning: document.getElementById('rc-so-warning')?.value.trim() || '' };
+}
+
+async function saveStation(patch, warning) {
+    const m = state.modal;
+    const addr = stationById(m?.addressId);
+    if (!addr) return;
+    const key = stationKeyFor(addr);
+    try {
+        const data = await apiFetch('/api/records/stations', {
+            method: 'PUT', body: { key, patch, warning },
+        });
+        if (data.station) state.overrides[key] = data.station;
+        else delete state.overrides[key];
+        setStationOverrides(patchesByKey());
+        state.modal = null;
+    } catch (err) {
+        // 403 сюда приезжает от requireRole коротким «forbidden» — переводим:
+        // роль могли снять, пока окно было открыто.
+        m.error = err.status === 403 ? 'Править карточки станций может только модератор' : err.message;
+    }
+    render();
 }
 
 // ── Поиск ────────────────────────────────────────────────────────────────────
@@ -2515,6 +2754,19 @@ async function handleAction(btn, ev) {
         return render();
     }
     if (a === 'open-creds') { state.credsError = ''; state.modal = { kind: 'creds' }; return render(); }
+    // Правка карточки станции — только модератору. Кнопки у остальных нет, но
+    // проверка тут не лишняя: доска перерисовывается, а роль может и уехать
+    // (разлогинились в соседней вкладке) — тогда окно просто не откроется.
+    if (a === 'edit-station') {
+        if (!isMod()) return;
+        state.modal = { kind: 'station-edit', addressId: btn.dataset.id || state.stationId };
+        return render();
+    }
+    if (a === 'submit-station') {
+        const { patch, warning } = readStationForm();
+        return saveStation(patch, warning);
+    }
+    if (a === 'reset-station') return saveStation({}, '');
     if (a === 'close-modal') { destroyMapCtl(); state.modal = null; return render(); }
 
     if (a === 'search-pick') {
@@ -3030,6 +3282,7 @@ function resetState() {
         boardError: '',
         boardLoading: false,
         ops: [],
+        overrides: {},
         view: 'overview',
         stationId: null,
         search: '',
@@ -3065,13 +3318,16 @@ export function startRecords(mount) {
         loadStatus();
         renderStatusOnly();
         syncNow();
-        if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
+        if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: true }));
     };
     startPolling();
 
     (async () => {
-        loadViewer(); // подпись оператора — не повод задерживать доску
+        loadViewer(); // подпись оператора и роль — не повод задерживать доску
         await loadStatus();
+        // Правки справочника нужны ДО первой отрисовки станций: иначе карточки
+        // моргнут сначала справочными данными, а потом поправленными.
+        await loadOverrides();
         await loadBoard();
     })();
 }
@@ -3085,7 +3341,10 @@ function startPolling() {
     timers.push(setInterval(() => {
         // не дёргаем доску, пока открыта модалка или гейт кредов
         // (перерисовка сбила бы ввод)
-        if (!document.hidden && !state.modal && !state.credsNeeded) loadBoard({ silent: true });
+        if (document.hidden || state.modal || state.credsNeeded) return;
+        // Заодно перечитываем правки станций: предупреждение вешает один
+        // человек, а видеть его должны все — и не после перезагрузки страницы.
+        loadOverrides().then(() => loadBoard({ silent: true }));
     }, 45_000));
     timers.push(setInterval(() => { if (!document.hidden) renderStatusOnly(); }, 10_000));
     // маркер «сейчас» и отсчёты — отдельным тиком: их можно двигать и при
@@ -3129,7 +3388,7 @@ export function resumeRecords() {
     startPolling();
     loadViewer(); // пока раздел стоял, могли войти под своим аккаунтом
     loadStatus();
-    if (!state.modal && !state.credsNeeded) loadBoard({ silent: true });
+    if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: true }));
 }
 
 export function stopRecords() {

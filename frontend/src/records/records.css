@@ -213,6 +213,48 @@
 .rc-banner svg { color: var(--red); flex: none; margin-top: 2px; }
 .rc-banner b { color: var(--red); }
 
+/* ── Предупреждение по станции ─────────────────────────────────── */
+/* «Заправка кондея не работает» — то, что должно попасться на глаза ДО
+   разговора с клиентом, поэтому висит в трёх местах сразу: на карточке
+   станции в обзоре (компактный вид), над её расписанием и в окне новой
+   записи. Цвет — жёлтый акцент, а не красный: станция работает, просто
+   не всё. Красный тут уже занят «оригинал лежит». */
+.rc-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-bottom: 14px;
+    padding: 10px 13px;
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
+    background: var(--accent-dim);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 12.5px;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.rc-warn svg { color: var(--accent); flex: none; margin-top: 1px; }
+
+/* Компактный вид — внутри карточки станции: там место меряется строками, и
+   длинное предупреждение режется многоточием (целиком оно видно на самой
+   станции). */
+.rc-warn-sm {
+    gap: 6px;
+    margin: 0;
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.rc-warn-sm span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ── Смена дня: уход, скелет, появление ────────────────────────── */
 /* Доска приезжает с бэкенда не мгновенно. Пока она едет, станции прошлого дня
    на экране держать нельзя (клик по ним открывал чужой день), поэтому день
@@ -430,6 +472,10 @@
 }
 
 .rc-card-ac:hover { border-color: var(--accent); background: color-mix(in oklab, var(--blue) 17%, var(--bg2)); }
+
+/* Станция с предупреждением — рамка в цвет предупреждения: в сетке из двух
+   десятков карточек её видно раньше, чем текст успеют прочитать. */
+.rc-card-warn { border-color: color-mix(in oklab, var(--accent) 55%, var(--border)); }
 
 .rc-card-head {
     display: flex;
@@ -669,10 +715,18 @@
     gap: 14px;
 }
 
-/* Кнопка возврата — ровно по ширине сетки под ней: шапка и расписание стоят на
-   одной вертикали, а подпись читается по центру своей полосы. */
-.rc-station-head .rc-back {
+/* Ряд кнопок под названием — ровно по ширине сетки под ним: шапка и расписание
+   стоят на одной вертикали, а подписи читаются по центру своих полос. Кнопка
+   правки (только у модератора) отбирает у возврата ровно столько, сколько
+   занимает сама. */
+.rc-station-btns {
+    display: flex;
+    gap: 8px;
     width: min(100%, calc(64px + var(--lanes, 1) * var(--lane-w)));
+}
+
+.rc-station-head .rc-back {
+    flex: 1;
     justify-content: center;
 }
 
@@ -1208,6 +1262,33 @@
     border: 1px solid var(--border);
     overflow: hidden;
 }
+
+/* ── Правка карточки станции (модератор) ───────────────────────── */
+
+.rc-station-edit { display: flex; flex-direction: column; gap: 10px; }
+
+/* Подсказка в поле — это значение из справочника, то есть то, что останется,
+   если поле стереть. Держим её приглушённой, но читаемой: по ней и решают,
+   надо ли вообще что-то перекрывать. */
+.rc-station-edit input::placeholder { color: var(--sub); opacity: 0.75; }
+
+.rc-so-by { font-size: 11px; }
+
+/* В окнах раздела textarea выглядит как обычное поле: базовые стили сайта
+   покрывают input и select, но не её. */
+.rc-modal .edit-field textarea {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    width: 100%;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.rc-modal .edit-field textarea:focus { outline: none; border-color: var(--accent); }
 
 /* ── Выбор окна: расписание дня + длительность ──────────────────── */
 
@@ -1745,8 +1826,9 @@
     .rc-searchbox { order: 10; flex-basis: 100%; max-width: none; }
     .rc-field-row { flex-direction: column; gap: 0; }
     .rc-station { --lane-w: 240px; }
-    /* Подпись у кнопки спрятана — растягивать её на ширину сетки незачем. */
-    .rc-station-head .rc-back { width: auto; }
+    /* Подписи у кнопок спрятаны — растягивать их на ширину сетки незачем. */
+    .rc-station-btns { width: auto; }
+    .rc-station-head .rc-back { flex: none; }
     .rc-side-map { height: 52vh; }
 }
 

@@ -10,7 +10,7 @@
 
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { STATIONS_META, LINE_COLORS, nearestStations } from '../../../shared/stationsMeta.js';
+import { stationsMeta, LINE_COLORS, nearestStations } from '../../../shared/stationsMeta.js';
 import { currentTheme } from '../theme.js';
 import { icons } from './icons.js';
 
@@ -25,11 +25,13 @@ const TILE_URL = {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Уникальные станции (без алиасов вроде «Мурино»/«Охтинская»).
+// Уникальные станции (без алиасов вроде «Мурино»/«Охтинская»), с накатанными
+// правками модераторов: снежинка и код на плашке должны говорить то же самое,
+// что карточка станции.
 export function uniqueStations() {
     const seen = new Set();
     const out = [];
-    for (const s of STATIONS_META) {
+    for (const s of stationsMeta()) {
         const key = `${s.short}|${s.boxNo}`;
         if (seen.has(key)) continue;
         seen.add(key);

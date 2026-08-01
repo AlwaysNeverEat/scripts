@@ -25,8 +25,14 @@ import {
     SLOT_MINUTES, MAX_DURATION_MIN, MAX_OP_RECORDS, WORK_END_MIN,
 } from '../../../shared/crmRecords.js';
 import { query } from '../db/client.js';
+import { requireRole } from '../auth/middleware.js';
 
 const router = Router();
+
+// Кто правит справочник станций и вешает предупреждения — и кто вводит
+// логин/пароль оригинальной админки. Всё остальное в разделе по-прежнему
+// открыто всем: записываться и переносить может кто угодно, в том числе гость.
+const modOnly = requireRole('mod', 'admin');
 
 const DATE_RE = /^\d{2}\.\d{2}\.\d{4}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -46,7 +52,10 @@ function bad(res, message) {
 
 // ── Креды ────────────────────────────────────────────────────────────────────
 
-router.post('/credentials', async (req, res) => {
+// Логин/пароль общие на всех, но менять их — не общее дело: неверная пара
+// рвёт раздел сразу у всех, поэтому ввод оставлен модераторам. Проверка
+// серверная, а не «спрятали кнопку»: на роль здесь и держится доступ.
+router.post('/credentials', modOnly, async (req, res) => {
     const login = String(req.body?.login || '').trim();
     const password = String(req.body?.password || '');
     if (!login || !password) return bad(res, 'нужны login и password');
@@ -145,6 +154,118 @@ router.get('/record/:id', async (req, res) => {
             },
         });
     } catch (err) {
+        sendZmsError(res, err);
+    }
+});
+
+// ── Справочник станций: правки модераторов и предупреждения ──────────────────
+// Что и зачем — см. db/migrations/022_station_overrides.sql. Здесь важно одно:
+// в patch кладутся ТОЛЬКО перечисленные ниже поля. `short` и `match` в списке
+// нет намеренно — по ним станция опознаётся (и `short` вдобавок ключ строки),
+// а lat/lng задают точку на карте и правятся вместе с ней, то есть в коде.
+
+const PATCH_FIELDS = {
+    // Код перевода звонка — всегда две цифры через две решётки.
+    boxNo: (v) => (/^##\d{2}$/.test(v) ? v : undefined),
+    metro: (v) => text(v, 40),
+    line: (v) => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : undefined),
+    layout: (v) => text(v, 80),
+    height: (v) => text(v, 20),
+    // Гидростойка и кондиционер трёхзначные: «нет в патче» — как в справочнике,
+    // true/false — модератор сказал своё слово.
+    hydro: (v) => (typeof v === 'boolean' ? v : undefined),
+    ac: (v) => (typeof v === 'boolean' ? v : undefined),
+    boxes: (v) => (Number.isInteger(v) && v >= 1 && v <= 10 ? v : undefined),
+    note: (v) => text(v, 120),
+};
+
+function text(v, max) {
+    if (typeof v !== 'string') return undefined;
+    const s = v.trim().slice(0, max);
+    return s || undefined;
+}
+
+// Патч из тела запроса: неизвестные ключи и негодные значения молча
+// отбрасываются, пустые строки означают «не переопределяю» и в патч не идут.
+function cleanPatch(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    for (const [key, check] of Object.entries(PATCH_FIELDS)) {
+        if (!(key in raw) || raw[key] === null) continue;
+        const value = check(raw[key]);
+        if (value !== undefined) out[key] = value;
+    }
+    return out;
+}
+
+const MISSING_TABLE = '42P01';
+
+router.get('/stations', async (_req, res) => {
+    try {
+        const { rows } = await query(
+            `SELECT station_key, patch, warning, updated_at, updated_by_name
+               FROM station_overrides`);
+        const stations = {};
+        for (const row of rows) {
+            stations[row.station_key] = {
+                patch: row.patch || {},
+                warning: row.warning || '',
+                updatedAt: row.updated_at,
+                updatedBy: row.updated_by_name || '',
+            };
+        }
+        res.json({ stations });
+    } catch (err) {
+        // Миграцию 022 накатывают руками (см. DEPLOY.md). Пока её нет, раздел
+        // должен работать как раньше, а не падать целиком: правок просто нет.
+        if (err?.code === MISSING_TABLE) return res.json({ stations: {} });
+        sendZmsError(res, err);
+    }
+});
+
+// Ключ станции едет в теле, а не в пути: в нём бывают и косая черта, и
+// запятая («Охтинская 9/1, Мурино»), а %2F в пути по дороге через прокси
+// живёт непредсказуемо.
+router.put('/stations', modOnly, async (req, res) => {
+    const key = String(req.body?.key || '').trim();
+    if (!key || key.length > 200) return bad(res, 'key');
+    const patch = cleanPatch(req.body?.patch);
+    const warning = String(req.body?.warning || '').trim().slice(0, 300);
+    try {
+        // Пустая правка — это не строка с пустыми полями, а отсутствие строки:
+        // «сбросить всё» и «никогда не трогали» должны выглядеть одинаково.
+        if (!Object.keys(patch).length && !warning) {
+            await query('DELETE FROM station_overrides WHERE station_key = $1', [key]);
+            return res.json({ ok: true, station: null });
+        }
+        const { rows } = await query(
+            `INSERT INTO station_overrides (station_key, patch, warning, updated_by, updated_by_name)
+                  VALUES ($1, $2::jsonb, $3, $4, $5)
+             ON CONFLICT (station_key) DO UPDATE
+                     SET patch = EXCLUDED.patch,
+                         warning = EXCLUDED.warning,
+                         updated_at = now(),
+                         updated_by = EXCLUDED.updated_by,
+                         updated_by_name = EXCLUDED.updated_by_name
+               RETURNING patch, warning, updated_at, updated_by_name`,
+            [key, JSON.stringify(patch), warning, req.user?.id || null, req.user?.display_name || ''],
+        );
+        const row = rows[0];
+        res.json({
+            ok: true,
+            station: {
+                patch: row.patch || {},
+                warning: row.warning || '',
+                updatedAt: row.updated_at,
+                updatedBy: row.updated_by_name || '',
+            },
+        });
+    } catch (err) {
+        if (err?.code === MISSING_TABLE) {
+            return res.status(503).json({
+                error: { code: 'migration_required', message: 'таблица station_overrides ещё не создана — накатите миграцию 022' },
+            });
+        }
         sendZmsError(res, err);
     }
 });
