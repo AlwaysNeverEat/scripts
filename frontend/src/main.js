@@ -382,8 +382,20 @@ function pauseRecords() {
 
 // ── Снимок базы (мгновенный поиск и теги) ──────────────────────────────────────
 // Тянем всю (небольшую) базу один раз и фильтруем в браузере — никакой сети на
-// каждый символ/клик. Обновляем не чаще раза в минуту и при возврате на вкладку.
-const SNAPSHOT_TTL_MS = 60_000;
+// каждый символ/клик.
+//
+// Обновление намеренно осторожное. Раньше снимок перекачивался и пересобирался
+// каждую минуту при любом возврате на вкладку, и на телефоне это выглядело как
+// баг: посидел на главной, полез искать машину — а сайт «сам перезагрузился» с
+// boot-экраном. Перезагружал его на самом деле браузер: пересборка снимка (13к
+// машин: качаем, клонируем в воркер, считаем триграммы) даёт пик памяти, и
+// мобильная вкладка на этом пике выгружается. Поэтому:
+//   • сперва спрашиваем версию (?known=…) — почти всегда «unchanged», и тогда
+//     не качается и не пересобирается вообще ничего;
+//   • интервал протух → это не повод лезть в сеть прямо сейчас, а только повод
+//     проверить версию при следующем возврате на вкладку;
+//   • пока человек печатает в поиске, фоновое обновление не трогаем совсем.
+const SNAPSHOT_TTL_MS = 5 * 60_000;
 let snapshot = { version: null, cars: [] };
 let snapshotFetchedAt = 0;
 let snapshotPromise = null;
@@ -392,12 +404,19 @@ function loadSnapshot(force = false) {
     const fresh = snapshot.cars.length && (Date.now() - snapshotFetchedAt < SNAPSHOT_TTL_MS);
     if (!force && fresh) return Promise.resolve(snapshot);
     if (!snapshotPromise) {
-        snapshotPromise = apiFetch('/api/cars/index')
+        const known = snapshot.cars.length ? snapshot.version : null;
+        const url = '/api/cars/index' + (known ? '?known=' + encodeURIComponent(known) : '');
+        snapshotPromise = apiFetch(url)
             .then(data => {
+                snapshotFetchedAt = Date.now();
+                // База не менялась — оставляем всё как есть: ни новых массивов в
+                // памяти, ни пересборки воркера.
+                if (data.unchanged) return snapshot;
                 // Храним сырые машины: search_text и триграммы досчитывает воркер
                 // (или ленивый fallback) — главный поток снимок не обсчитывает.
                 snapshot = { version: data.version, cars: data.cars || [] };
-                snapshotFetchedAt = Date.now();
+                preparedFallback = null; // прошлый prepared держал бы память зря
+                preparedFallbackVersion = null;
                 postSnapshotToWorker();
                 return snapshot;
             })
@@ -406,9 +425,14 @@ function loadSnapshot(force = false) {
     return snapshotPromise;
 }
 
-// Обновляем снимок при возврате на вкладку (не чаще, чем раз в TTL).
-document.addEventListener('visibilitychange', () => { if (!document.hidden && unlocked) loadSnapshot(); });
-window.addEventListener('focus', () => { if (unlocked) loadSnapshot(); });
+// Обновляем снимок при возврате на вкладку (не чаще, чем раз в TTL) — но не
+// посреди набора запроса: подмена снимка под руками у ищущего человека ничего
+// не даёт, а стоит дорого.
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !unlocked) return;
+    if (document.activeElement === searchInput && searchInput.value.trim()) return;
+    loadSnapshot();
+});
 
 // ── Search ────────────────────────────────────────────────────────────────────
 const searchInput   = document.getElementById('search-input');
@@ -533,8 +557,14 @@ function carNode(c) {
     return { id: c.id, label: [c.brand, c.model, c.generation].filter(Boolean).join(' ') };
 }
 
+// Каждый узел сферы — это плашка с текстом, обводкой и заливкой в каждом кадре.
+// На телефоне полсотни таких плашек — заметная часть всех тормозов главной, а
+// разглядеть их на маленьком экране всё равно нельзя.
+const SPHERE_NODE_LIMIT =
+    (matchMedia('(hover: none) and (pointer: coarse)').matches || window.innerWidth < 700) ? 24 : 50;
+
 // Случайная выборка узлов для сферы — из снимка, без обращения к серверу.
-function sampleNodes(limit = 50) {
+function sampleNodes(limit = SPHERE_NODE_LIMIT) {
     const arr = snapshot.cars.slice();
     for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -564,7 +594,7 @@ const tagSearch = initTagSearch({
     getCars: () => loadSnapshot().then(s => s.cars),
     onPick: id => { location.hash = '#/car/' + id; },
     sphere: {
-        setNodes: nodes => sphereController?.setNodes(nodes),
+        setNodes: nodes => sphereController?.setNodes(nodes.slice(0, SPHERE_NODE_LIMIT)),
         setVisible: v => sphereController?.setVisible(v),
         resetRandom() {
             try { sphereController?.setNodes(sampleNodes()); }

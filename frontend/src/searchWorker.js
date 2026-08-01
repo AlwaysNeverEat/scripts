@@ -11,15 +11,28 @@
 import { prepareCars, rankCars } from '../../shared/carSearch.js';
 
 let prepared = [];
+let preparedVersion = null;
 
 self.onmessage = (e) => {
     const msg = e.data;
     if (msg.type === 'snapshot') {
+        // Тот же снимок, что уже подготовлен, не пересобираем: на телефоне это
+        // был бы лишний пик памяти на ровном месте (см. ниже).
+        if (msg.version != null && msg.version === preparedVersion) {
+            self.postMessage({ type: 'ready', version: msg.version });
+            return;
+        }
+        // Старый снимок отпускаем ДО сборки нового: иначе в пике живут оба
+        // (~26 МБ на 13к машин), и мобильный браузер выгружает вкладку — со
+        // стороны это выглядит как «сайт сам перезагрузился».
+        prepared = [];
+        preparedVersion = null;
         prepared = prepareCars(msg.cars || []);
+        preparedVersion = msg.version ?? null;
         self.postMessage({ type: 'ready', version: msg.version });
     } else if (msg.type === 'query') {
-        // _search (Set-ы) и search_text наружу не отдаём — карточкам они не нужны,
-        // а клонировать их через postMessage дорого.
+        // _search (словарь + типизированные массивы) наружу не отдаём —
+        // карточкам он не нужен, а клонировать его через postMessage дорого.
         const cars = rankCars(msg.q, prepared)
             .map(({ _search, search_text, ...car }) => car);
         self.postMessage({ type: 'results', gen: msg.gen, q: msg.q, cars });
