@@ -34,6 +34,21 @@ echo "== Проверка связи"
 psql "$SRC" -tAc 'select version()' | head -1
 psql -tAc 'select version()' | head -1
 
+# Оборванный прошлый прогон оставляет на приёмнике живой COPY ... FROM STDIN:
+# он вечно ждёт данных из мёртвого сокета и держит блокировку на таблице.
+# Следующий запуск повис бы на truncate, и выглядело бы это как новая поломка.
+stale=$(psql -tAc "select count(*) from pg_stat_activity
+                    where datname = current_database()
+                      and pid <> pg_backend_pid()
+                      and query ilike 'copy%'")
+if [ "${stale:-0}" -gt 0 ]; then
+    echo "   подвисших COPY с прошлого раза: $stale — снимаю"
+    psql -q -c "select pg_terminate_backend(pid) from pg_stat_activity
+                 where datname = current_database()
+                   and pid <> pg_backend_pid()
+                   and query ilike 'copy%'" >/dev/null
+fi
+
 echo
 if [ -n "$(psql -tAc "select to_regclass('public.cars')")" ]; then
     echo "== Схема уже есть, миграции пропускаю"
