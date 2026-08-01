@@ -33,6 +33,7 @@ import { query } from '../db/client.js';
 import { parseAnalyseFree } from '../../../shared/crmAnalyse.js';
 import { linkSecretConfigured, openSecret, sealSecret } from './secretBox.js';
 import { crmAutoLoginPaused, pauseCrmAutoLogin, resumeCrmAutoLogin } from './autoLoginPause.js';
+import { fetchWithRetry, describeNetworkError } from '../http/netRetry.js';
 
 const BASE = (process.env.CRM_BASE_URL || 'https://crm.zamena-masla-spot.ru').replace(/\/$/, '');
 const BASE_URL = new URL(`${BASE}/`);
@@ -188,40 +189,34 @@ function storeSetCookies(res, jar) {
     }
 }
 
-function networkErrorDetail(err) {
-    if (err?.name === 'AbortError') return `таймаут ${FETCH_TIMEOUT_MS} мс`;
-    const code = err?.cause?.code || err?.code || err?.name;
-    const message = err?.cause?.message || err?.message || 'неизвестная ошибка сети';
-    return code && !String(message).includes(code) ? `${code}: ${message}` : String(message);
-}
-
+// CRM, как и админка записей, закрывает keep-alive быстро: сокет из пула может
+// умереть ровно между «взяли из пула» и «отправили запрос», и fetch падает без
+// ответа. Читающие запросы в этом случае повторяем — см. http/netRetry.js.
 async function rawFetch(path, jar, opts = {}) {
     const target = resolveCrmUrl(path);
-    // Троттлинг на КАЖДЫЙ запрос, а не на операцию: логин и выход состоят из
-    // нескольких запросов подряд, и разносить их тоже нужно.
-    await pace();
     const cookie = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     let res;
     try {
-        res = await fetch(target, {
+        res = await fetchWithRetry(target, {
             redirect: 'manual',
             ...opts,
-            signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (site-crm-proxy)',
                 ...(cookie ? { Cookie: cookie } : {}),
                 ...(opts.headers || {}),
             },
+        }, {
+            timeoutMs: FETCH_TIMEOUT_MS,
+            // Троттлинг на КАЖДЫЙ запрос, а не на операцию: логин и выход
+            // состоят из нескольких запросов подряд, и разносить их тоже нужно.
+            // Повтор — такой же запрос, поэтому pace() идёт крючком в цикл.
+            beforeAttempt: pace,
         });
     } catch (err) {
         throw new CrmError(
             'crm_unavailable',
-            `CRM недоступна (${target.host}): ${networkErrorDetail(err)}`,
+            `CRM недоступна (${target.host}): ${describeNetworkError(err, FETCH_TIMEOUT_MS)}`,
         );
-    } finally {
-        clearTimeout(timeout);
     }
 
     storeSetCookies(res, jar);

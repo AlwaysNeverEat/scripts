@@ -70,6 +70,23 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         zoomSnap: ZOOM_SNAP,
         zoomDelta: 1,
     }).setView(start[0], start[1]);
+
+    // ── Жизненный цикл ───────────────────────────────────────────────────────
+    // Карта пересобирается на КАЖДОЙ перерисовке (см. initModalMap в
+    // records.js), а доска сама обновляется раз в минуту. Значит destroy()
+    // регулярно приходится ровно на середину чужой анимации: человек крутит
+    // колесо на карте — и в этот момент приезжает свежая доска. Отложенные
+    // коллбэки просыпаются уже на снятой карте, где _mapPane удалён, и падают
+    // с «TypeError: can't access property "_leaflet_pos", t is undefined».
+    // Отсюда же «через раз»: попадёшь в окно перерисовки или нет — как повезёт.
+    let dead = false;
+    const timers = new Set();
+    // setTimeout, который не переживает destroy().
+    const later = (fn, ms) => {
+        const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms);
+        timers.add(id);
+        return id;
+    };
     const makeTiles = (theme) => L.tileLayer(TILE_URL[theme] || TILE_URL.dark, {
         subdomains: 'abcd',
         maxZoom: 19,
@@ -302,8 +319,9 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         }
     };
     const relayout = () => {
+        if (dead) return;
         cancelAnimationFrame(layoutRaf);
-        layoutRaf = requestAnimationFrame(layoutPins);
+        layoutRaf = requestAnimationFrame(() => { if (!dead) layoutPins(); });
     };
     map.on('zoomend', relayout);
     map.on('moveend', relayout);
@@ -317,7 +335,7 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
     let quiet = 0;
     const beQuiet = () => {
         quiet++;
-        setTimeout(() => { quiet = Math.max(0, quiet - 1); }, 600);
+        later(() => { quiet = Math.max(0, quiet - 1); }, 600);
     };
     const userMoved = () => { if (!quiet && onUserMove) onUserMove(); };
     map.on('dragstart', userMoved);
@@ -337,7 +355,7 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         // приходится на ещё не разложенный контейнер — после invalidateSize
         // подгоняем охват заново.
         invalidate() {
-            setTimeout(() => {
+            later(() => {
                 beQuiet();
                 map.invalidateSize();
                 if (!view) fitStart();
@@ -353,7 +371,7 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         flyFit(points) {
             if (!points || !points.length) return;
             beQuiet();
-            setTimeout(() => {
+            later(() => {
                 map.invalidateSize();
                 const v = frameView(points);
                 map.flyTo(v.center, v.zoom, { duration: REDUCED_MOTION ? 0 : 0.8 });
@@ -367,8 +385,27 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
             return { lat: c.lat, lng: c.lng, zoom: map.getZoom() };
         },
         destroy() {
+            if (dead) return;
+            dead = true;
             cancelAnimationFrame(layoutRaf);
+            for (const id of timers) clearTimeout(id);
+            timers.clear();
             document.removeEventListener('themechange', onThemeChange);
+
+            // map.remove() снимает обработчики, но НЕ отменяет то, что Leaflet
+            // успел отложить сам, — а именно это и падало в консоли:
+            //  · ScrollWheelZoom.removeHooks() отписывается от колеса, но свой
+            //    setTimeout на _performZoom не трогает: он проснётся через
+            //    ~40 мс, полезет в containerPointToLatLng и не найдёт _mapPane;
+            //  · таймер _onZoomTransitionEnd (250 мс после начала зума) отсекает
+            //    себя только флагом _animatingZoom, а remove() его не сбрасывает
+            //    — коллбэк доходит до _move() на уже мёртвой карте.
+            // Публичного способа снять эти два таймера у Leaflet нет, поэтому
+            // гасим их напрямую и обязательно ДО remove().
+            map.stop(); // flyTo/panTo, если перелёт ещё идёт
+            clearTimeout(map.scrollWheelZoom?._timer);
+            map._animatingZoom = false;
+
             map.remove();
         },
     };
