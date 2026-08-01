@@ -127,7 +127,12 @@ function enterApp() {
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     warmCrmSession();
     renderRoute();
-    loadSnapshot();   // прогреваем базу для поиска и тегов
+    // Прогреваем базу для поиска и тегов. Промах не страшен — снимок догрузится
+    // при первом же поиске (runLocalSearch) и при возврате на вкладку, — но
+    // отказ нужно поймать явно: на холодном бэкенде fetchRetry исчерпывает
+    // попытки и роняет в консоль «Uncaught (in promise) DOMException: The
+    // operation was aborted», за которым не видно настоящих ошибок.
+    loadSnapshot().catch(() => {});
     loadSphere();
 }
 
@@ -432,7 +437,7 @@ function loadSnapshot(force = false) {
 document.addEventListener('visibilitychange', () => {
     if (document.hidden || !unlocked) return;
     if (document.activeElement === searchInput && searchInput.value.trim()) return;
-    loadSnapshot();
+    loadSnapshot().catch(() => {}); // фоновое обновление, молчим (см. выше)
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
