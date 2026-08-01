@@ -142,16 +142,24 @@ test('у каждого допуска есть текст «почему» дл
     assert.match(mb.why, /отношения не имеет/);
 });
 
-test('менее строгая ветка того же семейства — не противоречие, а фон', () => {
-    // Мотору по evidence нужен 504 00 (среднезольное), в списке есть и 502 00
-    const r = analyzeCarApprovals(['VW 502 00', 'VW 504 00'], {
-        make: 'SKODA', evidence: ['VW 504 00'],
+test('менее строгая ветка становится фоном только там, где есть сажевый фильтр', () => {
+    // Дизель 2012 года — Euro 5, фильтр есть: полнозольный 502 00 уходит в фон.
+    const diesel = analyzeCarApprovals(['VW 502 00', 'VW 507 00'], {
+        make: 'SKODA', fuelType: '05', yearFrom: 2012,
     });
-    const s502 = r.items.find(i => i.raw === 'VW 502 00');
-    const s504 = r.items.find(i => i.raw === 'VW 504 00');
-    assert.equal(s504.rank, 'critical');
-    assert.equal(s502.rank, 'minor', '502 00 перекрыт более строгим 504 00');
-    assert.match(s502.why, /Закрыть на него глаза можно/);
+    assert.equal(diesel.profile.ashGate, ASH_MID, 'дизель Euro 5 → предел по золе');
+    assert.equal(diesel.items.find(i => i.raw === 'VW 507 00').rank, 'critical');
+    const s502d = diesel.items.find(i => i.raw === 'VW 502 00');
+    assert.equal(s502d.rank, 'minor', '502 00 перекрыт более строгим 507 00');
+    assert.match(s502d.why, /Закрыть на него глаза можно/);
+
+    // Тот же набор на бензиновом 2012 года: фильтра нет, и «менее строгой
+    // ветки» не существует — оба допуска настоящие.
+    const petrol = analyzeCarApprovals(['VW 502 00', 'VW 507 00'], {
+        make: 'SKODA', fuelType: '01', yearFrom: 2012,
+    });
+    assert.equal(petrol.profile.ashGate, null, 'бензин до Euro 6d → предела нет');
+    assert.equal(petrol.items.find(i => i.raw === 'VW 502 00').rank, 'critical');
 });
 
 // ── Второй источник ──────────────────────────────────────────────────────────
@@ -222,21 +230,28 @@ test('полнозольное масло блокируется на мотор
 
 test('малозольный допуск-одиночка не обнуляет ассортимент', () => {
     // BMW LL-12 FE (зола ≤0.5%) попадает в свалку допусков бензинового N43.
-    // Жёсткий гейт по нему заблокировал бы вообще все масла в наличии.
-    const analysis = analyzeCarApprovals(['BMW LL-01', 'BMW LL-04', 'BMW LL-12 FE'], { make: 'BMW' });
+    // Мотор бензиновый и дофильтровой эпохи, LL-01 в списке есть — значит
+    // полнозольное BMW для него разрешает, и резать по золе нечего.
+    const analysis = analyzeCarApprovals(['BMW LL-01', 'BMW LL-04', 'BMW LL-12 FE'],
+        { make: 'BMW', fuelType: '01', yearFrom: 2008 });
     assert.equal(analysis.profile.ash, ASH_LOW, 'профиль честно показывает самое строгое');
-    const c3oil = getShopOils().find(o => o.n === 'Professional 5W-30 C3');
-    const fit = oilFitsProfile(c3oil.a, analysis);
-    assert.equal(fit.blocked, false, 'среднезольное масло остаётся доступным');
-    assert.ok(fit.penalty > 0, 'но получает штраф — оператор видит компромисс');
+    assert.equal(analysis.profile.ashGate, null, 'но предела нет: сажевого фильтра у мотора нет');
+
+    for (const name of ['Professional 5W-30 C3', 'Leichtlauf HC 7 5W-30']) {
+        const fit = oilFitsProfile(getShopOils().find(o => o.n === name).a, analysis);
+        assert.equal(fit.blocked, false, `${name} не должно блокироваться`);
+    }
 });
 
-test('требуемый класс ACEA выводится из профиля, а не из сырых строк', () => {
-    assert.equal(aceaClassOfProfile({ ash: ASH_MID,  hthsMin: 3.5 }), 'C3');
-    assert.equal(aceaClassOfProfile({ ash: ASH_MID,  hthsMin: 2.9 }), 'C2');
-    assert.equal(aceaClassOfProfile({ ash: ASH_FULL, hthsMin: 3.5 }), 'A3B4');
-    assert.equal(aceaClassOfProfile({ ash: ASH_FULL, hthsMin: 2.9 }), 'A5B5');
+test('требуемый класс ACEA выводится из того, что мотору разрешено', () => {
+    assert.equal(aceaClassOfProfile({ ashGate: ASH_MID,  hthsMin: 3.5 }), 'C3');
+    assert.equal(aceaClassOfProfile({ ashGate: ASH_MID,  hthsMin: 2.9 }), 'C2');
+    assert.equal(aceaClassOfProfile({ ashAllowed: ASH_FULL, hthsMin: 3.5 }), 'A3B4');
+    assert.equal(aceaClassOfProfile({ ashAllowed: ASH_FULL, hthsMin: 2.9 }), 'A5B5');
     assert.equal(aceaClassOfProfile({ ash: null }), null);
+    // Предел важнее разрешённого: дизель с фильтром получает C3, даже если
+    // в списке рядом лежит полнозольный допуск.
+    assert.equal(aceaClassOfProfile({ ashGate: ASH_MID, ashAllowed: ASH_FULL, hthsMin: 3.5 }), 'C3');
 });
 
 // ── Влияние на подбор ────────────────────────────────────────────────────────
@@ -262,7 +277,9 @@ test('чужие допуска больше не тянут рейтинг: Sko
 
     const a = agg.approvalAnalysis;
     assert.equal(a.confidence, 'high');
-    assert.equal(agg.requiredClass, 'C3', 'профиль VAG 504/507 → C3');
+    // Мотор бензиновый и без фильтра — VAG разрешает ему полнозольное,
+    // поэтому класс отражает разрешённое, а не самый строгий допуск в свалке.
+    assert.equal(agg.requiredClass, 'A3B4');
 
     // решающих осталось единицы вместо двадцати
     assert.ok(a.decisive.length <= 6, `решающих ${a.decisive.length}, ожидали единицы`);
@@ -271,9 +288,56 @@ test('чужие допуска больше не тянут рейтинг: Sko
     // и ни один допуск Mercedes/BMW не попал в решающие
     assert.ok(!a.decisive.some(d => d.family === 'MB' || d.family === 'BMW'));
 
-    // полнозольные масла в основной выбор не идут
+    // Citigo — бензиновый 2011 года, сажевого фильтра нет: резать полнозольные
+    // масла не за что, чужие допуска просто перестали приносить очки.
+    assert.equal(a.profile.ashGate, null);
+    const blocked = agg.ranked.filter(r => r.blocked);
+    assert.ok(!blocked.some(r => r.oil.n === 'Leichtlauf HC 7 5W-30'),
+        'полнозольное масло с допуском VAG блокировать не за что');
+    // Отсекается только то, чего VAG для этого мотора не одобрял ни в одном
+    // допуске: все его спецификации требуют HTHS не ниже 3.5.
+    assert.ok(blocked.every(r => r.fitNotes.some(n => /HTHS/.test(n))),
+        'единственная причина отсева здесь — густота, не зольность');
+});
+
+test('полнозольное масло отсекается на дизеле с сажевым фильтром', () => {
+    const agg = { key: 'engine', group: 'engine', motulProducts: ['SPECIFIC 504 00 507 00 5W-30'] };
+    const state = engineState('SKODA');
+    state.car = { makeShort: 'SKODA', modelShort: 'Octavia', fuelType: '05', yearFrom: 2012, engineCode: 'CFHC' };
+    pickEngineOils(agg, getShopOils(), state, ['VW 502 00/505 00', 'ACEA C3', 'MB 229.51']);
+
+    assert.equal(agg.approvalAnalysis.profile.ashGate, 0.8, 'дизель Euro 5 → предел по золе');
     const blocked = agg.ranked.filter(r => r.blocked).map(r => r.oil.n);
     assert.ok(blocked.includes('Leichtlauf HC 7 5W-30'), 'полнозольное отсечено');
+    assert.ok(!blocked.includes('Professional 5W-30 C3'), 'среднезольное остаётся');
+});
+
+test('регрессия «Renault Duster»: рекомендация Motul не подменяет допуска машины', () => {
+    // Реальный баг. Duster I F4R 2012 — атмосферный бензиновый, фильтра нет.
+    // Motul предлагает масло под RN 17 (допуск для моторов Euro 6), и профиль
+    // строился по нему одному: настоящие RN0700/RN0710 падали в фон, класс
+    // выходил C2, а все полнозольные масла — включая одобренные Renault —
+    // блокировались «не по допускам». В выборе оставались два масла из шестнадцати.
+    const approvals = ['API SP', 'ACEA A3/B4', 'Renault RN0700/0710', 'MB 229.3', 'MB 229.5',
+                       'MB 226.5', 'GM-LL-A/B-025', 'Porsche A40', 'VW 502 00/505 00',
+                       'PSA B71 2296', 'BMW LL-01', 'API SN/CF'];
+    const agg = { key: 'engine', group: 'engine', motulProducts: ['SPECIFIC 17 5W-30', '8100 X-CESS 5W-40'] };
+    const state = engineState('RENAULT');
+    state.car = { makeShort: 'RENAULT', modelShort: 'Duster', fuelType: '01', yearFrom: 2012, engineCode: 'F4R' };
+    const { mid } = pickEngineOils(agg, getShopOils(), state, approvals);
+    const a = agg.approvalAnalysis;
+
+    assert.equal(a.profile.ashGate, null, 'бензиновый атмосферник — предела по золе нет');
+    assert.equal(agg.requiredClass, 'A3B4', 'Renault требует A3/B4, а не C2');
+    assert.equal(agg.ranked.filter(r => r.blocked).length, 0, 'ни одно масло не отсечено');
+
+    // Родные допуска машины остались решающими, а не ушли в фон
+    const rn = a.items.find(i => i.raw === 'Renault RN0700/0710');
+    assert.equal(rn.rank, 'critical', 'RN0700/0710 — настоящий допуск этой машины');
+
+    // Выбрано масло с допуском Renault, а не самое дорогое из C3
+    assert.ok((mid.a || []).some(x => /RN\s*07/.test(x)),
+        `выбрано ${mid.n} без допуска Renault`);
 });
 
 test('эквивалентные по допускам масла получают равный балл (без двойного счёта)', () => {

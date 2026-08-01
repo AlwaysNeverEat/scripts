@@ -1551,9 +1551,12 @@ function calcForAggregate(agg) {
         }
 
         const decisive = a.items.filter(i => i.rank === 'critical' || i.rank === 'important').length;
+        // Показываем то, что реально ограничивает выбор, а не самый строгий
+        // допуск из списка: без фильтра зольность не ограничивает ничего.
         const need = [];
-        if (a.profile.ash != null) need.push(`${sapsLabel(a.profile.ash)} (зола ≤ ${a.profile.ash}%)`);
-        if (a.profile.hthsMin != null) need.push(`HTHS ≥ ${a.profile.hthsMin}`);
+        if (a.profile.ashGate != null) need.push(`${sapsLabel(a.profile.ashGate)} (зола ≤ ${a.profile.ashGate}%)`);
+        const hths = a.profile.hthsGate != null ? a.profile.hthsGate : a.profile.hthsMin;
+        if (hths != null) need.push(`HTHS ≥ ${hths}`);
 
         const groups = RANK_ORDER_ZM.map(rank => ({
             rank, items: a.items.filter(i => i.rank === rank),
