@@ -730,7 +730,13 @@ function statusLineHtml() {
     const queueNote = pending ? ` · в очереди: ${pending}` : '';
     // День меняют — так и пишем: «данных ещё нет» на пустом экране читается как
     // поломка, хотя доска просто едет.
+    // Доска на экране есть, но едет свежая — это надо сказать. Иначе после
+    // возвращения на вкладку человек полминуты смотрит на «обновлено 15 мин
+    // назад» и решает, что раздел умер: скелет тут не подставляется (старая
+    // доска важнее пустоты), и без этой приписки не видно вообще ничего.
     const agoNote = state.boardLoading && !state.board ? `загружаю ${esc(state.date || '')}…`
+        : state.boardLoading && state.fetchedAt ? `обновлено ${esc(fmtAgo(state.fetchedAt))} · обновляю…`
+        : state.boardLoading ? 'обновляю…'
         : state.fetchedAt ? `обновлено ${esc(fmtAgo(state.fetchedAt))}`
         : 'данных ещё нет';
     return `${agoNote}${queueNote}`;
@@ -3266,6 +3272,27 @@ const timers = [];
 let onClick = null;
 let onVisibility = null;
 
+// Раздел перестали видеть — свернули вкладку браузера или ушли на другой
+// раздел сайта. Все тики при этом останавливаются (см. startPolling), то есть
+// на бэкенд не уходит ни одного запроса; бесплатный Render без входящего
+// трафика гасит сервис через 15 минут, и первый запрос после возвращения ждёт
+// холодного старта до минуты. Отличать «отошёл на минуту» от «ушёл надолго»
+// нужно ровно за этим: во втором случае обновление должно быть видимым.
+const LONG_AWAY_MS = 120_000;
+let awaySince = 0;
+
+// Запоминаем САМЫЙ РАННИЙ уход: свернуть вкладку можно и находясь на другом
+// разделе, и тогда второй вызов не должен обнулить отсчёт.
+function markAway() {
+    if (!awaySince) awaySince = Date.now();
+}
+
+function backFromLongAway() {
+    const away = awaySince ? Date.now() - awaySince : 0;
+    awaySince = 0;
+    return away >= LONG_AWAY_MS;
+}
+
 // Второй заход на раздел не должен доедать состояние первого: доска и
 // выбранный день пересобираются, а даты берутся заново — иначе после
 // полуночи открылся бы вчерашний день.
@@ -3313,12 +3340,16 @@ export function startRecords(mount) {
     root.addEventListener('click', onClick);
 
     onVisibility = () => {
-        if (document.hidden) return;
+        if (document.hidden) { markAway(); return; }
         // Пока страница была скрыта, тики простаивали — догоняем разом.
+        const long = backFromLongAway();
         loadStatus();
         renderStatusOnly();
         syncNow();
-        if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: true }));
+        // Вернулись быстро — обновляемся тихо, как на обычном тике. Вернулись
+        // после долгого отсутствия — показываем, что доска едет: за это время
+        // бэкенд успевает уснуть, и первый запрос ждёт холодного старта.
+        if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: !long }));
     };
     startPolling();
 
@@ -3373,6 +3404,7 @@ export function pauseRecords() {
     keepEditFields();
     syncModalChrome();
     stopPolling();
+    markAway();
 }
 
 // Возврат на вкладку: поднимаем опрос и сразу подтягиваем свежую доску, чтобы
@@ -3385,10 +3417,11 @@ export function resumeRecords() {
     // после возвращения ей нужно пересчитать их, иначе останутся серые поля.
     mapCtl?.invalidate();
     stationMapCtl?.invalidate();
+    const long = backFromLongAway();
     startPolling();
     loadViewer(); // пока раздел стоял, могли войти под своим аккаунтом
     loadStatus();
-    if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: true }));
+    if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: !long }));
 }
 
 export function stopRecords() {
