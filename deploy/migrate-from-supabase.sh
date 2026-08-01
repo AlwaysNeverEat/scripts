@@ -42,6 +42,7 @@ docker network inspect "$NETWORK" >/dev/null 2>&1 \
 exec docker run --rm \
     --network "$NETWORK" \
     -e SRC="$SRC" \
+    -e CHUNK="${CHUNK:-2000}" \
     -e PGHOST=postgres -e PGPORT=5432 \
     -e PGUSER=carsdb -e PGPASSWORD="$POSTGRES_PASSWORD" -e PGDATABASE=carsdb \
     -v "$REPO/db:/db:ro" \
