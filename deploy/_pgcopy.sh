@@ -105,14 +105,29 @@ psql "$SRC" -tAc \
     n=$(psql "$SRC" -tAc "select count(*) from public.\"$t\"")
     printf '   %-26s %8s строк ' "$t" "$n"
 
-    # Повторный запуск не должен удваивать данные.
-    psql -q -v ON_ERROR_STOP=1 \
-         -c 'set session_replication_role = replica' \
-         -c "truncate public.\"$t\""
+    if [ "$n" -eq 0 ]; then
+        psql -q -c 'set session_replication_role = replica' -c "truncate public.\"$t\""
+        echo "— пусто"; continue
+    fi
 
-    if [ "$n" -eq 0 ]; then echo "— пусто"; continue; fi
-
-    off=0
+    # ДОКАЧКА. На рваном канале один прогон таблицу может не осилить, и
+    # начинать каждый раз с нуля — гарантия никогда не доехать. Порядок строк
+    # задан ctid и одинаков в каждом запуске, порции коммитятся по одной,
+    # поэтому уже перенесённые N строк — это ровно первые N по этому порядку:
+    # продолжать с них корректно при любом размере порции.
+    have=$(psql -tAc "select count(*) from public.\"$t\"")
+    if [ "$have" -ge "$n" ]; then
+        printf -- '— уже перенесена\n'; continue
+    fi
+    if [ "$have" -gt 0 ]; then
+        printf '(докачиваю с %s) ' "$have"
+        off="$have"
+    else
+        psql -q -v ON_ERROR_STOP=1 \
+             -c 'set session_replication_role = replica' \
+             -c "truncate public.\"$t\""
+        off=0
+    fi
     while [ "$off" -lt "$n" ]; do
         # Канал до Supabase виснет СЛУЧАЙНО, а не по размеру: замеряли — 500
         # строк (111 КБ) проходят, а следом 100 строк встают намертво. Поэтому
@@ -124,10 +139,12 @@ psql "$SRC" -tAc \
         # строк. Источник сейчас никто не пишет (Render остановлен), так что
         # порядок между порциями не поедет.
         try=0
-        until timeout "$TIMEOUT" sh "$0" --chunk "$t" "$off"; do
+        until timeout "$TIMEOUT" sh "$0" --chunk "$t" "$off" 2>/dev/null; do
             try=$((try + 1))
             if [ "$try" -ge "$RETRIES" ]; then
-                printf '\n   !! порция с %s не пошла за %s попыток — прервано\n' "$off" "$RETRIES"
+                printf '\n   !! порция с %s не пошла за %s попыток. Последняя ошибка:\n' "$off" "$RETRIES"
+                timeout "$TIMEOUT" sh "$0" --chunk "$t" "$off" 2>&1 | tail -3
+                printf '   Перенесено до сбоя сохранено — повторный запуск продолжит с этого места.\n'
                 exit 1
             fi
             printf 'x'
