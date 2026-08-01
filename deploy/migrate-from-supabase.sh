@@ -43,6 +43,7 @@ exec docker run --rm \
     --network "$NETWORK" \
     -e SRC="$SRC" \
     -e CHUNK="${CHUNK:-2000}" -e TIMEOUT="${TIMEOUT:-60}" -e RETRIES="${RETRIES:-15}" \
+    -e SKIP="${SKIP:-}" -e ONLY="${ONLY:-}" \
     -e PGHOST=postgres -e PGPORT=5432 \
     -e PGUSER=carsdb -e PGPASSWORD="$POSTGRES_PASSWORD" -e PGDATABASE=carsdb \
     -v "$REPO/db:/db:ro" \

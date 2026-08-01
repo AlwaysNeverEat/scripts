@@ -45,6 +45,11 @@ set -eu
 CHUNK="${CHUNK:-2000}"      # строк в порции
 TIMEOUT="${TIMEOUT:-60}"    # сколько ждём одну порцию, секунд
 RETRIES="${RETRIES:-15}"    # столько раз повторяем зависшую порцию
+# Таблицы через пробел, которые пропустить. Нужно, когда одна упрямая таблица
+# держит весь переезд: остальное уезжает сразу, а её догоняем отдельным
+# запуском — ONLY="car_events" — хоть ночью, ждать её никто не будет.
+SKIP="${SKIP:-}"
+ONLY="${ONLY:-}"
 
 echo "== Проверка связи"
 psql "$SRC" -tAc 'select version()' | head -1
@@ -90,6 +95,11 @@ psql "$SRC" -tAc \
     if [ -z "$(psql -tAc "select to_regclass('public.\"$t\"')")" ]; then
         printf '   %-26s %s\n' "$t" 'пропуск — нет в новой базе'
         continue
+    fi
+
+    case " $SKIP " in *" $t "*) printf '   %-26s %s\n' "$t" 'пропуск — в SKIP'; continue ;; esac
+    if [ -n "$ONLY" ]; then
+        case " $ONLY " in *" $t "*) : ;; *) continue ;; esac
     fi
 
     n=$(psql "$SRC" -tAc "select count(*) from public.\"$t\"")
