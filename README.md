@@ -298,6 +298,18 @@ In dev, Vite proxies `/api/*` to `http://localhost:3001` automatically.
 кнопку «Всё равно выйти», если CRM недоступна надолго). Кнопка «Выйти» в самой
 панели делает то же плюс снимает привязку (`unlink: true`).
 
+**Выход закрывает всё и везде.** `POST /api/auth/logout` сносит ВСЕ сессии
+пользователя (`destroyAllUserSessions`), а не только текущий токен: люди
+работают в двух браузерах, и оставшийся залогиненным второй браузер первым же
+запросом поднял бы сессию CRM заново по привязке — выход из CRM оказался бы
+фикцией. Заодно на время выхода выключается автовход
+(`crm/autoLoginPause.js`): между «CRM подтвердила закрытие» и «сессии сайта
+снесены» есть щель, и в неё как раз успел бы влезть чужой браузер. Пауза
+персональная, снимается явным действием человека (вход на сайт или вход в CRM
+руками) и сама истекает через 5 минут. Побочный эффект, о котором надо знать:
+сессия юзерскрипта — та же сессия сайта, так что выход на сайте разлогинит и
+Tampermonkey-калькулятор.
+
 > CRM завершает сессию аккаунта везде. Если под одной учёткой CRM работают
 > несколько человек, выход одного завершит сессию и у остальных — раньше
 > сессию намеренно не закрывали именно поэтому.
@@ -431,7 +443,7 @@ below) — sessions expire for everyone at midnight Moscow time.
 | `GET`    | `/health` | Liveness (no auth at all) |
 | `POST`   | `/api/auth/register` | Registration request → pending, notified in Telegram |
 | `POST`   | `/api/auth/login` | `{login, password}` → `{token, user}` |
-| `POST`   | `/api/auth/logout` | Destroys the session behind the given token |
+| `POST`   | `/api/auth/logout` | Destroys **all** sessions of that user (logout everywhere) |
 | `GET`    | `/api/auth/me` | Current session's user |
 | `POST`   | `/api/cars` | Create/upsert car record (`created_by` = session user) |
 | `GET`    | `/api/cars/match?engine_code=&brand=&model=&year=&volume=` | Best match |
@@ -463,6 +475,11 @@ buttons (request dies after 30 minutes). All sessions — for every user —
 become invalid at the first minute of a new day in Moscow time
 (`backend/src/auth/midnightMsk.js`), forcing a fresh login daily on both the
 site and the userscript.
+
+`POST /api/auth/logout` is a **global** logout: it destroys every session of
+that user, not just the token that called it (see the CRM section above for
+why). Other browsers and the userscript get a 401 on their next request and
+fall back to the login gate.
 
 ### Telegram-админка
 

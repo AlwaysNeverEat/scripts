@@ -62,6 +62,7 @@ const ICONS = {
     link: `${SVG_HEAD}<path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L10.6 5.24"/><path d="M14 11a5 5 0 0 0-7.07 0L4.8 13.12a5 5 0 0 0 7.07 7.07L13.4 18.76"/></svg>`,
     refresh: `${SVG_HEAD}<polyline points="21 4 21 10 15 10"/><path d="M18.5 15a7.5 7.5 0 1 1-1.77-7.8L21 10"/></svg>`,
     exit: `${SVG_HEAD}<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+    devices: `${SVG_HEAD}<rect x="2" y="4" width="13" height="10" rx="2"/><path d="M5 18h7"/><rect x="16" y="9" width="6" height="11" rx="1.5"/></svg>`,
     shield: `${SVG_HEAD}<path d="M12 3l7 3v5.5c0 4.2-2.9 7.9-7 9.5-4.1-1.6-7-5.3-7-9.5V6l7-3z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16"/></svg>`,
     key: `${SVG_HEAD}<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="M17 6l3 3"/><path d="M14.5 8.5l2.5 2.5"/></svg>`,
     lock: `${SVG_HEAD}<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><line x1="12" y1="14" x2="12" y2="17"/></svg>`,

@@ -32,6 +32,7 @@
 import { query } from '../db/client.js';
 import { parseAnalyseFree } from '../../../shared/crmAnalyse.js';
 import { linkSecretConfigured, openSecret, sealSecret } from './secretBox.js';
+import { crmAutoLoginPaused, pauseCrmAutoLogin, resumeCrmAutoLogin } from './autoLoginPause.js';
 
 const BASE = (process.env.CRM_BASE_URL || 'https://crm.zamena-masla-spot.ru').replace(/\/$/, '');
 const BASE_URL = new URL(`${BASE}/`);
@@ -335,6 +336,7 @@ async function loginIntoJar(jar, login, password) {
 // запоминаем учётку за аккаунтом сайта — со следующего раза сайт войдёт сам.
 export async function crmLogin(userId, login, password, { remember = true } = {}) {
     const jar = new Map();
+    resumeCrmAutoLogin(userId); // вход руками отменяет паузу после выхода
     await enqueue(() => loginIntoJar(jar, login, password));
     await saveJar(userId, jar);
     const linked = remember ? await saveLink(userId, login, password) : false;
@@ -352,6 +354,8 @@ export async function crmEnsureSession(userId) {
 
     const link = await loadLink(userId);
     if (!link) return { loggedIn: false, linked: false, auto: false };
+    // Идёт выход — автовходом сессию CRM не воскрешаем.
+    if (crmAutoLoginPaused(userId)) return { loggedIn: false, linked: true, auto: false };
 
     const fresh = new Map();
     try {
@@ -378,6 +382,7 @@ export async function crmEnsureSession(userId) {
 // Вход заново посреди уже начатой операции (сессию закрыли, пока мы работали).
 // Без enqueue: вызывается ИЗНУТРИ enqueue-задачи, см. комментарий у очереди.
 async function reloginIntoJar(userId, jar) {
+    if (crmAutoLoginPaused(userId)) return false; // идёт выход
     const link = await loadLink(userId);
     if (!link) return false;
     jar.clear();
@@ -477,9 +482,20 @@ export async function crmLogout(userId, { unlink = false } = {}) {
     const jar = await loadJar(userId);
     const hadSession = Boolean(jar && jar.size);
 
+    // Выключаем автовход СРАЗУ, до закрытия: пока идёт выход, второй браузер
+    // того же человека не должен поднять сессию CRM заново.
+    pauseCrmAutoLogin(userId);
     if (hadSession) {
-        const closed = await enqueue(() => closeCrmSession(jar));
+        let closed;
+        try {
+            closed = await enqueue(() => closeCrmSession(jar));
+        } catch (err) {
+            // Выход не состоялся — человек остаётся работать, автовход нужен.
+            resumeCrmAutoLogin(userId);
+            throw err;
+        }
         if (!closed) {
+            resumeCrmAutoLogin(userId);
             throw new CrmError(
                 'crm_logout_failed',
                 'CRM не подтвердила закрытие сессии — попробуйте ещё раз',
