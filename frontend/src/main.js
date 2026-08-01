@@ -56,11 +56,12 @@ export async function apiFetch(path, { method = 'GET', body, isMultipart = false
     const res = await fetchRetry(API_BASE + path, { method, headers, body: fetchBody });
 
     if (res.status === 401 && unlocked) {
-        // Полночь МСК (или бан) разлогинили нас посреди работы — назад к гейту.
+        // Сессию погасили посреди работы: полночь МСК, бан или выход из
+        // аккаунта — он завершает сессии ВЕЗДЕ, включая этот браузер.
         unlocked = false;
         setToken('');
         currentUser = null;
-        showGate('Сессия истекла — войдите заново');
+        showGate('Сессия завершена (выход, полночь или блокировка) — войдите заново');
         throw new Error('сессия истекла');
     }
 

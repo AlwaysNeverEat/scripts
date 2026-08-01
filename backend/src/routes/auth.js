@@ -2,7 +2,11 @@ import { Router } from 'express';
 import { query } from '../db/client.js';
 import { hashPassword, verifyPassword } from '../auth/passwords.js';
 import { validateDisplayName, validateLogin, validatePassword } from '../auth/validate.js';
-import { createSession, destroySession, loadPublicUser, parseBearerToken } from '../auth/sessions.js';
+import {
+  createSession, destroyAllUserSessions, destroySession, loadPublicUser,
+  parseBearerToken, verifySessionToken,
+} from '../auth/sessions.js';
+import { resumeCrmAutoLogin } from '../crm/autoLoginPause.js';
 import { requireSession } from '../auth/middleware.js';
 import {
   findActivePendingByLogin, createRegistrationRequest,
@@ -84,6 +88,9 @@ router.post('/login', async (req, res) => {
     if (user.banned_at) return res.status(403).json({ error: 'аккаунт заблокирован' });
 
     const { token } = await createSession(user.id);
+    // Вошли заново — снимаем паузу автовхода в CRM, поставленную выходом:
+    // с этого момента сессия CRM снова поднимается сама (crm/client.js).
+    resumeCrmAutoLogin(user.id);
     const publicUser = await loadPublicUser(user.id);
     res.json({ token, user: publicUser });
   } catch (err) {
@@ -93,13 +100,23 @@ router.post('/login', async (req, res) => {
 });
 
 // ── POST /api/auth/logout ─────────────────────────────────────────────────────
-// Идемпотентно: удаляет сессию по токену независимо от того, протухла она или нет.
+// Выход ВЕЗДЕ, а не только в этом браузере: удаляем все сессии пользователя.
+// Так задумано из-за привязки учётки CRM — второй открытый браузер того же
+// человека иначе продолжил бы работать и поднял бы сессию CRM заново сразу
+// после того, как из CRM вышли (см. backend/src/crm/client.js).
+//
+// Идемпотентно: токен протух или неизвестен — просто убираем его сессию.
 
 router.post('/logout', async (req, res) => {
   try {
     const token = parseBearerToken(req.headers['authorization']);
+    const session = await verifySessionToken(token);
+    if (session) {
+      const closed = await destroyAllUserSessions(session.user.id);
+      return res.json({ ok: true, everywhere: true, closedSessions: closed });
+    }
     await destroySession(token);
-    res.json({ ok: true });
+    res.json({ ok: true, everywhere: false, closedSessions: 0 });
   } catch (err) {
     console.error('POST /api/auth/logout', err);
     res.status(500).json({ error: err.message });

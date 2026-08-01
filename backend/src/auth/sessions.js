@@ -119,6 +119,21 @@ export async function destroySession(token) {
   await query('DELETE FROM sessions WHERE token_hash = $1', [tokenHash]);
 }
 
+// Выход ВЕЗДЕ: сносим все сессии пользователя, а не только ту, из которой
+// нажали кнопку. Иначе второй браузер того же человека остаётся залогиненным —
+// и, так как учётка CRM привязана к аккаунту, первым же запросом поднимает
+// сессию CRM заново, хотя из CRM только что вышли (см. crm/client.js).
+// Возвращаем число удалённых сессий: роут показывает, что закрыл не одну.
+export async function destroyAllUserSessions(userId) {
+  if (!userId) return 0;
+  const r = await query('DELETE FROM sessions WHERE user_id = $1 RETURNING id', [userId]);
+  // Кэш проверки токенов ключуется хэшем токена, обратного индекса по юзеру
+  // нет — сбрасываем весь (он маленький, а выход редок), иначе чужой браузер
+  // проживёт с валидным ответом из кэша ещё до 30 секунд.
+  clearSessionCache();
+  return r.rows.length;
+}
+
 export function parseBearerToken(header) {
   if (typeof header !== 'string') return null;
   const m = header.match(/^Bearer\s+(.+)$/i);
