@@ -1,0 +1,65 @@
+# Прод на своём сервере: Postgres + бэкенд. Фронт и TLS — на системном nginx
+# рядом (deploy/nginx.conf), в контейнер его не заворачиваем: сертификатами
+# управляет certbot, и ему проще жить с обычным nginx на хосте.
+#
+# Отличия от корневого docker-compose.yml (тот для локальной разработки):
+#   · пароли и ключи — из .env, а не хардкодом;
+#   · Postgres НЕ торчит наружу (порт слушает только 127.0.0.1);
+#   · бэкенд тоже слушает только петлю — снаружи к нему ходит nginx;
+#   · аватарки лежат в томе, а не в Supabase;
+#   · миграции НЕ подкладываются в initdb: базу наливаем дампом из Supabase
+#     (см. DEPLOY-VPS.md, шаг 5), иначе initdb и дамп подрались бы за схему.
+#
+# Запуск:  docker compose -f deploy/docker-compose.prod.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: carsdb
+      POSTGRES_USER: carsdb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - '127.0.0.1:5432:5432'   # только с самой машины: для psql и pg_dump
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U carsdb -d carsdb']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # 2 ГБ на всю машину — Postgres по умолчанию считает, что он тут один.
+    # Ограничиваем, чтобы при пиковом запросе не съесть память у Node.
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c work_mem=8MB
+      -c max_connections=50
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://carsdb:${POSTGRES_PASSWORD}@postgres:5432/carsdb
+      PORT: 3001
+      # Сайт и API на одном домене, но CORS оставляем настроенным: юзерскрипты
+      # в Tampermonkey ходят сюда с чужих origin (mann-filter.com и прочие).
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      # Включает локальное хранилище аватарок вместо Supabase (avatarStorage.js).
+      AVATAR_DIR: /data/avatars
+    volumes:
+      - avatars:/data/avatars
+    ports:
+      - '127.0.0.1:3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+  avatars:

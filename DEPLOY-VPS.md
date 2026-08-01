@@ -1,0 +1,250 @@
+# Переезд на свой сервер (рег.облако, Москва-3)
+
+Зачем: и бэкенд на Render, и база на Supabase, и аватарки в Supabase Storage
+живут за границей. Канал туда из РФ режется по-разному у разных провайдеров —
+отсюда «у меня не грузится минуту, а у коллеги в ту же секунду всё работает».
+Переезд убирает этот класс проблем целиком, а заодно холодные старты Render.
+
+Бонусом сайт и API оказываются на одном домене, и preflight-запросы OPTIONS
+исчезают полностью — их было столько же, сколько обычных запросов.
+
+**Сервер:** `80.78.248.146` · Ubuntu 26.04 LTS · 2 vCPU / 2 ГБ / 40 ГБ
+**Домен:** `k-spot.ru`
+
+Порядок важен: сервер → база → сборка → nginx → TLS → DNS. DNS переключается
+последним, чтобы люди не попали на полусобранный сайт.
+
+---
+
+## 1. Первый вход и базовая защита
+
+```bash
+ssh root@80.78.248.146
+```
+
+Отдельный пользователь вместо работы под root:
+
+```bash
+adduser --disabled-password --gecos "" deploy
+usermod -aG sudo deploy
+rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy
+echo 'deploy ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/deploy
+```
+
+Отключаем вход по паролю и под root — ключ уже залит при создании сервера:
+
+```bash
+sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/;   s/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+systemctl reload ssh
+```
+
+> Проверь вход **новым окном** (`ssh deploy@80.78.248.146`), не закрывая текущее.
+> Если что-то не так — останется сессия, из которой можно откатить.
+
+Файрвол:
+
+```bash
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
+```
+
+Swap — на 2 ГБ памяти это страховка от OOM-killer'а во время сборки образов:
+
+```bash
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+sysctl -w vm.swappiness=10 && echo 'vm.swappiness=10' > /etc/sysctl.d/99-swap.conf
+```
+
+## 2. Docker, nginx, certbot
+
+```bash
+apt update && apt install -y ca-certificates curl git nginx
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  > /etc/apt/sources.list.d/docker.list
+apt update && apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+usermod -aG docker deploy
+apt install -y certbot python3-certbot-nginx
+```
+
+> Если для Ubuntu 26.04 (`$VERSION_CODENAME`) репозитория Docker ещё нет,
+> подставь предыдущий LTS-codename вручную — пакеты совместимы.
+
+Дальше всё делается **под `deploy`**, не под root.
+
+## 3. Код и переменные
+
+```bash
+sudo mkdir -p /opt/k-spot && sudo chown deploy:deploy /opt/k-spot
+git clone https://github.com/AlwaysNeverEat/scripts.git /opt/k-spot
+cd /opt/k-spot
+cp deploy/env.example deploy/.env
+nano deploy/.env
+```
+
+Что заполнить — подробно расписано в самом файле. Главное:
+
+- `API_KEY` и `CRM_LINK_SECRET` — **скопировать с Render как есть.** Со сменой
+  `API_KEY` перестанут работать уже установленные юзерскрипты, со сменой
+  `CRM_LINK_SECRET` у всех слетят привязки учёток CRM.
+- `POSTGRES_PASSWORD` — новый, `openssl rand -base64 24`.
+
+## 4. Поднять базу и бэкенд
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml up -d --build
+docker compose -f deploy/docker-compose.prod.yml ps
+curl -s localhost:3001/health     # ждём {"ok":true}
+```
+
+## 5. Перенести базу с Supabase
+
+Дамп снимается с **Session pooler** URI (тот же, что стоит в `DATABASE_URL` на
+Render). Делать это можно с ноутбука, если на сервере нет доступа к Supabase.
+
+```bash
+pg_dump "<SUPABASE_URI>" --no-owner --no-privileges --no-acl -Fc -f carsdb.dump
+```
+
+Залить на сервер и восстановить:
+
+```bash
+scp carsdb.dump deploy@80.78.248.146:/tmp/
+ssh deploy@80.78.248.146
+docker compose -f /opt/k-spot/deploy/docker-compose.prod.yml exec -T postgres \
+    pg_restore -U carsdb -d carsdb --no-owner --clean --if-exists < /tmp/carsdb.dump
+```
+
+Проверка, что данные на месте:
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml exec postgres \
+    psql -U carsdb -d carsdb -c "SELECT count(*) FROM cars; SELECT count(*) FROM users;"
+```
+
+> **Аватарки.** Ссылки на них лежат в `users.avatar` готовыми URL и продолжат
+> указывать на Supabase — старые фото не пропадут. Новые загрузки уже лягут на
+> локальный диск. Отдельно перетаскивать файлы не нужно; если хочется отвязаться
+> от Supabase полностью, попроси всех перезалить фото — это одна кнопка в профиле.
+
+## 6. Собрать сайт
+
+`VITE_API_BASE` **должен быть пустым** — тогда фронт ходит по относительным
+путям, то есть на тот же домен. Ради этого всё и затевалось.
+
+Собирать лучше на своей машине (на сервере с 2 ГБ сборка Vite прожорлива):
+
+```bash
+cd frontend
+VITE_API_BASE='' VITE_API_KEY='<тот же API_KEY>' npm run build
+rsync -av --delete dist/ deploy@80.78.248.146:/tmp/site/
+```
+
+На сервере:
+
+```bash
+sudo mkdir -p /var/www/k-spot
+sudo rsync -av --delete /tmp/site/ /var/www/k-spot/
+sudo chown -R www-data:www-data /var/www/k-spot
+```
+
+## 7. nginx
+
+```bash
+sudo cp /opt/k-spot/deploy/nginx.conf /etc/nginx/sites-available/k-spot
+sudo ln -sf /etc/nginx/sites-available/k-spot /etc/nginx/sites-enabled/k-spot
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Проверка до переключения DNS — подменяем адрес прямо в запросе:
+
+```bash
+curl -s --resolve k-spot.ru:80:80.78.248.146 http://k-spot.ru/health
+```
+
+## 8. DNS и TLS
+
+Сначала DNS, потом сертификат: certbot проверяет домен по реальному адресу.
+
+В панели DNS для `k-spot.ru`:
+
+- `A  @    80.78.248.146`
+- `A  www  80.78.248.146`
+- Записи для `api.k-spot.ru` больше не нужны — API теперь на основном домене.
+
+> **Обязательно: выключить проксирование Cloudflare.** Сейчас домен ходит через
+> него (видно по куке `__cf_bm`). Если оставить оранжевое облачко, трафик
+> продолжит идти через зарубежный edge и половина смысла переезда пропадёт —
+> переключи записи в режим **DNS only** (серое облачко).
+
+Когда `dig +short k-spot.ru` начнёт отдавать `80.78.248.146`:
+
+```bash
+sudo certbot --nginx -d k-spot.ru -d www.k-spot.ru
+```
+
+Certbot сам допишет TLS-секции и редирект с 80 на 443, автопродление ставится
+системным таймером. Проверить: `sudo certbot renew --dry-run`.
+
+## 9. Бэкапы базы
+
+```bash
+sudo install -m 0755 /opt/k-spot/deploy/backup-db.sh /usr/local/bin/backup-db.sh
+sudo mkdir -p /var/backups/k-spot && sudo chown deploy:deploy /var/backups/k-spot
+crontab -e
+```
+
+Строкой в крон — каждую ночь в 4:00:
+
+```
+0 4 * * * /usr/local/bin/backup-db.sh >> /var/log/k-spot-backup.log 2>&1
+```
+
+Проверить сразу: `/usr/local/bin/backup-db.sh`.
+
+## 10. Юзерскрипты
+
+В `userscript/src/oil-calculator/app.js` и `userscript/src/notifier/app.js`:
+
+```js
+const DB_API_BASE = 'https://k-spot.ru';
+const DB_SITE_URL = 'https://k-spot.ru';
+```
+
+И в обоих `header.txt` — `@connect k-spot.ru`. Закоммитить в main, Action
+пересоберёт `.user.js`, Tampermonkey подтянет обновление сам.
+
+## 11. Что проверить в конце
+
+1. `https://k-spot.ru` открывается, экран загрузки пролетает мгновенно.
+2. В сетевой панели браузера **нет запросов OPTIONS** — их больше не должно
+   быть вообще. Это самый наглядный признак, что переезд удался.
+3. Вход в аккаунт, раздел «Записи», открытие станции, создание тестовой записи.
+4. Загрузка аватарки в профиле → картинка отдаётся с `k-spot.ru/avatars/...`.
+5. Заявка на регистрацию доходит в Telegram (проверь, что с этого сервера
+   виден `api.telegram.org`: `curl -sI https://api.telegram.org | head -1`).
+6. Уйти со вкладки на полчаса и вернуться — доска должна обновиться за секунды.
+
+## Обновление кода потом
+
+```bash
+cd /opt/k-spot && git pull
+docker compose -f deploy/docker-compose.prod.yml up -d --build
+```
+
+Фронт — пересобрать (шаг 6) и перелить в `/var/www/k-spot`.
+
+## Если что-то пошло не так
+
+| Симптом | Куда смотреть |
+|---|---|
+| Сайт не открывается | `sudo nginx -t`, `sudo systemctl status nginx` |
+| 502 от nginx | `docker compose -f deploy/docker-compose.prod.yml logs backend` |
+| Бэкенд не стартует | там же; чаще всего незаполненный `.env` |
+| Пустая база машин | не прошёл шаг 5, проверь `SELECT count(*) FROM cars` |
+| Кончилась память | `free -h`, `docker stats` — swap из шага 1 должен быть включён |
+| Не выпускается сертификат | DNS ещё не разъехался или не снято проксирование Cloudflare |

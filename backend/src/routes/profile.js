@@ -5,7 +5,7 @@ import { validateDisplayName } from '../auth/validate.js';
 import { loadPublicUser } from '../auth/sessions.js';
 import {
   uploadAvatarOriginal, uploadAvatarCropped, isAllowedAvatarMime, AVATAR_MAX_BYTES,
-} from '../storage/supabaseStorage.js';
+} from '../storage/avatarStorage.js';
 import {
   computeMetrics, listUserAchievements, presentAchievement, syncAchievementsSafe,
 } from '../achievements/achievements.js';
@@ -49,7 +49,7 @@ router.patch('/', async (req, res) => {
 // ── POST /api/profile/avatar ───────────────────────────────────────────────────
 // Первая загрузка ИЛИ «Загрузить новую»: приходит оригинал (avatar_original)
 // + уже обрезанная на клиенте квадратная картинка (avatar, всегда jpeg).
-// Оба кладутся в Storage по ДЕТЕРМИНИРОВАННОМУ пути (см. supabaseStorage.js) —
+// Оба кладутся в хранилище по ДЕТЕРМИНИРОВАННОМУ пути (см. avatarStorage.js) —
 // повторная загрузка сама перезаписывает предыдущий файл, мусор не копится.
 
 router.post('/avatar', uploadFull, async (req, res) => {
