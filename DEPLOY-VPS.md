@@ -52,6 +52,28 @@
 
 ---
 
+## 0. Быстрый путь
+
+Шаги 1–2 (пользователь, swap, файрвол, Docker, nginx, certbot) собраны в
+скрипт. Под root на свежей машине:
+
+```bash
+apt-get update && apt-get install -y git
+git clone -b claude/api-spot-boot-recording-issue-qqvzan \
+    https://github.com/AlwaysNeverEat/scripts.git /opt/k-spot
+bash /opt/k-spot/deploy/bootstrap.sh
+```
+
+Скрипт идемпотентный и намеренно НЕ отключает вход по паролю — это делается
+руками после того, как вход под `deploy` по ключу проверен своими глазами.
+Команду он печатает в конце.
+
+Ветка `-b` нужна, пока изменения не влиты в main.
+
+Дальше — сразу шаг 3. Разделы 1 и 2 ниже описывают то же самое вручную.
+
+---
+
 ## 1. Первый вход и базовая защита
 
 ```bash
@@ -112,6 +134,9 @@ sysctl -w vm.swappiness=10 && echo 'vm.swappiness=10' > /etc/sysctl.d/99-swap.co
 ```
 
 ## 2. Docker, nginx, certbot
+
+> Шаги 1 и 2 целиком делает `deploy/bootstrap.sh` — см. врезку в начале файла.
+> Ниже то же самое руками, если хочется контролировать каждый шаг.
 
 ```bash
 apt update && apt install -y ca-certificates curl git nginx
