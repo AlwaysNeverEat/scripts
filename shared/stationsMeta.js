@@ -93,17 +93,56 @@ export const STATIONS_META = [
     { match: 'Фучика 14',           short: 'Фучика 14к4',             metro: 'Международная',     line: 5, boxNo: '##03', boxes: 2, layout: '2 бокса / 2 подъёмника',        height: '2.2 м', hydro: false, ac: true, lat: 59.884379, lng: 30.386548, knownId: '2', note: 'На углу' },
 ];
 
+// ── Правки модераторов ───────────────────────────────────────────────────────
+// Справочник выше — база, а не последнее слово: ворота перевесили, гидростойку
+// поставили, кондиционер сняли — и модератор правит карточку станции прямо на
+// сайте (таблица station_overrides, миграция 022). Правки приезжают сюда
+// одним словарём `short → { поле: значение }` и накатываются поверх базы при
+// каждом чтении справочника, поэтому их видят все, кто им пользуется: и
+// карточки станций, и плашки на карте, и подсказка «ближайшие станции».
+//
+// Ключ — `short`: у алиасов («Мурино» = «Охтинская») он общий, и правка у них
+// поэтому тоже общая — станция-то одна. Ни `short`, ни `match`, ни координаты
+// перекрывать нельзя (см. PATCH_FIELDS на бэкенде): по первым двум станция
+// опознаётся, третьи задают точку на карте.
+let OVERRIDES = {};
+
+export function setStationOverrides(patches) {
+    OVERRIDES = patches && typeof patches === 'object' ? patches : {};
+}
+
+function withOverride(s) {
+    const patch = s && OVERRIDES[s.short];
+    return patch && Object.keys(patch).length ? { ...s, ...patch } : s;
+}
+
+// Справочник с накатанными правками — то, что нужно почти всем. Голая база
+// нужна ровно одному месту: форме правки, которая показывает, поверх чего
+// модератор пишет (см. baseStationMeta).
+export function stationsMeta() {
+    return STATIONS_META.map(withOverride);
+}
+
 // Привязка заголовка колонки из /admin/record к справочнику. Более длинные
 // (специфичные) подстроки проверяются первыми, чтобы «Выборгское шоссе 2» не
 // съел «Выборгское ш. 212» и наоборот.
 const BY_LENGTH = [...STATIONS_META].sort((a, b) => b.match.length - a.match.length);
 
-export function findStationMeta(title) {
+function matchMeta(title) {
     const t = String(title || '').toLowerCase();
     for (const m of BY_LENGTH) {
         if (t.includes(m.match.toLowerCase())) return m;
     }
     return null;
+}
+
+export function findStationMeta(title) {
+    return withOverride(matchMeta(title));
+}
+
+// Станция как она записана в коде, без правок модераторов.
+export function baseStationMeta(title) {
+    return matchMeta(title);
 }
 
 // ── География ────────────────────────────────────────────────────────────────
@@ -122,7 +161,7 @@ export function haversineKm(lat1, lng1, lat2, lng2) {
 export function nearestStations(lat, lng, limit = 5) {
     const seen = new Set();
     const unique = [];
-    for (const s of STATIONS_META) {
+    for (const s of stationsMeta()) {
         const key = `${s.short}|${s.boxNo}`;
         if (seen.has(key)) continue;
         seen.add(key);
