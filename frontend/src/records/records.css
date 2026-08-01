@@ -243,8 +243,9 @@
 }
 
 /* Каскад: карточки проявляются по очереди, но хвост длинного списка не ждёт
-   секунду — задержка упирается в потолок. */
-.rc-overview.rc-in > .rc-card {
+   секунду — задержка упирается в потолок. Селектор не прямого потомка: в виде
+   «по метро» карточки лежат внутри столбиков линий. */
+.rc-overview.rc-in .rc-card {
     animation: rc-view-in 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
     animation-delay: calc(min(var(--i, 0), 14) * 22ms);
 }
@@ -292,7 +293,7 @@
 @media (prefers-reduced-motion: reduce) {
     .rc-out { animation: none; opacity: 0; }
     .rc-station.rc-in,
-    .rc-overview.rc-in > .rc-card,
+    .rc-overview.rc-in .rc-card,
     .rc-overview.rc-skeleton,
     .rc-station.rc-skeleton,
     .rc-skel::after { animation: none; }
@@ -300,11 +301,106 @@
 
 /* ── Обзор станций ─────────────────────────────────────────────── */
 
+/* Переключатель порядка карточек: подпись слева, чипы следом. Ряд узкий
+   (chip-sm), потому что это настройка вида, а не навигация — спорить по весу
+   с датами в шапке ему нельзя. */
+.rc-sortbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 16px;
+}
+
+.rc-sortbar-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--sub);
+}
+
+.rc-sortbar + .rc-overview { margin-top: 10px; }
+
 .rc-overview {
     margin-top: 16px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 10px;
+}
+
+/* Вид «по метро»: те же карточки, но в столбиках линий. Число колонок задаётся
+   разметкой (--cols = сколько линий на доске), а не auto-fill: с auto-fill
+   лишний столбик уезжал на вторую строку сетки и вставал не под соседями, а
+   под самым длинным столбиком — с дырой в пол-экрана над собой. Столбики
+   равняются по верху: у линий разное число станций, и растягивать короткий до
+   высоты длинного незачем. */
+.rc-overview-lines {
+    grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+    align-items: start;
+    gap: 12px;
+}
+
+.rc-line-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+/* Цвет линии живёт в шапке столбика и в черте под ней — самим карточкам его не
+   отдаём: пять цветов в сетке начали бы спорить с плашками внутри карточек. */
+.rc-line-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding-bottom: 7px;
+    border-bottom: 2px solid var(--line, var(--border));
+    color: var(--text);
+    font-size: 12px;
+}
+
+.rc-line-head b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.rc-line-count {
+    margin-left: auto;
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--line, var(--sub)) 18%, transparent);
+    color: var(--line, var(--sub));
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.rc-line-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+/* Узкий экран: пять столбиков в строку уже не влезают, и линии становятся
+   разделами друг под другом — заголовок линии, под ним её станции обычной
+   сеткой. Порядок и цвета те же, что и в столбиках. */
+@media (max-width: 1080px) {
+    .rc-overview-lines { grid-template-columns: 1fr; }
+    .rc-line-col { gap: 10px; }
+    .rc-line-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    }
 }
 
 .rc-card {
