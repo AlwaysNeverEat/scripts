@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.414
+// @version      2.23.412
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -1777,22 +1777,48 @@
     return out;
   }
   function profileOfSpecs(specs) {
-    let ash = null, hthsMin = null, hthsMax = null, visc = null;
+    let ash = null, ashAllowed = null, hthsMin = null, hthsMax = null, visc = null;
     for (const s of specs) {
-      if (s.ash != null) ash = ash == null ? s.ash : Math.min(ash, s.ash);
+      if (s.ash != null) {
+        ash = ash == null ? s.ash : Math.min(ash, s.ash);
+        ashAllowed = ashAllowed == null ? s.ash : Math.max(ashAllowed, s.ash);
+      }
       if (s.hths) {
         hthsMin = hthsMin == null ? s.hths[0] : Math.max(hthsMin, s.hths[0]);
         hthsMax = hthsMax == null ? s.hths[1] : Math.max(hthsMax, s.hths[1]);
       }
       if (s.visc) visc = visc ? [.../* @__PURE__ */ new Set([...visc, ...s.visc])] : [...s.visc];
     }
-    return { ash, hthsMin, hthsMax, visc };
+    return { ash, ashAllowed, hthsMin, hthsMax, visc };
+  }
+  function hthsGateFor(nativeSpecs) {
+    let lo = null;
+    for (const s of nativeSpecs) {
+      if (!s.hths) continue;
+      lo = lo == null ? s.hths[0] : Math.min(lo, s.hths[0]);
+    }
+    return lo;
+  }
+  function ashGateFor(nativeSpecs, ctx) {
+    const year = Number(ctx.yearFrom) || 0;
+    const diesel = isDieselLike(ctx.fuelType);
+    if (diesel && year >= 2009) return ASH_MID;
+    if (!diesel && year >= 2018) return ASH_MID;
+    const withAsh = nativeSpecs.filter((s) => s.ash != null);
+    if (withAsh.length && withAsh.every((s) => s.ash <= ASH_MID)) return ASH_MID;
+    return null;
+  }
+  function isDieselLike(fuelType) {
+    const ft = String(fuelType == null ? "" : fuelType).trim();
+    return ft === "05" || ft === "06" || /дизел|diesel/i.test(ft);
   }
   function aceaClassOfProfile(profile) {
-    if (!profile || profile.ash == null) return null;
+    if (!profile) return null;
+    const ash = profile.ashGate != null ? profile.ashGate : profile.ashAllowed != null ? profile.ashAllowed : profile.ash;
+    if (ash == null) return null;
     const thick = profile.hthsMin == null || profile.hthsMin >= 3.5;
-    if (profile.ash <= ASH_LOW) return thick ? "C4" : "C1";
-    if (profile.ash <= ASH_MID) return thick ? "C3" : "C2";
+    if (ash <= ASH_LOW) return thick ? "C4" : "C1";
+    if (ash <= ASH_MID) return thick ? "C3" : "C2";
     return thick ? "A3B4" : "A5B5";
   }
   var sapsLabel = (ash) => ash == null ? "—" : ash <= ASH_LOW ? "малозольное" : ash <= ASH_MID ? "среднезольное" : "полнозольное";
@@ -1877,17 +1903,16 @@
     if (notOil) {
       profileSpecs = [];
       confidence = "none";
-    } else if (confirmed.length) {
-      profileSpecs = confirmed;
-      confidence = "high";
-    } else if (nativeSpecs.length) {
-      profileSpecs = nativeSpecs;
-      confidence = "medium";
+    } else if (nativeSpecs.length || evidenceNative.length) {
+      profileSpecs = [...nativeSpecs, ...evidenceNative];
+      confidence = confirmed.length ? "high" : "medium";
     } else {
       profileSpecs = parsed.flatMap((p) => p.specs).filter((s) => s.role === "acea");
       confidence = "low";
     }
     const profile = profileOfSpecs(profileSpecs);
+    profile.ashGate = notOil ? null : ashGateFor(nativeSpecs, ctx);
+    profile.hthsGate = notOil ? null : hthsGateFor(nativeSpecs) ?? profile.hthsMin;
     const carLabel = String(ctx.make || "этой машины").trim();
     const items = parsed.map((p) => {
       const primary = p.specs[0] || null;
@@ -1965,10 +1990,7 @@
       if (viscConflict(target, profile)) return "conflict";
       if (looserThanProfile(target, profile)) return "minor";
     }
-    if (nativeSpec) {
-      if (confirmedIds.has(nativeSpec.id)) return "critical";
-      return confidence === "high" ? "minor" : "critical";
-    }
+    if (nativeSpec) return "critical";
     if (primary.role === "acea") {
       if (matchesProfile(primary, profile)) return "important";
       return "minor";
@@ -1976,17 +1998,18 @@
     return "noise";
   }
   function viscConflict(spec, profile) {
-    if (!profile || profile.hthsMin == null || !spec.hths) return false;
-    return spec.hths[1] < profile.hthsMin;
+    const gate = profile && (profile.hthsGate != null ? profile.hthsGate : profile.hthsMin);
+    if (gate == null || !spec.hths) return false;
+    return spec.hths[1] < gate;
   }
   function looserThanProfile(spec, profile) {
-    if (!profile || profile.ash == null || spec.ash == null) return false;
-    return spec.ash > profile.ash;
+    if (!profile || profile.ashGate == null || spec.ash == null) return false;
+    return spec.ash > profile.ashGate;
   }
   function matchesProfile(spec, profile) {
-    if (!profile || profile.ash == null) return false;
-    if (spec.ash == null) return false;
-    if (spec.ash > profile.ash) return false;
+    if (!profile || spec.ash == null) return false;
+    if (profile.ashGate != null && spec.ash > profile.ashGate) return false;
+    if (profile.ashGate == null && profile.ashAllowed != null && spec.ash > profile.ashAllowed) return false;
     if (profile.hthsMin != null && spec.hths && spec.hths[1] < profile.hthsMin) return false;
     return true;
   }
@@ -1998,14 +2021,14 @@
       return `Заводской допуск ${famLabel} — обязателен для ${carLabel}.` + conf + physicsTail(primary);
     }
     if (rank === "important") {
-      return `Класс ACEA совпадает с тем, что мотору реально нужно (${sapsLabel(profile.ash)}${profile.hthsMin != null ? `, HTHS ≥ ${profile.hthsMin}` : ""}). Марка тут ни при чём: это прямое физическое требование, и по нему масло отбирается даже когда родного допуска в каталоге нет.` + physicsTail(primary);
+      return `Класс ACEA совпадает с тем, что мотору реально нужно (${sapsLabel(profile.ashGate ?? profile.ashAllowed)}${profile.hthsMin != null ? `, HTHS ≥ ${profile.hthsMin}` : ""}). Марка тут ни при чём: это прямое физическое требование, и по нему масло отбирается даже когда родного допуска в каталоге нет.` + physicsTail(primary);
     }
     if (rank === "conflict") {
       return `Требует вязкости, несовместимой с остальным набором: масло под него будет жиже, чем нужно мотору (HTHS ≥ ${profile.hthsMin}). Перекрыть «более строгим» допуском такое нельзя — это выбор между разными маслами, а не ступени одной лестницы. В подборе не учитывается.` + physicsTail(primary);
     }
     if (rank === "minor") {
       if (looserThanProfile(nativeSpec || primary, profile)) {
-        return `Менее строгая ветка: разрешает ${sapsLabel((nativeSpec || primary).ash)} масло, тогда как по остальному набору мотору нужно ${sapsLabel(profile.ash)}. Масло по строгой ветке подходит и сюда, поэтому подбор идёт по строгой, а этот допуск — фон. Закрыть на него глаза можно: ошибка стоит ресурса масла, а не железа.` + physicsTail(primary);
+        return `Менее строгая ветка: разрешает ${sapsLabel((nativeSpec || primary).ash)} масло, тогда как мотору с сажевым фильтром нужно ${sapsLabel(profile.ashGate)}. Масло по строгой ветке подходит и сюда, поэтому подбор идёт по строгой, а этот допуск — фон. Закрыть на него глаза можно: ошибка стоит ресурса масла, а не железа.` + physicsTail(primary);
       }
       if (nativeSpec) {
         return `Родной допуск ${famLabel}, но выбор определяет не он: более строгий допуск той же марки уже задал профиль масла. Совпадение по нему — приятный бонус, не критерий.` + physicsTail(primary);
@@ -2040,27 +2063,29 @@
     const { profile, confidence } = analysis;
     const prof = oilProfile(oilApprovals);
     let blocked = false, penalty = 0;
-    const hardAsh = profile.ash == null ? null : Math.max(profile.ash, ASH_MID);
-    if (hardAsh != null && prof.ash != null && prof.ash > hardAsh) {
-      const note = `масло ${sapsLabel(prof.ash)}, мотору нужно ${sapsLabel(profile.ash)}`;
+    if (profile.ashGate != null && prof.ash != null) {
+      if (prof.ash > profile.ashGate) {
+        const note = `масло ${sapsLabel(prof.ash)}, мотору нужно ${sapsLabel(profile.ashGate)}`;
+        if (confidence === "high" || confidence === "medium") {
+          blocked = true;
+          notes.push(note);
+        } else {
+          penalty += 40;
+          notes.push(note + " (профиль выведен неточно)");
+        }
+      } else if (profile.ash != null && prof.ash > profile.ash) {
+        penalty += 15;
+        notes.push(`мотору желательно ${sapsLabel(profile.ash)}, у масла ${sapsLabel(prof.ash)}`);
+      }
+    }
+    const hthsGate = profile.hthsGate != null ? profile.hthsGate : profile.hthsMin;
+    if (hthsGate != null && prof.hthsMin != null && prof.hthsMin + 1e-3 < hthsGate) {
       if (confidence === "high" || confidence === "medium") {
         blocked = true;
-        notes.push(note);
-      } else {
-        penalty += 40;
-        notes.push(note + " (профиль выведен неточно)");
-      }
-    } else if (profile.ash != null && prof.ash != null && prof.ash > profile.ash) {
-      penalty += 15;
-      notes.push(`мотору желательно ${sapsLabel(profile.ash)}, у масла ${sapsLabel(prof.ash)}`);
-    }
-    if (profile.hthsMin != null && prof.hthsMin != null && prof.hthsMin + 1e-3 < profile.hthsMin) {
-      if (confidence === "high") {
-        blocked = true;
-        notes.push(`HTHS масла ниже требуемого ${profile.hthsMin}`);
+        notes.push(`HTHS масла ниже требуемого ${hthsGate}`);
       } else {
         penalty += 25;
-        notes.push(`HTHS масла, похоже, ниже требуемого ${profile.hthsMin}`);
+        notes.push(`HTHS масла, похоже, ниже требуемого ${hthsGate}`);
       }
     } else if (profile.hthsMax != null && profile.hthsMax !== Infinity && prof.hthsMin != null && prof.hthsMin >= profile.hthsMax) {
       penalty += 20;
@@ -2453,7 +2478,9 @@
     };
     let requiredClass = null;
     if (!calcState2.ignoreApprovals) {
-      requiredClass = aceaClassOfProfile(analysis && analysis.profile);
+      if (analysis && analysis.confidence !== "low" && analysis.confidence !== "none") {
+        requiredClass = aceaClassOfProfile(analysis.profile);
+      }
       if (!requiredClass) {
         if (needA5B5) requiredClass = "A5B5";
         else if (needC3) requiredClass = "C3";
@@ -4393,8 +4420,9 @@
     }
     const decisive = a.items.filter((i) => i.rank === "critical" || i.rank === "important").length;
     const need = [];
-    if (a.profile.ash != null) need.push(`${sapsLabel(a.profile.ash)} (зола ≤ ${a.profile.ash}%)`);
-    if (a.profile.hthsMin != null) need.push(`HTHS ≥ ${a.profile.hthsMin}`);
+    if (a.profile.ashGate != null) need.push(`${sapsLabel(a.profile.ashGate)} (зола ≤ ${a.profile.ashGate}%)`);
+    const hths = a.profile.hthsGate != null ? a.profile.hthsGate : a.profile.hthsMin;
+    if (hths != null) need.push(`HTHS ≥ ${hths}`);
     const groups = RANK_ORDER_ZM.map((rank) => ({
       rank,
       items: a.items.filter((i) => i.rank === rank)

@@ -469,7 +469,14 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     // ошибка «залили гуще» дешевле, чем «залили жиже».
     let requiredClass = null;
     if (!calcState.ignoreApprovals) {
-        requiredClass = aceaClassOfProfile(analysis && analysis.profile);
+        // Класс выводим из профиля только там, где у машины есть РОДНЫЕ допуска
+        // марки. У японцев и корейцев их нет вовсе, и профиль тогда собирается
+        // из классов ACEA чужих паспортов — то есть ровно из того шума, ради
+        // которого всё и затевалось. Для таких машин работает прежний разбор
+        // сырых строк: он хотя бы не выдаёт густое A3/B4 мотору под ILSAC.
+        if (analysis && analysis.confidence !== 'low' && analysis.confidence !== 'none') {
+            requiredClass = aceaClassOfProfile(analysis.profile);
+        }
         if (!requiredClass) {
             if (needA5B5) requiredClass = 'A5B5';
             else if (needC3) requiredClass = 'C3';

@@ -609,16 +609,67 @@ export function makeFamilies(make) {
 // неопределённостью выбираем сторону с обратимой ошибкой.
 
 export function profileOfSpecs(specs) {
-    let ash = null, hthsMin = null, hthsMax = null, visc = null;
+    let ash = null, ashAllowed = null, hthsMin = null, hthsMax = null, visc = null;
     for (const s of specs) {
-        if (s.ash != null) ash = ash == null ? s.ash : Math.min(ash, s.ash);
+        if (s.ash != null) {
+            ash = ash == null ? s.ash : Math.min(ash, s.ash);
+            // Сколько золы мотору РАЗРЕШЕНО: самый мягкий из его же допусков.
+            ashAllowed = ashAllowed == null ? s.ash : Math.max(ashAllowed, s.ash);
+        }
         if (s.hths) {
             hthsMin = hthsMin == null ? s.hths[0] : Math.max(hthsMin, s.hths[0]);
             hthsMax = hthsMax == null ? s.hths[1] : Math.max(hthsMax, s.hths[1]);
         }
         if (s.visc) visc = visc ? [...new Set([...visc, ...s.visc])] : [...s.visc];
     }
-    return { ash, hthsMin, hthsMax, visc };
+    return { ash, ashAllowed, hthsMin, hthsMax, visc };
+}
+
+// Ниже какого HTHS масло для этого мотора завод не одобрял НИ В ОДНОМ из своих
+// допусков. Берём минимум по родным: если Renault под RN0700 разрешает A5/B5
+// (HTHS 2.9–3.5), то масло A5/B5 для этого мотора одобрено — резать его из-за
+// того, что рядом в списке лежит более строгий RN0710, неправильно.
+function hthsGateFor(nativeSpecs) {
+    let lo = null;
+    for (const s of nativeSpecs) {
+        if (!s.hths) continue;
+        lo = lo == null ? s.hths[0] : Math.min(lo, s.hths[0]);
+    }
+    return lo;
+}
+
+// ── Нужно ли вообще ограничивать зольность ───────────────────────────────────
+// Зола вредна ровно одним: она забивает сажевый фильтр. Если фильтра нет,
+// полнозольное масло ничем не хуже — и резать по золе бессмысленно.
+//
+// Раньше предел брался как «самый строгий допуск из списка», и это было
+// ошибкой: список — объединение паспортов, туда попадает мало- и
+// среднезольное от чужих масел. Renault Duster 2012 (атмосферный бензиновый,
+// фильтра нет) получал предел 0.8% и терял все полнозольные масла, включая
+// те, что Renault для него и одобрил.
+//
+// Надёжный признак фильтра — не допуск, а сама машина: дизели получили DPF
+// с Euro 5, бензиновые — GPF с Euro 6d. Плюс случай, когда марка сама не
+// разрешает ничего полнозольного.
+
+function ashGateFor(nativeSpecs, ctx) {
+    const year = Number(ctx.yearFrom) || 0;
+    const diesel = isDieselLike(ctx.fuelType);
+    if (diesel && year >= 2009) return ASH_MID;      // Euro 5: сажевый фильтр
+    if (!diesel && year >= 2018) return ASH_MID;     // Euro 6d: бензиновый GPF
+
+    // Родные допуска марки, ни один из которых не разрешает полнозольное, —
+    // значит завод полнозольное для этого мотора не допускает вовсе.
+    const withAsh = nativeSpecs.filter(s => s.ash != null);
+    if (withAsh.length && withAsh.every(s => s.ash <= ASH_MID)) return ASH_MID;
+
+    return null;
+}
+
+// Локальная проверка топлива: тянуть fuel.js сюда незачем, нужен один признак.
+function isDieselLike(fuelType) {
+    const ft = String(fuelType == null ? '' : fuelType).trim();
+    return ft === '05' || ft === '06' || /дизел|diesel/i.test(ft);
 }
 
 // Профиль → класс ACEA, под который отбирать масло. Нужен, чтобы «требуемый
@@ -626,10 +677,17 @@ export function profileOfSpecs(specs) {
 // сканированием сырых строк, и на Kia Rio получалось «нужен A5/B5» (HTHS
 // 2.9–3.5) одновременно с профилем HTHS ≥ 3.5 — два взаимоисключающих ответа.
 export function aceaClassOfProfile(profile) {
-    if (!profile || profile.ash == null) return null;
+    if (!profile) return null;
+    // Без сажевого фильтра класс задаётся тем, что мотору РАЗРЕШЕНО, иначе —
+    // пределом. Считать по «самому строгому допуску в списке» нельзя: у
+    // бензинового Дастера так получался класс C2, которого Renault не требует.
+    const ash = profile.ashGate != null ? profile.ashGate
+        : profile.ashAllowed != null ? profile.ashAllowed
+        : profile.ash;
+    if (ash == null) return null;
     const thick = profile.hthsMin == null || profile.hthsMin >= 3.5;
-    if (profile.ash <= ASH_LOW) return thick ? 'C4' : 'C1';
-    if (profile.ash <= ASH_MID) return thick ? 'C3' : 'C2';
+    if (ash <= ASH_LOW) return thick ? 'C4' : 'C1';
+    if (ash <= ASH_MID) return thick ? 'C3' : 'C2';
     return thick ? 'A3B4' : 'A5B5';
 }
 
@@ -763,22 +821,27 @@ export function analyzeCarApprovals(carApprovals, ctx = {}) {
     const nonOilCount = parsed.filter(p => p.nonOil).length;
     const notOil = parsed.length >= 5 && nonOilCount >= parsed.length * 0.5;
 
+    // Второй источник ДОПОЛНЯЕТ родные допуска, а не заменяет их. Замена была
+    // ошибкой: у Renault Duster Motul предлагает масло под RN 17 (допуск для
+    // моторов Euro 6), и профиль строился по нему одному — а настоящие RN0700
+    // и RN0710 из списка машины выпадали из расчёта совсем.
     let profileSpecs, confidence;
     if (notOil) {
         profileSpecs = [];
         confidence = 'none';
-    } else if (confirmed.length) {
-        profileSpecs = confirmed;
-        confidence = 'high';
-    } else if (nativeSpecs.length) {
-        profileSpecs = nativeSpecs;
-        confidence = 'medium';
+    } else if (nativeSpecs.length || evidenceNative.length) {
+        profileSpecs = [...nativeSpecs, ...evidenceNative];
+        confidence = confirmed.length ? 'high' : 'medium';
     } else {
         // Родных допусков нет вовсе (японцы, корейцы) — остаются классы ACEA.
         profileSpecs = parsed.flatMap(p => p.specs).filter(s => s.role === 'acea');
         confidence = 'low';
     }
     const profile = profileOfSpecs(profileSpecs);
+    // Предел по золе задаёт наличие сажевого фильтра, а не самый строгий
+    // допуск в свалке. Считаем по родным допускам машины и по ней самой.
+    profile.ashGate = notOil ? null : ashGateFor(nativeSpecs, ctx);
+    profile.hthsGate = notOil ? null : (hthsGateFor(nativeSpecs) ?? profile.hthsMin);
 
     const carLabel = String(ctx.make || 'этой машины').trim();
 
@@ -865,10 +928,10 @@ function rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidenc
         if (looserThanProfile(target, profile)) return 'minor';
     }
 
-    if (nativeSpec) {
-        if (confirmedIds.has(nativeSpec.id)) return 'critical';
-        return confidence === 'high' ? 'minor' : 'critical';
-    }
+    // Родной допуск марки решает выбор всегда. Раньше он падал до «фонового»,
+    // стоило второму источнику подтвердить хоть что-то, — и у Renault Duster
+    // настоящие RN0700/RN0710 оказывались ниже дописанного RN 17.
+    if (nativeSpec) return 'critical';
 
     if (primary.role === 'acea') {
         // Класс ACEA, совпадающий с профилем, — рабочий ориентир: под него
@@ -884,20 +947,23 @@ function rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidenc
 // Допуск требует масла жиже, чем профиль машины: перекрыть его «более строгим»
 // нельзя — это выбор между разными вязкостями, а не ступени одной лестницы.
 function viscConflict(spec, profile) {
-    if (!profile || profile.hthsMin == null || !spec.hths) return false;
-    return spec.hths[1] < profile.hthsMin;
+    const gate = profile && (profile.hthsGate != null ? profile.hthsGate : profile.hthsMin);
+    if (gate == null || !spec.hths) return false;
+    return spec.hths[1] < gate;
 }
 
-// Допуск разрешает больше золы, чем профиль: строгое масло подходит и сюда.
+// Допуск разрешает больше золы, чем мотору позволено. Сравниваем именно
+// с пределом: если сажевого фильтра нет, предела нет, и «менее строгих»
+// допусков не существует — полнозольный допуск такой же настоящий.
 function looserThanProfile(spec, profile) {
-    if (!profile || profile.ash == null || spec.ash == null) return false;
-    return spec.ash > profile.ash;
+    if (!profile || profile.ashGate == null || spec.ash == null) return false;
+    return spec.ash > profile.ashGate;
 }
 
 function matchesProfile(spec, profile) {
-    if (!profile || profile.ash == null) return false;
-    if (spec.ash == null) return false;
-    if (spec.ash > profile.ash) return false;
+    if (!profile || spec.ash == null) return false;
+    if (profile.ashGate != null && spec.ash > profile.ashGate) return false;
+    if (profile.ashGate == null && profile.ashAllowed != null && spec.ash > profile.ashAllowed) return false;
     if (profile.hthsMin != null && spec.hths && spec.hths[1] < profile.hthsMin) return false;
     return true;
 }
@@ -918,7 +984,7 @@ function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confiden
     }
 
     if (rank === 'important') {
-        return `Класс ACEA совпадает с тем, что мотору реально нужно (${sapsLabel(profile.ash)}` +
+        return `Класс ACEA совпадает с тем, что мотору реально нужно (${sapsLabel(profile.ashGate ?? profile.ashAllowed)}` +
                `${profile.hthsMin != null ? `, HTHS ≥ ${profile.hthsMin}` : ''}). ` +
                'Марка тут ни при чём: это прямое физическое требование, и по нему масло отбирается ' +
                'даже когда родного допуска в каталоге нет.' + physicsTail(primary);
@@ -934,7 +1000,7 @@ function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confiden
     if (rank === 'minor') {
         if (looserThanProfile(nativeSpec || primary, profile)) {
             return `Менее строгая ветка: разрешает ${sapsLabel((nativeSpec || primary).ash)} масло, ` +
-                   `тогда как по остальному набору мотору нужно ${sapsLabel(profile.ash)}. ` +
+                   `тогда как мотору с сажевым фильтром нужно ${sapsLabel(profile.ashGate)}. ` +
                    'Масло по строгой ветке подходит и сюда, поэтому подбор идёт по строгой, а этот допуск — фон. ' +
                    'Закрыть на него глаза можно: ошибка стоит ресурса масла, а не железа.' + physicsTail(primary);
         }
@@ -988,33 +1054,33 @@ export function oilFitsProfile(oilApprovals, analysis) {
 
     let blocked = false, penalty = 0;
 
-    // Зола. Жёстко режем только переход «полнозольное → мотор с сажевым
-    // фильтром»: это необратимая поломка. Разницу между средне- и малозольным
+    // Зола. Режем только там, где есть что забивать: profile.ashGate стоит
+    // лишь при реальном сажевом фильтре. Разницу между средне- и малозольным
     // (0.8 против 0.5) держим мягкой — она влияет на скорость забивания
     // фильтра, а не убивает его, и масел ≤0.5% в наличии обычно нет вовсе.
-    // Без этого один редкий допуск из общей свалки (BMW LL-12 FE в списке
-    // бензинового N43) обнулял бы весь ассортимент.
-    const hardAsh = profile.ash == null ? null : Math.max(profile.ash, ASH_MID);
-    if (hardAsh != null && prof.ash != null && prof.ash > hardAsh) {
-        const note = `масло ${sapsLabel(prof.ash)}, мотору нужно ${sapsLabel(profile.ash)}`;
-        if (confidence === 'high' || confidence === 'medium') { blocked = true; notes.push(note); }
-        else { penalty += 40; notes.push(note + ' (профиль выведен неточно)'); }
-    } else if (profile.ash != null && prof.ash != null && prof.ash > profile.ash) {
-        penalty += 15;
-        notes.push(`мотору желательно ${sapsLabel(profile.ash)}, у масла ${sapsLabel(prof.ash)}`);
+    if (profile.ashGate != null && prof.ash != null) {
+        if (prof.ash > profile.ashGate) {
+            const note = `масло ${sapsLabel(prof.ash)}, мотору нужно ${sapsLabel(profile.ashGate)}`;
+            if (confidence === 'high' || confidence === 'medium') { blocked = true; notes.push(note); }
+            else { penalty += 40; notes.push(note + ' (профиль выведен неточно)'); }
+        } else if (profile.ash != null && prof.ash > profile.ash) {
+            penalty += 15;
+            notes.push(`мотору желательно ${sapsLabel(profile.ash)}, у масла ${sapsLabel(prof.ash)}`);
+        }
     }
 
     // HTHS. Слишком жидкое — масляная плёнка тоньше расчётной, износ вкладышей:
     // это блокировка. Слишком густое — потеря экономичности и вялые
     // фазовращатели: это штраф, потому что заводы вроде Ford такое запрещают,
     // но железо от этого не умирает, а альтернативы в наличии может не быть.
-    if (profile.hthsMin != null && prof.hthsMin != null && prof.hthsMin + 0.001 < profile.hthsMin) {
-        if (confidence === 'high') {
+    const hthsGate = profile.hthsGate != null ? profile.hthsGate : profile.hthsMin;
+    if (hthsGate != null && prof.hthsMin != null && prof.hthsMin + 0.001 < hthsGate) {
+        if (confidence === 'high' || confidence === 'medium') {
             blocked = true;
-            notes.push(`HTHS масла ниже требуемого ${profile.hthsMin}`);
+            notes.push(`HTHS масла ниже требуемого ${hthsGate}`);
         } else {
             penalty += 25;
-            notes.push(`HTHS масла, похоже, ниже требуемого ${profile.hthsMin}`);
+            notes.push(`HTHS масла, похоже, ниже требуемого ${hthsGate}`);
         }
     } else if (profile.hthsMax != null && profile.hthsMax !== Infinity &&
                prof.hthsMin != null && prof.hthsMin >= profile.hthsMax) {

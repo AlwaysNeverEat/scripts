@@ -499,9 +499,13 @@ function approvalsSummary(a) {
         return 'В допусках этой машины лежит паспорт охлаждающей жидкости, а не масла. ' +
                'Подбор идёт как для машины без допусков — проверь вручную.';
     }
+    // Пишем то, что реально ограничивает выбор, а не самый строгий допуск из
+    // списка: иначе выходило «нужно среднезольное» рядом с классом A3/B4.
     const bits = [];
-    if (a.profile.ash != null) bits.push(`${sapsLabel(a.profile.ash)} (зола ≤ ${a.profile.ash}%)`);
-    if (a.profile.hthsMin != null) bits.push(`HTHS ≥ ${a.profile.hthsMin}`);
+    if (a.profile.ashGate != null) bits.push(`${sapsLabel(a.profile.ashGate)} (зола ≤ ${a.profile.ashGate}%)`);
+    const hths = a.profile.hthsGate != null ? a.profile.hthsGate : a.profile.hthsMin;
+    if (hths != null) bits.push(`HTHS ≥ ${hths}`);
+    if (a.profile.ashGate == null && bits.length) bits.push('по золе ограничений нет — сажевого фильтра у мотора нет');
     const need = bits.length ? bits.join(', ') : 'определить не удалось';
     const src = { high: 'подтверждено рекомендацией Motul по этой машине',
                   medium: 'выведено по родным допускам марки',
