@@ -171,7 +171,7 @@ nano deploy/.env
 - `API_KEY` и `CRM_LINK_SECRET` — **скопировать с Render как есть.** Со сменой
   `API_KEY` перестанут работать уже установленные юзерскрипты, со сменой
   `CRM_LINK_SECRET` у всех слетят привязки учёток CRM.
-- `POSTGRES_PASSWORD` — новый, `openssl rand -base64 24`.
+- `POSTGRES_PASSWORD` — новый, `openssl rand -hex 24`.
 
 ## 4. Поднять базу и бэкенд
 

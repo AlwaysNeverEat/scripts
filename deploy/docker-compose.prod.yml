@@ -45,7 +45,18 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://carsdb:${POSTGRES_PASSWORD}@postgres:5432/carsdb
+      # Подключение к базе — ОТДЕЛЬНЫМИ переменными, а не одной строкой
+      # DATABASE_URL. Причина простая: пароль, собранный из URL, обязан быть
+      # процентно-экранирован, а `openssl rand -base64` штатно выдаёт `/` и `+`.
+      # Слеш парсер URI принимает за начало пути, и подключение падает с
+      # ERR_INVALID_URL ещё до первого запроса. Драйвер pg сам читает PG*,
+      # когда DATABASE_URL не задан, и никакого экранирования тут не нужно —
+      # пароль передаётся как есть, с любыми символами.
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: carsdb
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: carsdb
       PORT: 3001
       # Сайт и API на одном домене, но CORS оставляем настроенным: юзерскрипты
       # в Tampermonkey ходят сюда с чужих origin (mann-filter.com и прочие).
