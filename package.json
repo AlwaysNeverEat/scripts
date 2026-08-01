@@ -5,9 +5,10 @@
   "scripts": {
     "build:userscript": "node tools/build-userscript.mjs",
     "test:unit": "node --test shared/*.test.js",
+    "test:frontend": "node --test \"frontend/src/**/*.test.js\"",
     "test:backend": "node --test \"backend/src/**/*.test.js\"",
     "test:parity": "node tools/parity-userscript.mjs && node tools/parity-html.mjs",
-    "test": "npm run test:unit && npm run test:backend && npm run test:parity"
+    "test": "npm run test:unit && npm run test:frontend && npm run test:backend && npm run test:parity"
   },
   "devDependencies": {
     "esbuild": "^0.24.2"
