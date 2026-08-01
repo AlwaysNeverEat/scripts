@@ -17,6 +17,7 @@
 import { query } from '../db/client.js';
 import { parseLoginForm } from '../crm/client.js';
 import { isRecordBoard, looksLikeLoginPage } from '../../../shared/crmRecords.js';
+import { fetchWithRetry, describeNetworkError } from '../http/netRetry.js';
 
 const BASE = (process.env.ZMS_ADMIN_BASE_URL || 'https://zamena-masla-spot.ru').replace(/\/$/, '');
 const BASE_URL = new URL(`${BASE}/`);
@@ -106,34 +107,28 @@ function storeSetCookies(res, jar) {
     }
 }
 
-function networkErrorDetail(err) {
-    if (err?.name === 'AbortError') return `таймаут ${FETCH_TIMEOUT_MS} мс`;
-    const code = err?.cause?.code || err?.code || err?.name;
-    const message = err?.cause?.message || err?.message || 'неизвестная ошибка сети';
-    return code && !String(message).includes(code) ? `${code}: ${message}` : String(message);
-}
-
+// Оригинал закрывает keep-alive быстро, а сокеты из пула переиспользуются:
+// обрыв «до ответа» тут штатное явление, а не признак, что админка лежит.
+// Такой запрос сервер не видел — читающие повторяем (см. http/netRetry.js).
 async function rawFetch(path, jar, opts = {}) {
     const target = resolveUrl(path, opts.base);
     const cookie = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     let res;
     try {
-        res = await fetch(target, {
+        res = await fetchWithRetry(target, {
             redirect: 'manual',
             ...opts,
-            signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (site-records-proxy)',
                 ...(cookie ? { Cookie: cookie } : {}),
                 ...(opts.headers || {}),
             },
-        });
+        }, { timeoutMs: FETCH_TIMEOUT_MS });
     } catch (err) {
-        throw new ZmsError('zms_unavailable', `админка недоступна (${target.host}): ${networkErrorDetail(err)}`);
-    } finally {
-        clearTimeout(timeout);
+        throw new ZmsError(
+            'zms_unavailable',
+            `админка недоступна (${target.host}): ${describeNetworkError(err, FETCH_TIMEOUT_MS)}`,
+        );
     }
     storeSetCookies(res, jar);
     if (res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500) {
