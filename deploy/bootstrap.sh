@@ -19,6 +19,18 @@ set -euo pipefail
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31m!! %s\033[0m\n' "$*" >&2; exit 1; }
 
+# Адрес, по которому на сервер заходят снаружи. hostname -I тут не годится: у
+# облачных провайдеров публичный IP бывает «плавающим» и навешивается через
+# NAT, так что машина видит только внутренний (192.168.x.x) — печатать его в
+# подсказках значит сбивать с толку. Спрашиваем настоящий у внешнего сервиса,
+# и только если сети нет — откатываемся на локальный.
+public_ip() {
+    local ip
+    ip="$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+    [ -n "$ip" ] || ip="$(hostname -I | awk '{print $1}')"
+    printf '%s' "$ip"
+}
+
 [ "$(id -u)" -eq 0 ] || die "Запускать под root: sudo bash $0"
 
 # ── Ключи должны быть на месте ДО всего остального ───────────────────────────
@@ -28,7 +40,7 @@ ROOT_KEYS=/root/.ssh/authorized_keys
 if [ ! -s "$ROOT_KEYS" ] && [ ! -s /home/deploy/.ssh/authorized_keys ]; then
     die "Нет ни одного SSH-ключа (пусто в $ROOT_KEYS).
    Сначала положи ключ — из PowerShell на своей машине:
-   type \$env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh root@$(hostname -I | awk '{print $1}') \\
+   type \$env:USERPROFILE\\.ssh\\id_ed25519.pub | ssh root@$(public_ip) \\
        \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\"
    и запусти скрипт заново."
 fi
@@ -107,7 +119,7 @@ if [ -d /opt/k-spot/.git ]; then
     echo "/opt/k-spot готов"
 fi
 
-IP="$(hostname -I | awk '{print $1}')"
+IP="$(public_ip)"
 cat <<EOF
 
 ╭──────────────────────────────────────────────────────────────────────╮
