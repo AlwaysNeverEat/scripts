@@ -2,7 +2,13 @@
 // остального backend (только pg/express/cors + то, что реально нужно).
 // Токен только из env TELEGRAM_BOT_TOKEN, нигде не логируется и не хардкодится.
 
-const API_ROOT = 'https://api.telegram.org';
+// Адрес Bot API. Вынесен в env не ради гибкости, а по нужде: с российского
+// хостинга api.telegram.org недоступен — соединение просто не устанавливается
+// (ConnectTimeoutError на 443), при том что остальной интернет с той же машины
+// работает. Через TELEGRAM_API_BASE подставляется зеркало-прокси, которое до
+// Telegram дотягивается: Cloudflare Worker, любой VPS за рубежом с nginx или
+// self-hosted telegram-bot-api. Формат тот же, меняется только хост.
+const API_ROOT = (process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').replace(/\/$/, '');
 
 function token() {
   return process.env.TELEGRAM_BOT_TOKEN || '';
