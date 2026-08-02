@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!-- Дев-песочница вкладки «Админка»: заявки на регистрацию и пользователи на
+     поддельном apiFetch — бэкенд и БД для этого экрана не нужны.
+     Открыть: npx vite → /dev-admin.html          (смотрит админ)
+                         /dev-admin.html?role=mod (смотрит модератор)
+     Правки хранятся в памяти вкладки: перезагрузка возвращает исходные.
+     Ошибку сервера показывает заявка «Просроченная» — по ней видно, что в
+     плашку попадает текст сервера, а не «что-то пошло не так».
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: админка</title>
+  <script>document.documentElement.setAttribute('data-theme', new URLSearchParams(location.search).get('theme') || 'dark');</script>
+  <link rel="stylesheet" href="/src/style.css"/>
+</head>
+<body>
+  <div id="app">
+    <div id="page-admin">
+      <div class="page-head">
+        <h2 class="page-title">Админка</h2>
+        <p class="page-sub">Заявки на регистрацию и права пользователей.</p>
+      </div>
+      <div id="admin-body" class="page-body"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initAdminPage } from '/src/admin.js';
+
+    const params = new URLSearchParams(location.search);
+    const viewer = { id: 'me', display_name: 'Я', login: 'me', role: params.get('role') || 'admin' };
+
+    const minutesAgo = (m) => new Date(Date.now() - m * 60000).toISOString();
+
+    let requests = [
+      { id: 'r1', display_name: 'Иван Петров', login: 'ivan', status: 'pending', created_at: minutesAgo(3) },
+      { id: 'r2', display_name: 'Пётр Сидоров', login: 'petr', status: 'pending', created_at: minutesAgo(12) },
+      { id: 'r3', display_name: 'Просроченная', login: 'stale', status: 'pending', created_at: minutesAgo(29) },
+      { id: 'r4', display_name: 'Мария Иванова', login: 'maria', status: 'accepted', created_at: minutesAgo(200) },
+      { id: 'r5', display_name: 'Спам Спамов', login: 'spam', status: 'declined', created_at: minutesAgo(400) },
+    ];
+
+    let users = [
+      { id: 'me', display_name: 'Я', login: 'me', role: viewer.role, banned: false, created_at: '2025-01-10T09:00:00Z',
+        role_prefix: { label: 'mod', color: 'green', tooltip: 'Модератор' } },
+      { id: 'u2', display_name: 'Алексей Кузнецов', login: 'alex', role: 'user', banned: false, created_at: '2025-06-02T09:00:00Z', role_prefix: null },
+      { id: 'u3', display_name: 'Ольга Смирнова', login: 'olga', role: 'mod', banned: false, created_at: '2025-03-21T09:00:00Z',
+        role_prefix: { label: 'mod', color: 'green', tooltip: 'Модератор' } },
+      { id: 'u4', display_name: 'Забаненный', login: 'banned', role: 'user', banned: true, created_at: '2024-11-05T09:00:00Z', role_prefix: null },
+      { id: 'u5', display_name: 'Главный', login: 'root', role: 'admin', banned: false, created_at: '2024-01-01T09:00:00Z',
+        role_prefix: { label: 'admin', color: 'green', tooltip: 'Администратор' } },
+    ];
+
+    const fail = (msg) => { throw new Error(msg); };
+
+    async function apiFetch(path, { method = 'GET', body } = {}) {
+      await new Promise(r => setTimeout(r, 120)); // видно, что кнопки гаснут на время запроса
+
+      if (path === '/api/admin/requests') return { requests };
+
+      let m = path.match(/^\/api\/admin\/requests\/([^/]+)\/(accept|decline)$/);
+      if (m) {
+        const row = requests.find(r => r.id === m[1]);
+        if (!row) fail('заявка не найдена');
+        if (row.login === 'stale') fail('заявка просрочена — она живёт 30 минут');
+        if (row.status !== 'pending') fail(row.status === 'accepted' ? 'заявка уже одобрена' : 'заявка уже отклонена');
+        row.status = m[2] === 'accept' ? 'accepted' : 'declined';
+        if (m[2] === 'accept') {
+          users = users.concat({ id: 'new-' + row.id, display_name: row.display_name, login: row.login,
+            role: 'user', banned: false, created_at: new Date().toISOString(), role_prefix: null });
+        }
+        return { ok: true };
+      }
+
+      if (path.startsWith('/api/users?')) {
+        const q = new URLSearchParams(path.split('?')[1]).get('q') || '';
+        return users.filter(u => !q
+          || u.display_name.toLowerCase().includes(q.toLowerCase())
+          || u.login.toLowerCase().includes(q.toLowerCase()));
+      }
+
+      m = path.match(/^\/api\/users\/([^/]+)\/(role|ban)$/);
+      if (m) {
+        const row = users.find(u => u.id === m[1]);
+        if (!row) fail('пользователь не найден');
+        if (row.id === viewer.id) fail(m[2] === 'role' ? 'нельзя менять роль самому себе' : 'нельзя забанить самого себя');
+        if (row.role === 'admin') fail(m[2] === 'role' ? 'роль администратора через API не снимается' : 'администратора забанить нельзя');
+        if (m[2] === 'role') {
+          if (body.role === 'admin') fail('роль может быть только user или mod — admin через API не выдаётся');
+          row.role = body.role;
+          row.role_prefix = body.role === 'mod' ? { label: 'mod', color: 'green', tooltip: 'Модератор' } : null;
+        } else {
+          if (row.role === 'mod' && viewer.role !== 'admin') fail('модератора может забанить только администратор');
+          row.banned = body.banned;
+        }
+        return { ok: true };
+      }
+
+      fail('неизвестный путь: ' + method + ' ' + path);
+    }
+
+    initAdminPage({ apiFetch, user: viewer });
+  </script>
+</body>
+</html>

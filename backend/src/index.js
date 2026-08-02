@@ -7,6 +7,7 @@ import authRouter from './routes/auth.js';
 import profileRouter from './routes/profile.js';
 import topRouter from './routes/top.js';
 import usersRouter from './routes/users.js';
+import adminRouter from './routes/admin.js';
 import crmRouter from './routes/crm.js';
 import recordsRouter from './routes/records.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
@@ -66,6 +67,9 @@ app.use('/api/cars', requireSession, carsRouter);
 app.use('/api/profile', requireSession, profileRouter);
 app.use('/api/top', requireSession, topRouter);
 app.use('/api/users', requireSession, usersRouter);
+// Админка (заявки на регистрацию) — requireSession здесь, requireRole внутри
+// роутера: без личности проверять роль нечем.
+app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm', requireSession, crmRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
