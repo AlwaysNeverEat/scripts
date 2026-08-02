@@ -6,6 +6,7 @@ import { initAuthGate } from './authGate.js';
 import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
 import { showTopPage, resetTopCache } from './top.js';
+import { initAdminPage, isModerator } from './admin.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
@@ -89,8 +90,9 @@ const pageRecords = document.getElementById('page-records');
 const pageScripts = document.getElementById('page-scripts');
 const pageNews    = document.getElementById('page-news');
 const pageTop     = document.getElementById('page-top');
+const pageAdmin   = document.getElementById('page-admin');
 
-const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageScripts, pageNews, pageTop];
+const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageScripts, pageNews, pageTop, pageAdmin];
 
 function hideAllPages() {
     for (const page of ALL_PAGES) page.classList.add('hidden');
@@ -123,6 +125,7 @@ function enterApp() {
     unlocked = true;
     hideAllPages();
     renderUserBar();
+    renderAdminTab();
     renderNewsBadge();
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     warmCrmSession();
@@ -146,6 +149,7 @@ function resetTabsState() {
     searchResults.innerHTML = '';
     scrollByRoute.clear();
     Object.assign(lastRoute, DEFAULT_TAB_ROUTE);
+    renderAdminTab(); // currentUser уже сброшен — вкладка прячется до входа
 }
 
 // Учётка CRM привязана к аккаунту (см. backend/src/crm/client.js): этот запрос
@@ -163,6 +167,14 @@ function renderNewsBadge() {
     const n = unseenNewsCount();
     badge.textContent = n ? String(n) : '';
     badge.classList.toggle('hidden', !n);
+}
+
+// Вкладка «Админка» — только для mod/admin. Прячем её у остальных, чтобы не
+// показывать раздел, где всё равно ничего не откроется: настоящая проверка
+// роли живёт на сервере (requireRole), а не здесь.
+function renderAdminTab() {
+    const btn = document.getElementById('app-tab-admin');
+    if (btn) btn.classList.toggle('hidden', !isModerator(currentUser));
 }
 
 // Аватарка живёт в кнопке вкладки «Профиль».
@@ -191,6 +203,7 @@ const DEFAULT_TAB_ROUTE = {
     scripts: '#/scripts',
     news:    '#/news',
     top:     '#/top',
+    admin:   '#/admin',
 };
 const lastRoute = { ...DEFAULT_TAB_ROUTE };
 
@@ -203,6 +216,7 @@ function tabOfHash(hash) {
     if (hash === '#/scripts') return 'scripts';
     if (hash === '#/news') return 'news';
     if (hash === '#/top') return 'top';
+    if (hash === '#/admin') return 'admin';
     if (hash === '#/profile' || /^#\/user\/[0-9a-f-]{10,}/i.test(hash)) return 'profile';
     return 'calc'; // #/ и #/car/:id
 }
@@ -294,6 +308,14 @@ async function renderRoute() {
     } else if (tab === 'top') {
         showPage(pageTop);
         showTopPage({ apiFetch }); // из кеша мгновенно, свежие данные подтянутся
+    } else if (tab === 'admin') {
+        // Не модератор набрал #/admin руками — уводим на поиск. Сервер такому
+        // всё равно ответит 403, показывать пустой раздел незачем.
+        if (!isModerator(currentUser)) { location.hash = '#/'; return; }
+        showPage(pageAdmin);
+        // Заявки живут 30 минут, а роли меняются прямо сейчас — раздел
+        // перечитывается на каждый заход, кеш тут только вредил бы.
+        initAdminPage({ apiFetch, user: currentUser });
     } else if (carMatch) {
         showPage(pageCalc);
         // Та же машина, что и была — не пересобираем: выбранные агрегаты,

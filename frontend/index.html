@@ -103,6 +103,13 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
             <span class="app-tab-label">Топ</span>
           </button>
+          <!-- «Админка»: заявки на регистрацию и роли/баны. Кнопка скрыта, пока
+               main.js не увидит у вошедшего роль mod/admin — но это удобство, а
+               не защита: роль проверяет сервер (см. backend/src/routes/admin.js). -->
+          <button class="app-tab hidden" id="app-tab-admin" data-tab="admin" role="tab" aria-selected="false" aria-label="Админка" title="Админка">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.4 3.1 8.3 7.5 9.5 4.4-1.2 7.5-5.1 7.5-9.5V6L12 3Z"/><path d="m9.2 12 2 2 3.6-3.6"/></svg>
+            <span class="app-tab-label">Админка</span>
+          </button>
         </div>
         <!-- Переключатель темы держим вне role="tablist": это не вкладка. -->
         <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Светлая тема" title="Светлая тема">
@@ -255,6 +262,17 @@
         <p class="page-sub">1-го числа топ обнуляется, удачи!</p>
       </div>
       <div id="top-body" class="page-body"></div>
+    </div>
+
+    <!-- Админка: заявки на регистрацию и управление пользователями. Раздел
+         заменяет кнопки Accept/Decline Telegram-бота — с сервера в РФ до
+         api.telegram.org не достучаться (см. src/admin.js). -->
+    <div id="page-admin" class="hidden">
+      <div class="page-head">
+        <h2 class="page-title">Админка</h2>
+        <p class="page-sub">Заявки на регистрацию и права пользователей.</p>
+      </div>
+      <div id="admin-body" class="page-body"></div>
     </div>
   </div>
 

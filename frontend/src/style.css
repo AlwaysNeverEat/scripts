@@ -2152,6 +2152,56 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .profile-mod-assign { align-self: stretch; }
 
+/* ── Вкладка «Админка» ──────────────────────────────────────────── */
+/* Раскладка та же, что у строк топа (.top-row): имя с подписью слева, действия
+   справа. На узком экране кнопки уезжают под имя — иначе «Сделать
+   модератором» + «Забанить» не помещаются в строку и режут ник. */
+.admin-list { display: flex; flex-direction: column; }
+.admin-error { margin: 0 0 8px; }
+.admin-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 8px;
+}
+.admin-row:last-child { border-bottom: none; }
+/* Обработанная заявка остаётся в списке как история — приглушаем, чтобы взгляд
+   цеплялся за те, с которыми ещё надо что-то сделать. */
+.admin-row-done { opacity: .55; }
+.admin-main { flex: 1; min-width: 0; }
+.admin-name {
+  font-size: 13.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.admin-sub {
+  margin-top: 2px;
+  font-size: 11.5px; color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.admin-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; flex: none; }
+.admin-status { font-size: 11.5px; color: var(--sub); font-weight: 600; align-self: center; }
+.admin-banned {
+  font-size: 10.5px; font-weight: 700;
+  border-radius: 5px; padding: 1px 6px;
+  background: var(--red-dim); border: 1px solid var(--red); color: var(--red);
+}
+.admin-search { margin-bottom: 6px; }
+.admin-search input {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.admin-search input:focus { outline: none; border-color: var(--accent); }
+@media (max-width: 560px) {
+  .admin-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .admin-actions { justify-content: flex-start; }
+}
+
 /* ── Лента событий машины ───────────────────────────────────────── */
 /* Внешний контейнер тянется под ту же центровку, что и .calc-layout,
    а .events-wrap ограничивает ленту шириной калькулятора (без Битрикса). */
