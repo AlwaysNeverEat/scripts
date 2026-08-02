@@ -51,12 +51,18 @@ router.post('/register', async (req, res) => {
       password_hash: passwordHash,
     });
 
-    try {
-      await notifyNewRegistrationRequest(reqRow);
-    } catch (err) {
-      // Заявка создана и без уведомления — админ может обработать её позже.
-      console.error('notifyNewRegistrationRequest', err);
-    }
+    // Уведомление шлём ВДОГОНКУ, не дожидаясь: заявка уже создана, и ответ
+    // человеку от Telegram не зависит.
+    //
+    // Ждать здесь нельзя. С российского хостинга api.telegram.org недоступен,
+    // соединение не устанавливается вовсе, и попытка виснет на таймауте — а
+    // адресов у него несколько, undici перебирает их по очереди. Набегает
+    // больше, чем фронт готов ждать (netRetry рвёт запрос на 25 секундах), и
+    // человек видит «network error» при том, что заявка успешно создана и
+    // лежит в базе. Ровно на это и напоролись.
+    notifyNewRegistrationRequest(reqRow).catch((err) => {
+      console.error('notifyNewRegistrationRequest', err.message);
+    });
 
     res.status(201).json({
       id: reqRow.id,

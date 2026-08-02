@@ -23,10 +23,15 @@ async function call(method, payload) {
     console.warn(`Telegram: TELEGRAM_BOT_TOKEN не задан — пропускаю ${method}`);
     return null;
   }
+  // Свой таймаут: когда Bot API недоступен (а с российского хостинга он
+  // недоступен), соединение не устанавливается вовсе, и попытка висит на
+  // умолчаниях undici — причём адресов у api.telegram.org несколько, и он
+  // перебирает их по очереди. Без ограничения такие вызовы копятся в фоне.
   const res = await fetch(`${API_ROOT}/bot${token()}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(Math.max(2000, Number(process.env.TELEGRAM_TIMEOUT_MS) || 8000)),
   });
   const json = await res.json().catch(() => null);
   if (!json || json.ok !== true) {
