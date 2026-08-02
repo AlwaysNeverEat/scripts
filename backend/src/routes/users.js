@@ -6,12 +6,28 @@ import { listUserAchievements, syncAchievementsSafe } from '../achievements/achi
 
 const router = Router();
 
-// ── GET /api/users?q= ─────────────────────────────────────────────────────────
-// Список пользователей для модалки «Назначить ответственного». Только для
-// mod/admin — обычным пользователям перебирать список аккаунтов незачем.
+// ── GET /api/users?q=&limit= ──────────────────────────────────────────────────
+// Список пользователей: модалка «Назначить ответственного» и вкладка «Админка».
+// Только для mod/admin — обычным пользователям перебирать список аккаунтов
+// незачем.
+//
+// role/banned/created_at добавлены ради админки (там по ним и кнопки, и
+// сортировка). Отдельный эндпоинт заводить не стали: список пользователей для
+// модератора один, и раздваивать его — верный способ однажды закрыть замком
+// только одну из копий. Пароль и его хэш сюда не попадают, а роль и бан
+// модератору и так видны на странице пользователя.
+//
+// limit по умолчанию 20 — столько показывает модалка; админка просит больше,
+// но потолок жёсткий, чтобы запрос не превращался в выгрузку всей базы.
+const USERS_LIMIT_DEFAULT = 20;
+const USERS_LIMIT_MAX = 200;
 
 router.get('/', requireRole('mod', 'admin'), async (req, res) => {
   const q = String(req.query.q || '').trim();
+  const askedLimit = parseInt(req.query.limit, 10);
+  const limit = Number.isFinite(askedLimit) && askedLimit > 0
+    ? Math.min(askedLimit, USERS_LIMIT_MAX)
+    : USERS_LIMIT_DEFAULT;
   try {
     const params = [];
     let where = '';
@@ -19,19 +35,25 @@ router.get('/', requireRole('mod', 'admin'), async (req, res) => {
       params.push(`%${q}%`);
       where = `WHERE u.display_name ILIKE $1 OR u.login ILIKE $1`;
     }
+    params.push(limit);
     const r = await query(
-      `SELECT u.id, u.display_name, u.avatar,
+      `SELECT u.id, u.display_name, u.login, u.role, u.avatar,
+              u.banned_at, u.created_at,
               rl.prefix_label, rl.color, rl.tooltip
          FROM users u
          LEFT JOIN role_labels rl ON rl.role = u.role
         ${where}
         ORDER BY u.display_name
-        LIMIT 20`,
+        LIMIT $${params.length}`,
       params,
     );
     res.json(r.rows.map(row => ({
       id: row.id,
       display_name: row.display_name,
+      login: row.login,
+      role: row.role,
+      banned: !!row.banned_at,
+      created_at: row.created_at,
       avatar: row.avatar,
       role_prefix: row.prefix_label
         ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
@@ -141,5 +163,59 @@ router.post('/:id/ban', requireRole('mod', 'admin'), async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ── PATCH /api/users/:id/role ─────────────────────────────────────────────────
+// Смена роли (body { role: 'user' | 'mod' }) — то же, что делала кнопка
+// «Сделать модератором» в боте, только по HTTP: с российского сервера
+// api.telegram.org недоступен, и бот до него не дозванивается.
+//
+// Правило ролей повторяет nextRoleForToggle (backend/src/bot/commands.js):
+// admin — защищённая роль, через API её не выдают и не снимают, только руками
+// в БД. Иначе любой модератор одним запросом получил бы полные права, а замок
+// «модератора банит только админ» перестал бы что-либо значить.
+//
+// Себе роль менять нельзя по той же причине, что и банить себя: единственный
+// модератор одним промахом снял бы себе права и остался без админки — вернуть
+// их было бы можно только через SSH.
+
+const API_ASSIGNABLE_ROLES = ['user', 'mod'];
+
+// Фабрика: тесты подсовывают поддельный db вместо живого Postgres,
+// которого в node --test нет (см. users.role.test.js).
+export function roleChangeHandler({ db = query } = {}) {
+  return async (req, res) => {
+    const role = req.body?.role;
+    if (!API_ASSIGNABLE_ROLES.includes(role)) {
+      return res.status(403).json({
+        error: `роль может быть только ${API_ASSIGNABLE_ROLES.join(' или ')} — admin через API не выдаётся`,
+      });
+    }
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: 'нельзя менять роль самому себе' });
+    }
+
+    try {
+      const r = await db('SELECT id, role FROM users WHERE id = $1', [req.params.id]);
+      if (!r.rows.length) return res.status(404).json({ error: 'пользователь не найден' });
+      const target = r.rows[0];
+
+      if (target.role === 'admin') {
+        return res.status(403).json({ error: 'роль администратора через API не снимается' });
+      }
+      if (target.role === role) return res.json({ ok: true, role });
+
+      await db('UPDATE users SET role = $1 WHERE id = $2', [role, target.id]);
+      // Роль лежит в кэше сессий (auth/sessions.js, TTL ~30 с) — без сброса
+      // снятый модератор ещё полминуты проходил бы requireRole.
+      clearSessionCache();
+      res.json({ ok: true, role });
+    } catch (err) {
+      console.error('PATCH /api/users/:id/role', err);
+      res.status(500).json({ error: err.message });
+    }
+  };
+}
+
+router.patch('/:id/role', requireRole('mod', 'admin'), roleChangeHandler());
 
 export default router;
