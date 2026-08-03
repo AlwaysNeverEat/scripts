@@ -90,14 +90,47 @@ function yearsOverlap(car, gen) {
     return years.some(y => y >= from && y <= to);
 }
 
+// Виджет отдаёт названия не всегда строкой: у части записей brand/model
+// приезжает числом («2110») или объектом {name}. Раньше на такой машине весь
+// прогон падал на brand.toUpperCase() — теперь приводим к строке.
+function text(v) {
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+        for (const k of ['name', 'title', 'label', 'value', 'brand', 'model']) {
+            if (typeof v[k] === 'string') return v[k];
+            if (typeof v[k] === 'number' && Number.isFinite(v[k])) return String(v[k]);
+        }
+    }
+    return '';
+}
+
+// Первая нестроковая запись за прогон — в лог, чтобы было видно, что виджет
+// поменял формат, а не молча ехать дальше.
+let shapeWarned = false;
+function warnShape(field, v) {
+    if (shapeWarned || v == null || typeof v === 'string') return;
+    shapeWarned = true;
+    console.warn(`⚠ ROLF: поле ${field} пришло не строкой (${typeof v}): ${JSON.stringify(v).slice(0, 200)}`);
+}
+
 // Кандидаты из /cars/autocomplete → плоский список генераций с брендом/моделью.
+// Ответ бывает и не массивом (например {message:"validation…"}) — тогда пусто.
 function flatten(acResponse) {
     const out = [];
-    for (const b of acResponse || []) {
-        for (const m of b.models || []) {
-            for (const g of m.generations || []) {
+    for (const b of Array.isArray(acResponse) ? acResponse : []) {
+        warnShape('brand', b && b.brand);
+        for (const m of (b && Array.isArray(b.models) ? b.models : [])) {
+            for (const g of (m && Array.isArray(m.generations) ? m.generations : [])) {
+                if (!g || typeof g !== 'object') continue;
                 if (g.transport_type && g.transport_type !== 'CAR') continue;
-                out.push({ ...g, brand: b.brand, model: m.model });
+                out.push({
+                    ...g,
+                    brand: text(b.brand),
+                    model: text(m.model),
+                    generation: text(g.generation),
+                    modification: text(g.modification),
+                });
             }
         }
     }
@@ -105,11 +138,11 @@ function flatten(acResponse) {
 }
 
 function pickModification(car, candidates) {
-    const brandNorm = car.brand.toUpperCase();
+    const brandNorm = text(car.brand).toUpperCase();
     const scored = [];
     for (const c of candidates) {
         let score = 0;
-        if (c.brand && c.brand.toUpperCase() === brandNorm) score += 2;
+        if (c.brand && brandNorm && c.brand.toUpperCase() === brandNorm) score += 2;
         const codeOk = matchEngineCodes(car.engine_code, c.engine_code);
         if (codeOk) score += 4;
         const volOk = car.engine_volume && c.engine_volume
@@ -224,56 +257,68 @@ function checkpoint() {
     writeJson(OUT_FILE, SEPARATE_OUT ? outCars : cars);
 }
 
-let enriched = 0, missed = 0, skipped = 0, processed = 0;
+let enriched = 0, missed = 0, skipped = 0, processed = 0, failed = 0;
 
 for (const car of cars) {
     if (processed >= LIMIT) break;
-    if (!FORCE && (car.car_approvals.length || car._rolf !== undefined)) {
+    if (!FORCE && ((car.car_approvals || []).length || car._rolf !== undefined)) {
         if (SEPARATE_OUT) outCars.push(car);
         skipped++;
         continue;
     }
     processed++;
 
-    const queries = [];
-    if (car.engine_code) queries.push(car.engine_code);
-    if (car.engine_volume) queries.push(`${car.brand} ${car.model} ${car.engine_volume}`);
-    queries.push(`${car.brand} ${car.model}`);
+    const label = `${text(car.brand)} ${text(car.model)} ${car.engine_code || ''} ${car.year_from || ''}`
+        .replace(/\s+/g, ' ').trim();
 
-    let match = null;
-    for (const q of queries) {
-        const ac = await api('cars/autocomplete', { query: q });
-        match = pickModification(car, flatten(ac));
-        if (match) break;
-    }
+    // Одна кривая машина не должна ронять ночной прогон: ловим всё, пишем
+    // предупреждение и идём дальше. Такая машина остаётся необработанной —
+    // следующий запуск возьмёт её снова.
+    try {
+        const queries = [];
+        if (car.engine_code) queries.push(String(car.engine_code));
+        if (car.engine_volume) queries.push(`${text(car.brand)} ${text(car.model)} ${car.engine_volume}`);
+        queries.push(`${text(car.brand)} ${text(car.model)}`);
 
-    const label = `${car.brand} ${car.model} ${car.engine_code || ''} ${car.year_from}`.trim();
-    if (!match) {
-        missed++;
-        car._rolf = null;
-        pushWarning(car, 'ROLF: модификация не найдена');
-        console.log(`  ✗ ${label}: не найдено`);
+        let match = null;
+        for (const q of queries) {
+            if (q.trim().length < 3) continue; // виджет отвечает 422 на короткий запрос
+            const ac = await api('cars/autocomplete', { query: q });
+            match = pickModification(car, flatten(ac));
+            if (match) break;
+        }
+
+        if (!match) {
+            missed++;
+            car._rolf = null;
+            pushWarning(car, 'ROLF: модификация не найдена');
+            console.log(`  ✗ ${label}: не найдено`);
+            if (SEPARATE_OUT) outCars.push(car);
+            checkpoint();
+            continue;
+        }
+
+        const liquids = await api('find-liquids-by-modification',
+            { modification: match.id, source: 'cards', transportType: 'CAR' });
+        const approvals = extractApprovals(liquids);
+
+        car.car_approvals = approvals;
+        car._rolf = {
+            modification_id: match.id,
+            matched: `${match.brand} ${match.model} ${match.generation || ''} ${match.modification || ''} ${text(match.engine_code)} (${text(match.years)})`.replace(/\s+/g, ' ').trim(),
+            engine_filling_volume: engineVolumeOf(liquids),
+        };
+        if (!approvals.length) pushWarning(car, 'ROLF: модификация найдена, но допусков нет');
+
+        enriched++;
+        console.log(`  ✓ ${label}: ${approvals.length} допусков (${car._rolf.matched})`);
         if (SEPARATE_OUT) outCars.push(car);
         checkpoint();
-        continue;
+    } catch (e) {
+        failed++;
+        console.warn(`  ⚠ ${label}: ошибка — ${e.message}`);
+        checkpoint();
     }
-
-    const liquids = await api('find-liquids-by-modification',
-        { modification: match.id, source: 'cards', transportType: 'CAR' });
-    const approvals = extractApprovals(liquids);
-
-    car.car_approvals = approvals;
-    car._rolf = {
-        modification_id: match.id,
-        matched: `${match.brand} ${match.model} ${match.generation || ''} ${match.modification || ''} ${match.engine_code || ''} (${match.years || ''})`.replace(/\s+/g, ' ').trim(),
-        engine_filling_volume: engineVolumeOf(liquids),
-    };
-    if (!approvals.length) pushWarning(car, 'ROLF: модификация найдена, но допусков нет');
-
-    enriched++;
-    console.log(`  ✓ ${label}: ${approvals.length} допусков (${car._rolf.matched})`);
-    if (SEPARATE_OUT) outCars.push(car);
-    checkpoint();
 }
 
 checkpoint();
@@ -283,4 +328,5 @@ function pushWarning(car, w) {
     if (!car._warnings.includes(w)) car._warnings.push(w);
 }
 
-console.log(`\nГотово: обогащено ${enriched}, без совпадения ${missed}, пропущено (уже были) ${skipped}.`);
+console.log(`\nГотово: обогащено ${enriched}, без совпадения ${missed}, пропущено (уже были) ${skipped}`
+    + (failed ? `, с ошибкой (будут перепройдены) ${failed}` : '') + '.');
