@@ -8,6 +8,8 @@
 
 import { openAssignCarsModal } from './assignCars.js';
 import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
+import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
+import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -26,8 +28,14 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
     box.innerHTML = '<div class="search-empty">Загрузка…</div>';
 
     let user;
+    let activity = null;
     try {
-        user = await apiFetch('/api/users/' + userId + '/public');
+        // Лента активности — отдельным запросом (см. GET /api/users/:id/activity).
+        // Профиль без неё показать можно, поэтому её ошибку глотаем отдельно.
+        [user, activity] = await Promise.all([
+            apiFetch('/api/users/' + userId + '/public'),
+            apiFetch('/api/users/' + userId + '/activity').catch(() => null),
+        ]);
     } catch (e) {
         box.innerHTML = `<div class="search-empty">Не удалось загрузить профиль: ${esc(e.message)}</div>`;
         return;
@@ -43,9 +51,11 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
         ? `<img src="${esc(user.avatar)}" alt=""/>`
         : `<span class="profile-avatar-default"></span>`;
 
-    const modPanelHtml = viewerIsMod ? `
-        <div class="mod-panel">
-            <div class="edit-sec-h">Управление (видно только модераторам)</div>
+    const modPanelHtml = viewerIsMod ? profileSectionHtml({
+        title: 'Управление',
+        meta: 'видно только модераторам',
+        cls: 'profile-sec-mod',
+        body: `
             ${user.banned ? '<div class="mod-banned-badge">Пользователь заблокирован</div>' : ''}
             <div class="mod-panel-actions">
                 <button class="btn btn-sec" id="btn-mod-assign-cars">Назначить машины</button>
@@ -53,29 +63,39 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
                     user.banned ? 'Разбанить пользователя' : 'Забанить пользователя'
                 }</button>` : ''}
             </div>
-            <div id="mod-panel-error" class="edit-error hidden"></div>
-        </div>` : '';
+            <div id="mod-panel-error" class="edit-error hidden"></div>`,
+    }) : '';
+
+    const medals = Array.isArray(user.achievements) ? user.achievements.length : 0;
 
     box.innerHTML = `
-        <div class="profile-card">
-            <div class="profile-avatar">${avatarHtml}</div>
-            <div class="profile-name profile-name-static">
-                ${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}
-            </div>
-            <div class="profile-stats">
-                <div class="profile-stat"><b>${user.stats.added ?? 0}</b><span>Добавлено машин</span></div>
-                <div class="profile-stat"><b>${user.stats.edited ?? 0}</b><span>Отредактировано машин</span></div>
-            </div>
+        <div class="profile-page">
+            ${profileHeroHtml({
+                avatarInner: avatarHtml,
+                nameInner: `${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}`,
+                added: user.stats.added ?? 0,
+                edited: user.stats.edited ?? 0,
+            })}
 
-            <div class="edit-sec-h">Достижения</div>
-            <div class="achievements-feed">
-                ${achievementsFeedHtml(user.achievements, 'Пока нет достижений')}
-            </div>
+            ${profileSectionHtml({
+                title: 'Достижения',
+                meta: medals ? `${medals} ${plural(medals, ['медаль', 'медали', 'медалей'])}` : '',
+                body: `<div class="achievements-feed">
+                    ${achievementsFeedHtml(user.achievements, 'Пока нет достижений')}
+                </div>`,
+            })}
+
+            ${profileSectionHtml({
+                title: 'Активность',
+                meta: 'последний год',
+                body: activityFeedHtml(activity),
+            })}
 
             ${modPanelHtml}
         </div>
     `;
     attachFeedParticles(box);
+    attachActivityFeed(box);
 
     if (!viewerIsMod) return;
 

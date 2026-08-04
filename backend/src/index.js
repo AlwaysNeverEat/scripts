@@ -11,6 +11,7 @@ import adminRouter from './routes/admin.js';
 import crmRouter from './routes/crm.js';
 import recordsRouter from './routes/records.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
+import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
 import { startRecordsSync } from './records/sync.js';
 
@@ -76,6 +77,18 @@ app.use('/api/crm', requireSession, crmRouter);
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются
 // его аккаунтом и идут в месячный топ, гость работает как раньше.
 app.use('/api/records', optionalSession, recordsRouter);
+
+// Аватарки с локального диска (свой сервер, см. DEPLOY-VPS.md). Вне /api —
+// картинку тянет тег <img> обычного браузера, без x-api-key и без сессии, ровно
+// как раньше тянул публичный бакет Supabase.
+//
+// Отдаёт их Node, а не nginx: файлы мелкие, людей десятки, зато не нужно
+// расшаривать том между контейнерами. Кэш-заголовки оставляем как есть —
+// express.static шлёт ETag и Last-Modified, браузер получает 304. Это важно
+// именно здесь: путь детерминированный ({userId}-cropped.jpg), и при смене
+// фото URL не меняется, так что «закэшировать навсегда» нельзя.
+const avatarsDir = avatarDir();
+if (avatarsDir) app.use('/avatars', express.static(avatarsDir));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

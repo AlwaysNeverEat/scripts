@@ -5,10 +5,11 @@ import { validateDisplayName } from '../auth/validate.js';
 import { loadPublicUser } from '../auth/sessions.js';
 import {
   uploadAvatarOriginal, uploadAvatarCropped, isAllowedAvatarMime, AVATAR_MAX_BYTES,
-} from '../storage/supabaseStorage.js';
+} from '../storage/avatarStorage.js';
 import {
   computeMetrics, listUserAchievements, presentAchievement, syncAchievementsSafe,
 } from '../achievements/achievements.js';
+import { loadActivity } from '../records/activity.js';
 
 const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
   .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
@@ -49,7 +50,7 @@ router.patch('/', async (req, res) => {
 // ── POST /api/profile/avatar ───────────────────────────────────────────────────
 // Первая загрузка ИЛИ «Загрузить новую»: приходит оригинал (avatar_original)
 // + уже обрезанная на клиенте квадратная картинка (avatar, всегда jpeg).
-// Оба кладутся в Storage по ДЕТЕРМИНИРОВАННОМУ пути (см. supabaseStorage.js) —
+// Оба кладутся в хранилище по ДЕТЕРМИНИРОВАННОМУ пути (см. avatarStorage.js) —
 // повторная загрузка сама перезаписывает предыдущий файл, мусор не копится.
 
 router.post('/avatar', uploadFull, async (req, res) => {
@@ -120,6 +121,21 @@ router.get('/stats', async (req, res) => {
     res.json(await computeMetrics(req.user.id));
   } catch (err) {
     console.error('GET /api/profile/stats', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/profile/activity ──────────────────────────────────────────────────
+// Лента активности («квадратики»): сколько записей сделано в каждый день за
+// последний год. Считается по record_credits — тот же источник, что у топа,
+// поэтому цифры в ленте и в рейтинге всегда сходятся.
+// Чужую ленту отдаёт GET /api/users/:id/activity — она такая же, публичная.
+
+router.get('/activity', async (req, res) => {
+  try {
+    res.json(await loadActivity(req.user.id));
+  } catch (err) {
+    console.error('GET /api/profile/activity', err);
     res.status(500).json({ error: err.message });
   }
 });

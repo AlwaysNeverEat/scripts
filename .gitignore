@@ -50,3 +50,6 @@ data/import/filters.json
 data/import/lukoil-cars.json
 data/import/lukoil-workset.json
 data/import/lukoil-filters.json
+
+# Секреты прода (см. DEPLOY-VPS.md) — только пример в deploy/env.example
+deploy/.env

@@ -2,7 +2,13 @@
 // остального backend (только pg/express/cors + то, что реально нужно).
 // Токен только из env TELEGRAM_BOT_TOKEN, нигде не логируется и не хардкодится.
 
-const API_ROOT = 'https://api.telegram.org';
+// Адрес Bot API. Вынесен в env не ради гибкости, а по нужде: с российского
+// хостинга api.telegram.org недоступен — соединение просто не устанавливается
+// (ConnectTimeoutError на 443), при том что остальной интернет с той же машины
+// работает. Через TELEGRAM_API_BASE подставляется зеркало-прокси, которое до
+// Telegram дотягивается: Cloudflare Worker, любой VPS за рубежом с nginx или
+// self-hosted telegram-bot-api. Формат тот же, меняется только хост.
+const API_ROOT = (process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').replace(/\/$/, '');
 
 function token() {
   return process.env.TELEGRAM_BOT_TOKEN || '';
@@ -17,10 +23,15 @@ async function call(method, payload) {
     console.warn(`Telegram: TELEGRAM_BOT_TOKEN не задан — пропускаю ${method}`);
     return null;
   }
+  // Свой таймаут: когда Bot API недоступен (а с российского хостинга он
+  // недоступен), соединение не устанавливается вовсе, и попытка висит на
+  // умолчаниях undici — причём адресов у api.telegram.org несколько, и он
+  // перебирает их по очереди. Без ограничения такие вызовы копятся в фоне.
   const res = await fetch(`${API_ROOT}/bot${token()}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(Math.max(2000, Number(process.env.TELEGRAM_TIMEOUT_MS) || 8000)),
   });
   const json = await res.json().catch(() => null);
   if (!json || json.ok !== true) {
