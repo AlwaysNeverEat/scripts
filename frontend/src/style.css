@@ -1941,11 +1941,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .profile-content { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
 .profile-page { display: flex; flex-direction: column; gap: 14px; }
 
-/* Обложка: единственный блок с «украшением» — она должна читаться как шапка
-   страницы, а не как первая панель из четырёх одинаковых. */
+/* Обложка: шапка страницы, а не первая панель из четырёх. Отличается от панелей
+   не подсветкой, а раскладкой — всё по центру, крупно, без заголовка. Свечение
+   тут было и убрано: радиальное пятно за круглым аватаром выглядело мятым. */
 .profile-hero {
-  position: relative;
-  overflow: hidden;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -1953,21 +1952,12 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   display: flex; flex-direction: column; align-items: center;
   text-align: center;
 }
-.profile-hero-glow {
-  position: absolute; top: -140px; left: 0; right: 0; height: 260px;
-  background: radial-gradient(ellipse 50% 100% at 50% 100%, var(--accent-dim), transparent 72%);
-  pointer-events: none;
-}
-/* Содержимое — над свечением (оно absolute и иначе перекрыло бы аватар). */
-.profile-hero > *:not(.profile-hero-glow) { position: relative; }
 
 .profile-avatar-wrap { position: relative; cursor: pointer; }
 .profile-avatar-static { cursor: default; }
-/* Кольцо цветом фона отделяет аватар от свечения — без него круг «плавает». */
 .profile-avatar {
   width: 104px; height: 104px;
   font-size: 36px;
-  box-shadow: 0 0 0 5px var(--card);
 }
 .profile-avatar-default { font-size: 36px; }
 /* Карандаш на аватарке: единственный намёк, что её можно менять (в чужом

@@ -39,7 +39,6 @@ export function profileHeroHtml({ avatarInner, nameInner, added = 0, edited = 0,
 
     return `
         <section class="profile-hero">
-            <span class="profile-hero-glow" aria-hidden="true"></span>
             ${avatarBlock}
             ${nameBlock}
             <div class="profile-stats">
