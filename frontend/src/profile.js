@@ -16,6 +16,7 @@
 import { openAvatarCropper } from './avatarCropper.js';
 import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
+import { activityFeedHtml, attachActivityFeed, scrollActivityToEnd } from './activityFeed.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -69,10 +70,12 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
     let stats = { added: 0, edited: 0 };
     let achievements = [];
+    let activity = null;
     try {
-        [stats, achievements] = await Promise.all([
+        [stats, achievements, activity] = await Promise.all([
             apiFetch('/api/profile/stats'),
             apiFetch('/api/profile/achievements'),
+            apiFetch('/api/profile/activity'),
         ]);
     } catch { /* покажем то, что есть, без статистики */ }
 
@@ -99,6 +102,9 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     <div class="profile-stat"><b>${stats.edited ?? 0}</b><span>Отредактировано машин</span></div>
                 </div>
 
+                <div class="edit-sec-h">Активность</div>
+                ${activityFeedHtml(activity)}
+
                 <div class="edit-sec-h">Достижения</div>
                 <div class="achievements-feed">
                     ${achievementsFeedHtml(achievements, 'Пока пусто — достижения появятся здесь')}
@@ -117,6 +123,9 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
         `;
         bind();
         attachFeedParticles(box);
+        attachActivityFeed(box);
+        // Лента длиной в год не влезает в карточку — показываем свежий конец.
+        scrollActivityToEnd(box);
     }
 
     function bind() {

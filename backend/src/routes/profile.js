@@ -9,6 +9,7 @@ import {
 import {
   computeMetrics, listUserAchievements, presentAchievement, syncAchievementsSafe,
 } from '../achievements/achievements.js';
+import { loadActivity } from '../records/activity.js';
 
 const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
   .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
@@ -120,6 +121,21 @@ router.get('/stats', async (req, res) => {
     res.json(await computeMetrics(req.user.id));
   } catch (err) {
     console.error('GET /api/profile/stats', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/profile/activity ──────────────────────────────────────────────────
+// Лента активности («квадратики»): сколько записей сделано в каждый день за
+// последний год. Считается по record_credits — тот же источник, что у топа,
+// поэтому цифры в ленте и в рейтинге всегда сходятся.
+// Чужую ленту отдаёт GET /api/users/:id/activity — она такая же, публичная.
+
+router.get('/activity', async (req, res) => {
+  try {
+    res.json(await loadActivity(req.user.id));
+  } catch (err) {
+    console.error('GET /api/profile/activity', err);
     res.status(500).json({ error: err.message });
   }
 });

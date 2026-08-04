@@ -8,6 +8,7 @@
 
 import { openAssignCarsModal } from './assignCars.js';
 import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
+import { activityFeedHtml, attachActivityFeed, scrollActivityToEnd } from './activityFeed.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -26,8 +27,14 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
     box.innerHTML = '<div class="search-empty">Загрузка…</div>';
 
     let user;
+    let activity = null;
     try {
-        user = await apiFetch('/api/users/' + userId + '/public');
+        // Лента активности — отдельным запросом (см. GET /api/users/:id/activity).
+        // Профиль без неё показать можно, поэтому её ошибку глотаем отдельно.
+        [user, activity] = await Promise.all([
+            apiFetch('/api/users/' + userId + '/public'),
+            apiFetch('/api/users/' + userId + '/activity').catch(() => null),
+        ]);
     } catch (e) {
         box.innerHTML = `<div class="search-empty">Не удалось загрузить профиль: ${esc(e.message)}</div>`;
         return;
@@ -67,6 +74,9 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
                 <div class="profile-stat"><b>${user.stats.edited ?? 0}</b><span>Отредактировано машин</span></div>
             </div>
 
+            <div class="edit-sec-h">Активность</div>
+            ${activityFeedHtml(activity)}
+
             <div class="edit-sec-h">Достижения</div>
             <div class="achievements-feed">
                 ${achievementsFeedHtml(user.achievements, 'Пока нет достижений')}
@@ -76,6 +86,8 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
         </div>
     `;
     attachFeedParticles(box);
+    attachActivityFeed(box);
+    scrollActivityToEnd(box);
 
     if (!viewerIsMod) return;
 

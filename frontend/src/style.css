@@ -2009,6 +2009,102 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .achievement-card:hover .achievement-desc {
   max-height: 80px; opacity: 1; margin-top: 6px;
 }
+/* ── Лента активности («квадратики» как на GitHub) ─────────────────
+   Колонка = неделя (Пн…Вс), клетка = день, яркость = число записей
+   относительно СРЕДНЕГО по активным дням (см. shared/activityHeatmap.js).
+   Уровни — один и тот же акцентный цвет с разной прозрачностью: так шкала
+   читается как шкала, а не как пять разных статусов, и одинаково работает
+   в обеих темах. */
+.activity {
+  align-self: stretch;
+  --cell: 11px;
+  --cell-gap: 3px;
+}
+.activity-summary { font-size: 11.5px; color: var(--sub); margin-bottom: 8px; text-align: left; }
+.activity-summary b { color: var(--text); font-weight: 600; }
+/* Год недель шире карточки профиля — прокручиваем вбок, а не сжимаем клетки. */
+.activity-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+.activity-inner { display: inline-block; }   /* ширина по сетке, а не по карточке */
+/* Колонка дней недели живёт СНАРУЖИ .activity-scroll: сетка уезжает вбок,
+   подписи остаются. Поэтому же у неё сверху распорка ровно в высоту ряда
+   месяцев — чтобы «Пн» стоял против первой строки клеток. */
+.activity-cols { display: flex; gap: 4px; align-items: flex-start; }
+.activity-side { flex: none; }
+.activity-side-gap { height: 15px; }   /* ряд месяцев: 9.5px строка + 4px отступ */
+.activity-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  gap: var(--cell-gap);
+  font-size: 9px; color: var(--sub);
+  /* Подпись мельче клетки — прижимаем к её середине, иначе «Ср» уезжает. */
+  align-items: center;
+  text-align: right;
+  width: 18px;
+}
+.activity-months {
+  display: grid;
+  grid-template-columns: repeat(var(--weeks), var(--cell));
+  gap: var(--cell-gap);
+  margin-bottom: 4px;
+  font-size: 9.5px; color: var(--sub);
+}
+.activity-month { text-align: left; white-space: nowrap; }
+.activity-grid {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  grid-auto-flow: column;
+  grid-auto-columns: var(--cell);
+  gap: var(--cell-gap);
+}
+.activity-cell {
+  width: var(--cell); height: var(--cell);
+  border-radius: 2px;
+  background: var(--bg3);
+  cursor: pointer;
+  transition: outline-color .12s ease;
+  outline: 1px solid transparent;
+  outline-offset: 1px;
+}
+.activity-cell:hover { outline-color: var(--accent); }
+/* Дни за границами года (добивка первой/последней колонки до недели):
+   место занимают, но кликать и подсвечивать нечего. */
+.activity-cell-off { background: none; cursor: default; }
+/* Шкала — подмешивание акцента в цвет пустой клетки, а не прозрачность:
+   клетка остаётся непрозрачной на любом фоне (карточка, ховер строки),
+   и в светлой теме тусклые уровни не выцветают в белый. */
+.activity-l0 { background: var(--bg3); }
+.activity-l1 { background: color-mix(in oklab, var(--accent) 25%, var(--bg3)); }
+.activity-l2 { background: color-mix(in oklab, var(--accent) 50%, var(--bg3)); }
+.activity-l3 { background: color-mix(in oklab, var(--accent) 75%, var(--bg3)); }
+.activity-l4 { background: var(--accent); }
+.activity-legend {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 6px;
+  font-size: 10px; color: var(--sub);
+}
+.activity-legend .activity-cell { cursor: default; }
+.activity-legend span:first-child { margin-right: 2px; }
+.activity-legend span:last-child { margin-left: 2px; }
+/* Подсказка над клеткой: position: fixed — сетка прокручивается вбок и
+   обрезает всё, что вылезает за её край, а подсказка обрезаться не должна. */
+.activity-tip {
+  position: fixed;
+  z-index: 550;
+  pointer-events: none;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: var(--bg2);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
 .profile-logout { margin-top: 22px; width: 100%; }
 /* Резервный выход, когда CRM не подтвердила закрытие сессии: намеренно
    тусклее основного — это не обычный путь, а осознанный обход проверки. */
