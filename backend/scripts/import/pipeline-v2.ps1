@@ -145,6 +145,7 @@ while ($true) {
     if (-not (Run-Stage 'MANN-FILTER' @('scripts/import/scrape-filters.js','--in','data/import/cars-workset.json','--out','data/import/filters.json'))) { $allOk = $false }
     if (-not (Run-Stage 'BIG FILTER fallback' @('scripts/import/scrape-big-filter.js','--in','data/import/cars-workset.json','--out','data/import/filters.json'))) { $allOk = $false }
     if (-not (Run-Stage 'LYNX fallback' @('scripts/import/scrape-lynx.js','--in','data/import/cars-workset.json','--out','data/import/filters.json'))) { $allOk = $false }
+    if (-not (Run-Stage 'достановка масляных фильтров по коду двигателя' @('scripts/import/fill-filters-by-engine.js','--cars','data/import/cars-workset.json','--filters','data/import/filters.json'))) { $allOk = $false }
     if (-not (Run-Stage 'дозапись фильтров и мощности в БД' @('scripts/import/apply-enrichment.js','--cars','data/import/cars-workset.json','--filters','data/import/filters.json','--user',$ImportUser))) { $allOk = $false }
     if (-not (Run-Stage 'добить кВт/л.с. пересчётом (гарантия обоих полей)' @('scripts/import/fill-power.js'))) { $allOk = $false }
     Run-Stage 'финальное состояние базы' @('scripts/import/show-import-status.js') | Out-Null
