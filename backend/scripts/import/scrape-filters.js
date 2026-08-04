@@ -307,6 +307,72 @@ function copyObviousSiblingFilters(cars, filters) {
     return { copied, conflicts };
 }
 
+// ── Перенос МАСЛЯНОГО фильтра по коду двигателя ──────────────────────────────
+// Копирование выше работает только внутри одной модели: ключ включает brand и
+// model. Но один и тот же мотор ставят в разные модели и даже в разные марки
+// концерна, и Mann на них отвечает не всегда — половина машин остаётся без
+// артикулов там, где ответ по сути уже известен.
+//
+// ПОЧЕМУ ТОЛЬКО МАСЛЯНЫЙ. Масляный фильтр — часть мотора: посадочное место и
+// резьба заданы блоком, и вместе с мотором он переезжает в любой кузов.
+// Воздушный и салонный определяются кузовом: короб воздушного и посадочное
+// место салонного у разных моделей разные, даже когда мотор один. Скопировать
+// их «за компанию» значит выдать оператору неверный артикул с той же
+// уверенностью, что и верный, — это хуже, чем не выдать ничего.
+//
+// Подпись двигателя — код + объём + мощность. Одного кода мало: короткие
+// обозначения вроде «G4FC» встречаются у разных производителей, а объём с
+// мощностью такие совпадения разводят.
+//
+// Расхождения не угадываем: если у одной подписи Mann вернул разные масляные
+// фильтры, значит внутри неё есть исполнения, которых мы не различаем, — такие
+// подписи пропускаем целиком.
+
+function engineSignature(car) {
+    // Код короче четырёх символов слишком часто оказывается общим обрубком
+    // («1.6», «TDI») — по нему склеивать нельзя.
+    const code = String(car.engine_code || '').toLowerCase().trim();
+    if (code.length < 4 || !car.engine_volume || !car.kw) return null;
+    return [code, Number(car.engine_volume).toFixed(1), car.kw].join('|');
+}
+
+function copyOilFilterByEngine(cars, filters) {
+    const index = new Map();
+    for (const car of cars) {
+        if (!car._type_key) continue;
+        const entry = filters[car._type_key];
+        if (!entry || entry.source !== 'mann' || !entry.vf) continue;
+        const sig = engineSignature(car);
+        if (!sig) continue;
+        const current = index.get(sig);
+        if (!current) index.set(sig, { vf: entry.vf, from: car._type_key, conflict: false });
+        else if (current.vf !== entry.vf) current.conflict = true;
+    }
+
+    let copied = 0, conflicts = 0;
+    for (const car of cars) {
+        if (!car._type_key) continue;
+        const entry = filters[car._type_key];
+        if (entry && entry.vf) continue;          // масляный уже есть — не трогаем
+        const sig = engineSignature(car);
+        if (!sig) continue;
+        const hit = index.get(sig);
+        if (!hit) continue;
+        if (hit.conflict) { conflicts++; continue; }
+        // Дописываем ТОЛЬКО vf: воздушный и салонный оставляем как были,
+        // включая их отсутствие. Источник помечаем отдельно, чтобы потом было
+        // видно, что артикул выведен, а не найден.
+        filters[car._type_key] = {
+            ...(entry || { mf: null, sf: null, source: 'none' }),
+            vf: hit.vf,
+            vf_copied_from: hit.from,
+            vf_copied_reason: 'тот же двигатель (код, объём, мощность)',
+        };
+        copied++;
+    }
+    return { copied, conflicts, signatures: index.size };
+}
+
 const obvious = copyObviousSiblingFilters(cars, filters);
 if (obvious.copied) {
     console.log(`Скопировано очевидных совпадений фильтров: ${obvious.copied}`);
@@ -314,6 +380,18 @@ if (obvious.copied) {
 }
 if (obvious.conflicts) {
     console.log(`Конфликтных очевидных совпадений пропущено: ${obvious.conflicts}`);
+}
+
+// Отключается флагом на случай, если понадобится чистый результат Mann без
+// выведенных артикулов — например, чтобы посчитать реальное покрытие каталога.
+if (!args.includes('--no-engine-copy')) {
+    const byEngine = copyOilFilterByEngine(cars, filters);
+    if (byEngine.copied || byEngine.conflicts) {
+        console.log(`Масляных фильтров перенесено по двигателю: ${byEngine.copied}`
+            + ` (подписей двигателей: ${byEngine.signatures}`
+            + `, пропущено из-за расхождений: ${byEngine.conflicts})`);
+        writeJson(OUT_FILE, filters);
+    }
 }
 
 const groups = new Map();
