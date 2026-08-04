@@ -2,6 +2,13 @@
 // Лента активности в профиле — «квадратики» как на GitHub: колонка = неделя
 // (Пн…Вс), клетка = день, яркость = сколько записей человек сделал в этот день.
 //
+// Год ВСЕГДА влезает целиком: сетка тянется по ширине панели (колонки в 1fr,
+// клетка квадратная через aspect-ratio), а не прокручивается вбок фиксированными
+// клетками по 11px. Прокрутка сбоку стоила дорого — картинку «год работы» было
+// видно только кусками, и приходилось возить её мышью, чтобы понять форму года.
+// Цена решения: на телефоне клетка мельче спички. Это осознанно — целое важнее
+// детали, а цифры под сеткой всё равно называют числа словами.
+//
 // Яркость СЧИТАЕТСЯ ОТ СРЕДНЕГО по активным дням (см. shared/activityHeatmap.js),
 // а не от фиксированных порогов: лента должна одинаково читаться и у того, кто
 // делает три записи в день, и у того, кто делает тридцать. Поэтому под сеткой
@@ -33,16 +40,18 @@ function formatAverage(avg) {
     return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace('.', ',');
 }
 
-// Строка-итог под заголовком: сколько всего за год и от какого среднего
-// считалась яркость.
-function summaryHtml(h) {
-    if (!h.total) return `<div class="activity-summary">За год записей пока нет</div>`;
-    const avg = formatAverage(h.average);
+// Цифры ПОД сеткой, тремя колонками: сколько всего за год, от какого среднего
+// считалась яркость и каким был лучший день. Раньше это была одна серая строчка
+// над лентой — её проматывали глазами, хотя среднее объясняет всю раскраску.
+function figuresHtml(h) {
+    if (!h.total) return `<div class="activity-figures activity-figures-empty">За год записей пока нет</div>`;
+    const figure = (value, label) => `
+        <div class="activity-figure"><b>${value}</b><span>${label}</span></div>`;
     return `
-        <div class="activity-summary">
-            <b>${h.total}</b> ${recordsWord(h.total)} за год ·
-            в среднем <b>${avg}</b> в активный день ·
-            лучший день — <b>${h.best}</b>
+        <div class="activity-figures">
+            ${figure(h.total, `${recordsWord(h.total)} за год`)}
+            ${figure(formatAverage(h.average), 'в среднем в активный день')}
+            ${figure(h.best, 'лучший день')}
         </div>`;
 }
 
@@ -70,28 +79,27 @@ export function activityFeedHtml(data) {
     }).join('')).join('');
 
     const legend = [0, 1, 2, 3, 4]
-        .map(l => `<i class="activity-cell activity-l${l}"></i>`).join('');
+        .map(l => `<i class="activity-cell activity-legend-cell activity-l${l}"></i>`).join('');
 
-    // Пн/Ср/Пт — ВНЕ прокручиваемой области: сетка на год уезжает вбок, и
-    // подписи дней недели должны оставаться на месте, а не уплывать с ней.
+    // Колонка Пн/Ср/Пт — отдельным флекс-столбцом слева: её строки тянутся по
+    // высоте сетки (клетка квадратная и потому зависит от ширины панели),
+    // поэтому фиксированной высоты у подписей быть не может.
     return `
         <div class="activity" style="--weeks:${h.weeks.length}">
-            ${summaryHtml(h)}
             <div class="activity-cols">
                 <div class="activity-side">
                     <div class="activity-side-gap"></div>
                     <div class="activity-weekdays">${WEEKDAY_COLUMN}</div>
                 </div>
-                <div class="activity-scroll">
-                    <div class="activity-inner">
-                        <div class="activity-months">${months}</div>
-                        <div class="activity-grid">${cells}</div>
-                    </div>
+                <div class="activity-main">
+                    <div class="activity-months">${months}</div>
+                    <div class="activity-grid">${cells}</div>
                 </div>
             </div>
             <div class="activity-legend">
                 <span>Меньше</span>${legend}<span>Больше</span>
             </div>
+            ${figuresHtml(h)}
         </div>`;
 }
 
@@ -158,20 +166,12 @@ export function attachActivityFeed(root) {
     };
     document.addEventListener('click', onDocClick);
 
-    // Прокрутка (сетки, страницы) сдвигает клетку из-под подсказки —
-    // проще убрать, чем гнаться за ней.
-    box.querySelector('.activity-scroll').addEventListener('scroll', hide);
+    // Прокрутка страницы сдвигает клетку из-под подсказки — проще убрать,
+    // чем гнаться за ней.
     window.addEventListener('scroll', hide, { passive: true, capture: true });
 
     detachPrev = () => {
         document.removeEventListener('click', onDocClick);
         window.removeEventListener('scroll', hide, { capture: true });
     };
-}
-
-// Лента длиной в год шире карточки профиля: показывать её надо с конца —
-// последняя неделя у правого края, как на GitHub.
-export function scrollActivityToEnd(root) {
-    const scroller = root?.querySelector('.activity-scroll');
-    if (scroller) scroller.scrollLeft = scroller.scrollWidth;
 }
