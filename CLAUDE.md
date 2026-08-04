@@ -1,0 +1,104 @@
+# Как устроен проект (для агентов и для себя через полгода)
+
+Три части в одном репозитории:
+
+- `backend/` — Express API + телеграм-бот в том же процессе;
+- `frontend/` — Vite-сайт (записи, карточки машин, калькулятор, админка);
+- `userscript/` — Tampermonkey-скрипты для CRM и калькулятора масла;
+- `backend/scripts/import/` — конвейер сбора данных (Motul, ROLF, MANN, BIG).
+
+## Прод — СВОЙ СЕРВЕР, а не Supabase и не Render
+
+Актуальная инструкция — **`DEPLOY-VPS.md`**. Всё живёт на одной машине
+(`/opt/k-spot`, пользователь `deploy`):
+
+| Что | Где |
+|---|---|
+| PostgreSQL 16 | контейнер `postgres` (`deploy/docker-compose.prod.yml`), порт только на `127.0.0.1` |
+| Backend | контейнер `backend`, слушает `127.0.0.1:3001` |
+| Сайт | статика в `/var/www/k-spot`, собирается `deploy/build-site.sh` |
+| TLS и раздача | системный nginx на хосте + certbot (`deploy/nginx.conf`) |
+| Аватарки | том `avatars` (`AVATAR_DIR=/data/avatars`), не Storage |
+| Секреты | `deploy/.env` (см. `deploy/env.example`) |
+
+**`DEPLOY.md` описывает СТАРЫЙ путь** (Supabase + Render + GitHub Pages) и
+оставлен как история. Не предлагай команды для SQL Editor Supabase, дашборда
+Render, переменных `SUPABASE_*`/`VITE_API_BASE` на GitHub Pages — на этом
+проекте их больше нет.
+
+Каталог `deploy/` есть **не во всех ветках** — он появился в ветке переезда
+(`claude/api-spot-boot-recording-issue-qqvzan`), с которой сервер и живёт.
+Прежде чем советовать `git checkout <другая ветка>` на сервере — проверь, что
+`deploy/` в ней есть, иначе рабочая копия останется без скриптов деплоя.
+
+### Типовые операции на сервере
+
+```bash
+# обновить код и перезапустить бэкенд
+cd /opt/k-spot && git pull
+docker compose -f deploy/docker-compose.prod.yml up -d --build
+
+# пересобрать сайт (бэкенд трогать не нужно)
+bash deploy/build-site.sh
+
+# применить миграцию
+docker compose -f deploy/docker-compose.prod.yml exec -T postgres \
+    psql -U carsdb -d carsdb -v ON_ERROR_STOP=1 < db/migrations/0XX_имя.sql
+
+# psql руками
+docker compose -f deploy/docker-compose.prod.yml exec postgres psql -U carsdb -d carsdb
+
+# бэкап
+bash deploy/backup-db.sh
+```
+
+Миграции при первом наливе базы применяет `deploy/_pgcopy.sh`; дальше новые
+файлы `db/migrations/*.sql` накатываются руками командой выше. Автоматического
+трекера версий нет — миграции пишутся идемпотентными
+(`CREATE TABLE/INDEX IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`).
+
+## Импорт данных
+
+Запускается на сервере обёрткой (контейнер переживает закрытие ssh, репозиторий
+монтируется внутрь, поэтому пересборка образа не нужна — достаточно `git pull`):
+
+```bash
+bash deploy/scrape.sh <имя-скрипта.js> [аргументы]
+docker logs -f <имя-скрипта-без-.js>
+```
+
+Порядок этапов и назначение файлов — `backend/scripts/import/README-v2.md`.
+Коротко: `scrape-motul-all.js` → `scrape-rolf.js` (допуски) → `import-cars.js`
+→ `build-enrichment-workset.js` → `scrape-filters.js` (MANN) →
+`scrape-big-filter.js` → `apply-enrichment.js`.
+
+Все долгие скрейперы чекпоинтят результат после каждой машины/группы и
+пропускают уже обработанное — прогон можно прерывать и продолжать. Ответы
+каталогов кэшируются в `data/import/cache/`.
+
+Файлы данных: `data/import/motul-cars.json` (машины Motul; `scrape-rolf.js`
+без `--out` дописывает допуски **прямо в него**), `cars-enriched.json`,
+`cars-workset.json`, `filters.json`. В git лежат только `.gz`-снимки.
+
+## Осторожно: обозначения фильтров
+
+В данных и в импорте (`extractFilters` в `scrape-filters.js`, `shared/crmAnalyse.js`):
+
+- `vf` — **воздушный** (артикулы MANN `C …`);
+- `mf` — **масляный** (`W …`, `HU …`);
+- `sf` — салонный (`CU …`, `CUK …`, `FP …`).
+
+Подписи в скобках на карточке машины (`frontend/src/carPage.js`) и в
+калькуляторе юзерскрипта им противоречат — им верить нельзя, эталон здесь.
+Прежде чем писать любой код, который переносит или сравнивает фильтры, сверься
+с этим списком: перепутанное поле означает неверный артикул у оператора, а это
+хуже пустого поля.
+
+## Правила по коду
+
+- Комментарии и сообщения коммитов — по-русски, как в существующем коде:
+  объясняем ПОЧЕМУ так сделано, а не пересказываем строчки.
+- Сомнительное совпадение хуже пустого поля — в импорте лучше пропустить
+  машину, чем записать вероятный артикул.
+- Один сбойный элемент не должен ронять ночной прогон: цикл по машинам/группам
+  оборачивается в `try/catch` с предупреждением и продолжением.
