@@ -1932,55 +1932,125 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   }
 }
 
-/* ── Профиль ────────────────────────────────────────────────────── */
-.profile-content { max-width: 480px; margin: 0 auto; padding: 24px 16px 60px; }
-.profile-card {
+/* ── Профиль ──────────────────────────────────────────────────────
+   Страница собрана из ПАНЕЛЕЙ: обложка (кто это) и дальше по панели на тему —
+   достижения, активность, модератор, аккаунт. До этого всё лежало в одной
+   карточке подряд, а заголовки разделов были такими же тусклыми подписями, как
+   названия полей внутри них: границы блоков приходилось угадывать по смыслу
+   текста. Разметку панелей даёт frontend/src/profileLayout.js. */
+.profile-content { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+.profile-page { display: flex; flex-direction: column; gap: 14px; }
+
+/* Обложка: шапка страницы, а не первая панель из четырёх. Отличается от панелей
+   не подсветкой, а раскладкой — всё по центру, крупно, без заголовка. Свечение
+   тут было и убрано: радиальное пятно за круглым аватаром выглядело мятым. */
+.profile-hero {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 28px 24px;
+  border-radius: 18px;
+  padding: 32px 24px 24px;
+  display: flex; flex-direction: column; align-items: center;
   text-align: center;
-  /* flex-колонка — надёжно ставит аватар/ник/статистику друг под другом
-     независимо от того, block или inline-* элемент внутри (аватар в своём
-     профиле обёрнут в <label> для загрузки файла, в чужом — обычный div). */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
-.profile-avatar-wrap { cursor: pointer; }
-.profile-avatar { width: 96px; height: 96px; margin: 0 auto; font-size: 34px; }
-.profile-avatar-default { font-size: 34px; }
+
+.profile-avatar-wrap { position: relative; cursor: pointer; }
+.profile-avatar-static { cursor: default; }
+.profile-avatar {
+  width: 104px; height: 104px;
+  font-size: 36px;
+}
+.profile-avatar-default { font-size: 36px; }
+/* Карандаш на аватарке: единственный намёк, что её можно менять (в чужом
+   профиле его нет). Иконка — маска, а не картинка: цвет берётся из токена. */
+.profile-avatar-pen {
+  position: absolute; right: 0; bottom: 0;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--card);
+}
+.profile-avatar-pen::before {
+  content: '';
+  position: absolute; inset: 0; margin: auto;
+  width: 13px; height: 13px;
+  background: var(--accent-fg);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'/%3E%3C/svg%3E") center/contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'/%3E%3C/svg%3E") center/contain no-repeat;
+}
 .profile-name {
-  margin-top: 14px;
-  font-size: 18px; font-weight: 700;
+  margin-top: 16px;
+  font-size: 22px; font-weight: 700;
   cursor: pointer;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  flex-wrap: wrap;
 }
 .profile-name-static { cursor: default; }
-.profile-name-edit-hint { font-size: 12px; opacity: .5; }
 .profile-name-input {
   background: var(--bg2);
   border: 1px solid var(--accent);
   color: var(--text);
   border-radius: 8px;
   padding: 4px 8px;
-  font-size: 16px;
+  font-size: 18px;
   font-family: inherit;
   text-align: center;
 }
-.profile-stats { display: flex; justify-content: center; gap: 32px; margin-top: 20px; align-self: stretch; }
-.profile-stat { display: flex; flex-direction: column; align-items: center; }
-.profile-stat b { font-size: 22px; color: var(--accent); }
-.profile-stat span { font-size: 11px; color: var(--sub); margin-top: 2px; }
-.achievements-feed {
-  display: flex; gap: 10px; overflow-x: auto;
-  padding-bottom: 6px; margin-top: 4px;
-  align-self: stretch;
+/* Две цифры — плитками: раньше они висели в воздухе двумя парами «число +
+   подпись», и было не видно, что это одна строка статистики. */
+.profile-stats {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 20px;
+  width: 100%; max-width: 400px;
 }
-.profile-card .edit-sec-h { align-self: stretch; text-align: left; }
-#profile-error { align-self: stretch; }
+.profile-stat {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 10px;
+}
+.profile-stat b { display: block; font-size: 26px; line-height: 1.1; color: var(--accent); }
+.profile-stat span { display: block; font-size: 11px; color: var(--sub); margin-top: 4px; }
+
+/* Панель раздела */
+.profile-sec {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 15px 18px 18px;
+}
+.profile-sec-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+/* Заголовок панели — цветом основного текста, а не приглушённым: он должен
+   выигрывать у подписей внутри панели, иначе иерархии снова нет. */
+.profile-sec-title {
+  font-size: 12px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text);
+}
+.profile-sec-meta { font-size: 11px; color: var(--sub); text-align: right; white-space: nowrap; }
+/* Панель модератора видна не всем — помечаем цветом, чтобы модератор не путал
+   свои кнопки с общими. */
+.profile-sec-mod { border-color: color-mix(in oklab, var(--blue) 35%, var(--border)); }
+.profile-sec-mod .profile-sec-title { color: var(--blue); }
+
+/* Медали складываются в сетку и переносятся: горизонтальная прокрутка прятала
+   всё, кроме первых двух-трёх. */
+.achievements-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(122px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+/* «Пока нет достижений» — не медаль: в колонку шириной с карточку эта фраза
+   переносится по слогам. */
+.achievements-feed .search-empty { grid-column: 1 / -1; }
 .achievement-card {
-  flex: none; width: 120px;
+  width: auto;
   background: var(--bg2);
   border: 1px solid var(--border);
   transition: border-color .25s ease;
@@ -2014,54 +2084,52 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    относительно СРЕДНЕГО по активным дням (см. shared/activityHeatmap.js).
    Уровни — один и тот же акцентный цвет с разной прозрачностью: так шкала
    читается как шкала, а не как пять разных статусов, и одинаково работает
-   в обеих темах. */
-.activity {
-  align-self: stretch;
-  --cell: 11px;
-  --cell-gap: 3px;
-}
-.activity-summary { font-size: 11.5px; color: var(--sub); margin-bottom: 8px; text-align: left; }
-.activity-summary b { color: var(--text); font-weight: 600; }
-/* Год недель шире карточки профиля — прокручиваем вбок, а не сжимаем клетки. */
-.activity-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 4px;
-}
-.activity-inner { display: inline-block; }   /* ширина по сетке, а не по карточке */
-/* Колонка дней недели живёт СНАРУЖИ .activity-scroll: сетка уезжает вбок,
-   подписи остаются. Поэтому же у неё сверху распорка ровно в высоту ряда
-   месяцев — чтобы «Пн» стоял против первой строки клеток. */
-.activity-cols { display: flex; gap: 4px; align-items: flex-start; }
-.activity-side { flex: none; }
-.activity-side-gap { height: 15px; }   /* ряд месяцев: 9.5px строка + 4px отступ */
+   в обеих темах.
+
+   ГОД ВЛЕЗАЕТ ЦЕЛИКОМ, прокрутки вбок нет: колонки-недели заданы в 1fr, а
+   квадратность держит aspect-ratio. Поэтому размер клетки — производная от
+   ширины панели, и нигде ниже его нельзя задавать в пикселях (кроме легенды,
+   где клетки — просто иконки шкалы, а не дни). */
+.activity { --cell-gap: 3px; }
+/* Колонка дней недели — отдельный флекс-столбец: её строки тянутся по высоте
+   сетки (растяжкой flex), потому что высота клетки заранее неизвестна. */
+.activity-cols { display: flex; gap: 6px; align-items: stretch; }
+.activity-side { flex: none; width: 20px; display: flex; flex-direction: column; }
+/* Распорка в высоту ряда месяцев — чтобы «Пн» встал против первой строки. */
+.activity-side-gap,
+.activity-months { height: 12px; line-height: 12px; margin-bottom: 5px; }
 .activity-weekdays {
+  flex: 1;
   display: grid;
-  grid-template-rows: repeat(7, var(--cell));
+  grid-template-rows: repeat(7, minmax(0, 1fr));
   gap: var(--cell-gap);
   font-size: 9px; color: var(--sub);
   /* Подпись мельче клетки — прижимаем к её середине, иначе «Ср» уезжает. */
   align-items: center;
   text-align: right;
-  width: 18px;
 }
+/* line-height: 0 — не косметика: иначе строка «Пн» (13.5px) выше клетки и
+   растягивает всю ленту по своей высоте, а подписи разъезжаются с рядами.
+   Так подпись не занимает места вовсе и просто висит по центру своего ряда. */
+.activity-weekdays span { line-height: 0; white-space: nowrap; }
+.activity-main { flex: 1 1 auto; min-width: 0; }   /* min-width — иначе сетка не сожмётся */
 .activity-months {
   display: grid;
-  grid-template-columns: repeat(var(--weeks), var(--cell));
+  grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
   gap: var(--cell-gap);
-  margin-bottom: 4px;
   font-size: 9.5px; color: var(--sub);
 }
 .activity-month { text-align: left; white-space: nowrap; }
 .activity-grid {
   display: grid;
-  grid-template-rows: repeat(7, var(--cell));
+  grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
+  grid-template-rows: repeat(7, auto);
   grid-auto-flow: column;
-  grid-auto-columns: var(--cell);
   gap: var(--cell-gap);
 }
 .activity-cell {
-  width: var(--cell); height: var(--cell);
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 2px;
   background: var(--bg3);
   cursor: pointer;
@@ -2082,15 +2150,35 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-l3 { background: color-mix(in oklab, var(--accent) 75%, var(--bg3)); }
 .activity-l4 { background: var(--accent); }
 .activity-legend {
-  display: flex; align-items: center; gap: 4px;
-  margin-top: 6px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+  margin-top: 8px;
   font-size: 10px; color: var(--sub);
 }
-.activity-legend .activity-cell { cursor: default; }
+/* Клетки легенды — иконки шкалы, а не дни: у них свой фиксированный размер,
+   иначе 1fr-ширина из сетки растянула бы их на всю строку. */
+.activity-legend-cell { width: 10px; height: 10px; aspect-ratio: auto; flex: none; cursor: default; }
 .activity-legend span:first-child { margin-right: 2px; }
 .activity-legend span:last-child { margin-left: 2px; }
-/* Подсказка над клеткой: position: fixed — сетка прокручивается вбок и
-   обрезает всё, что вылезает за её край, а подсказка обрезаться не должна. */
+/* Итоги под лентой: среднее объясняет всю раскраску, поэтому оно стоит рядом с
+   сеткой цифрой, а не строчкой мелкого серого текста над ней. */
+.activity-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.activity-figures-empty {
+  display: block;
+  font-size: 12px; color: var(--sub);
+}
+.activity-figure b { display: block; font-size: 17px; font-weight: 700; color: var(--text); }
+.activity-figure span { display: block; margin-top: 3px; font-size: 10.5px; color: var(--sub); }
+/* Разделители между колонками — только внутренние. */
+.activity-figure + .activity-figure { border-left: 1px solid var(--border); padding-left: 12px; }
+/* Подсказка над клеткой: position: fixed — иначе крайние недели прижимают её
+   к границе панели и она обрезается о её край. */
 .activity-tip {
   position: fixed;
   z-index: 550;
@@ -2105,7 +2193,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   white-space: nowrap;
 }
 
-.profile-logout { margin-top: 22px; width: 100%; }
+.profile-logout { width: 100%; }
 /* Резервный выход, когда CRM не подтвердила закрытие сессии: намеренно
    тусклее основного — это не обычный путь, а осознанный обход проверки. */
 .profile-logout-force {
@@ -2113,6 +2201,29 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   width: 100%;
   font-size: 12px;
   color: var(--sub);
+}
+.profile-logout-hint { margin-top: 10px; font-size: 11px; color: var(--sub); }
+
+/* Узкие экраны: панели и обложка ужимаются, а колонка Пн/Ср/Пт прячется —
+   год без прокрутки важнее подписей дней недели, и её 26px заметно прибавляют
+   клетке размера. */
+@media (max-width: 560px) {
+  .profile-content { padding: 16px 10px 48px; }
+  .profile-page { gap: 10px; }
+  .profile-hero { padding: 26px 16px 20px; border-radius: 16px; }
+  .profile-sec { padding: 13px 13px 15px; border-radius: 14px; }
+  .profile-name { font-size: 20px; }
+  .profile-stat b { font-size: 22px; }
+  .activity { --cell-gap: 2px; }
+  .activity-side { display: none; }
+  .activity-figures { gap: 8px; }
+  .activity-figure + .activity-figure { padding-left: 8px; }
+  .activity-figure b { font-size: 15px; }
+}
+@media (max-width: 430px) {
+  .profile-sec { padding: 12px 9px 14px; }
+  .activity { --cell-gap: 1px; }
+  .achievements-feed { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 }
 
 /* ── Стим-тосты о полученных достижениях (справа снизу, без звука) ── */
@@ -2235,10 +2346,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .assign-cars-summary { margin-right: auto; align-self: center; color: var(--sub); font-size: 12px; }
 
 /* ── Панель модератора на странице пользователя ─────────────────── */
-.mod-panel { align-self: stretch; }
-.mod-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+/* Живёт внутри .profile-sec (см. profileLayout.js), поэтому отступов сверху
+   у неё нет — их держит сама панель. */
+.mod-panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .mod-banned-badge {
-  margin-top: 8px;
+  margin-bottom: 10px;
   padding: 8px 12px;
   border-radius: 8px;
   background: var(--red-dim);
@@ -2246,7 +2358,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   font-size: 13px;
   font-weight: 600;
 }
-.profile-mod-assign { align-self: stretch; }
+#mod-panel-error { margin-top: 8px; }
 
 /* ── Вкладка «Админка» ──────────────────────────────────────────── */
 /* Раскладка та же, что у строк топа (.top-row): имя с подписью слева, действия

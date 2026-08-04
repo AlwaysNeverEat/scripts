@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Страница профиля: аватар (загрузка + обрезка кроппером в Supabase Storage),
-// ник (клик-редактирование), статистика «добавлено/отредактировано», пустой
-// расширяемый фид достижений-заглушка, кнопка «Выйти».
+// Страница профиля: обложка (аватар с загрузкой и обрезкой кроппером, ник по
+// клику, счётчики «добавлено/отредактировано») и дальше панели — достижения,
+// активность, инструменты модератора, аккаунт. Разметку обложки и панелей даёт
+// profileLayout.js: она общая с чужим профилем (publicProfile.js).
 //
 // «Выйти» выходит по порядку: сначала бэкенд закрывает сессию в CRM и ждёт от
 // неё подтверждения, и только при успехе гасятся сессии сайта — ВСЕ, а не
@@ -16,7 +17,8 @@
 import { openAvatarCropper } from './avatarCropper.js';
 import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
-import { activityFeedHtml, attachActivityFeed, scrollActivityToEnd } from './activityFeed.js';
+import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
+import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -86,51 +88,69 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             ? `<img src="${esc(user.avatar)}" alt=""/>`
             : `<span class="profile-avatar-default"></span>`;
 
+        const medals = Array.isArray(achievements) ? achievements.length : 0;
+        const isMod = user.role === 'mod' || user.role === 'admin';
+
         box.innerHTML = `
-            <div class="profile-card">
-                <div class="profile-avatar-wrap" id="profile-avatar-wrap" title="Кликните, чтобы сменить аватар">
-                    <div class="profile-avatar">${avatarHtml}</div>
-                </div>
+            <div class="profile-page">
+                ${profileHeroHtml({
+                    avatarInner: avatarHtml,
+                    nameInner: `${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}`,
+                    added: stats.added ?? 0,
+                    edited: stats.edited ?? 0,
+                    editable: true,
+                })}
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
-                <div class="profile-name" id="profile-name-view" title="Кликните, чтобы поменять ник">
-                    ${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}
-                    <span class="profile-name-edit-hint"></span>
-                </div>
-
-                <div class="profile-stats">
-                    <div class="profile-stat"><b>${stats.added ?? 0}</b><span>Добавлено машин</span></div>
-                    <div class="profile-stat"><b>${stats.edited ?? 0}</b><span>Отредактировано машин</span></div>
-                </div>
-
-                <div class="edit-sec-h">Активность</div>
-                ${activityFeedHtml(activity)}
-
-                <div class="edit-sec-h">Достижения</div>
-                <div class="achievements-feed">
-                    ${achievementsFeedHtml(achievements, 'Пока пусто — достижения появятся здесь')}
-                </div>
-
-                ${user.role === 'mod' || user.role === 'admin' ? `
-                    <div class="edit-sec-h">Модератор</div>
-                    <button class="btn btn-sec profile-mod-assign" id="btn-self-assign-cars">Записать себе незанятые машины</button>
-                ` : ''}
-
+                <!-- Ошибки аватарки, ника и выхода — одним местом сразу под
+                     обложкой: панелей стало много, и сообщение у нижней кнопки
+                     после клика по аватарке осталось бы за экраном. -->
                 <div id="profile-error" class="edit-error hidden"></div>
-                <button class="btn btn-sec profile-logout" id="btn-logout">Выйти</button>
-                <!-- появляется только если CRM не подтвердила закрытие сессии -->
-                <button class="btn btn-sec profile-logout-force hidden" id="btn-logout-force">Всё равно выйти из аккаунта</button>
+
+                ${profileSectionHtml({
+                    title: 'Достижения',
+                    meta: medals ? `${medals} ${plural(medals, ['медаль', 'медали', 'медалей'])}` : '',
+                    body: `<div class="achievements-feed">
+                        ${achievementsFeedHtml(achievements, 'Пока пусто — достижения появятся здесь')}
+                    </div>`,
+                })}
+
+                ${profileSectionHtml({
+                    title: 'Активность',
+                    meta: 'последний год',
+                    body: activityFeedHtml(activity),
+                })}
+
+                ${isMod ? profileSectionHtml({
+                    title: 'Модератор',
+                    meta: 'видно только модераторам',
+                    cls: 'profile-sec-mod',
+                    body: `<button class="btn btn-sec profile-mod-assign" id="btn-self-assign-cars">Записать себе незанятые машины</button>`,
+                }) : ''}
+
+                ${profileSectionHtml({
+                    title: 'Аккаунт',
+                    body: `
+                        <button class="btn btn-sec profile-logout" id="btn-logout">Выйти</button>
+                        <!-- появляется только если CRM не подтвердила закрытие сессии -->
+                        <button class="btn btn-sec profile-logout-force hidden" id="btn-logout-force">Всё равно выйти из аккаунта</button>
+                        <div class="profile-logout-hint">Выход закрывает сессию CRM и все сессии сайта — на всех устройствах.</div>`,
+                })}
             </div>
         `;
         bind();
         attachFeedParticles(box);
         attachActivityFeed(box);
-        // Лента длиной в год не влезает в карточку — показываем свежий конец.
-        scrollActivityToEnd(box);
     }
 
     function bind() {
         const errBox = document.getElementById('profile-error');
-        const showErr = (msg) => { errBox.textContent = msg; errBox.classList.remove('hidden'); };
+        const showErr = (msg) => {
+            errBox.textContent = msg;
+            errBox.classList.remove('hidden');
+            // Ошибку выхода показываем в блоке под обложкой, а сама кнопка —
+            // в нижней панели: без подскролла сообщение осталось бы за экраном.
+            errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        };
         const fileInput = document.getElementById('profile-avatar-input');
 
         async function uploadNew(file) {
