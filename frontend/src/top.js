@@ -15,6 +15,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { icons } from './records/icons.js';
+// Склонение «запись/записи/записей» общее с лентой активности в профиле —
+// цифры там и тут считаются по одному источнику (record_credits).
+import { recordsWord } from '../../shared/activityHeatmap.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -30,15 +33,6 @@ function avatarHtml(row) {
     return row.avatar
         ? `<img src="${esc(row.avatar)}" alt=""/>`
         : `<span class="top-avatar-default"></span>`;
-}
-
-// «1 запись / 2 записи / 5 записей»
-function recordsWord(n) {
-    const mod10 = n % 10;
-    const mod100 = n % 100;
-    if (mod10 === 1 && mod100 !== 11) return 'запись';
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'записи';
-    return 'записей';
 }
 
 // 'YYYY-MM' → «июль 2026»

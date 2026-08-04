@@ -3,6 +3,7 @@ import { query } from '../db/client.js';
 import { requireRole } from '../auth/middleware.js';
 import { clearSessionCache } from '../auth/sessions.js';
 import { listUserAchievements, syncAchievementsSafe } from '../achievements/achievements.js';
+import { loadActivity } from '../records/activity.js';
 
 const router = Router();
 
@@ -118,6 +119,21 @@ router.get('/:id/public', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /api/users/:id/public', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/users/:id/activity ───────────────────────────────────────────────
+// Лента активности ЧУЖОГО профиля — то же самое, что GET /api/profile/activity
+// у себя. Отдельным запросом, а не полем в /public: сетка на год весит заметно
+// больше остального профиля, и грузить её незачем тем страницам, где её нет.
+// Ничего закрытого в ней нет — число сделанных записей и так видно в топе.
+
+router.get('/:id/activity', async (req, res) => {
+  try {
+    res.json(await loadActivity(req.params.id));
+  } catch (err) {
+    console.error('GET /api/users/:id/activity', err);
     res.status(500).json({ error: err.message });
   }
 });
