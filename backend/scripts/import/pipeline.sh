@@ -71,6 +71,9 @@ while true; do
     SCRAPE_INTERVAL_MS="${SCRAPE_INTERVAL_MS:-500}" \
         node scripts/import/scrape-filters.js 2>&1 | tee -a "$LOG"
 
+    say "этап: достановка масляных фильтров по коду двигателя"
+    node scripts/import/fill-filters-by-engine.js 2>&1 | tee -a "$LOG"
+
     say "этап: дозапись фильтров/мощности/ссылок"
     node scripts/import/apply-filters.js --user "$IMPORT_USER" 2>&1 | tee -a "$LOG"
 
