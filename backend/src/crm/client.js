@@ -26,7 +26,9 @@
 // CRM не распознаётся автоматически; CRM_LOGOUT_PATH — если ссылку выхода не
 // удаётся найти в разметке; CRM_FETCH_TIMEOUT_MS — таймаут запроса;
 // CRM_THROTTLE_MS — пауза между запросами (по умолчанию 400);
-// CRM_LINK_SECRET — ключ шифрования пароля (без него привязки нет).
+// CRM_LINK_SECRET — ключ шифрования пароля (без него привязки нет);
+// CRM_TLS_FINGERPRINT / CRM_TLS_CA_FILE / CRM_TLS_INSECURE — что делать, если
+// CRM отдаёт просроченный или самоподписанный сертификат (http/tlsTrust.js).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { query } from '../db/client.js';
@@ -34,6 +36,7 @@ import { parseAnalyseFree } from '../../../shared/crmAnalyse.js';
 import { linkSecretConfigured, openSecret, sealSecret } from './secretBox.js';
 import { crmAutoLoginPaused, pauseCrmAutoLogin, resumeCrmAutoLogin } from './autoLoginPause.js';
 import { fetchWithRetry, describeNetworkError } from '../http/netRetry.js';
+import { crmTlsTransport, isTlsCertError } from '../http/tlsTrust.js';
 
 const BASE = (process.env.CRM_BASE_URL || 'https://crm.zamena-masla-spot.ru').replace(/\/$/, '');
 const BASE_URL = new URL(`${BASE}/`);
@@ -189,6 +192,28 @@ function storeSetCookies(res, jar) {
     }
 }
 
+// Текст «CRM недоступна» для панели. Сертификат CRM выделяем отдельно: это
+// единственный вид отказа, который чинится НЕ на сайте, и оператор должен
+// понимать, что повторять бессмысленно и звать надо администратора CRM.
+// Подсказку про CRM_TLS_* пишем в лог сервера, а не в панель: работнику за
+// стойкой имена переменных окружения ничего не говорят.
+let certAdviceLogged = false;
+function networkMessage(target, err) {
+    const text = describeNetworkError(err, FETCH_TIMEOUT_MS);
+    if (!isTlsCertError(err)) return `CRM недоступна (${target.host}): ${text}`;
+    if (!certAdviceLogged) {
+        certAdviceLogged = true;
+        console.warn(
+            `сертификат ${target.host} не проходит проверку: ${text}.`
+            + ' Починить его на стороне CRM или разрешить на сервере:'
+            + ' CRM_TLS_FINGERPRINT (отпечаток печатает backend/scripts/crm-tls-info.js),'
+            + ' CRM_TLS_CA_FILE, в крайнем случае CRM_TLS_INSECURE=1.',
+        );
+    }
+    return `CRM недоступна (${target.host}): ${text}.`
+        + ' Это сертификат самой CRM — сайт тут ни при чём, нужен администратор CRM.';
+}
+
 // CRM, как и админка записей, закрывает keep-alive быстро: сокет из пула может
 // умереть ровно между «взяли из пула» и «отправили запрос», и fetch падает без
 // ответа. Читающие запросы в этом случае повторяем — см. http/netRetry.js.
@@ -197,6 +222,9 @@ async function rawFetch(path, jar, opts = {}) {
     const cookie = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
     let res;
     try {
+        // null — сертификат CRM проверяется как обычно; иначе ходим отдельным
+        // dispatcher'ом и парным ему fetch (см. http/tlsTrust.js).
+        const tls = await crmTlsTransport();
         res = await fetchWithRetry(target, {
             redirect: 'manual',
             ...opts,
@@ -205,18 +233,17 @@ async function rawFetch(path, jar, opts = {}) {
                 ...(cookie ? { Cookie: cookie } : {}),
                 ...(opts.headers || {}),
             },
+            ...(tls ? { dispatcher: tls.dispatcher } : {}),
         }, {
             timeoutMs: FETCH_TIMEOUT_MS,
             // Троттлинг на КАЖДЫЙ запрос, а не на операцию: логин и выход
             // состоят из нескольких запросов подряд, и разносить их тоже нужно.
             // Повтор — такой же запрос, поэтому pace() идёт крючком в цикл.
             beforeAttempt: pace,
+            fetchImpl: tls?.fetchImpl,
         });
     } catch (err) {
-        throw new CrmError(
-            'crm_unavailable',
-            `CRM недоступна (${target.host}): ${describeNetworkError(err, FETCH_TIMEOUT_MS)}`,
-        );
+        throw new CrmError('crm_unavailable', networkMessage(target, err));
     }
 
     storeSetCookies(res, jar);

@@ -39,6 +39,18 @@ const HINTS = {
     ETIMEDOUT: 'соединение не установилось (таймаут)',
     EAI_AGAIN: 'адрес не разрешается (DNS)',
     ENOTFOUND: 'адрес не найден (DNS)',
+    // Сертификат чужого сервера. Раньше это вылезало в панель как
+    // «CERT_HAS_EXPIRED: certificate has expired» — по такой строке человек за
+    // стойкой не понимает ни что сломалось, ни что сломалось не у него.
+    CERT_HAS_EXPIRED: 'сертификат сервера просрочен',
+    CERT_NOT_YET_VALID: 'сертификат сервера ещё не действует',
+    DEPTH_ZERO_SELF_SIGNED_CERT: 'сертификат сервера самоподписанный',
+    SELF_SIGNED_CERT_IN_CHAIN: 'самоподписанный сертификат в цепочке',
+    UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'сертификат сервера не проверяется (неполная цепочка)',
+    UNABLE_TO_GET_ISSUER_CERT: 'не найден сертификат удостоверяющего центра',
+    UNABLE_TO_GET_ISSUER_CERT_LOCALLY: 'не найден сертификат удостоверяющего центра',
+    ERR_TLS_CERT_ALTNAME_INVALID: 'сертификат выписан на другой домен',
+    CRM_TLS_FINGERPRINT_MISMATCH: 'сертификат не совпал с CRM_TLS_FINGERPRINT',
 };
 
 const NET_RETRIES = 2;                          // всего до трёх попыток
@@ -76,18 +88,24 @@ function isReplayableMethod(method) {
 //
 // timeoutMs — на КАЖДУЮ попытку (свой AbortController), иначе второй попытке
 // доставался бы уже истёкший бюджет. beforeAttempt — крючок для троттлинга:
-// у CRM пауза считается по запросам, а повтор тоже запрос.
+// у CRM пауза считается по запросам, а повтор тоже запрос. fetchImpl — чем
+// стучаться: по умолчанию глобальным fetch (его же подменяют тесты), но клиент
+// CRM с послаблением TLS передаёт сюда fetch из undici — только он понимает
+// dispatcher, собранный тем же пакетом (см. http/tlsTrust.js).
 //
 // Наружу летит исходная ошибка fetch: во что её завернуть (ZmsError или
 // CrmError) и как описать — дело вызывающего клиента.
-export async function fetchWithRetry(target, init = {}, { timeoutMs, beforeAttempt } = {}) {
+export async function fetchWithRetry(target, init = {}, { timeoutMs, beforeAttempt, fetchImpl } = {}) {
     const retries = isReplayableMethod(init.method) ? NET_RETRIES : 0;
     for (let attempt = 0; ; attempt++) {
         if (beforeAttempt) await beforeAttempt();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            return await fetch(target, { ...init, signal: controller.signal });
+            // Глобальный fetch берём на каждой попытке, а не один раз при
+            // импорте: тесты подменяют globalThis.fetch.
+            const call = fetchImpl || fetch;
+            return await call(target, { ...init, signal: controller.signal });
         } catch (err) {
             if (attempt < retries && isTransientNetworkError(err)) {
                 await sleep(netRetryDelay(attempt));
