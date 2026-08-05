@@ -192,32 +192,38 @@ test('«ничего не известно про машину» не означ
         'внутри густых — по-прежнему самое дешёвое');
 });
 
-test('SPOT не предлагается, когда не подходит машине', () => {
-    // Ford под WSS-M2C913-D рассчитан на HTHS 2.9–3.5. У SPOT 5W-30 оба масла
-    // густые (A3/B4 и C3) — раньше срабатывал безусловный запасной вариант «взять
-    // SPOT по тиру», и своё масло уходило в предложение вопреки допуску Ford.
+test('масло без требуемого класса не идёт основным выбором', () => {
+    // Ford под WSS-M2C913-D рассчитан на HTHS 2.9–3.5, и густое масло ему не
+    // подходит. Основной выбор уходит к A5/B5, а не к самому дешёвому вообще.
     const state = makeState({ car: { makeShort:'FORD', modelShort:'Focus', fuelType:'01', yearFrom:2014 } });
     const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
     const { mid, spot } = pickEngineOils(agg, getShopOils(), state,
         ['FORD WSS-M2C913-D','ACEA A5/B5','API SL']);
 
     assert.equal(agg.requiredClass, 'A5B5');
-    assert.equal(spot, null, 'своё масло под этот допуск не подходит');
-    assert.ok(agg.spotWarn, 'причина проговорена оператору');
-    assert.equal(mid.n, 'Professional 5W-30 A5/B5', 'брендовое подходящее — самое дешёвое из них');
+    assert.equal(mid.n, 'Professional 5W-30 A5/B5', 'самое дешёвое из подходящих по классу');
+    assert.ok(agg.topCandidates.every(o => o.n !== 'Leichtlauf HC 7 5W-30'),
+        'густое масло в «достаточные» не попало');
+
+    // Своё масло по классу тоже не проходит, но физического запрета нет:
+    // отличить «завод требует A5/B5» от «завод разрешает A5/B5» (RN 0700) по
+    // данным нельзя, поэтому решает оператор — предлагаем с оговоркой.
+    assert.ok(spot && spot.isSpot, 'своё масло предлагается');
+    assert.ok(agg.spotWarn && /A5B5/.test(agg.spotWarn), 'причина проговорена оператору');
 });
 
-test('SPOT остаётся с пометкой там, где класс выведен неточно', () => {
-    // У корейцев родных допусков в справочнике нет, класс собран из чужих
-    // паспортов (доверие low). Убирать по такой догадке своё масло нельзя —
-    // блокировки на low мягкие, решение за оператором.
-    const state = makeState({ car: { makeShort:'KIA', modelShort:'Rio', fuelType:'01', yearFrom:2017 } });
+test('RN 0700 разрешает густое: густые масла из выбора не выпадают', () => {
+    // Профиль по RN 0700 отдаёт класс A5B5 (HTHS 2.9–3.5), но сам допуск
+    // разрешает и A3/B4. Жёсткий фильтр по классу вычёркивал у Nissan все
+    // густые масла, которые Renault для этого мотора и одобрил.
+    const state = makeState({ mileage: '>=100',
+        car: { makeShort:'NISSAN', modelShort:'QASHQAI', fuelType:'01', yearFrom:2010 } });
     const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
-    const { spot } = pickEngineOils(agg, getShopOils(), state, ['API SN','ILSAC GF-5','ACEA A5/B5']);
+    const { mid, spot } = pickEngineOils(agg, getShopOils(), state, ['RN 0700']);
 
-    assert.equal(agg.approvalAnalysis.confidence, 'low');
-    assert.ok(spot && spot.isSpot, 'своё масло предлагается');
-    assert.ok(agg.spotWarn && /неточно/.test(agg.spotWarn), 'но с оговоркой');
+    assert.ok(mid && (mid.a || []).includes('RN 0700'), 'выбрано масло с допуском Renault');
+    assert.ok(agg.topCandidates.length > 1, 'густые кандидаты остались в выборе');
+    assert.ok(spot, 'своё масло тоже предлагается');
 });
 
 test('DPF-дизель: полнозольное SPOT не уезжает клиенту', () => {
