@@ -9,6 +9,7 @@
 
 import { getShopOils, getDefaults, getReglamentForBrand } from './oils.js';
 import { isDieselFuel } from './fuel.js';
+import { crmPrefersPartial } from './crmQuirks.js';
 import {
     analyzeCarApprovals, specsFromProductNames, oilFitsProfile, aceaClassOfProfile,
 } from './approvals.js';
@@ -300,18 +301,15 @@ export function getAggregates(data) {
 }
 
 export function shouldDefaultToPartial(car, data) {
-    const make  = (car.makeShort || '').toLowerCase();
-    const model = (car.modelShort || '').toLowerCase();
     if (data.automatic) {
         if (data.automatic.isCvt) return true;
         if (data.automatic.isDct) return true;
         if (/dsg|dct|cvt|powershift|s\s*tronic|вариатор|робот|двойн[а-я]+ сцеплен/i.test(data.automatic.label || '')) return true;
     }
-    const partialMakes = ['skoda','seat','audi','citroen','citroën','peugeot','renault','vw','volkswagen','volvo'];
-    if (partialMakes.some(m => make.includes(m))) return true;
-    if (make.includes('mazda') && /\b6\b/.test(model)) return true;
-    if (make.includes('ford') && /kuga/.test(model)) return true;
-    return false;
+    // Список марок и моделей, которым полную не делаем (или делают только по
+    // факту подключения), живёт одним куском в shared/crmQuirks.js — здесь
+    // только следствие: расчёт сразу частичный.
+    return crmPrefersPartial(car, data);
 }
 
 // ── Filter cost helpers ───────────────────────────────────────────────────────

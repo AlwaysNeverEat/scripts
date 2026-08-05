@@ -7,6 +7,7 @@ import {
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
 import { extractViscosity } from '../../shared/crmAnalyse.js';
+import { crmQuirksForAggregate, crmNoFullAt, SEVERITY_LABELS } from '../../shared/crmQuirks.js';
 
 // ── Копирование в буфер ────────────────────────────────────────────────────────
 // navigator.clipboard доступен только в secure context (HTTPS) и при фокусе на
@@ -429,9 +430,22 @@ function renderAggregates(data, calcState, carApprovals) {
     return aggs.map(agg => renderAggCard(agg, calcState, carApprovals)).join('');
 }
 
+// Особенности из CRM для одной карточки агрегата. Показываем прямо над
+// расчётом: «полную не делаем» нужно увидеть до того, как назван ценник, а не
+// после звонка клиенту.
+export function renderQuirks(quirks) {
+    if (!quirks.length) return '';
+    return `<div class="crm-quirks">${quirks.map(q => `
+        <div class="crm-quirk crm-quirk-${q.severity}">
+            <span class="crm-quirk-tag">${esc(SEVERITY_LABELS[q.severity])}</span>
+            <span class="crm-quirk-text">${esc(q.text)}${q.note ? ` <span class="crm-quirk-note">${esc(q.note)}</span>` : ''}</span>
+        </div>`).join('')}</div>`;
+}
+
 function renderAggCard(agg, calcState, carApprovals) {
     const sel = calcState.selected.has(agg.key);
     const calc = calcForAggregate(agg, calcState, carApprovals);
+    const quirks = renderQuirks(crmQuirksForAggregate(calcState.car, calcState.data, agg));
 
     let body = '';
     if (sel) {
@@ -476,7 +490,7 @@ function renderAggCard(agg, calcState, carApprovals) {
                 <span class="agg-title">${agg.label}</span>
                 ${calc.volumeStr ? `<span style="font-size:12px;color:var(--sub);margin-left:auto">${calc.volumeStr}</span>` : ''}
             </div>
-            ${sel ? `<div class="agg-body">${body}</div>${appBlock}` : ''}
+            ${sel ? `<div class="agg-body">${quirks}${body}</div>${appBlock}` : ''}
         </div>
     `;
 }
@@ -587,10 +601,14 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
     // АКПП-specific controls
     if (agg.group === 'auto') {
         const isCvt = agg.isCvt;
+        // Кнопку «полная» не прячем: бывает, что аппарат всё-таки подключается
+        // (разные комплектации). Но помечаем, что по CRM этой машине её не делают.
+        const noFull = crmNoFullAt(calcState.car, calcState.data);
         parts.push(`
             <div class="atp-ctrl">
                 <button class="chip${calcState.atpType === 'partial' ? ' active' : ''}" data-atp="partial">частичная</button>
-                <button class="chip${calcState.atpType === 'full'    ? ' active' : ''}" data-atp="full">полная (150%)</button>
+                <button class="chip${calcState.atpType === 'full'    ? ' active' : ''}${noFull ? ' chip-nofull' : ''}" data-atp="full"
+                    ${noFull ? 'title="по CRM этой машине полную не делаем"' : ''}>полная (150%)</button>
             </div>
             <div class="atp-flags">
                 ${isCvt ? `

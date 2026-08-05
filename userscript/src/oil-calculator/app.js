@@ -24,6 +24,9 @@ import {
     buildTotalsLines as sharedBuildTotalsLines,
 } from '../../../shared/report.js';
 import { SERVICE_FLAGS } from '../../../shared/serviceFlags.js';
+import {
+    crmQuirksForAggregate, crmNoFullAt, SEVERITY_LABELS,
+} from '../../../shared/crmQuirks.js';
 import { fuelLabel, fuelSelectOptions } from '../../../shared/fuel.js';
 import {
     SOURCE_SITES, SOURCE_LABELS, buildSourceKeys, cleanSourceLinks,
@@ -449,6 +452,19 @@ function showDbToast(resp) {
     `;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 12000);
+}
+
+// Особенности из CRM для карточки агрегата: тот же список, что на сайте
+// (shared/crmQuirks.js). Рисуем над расчётом — «полную не делаем» должно
+// попасться на глаза до того, как оператор назовёт цену.
+function renderCrmQuirks(agg) {
+    const quirks = crmQuirksForAggregate(calcState.car, calcState.data, agg);
+    if (!quirks.length) return '';
+    return quirks.map(q => `
+        <div class="zm-quirk zm-quirk-${q.severity}">
+            <span class="zm-quirk-tag">${escapeHtml(SEVERITY_LABELS[q.severity])}</span>
+            <span>${escapeHtml(q.text)}${q.note ? `<span class="zm-quirk-note">${escapeHtml(q.note)}</span>` : ''}</span>
+        </div>`).join('');
 }
 
 // Математика — в shared/, здесь только HTML-обвязка виджета.
@@ -1257,6 +1273,7 @@ function calcForAggregate(agg) {
                     </label>
                     <span class="zm-agg-vol">${calc.volumeStr}</span>
                 </div>
+                ${renderCrmQuirks(agg)}
                 ${calc.isHighGear
                     ? `<div class="zm-bath-msg">🛁 послан в баню!</div>`
                     : calc.html}
@@ -1280,17 +1297,11 @@ function calcForAggregate(agg) {
                 const fullMult = '×1.5';
                 const partMult = isCvt ? '×0.8' : '×0.6';
 
-                const brand = (calcState.car?.makeShort || '').toUpperCase();
-                const model = (calcState.car?.modelShort || '').toUpperCase();
-                const noFullBrands = ['SKODA', 'SEAT', 'AUDI', 'CITROEN', 'CITROËN', 'PEUGEOT', 'RENAULT', 'VOLKSWAGEN', 'VW', 'VOLVO'];
-                const noFullModels = [
-                    { brand: 'MAZDA', model: '6' },
-                    { brand: 'FORD',  model: 'KUGA' },
-                ];
-                let cantFull = noFullBrands.includes(brand);
-                if (!cantFull) cantFull = noFullModels.some(x => brand === x.brand && model.indexOf(x.model) !== -1);
-                const noFullWarn = cantFull
-                    ? `<div class="zm-no-full-warn">⚠ У этой машины полную замену не делаем</div>`
+                // Кому полную не делаем — решает список особенностей из CRM
+                // (shared/crmQuirks.js), а не копия марок здесь: раньше копия
+                // отставала от CRM и молчала, например, про Geely Tugella.
+                const noFullWarn = crmNoFullAt(calcState.car, calcState.data)
+                    ? `<div class="zm-no-full-warn">⚠ Полную (аппаратную) не делаем — считаем частичную</div>`
                     : '';
 
                 const ctrls = `
@@ -2512,6 +2523,12 @@ function calcForAggregate(agg) {
                 white-space:pre-wrap;margin:0;max-height:300px;overflow-y:auto}
             .zm-warn{color:#ff9800;padding:14px;font-size:12px;line-height:1.5}
             .zm-no-full-warn{background:#3a0000;border:1px solid #ff4d4d;color:#ff8585;padding:6px 10px;font-size:11px;border-radius:6px;margin:6px 0;font-weight:600}
+            .zm-quirk{display:flex;gap:7px;align-items:flex-start;margin:6px 10px 0;padding:6px 9px;
+                border-radius:6px;font-size:11px;line-height:1.45;background:#12141c;border:1px solid #2a2d3e;color:#c5c8d6}
+            .zm-quirk-block{background:#2a0000;border-color:#e53935;color:#ff8a80}
+            .zm-quirk-warn{background:#2a1d00;border-color:#E67E00;color:#ffb74d}
+            .zm-quirk-tag{flex:none;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.85;padding-top:1px}
+            .zm-quirk-note{display:block;margin-top:2px;opacity:.8}
             .zm-oil-line-reg{border:1px solid #2e7d32;background:#0e2014}
             .zm-reg-badge{background:#1b3a1b;border:1px solid #2e7d32;color:#a5d6a7;font-size:11px;padding:1px 6px;border-radius:4px;cursor:pointer;margin-left:6px;font-weight:600;line-height:1.4}
             .zm-reg-badge:hover{background:#2e7d32;color:#fff;border-color:#4caf50}
