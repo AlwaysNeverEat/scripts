@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.481
+// @version      2.23.491
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -2709,6 +2709,7 @@
     if (item.role === "api") return "API";
     return item.family || item.role || item.label;
   }
+  var CORE_MIN = Math.round(RANKS.important.weight * 0.7);
   function buildOilRater(analysis) {
     const scoredItems = analysis ? analysis.items.filter((i) => i.weight > 0) : [];
     return (oil) => {
@@ -2745,18 +2746,57 @@
         const key = requirementGroup(item);
         if (gained > (best.get(key) || 0)) best.set(key, gained);
       }
-      let score = 0;
-      for (const v of best.values()) score += v;
+      let score = 0, core = 0;
+      for (const v of best.values()) {
+        score += v;
+        if (v >= CORE_MIN) core += v;
+      }
       const fit = analysis ? oilFitsProfile(oil.a, analysis) : { blocked: false, penalty: 0, notes: [] };
       return {
         oil,
         score: score - fit.penalty,
+        core: core - fit.penalty,
         direct,
         hier,
         blocked: fit.blocked,
         fitNotes: fit.notes
       };
     };
+  }
+  function oilMeetsClass(oil, cls) {
+    if (hasLiteralAceaClass(oil, cls)) return true;
+    const p = oilProfile(oil.a || []);
+    if (p.ash == null || p.hthsMin == null) return false;
+    const thick = p.hthsMin >= 3.5;
+    switch (cls) {
+      // Полнозольные классы золу не ограничивают — важен только HTHS.
+      case "A3B4":
+        return thick;
+      case "A5B5":
+        return !thick;
+      case "C3":
+        return thick && p.ash <= ASH_MID;
+      case "C2":
+        return !thick && p.ash <= ASH_MID;
+      case "C1":
+        return p.ash <= ASH_LOW;
+      default:
+        return false;
+    }
+  }
+  function cheapestFirst(rated) {
+    if (!rated.length) return [];
+    const bestCore = rated.reduce((m, r) => Math.max(m, r.core), -Infinity);
+    return rated.filter((r) => r.core === bestCore).sort((a, b) => a.oil.price !== b.oil.price ? a.oil.price - b.oil.price : b.score - a.score);
+  }
+  function hasLiteralAceaClass(oil, cls) {
+    const t = tokenSet(oil.a);
+    if (cls === "A5B5") return [...t].some((x) => /A5B5|ACEAA5B5/.test(x));
+    if (cls === "C3") return [...t].some((x) => /ACEAC3|^C3$/.test(x));
+    if (cls === "C2") return [...t].some((x) => /ACEAC2|^C2$/.test(x));
+    if (cls === "C1") return [...t].some((x) => /ACEAC1|^C1$/.test(x));
+    if (cls === "A3B4") return [...t].some((x) => /A3B4|ACEAA3B4/.test(x));
+    return true;
   }
   function pickEngineOils(agg, shopOils, calcState2, carApprovals) {
     const mileage = calcState2.mileage;
@@ -2778,12 +2818,26 @@
       agg.approvalAnalysis = analysis0w;
       rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
       const fallback0w = mileage === "0w20" ? { b: "ZIC", n: "X9 FE 0W-20", price: 1550, v: "0W-20", a: ["API SP"], ad: [] } : { b: "ZIC", n: "ZERO 0W-30", price: 2150, v: "0W-30", a: ["ACEA C3"], ad: [] };
-      const mid0w = rated0w[0] ? rated0w[0].oil : fallback0w;
+      let eligible0w = rated0w.filter((r) => !r.blocked);
+      if (!eligible0w.length) eligible0w = rated0w;
+      const sufficient0w = cheapestFirst(eligible0w);
+      const mid0w = sufficient0w.length ? sufficient0w[0].oil : fallback0w;
       let second0w = null;
       if (calcState2.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
       agg.approvals = carApp0w;
       agg.allCandidates = rated0w.map((r) => r.oil);
-      agg.topCandidates = rated0w.filter((r) => r.score === (rated0w[0]?.score || 0)).map((r) => r.oil);
+      agg.topCandidates = sufficient0w.map((r) => r.oil);
+      agg.ranked = rated0w.map((r) => ({
+        oil: r.oil,
+        score: r.score,
+        core: r.core,
+        direct: r.direct,
+        hier: r.hier,
+        classMiss: null,
+        blocked: r.blocked || false,
+        fitNotes: r.fitNotes || [],
+        sufficient: sufficient0w.some((s) => s.oil === r.oil)
+      }));
       return { mid: mid0w, spot: second0w };
     }
     const targetVisc = mileage === ">=100" ? "5W-40" : "5W-30";
@@ -2800,15 +2854,6 @@
     const needC2 = [...effectiveCarTokens].some((t) => /ACEAC2|^C2$/.test(t));
     const needC1 = [...effectiveCarTokens].some((t) => /ACEAC1|^C1$/.test(t));
     const needA3B4 = [...effectiveCarTokens].some((t) => /A3B4|ACEAA3B4|ACEAA3|ACEAB4/.test(t));
-    const hasAceaClass = (oil, cls) => {
-      const t = tokenSet(oil.a);
-      if (cls === "A5B5") return [...t].some((x) => /A5B5|ACEAA5B5/.test(x));
-      if (cls === "C3") return [...t].some((x) => /ACEAC3|^C3$/.test(x));
-      if (cls === "C2") return [...t].some((x) => /ACEAC2|^C2$/.test(x));
-      if (cls === "C1") return [...t].some((x) => /ACEAC1|^C1$/.test(x));
-      if (cls === "A3B4") return [...t].some((x) => /A3B4|ACEAA3B4/.test(x));
-      return true;
-    };
     let requiredClass = null;
     if (!calcState2.ignoreApprovals) {
       if (analysis && analysis.confidence !== "low" && analysis.confidence !== "none") {
@@ -2826,44 +2871,57 @@
     const rateOil = buildOilRater(analysis);
     const ratedAll = poolAll.map(rateOil);
     for (const r of ratedAll) {
+      r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
       if (!requiredClass) continue;
-      if (hasAceaClass(r.oil, requiredClass)) r.score += 30;
-      else r.classMiss = requiredClass;
+      if (r.classOk) {
+        r.score += 30;
+        r.core += 30;
+      } else r.classMiss = requiredClass;
     }
     ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
     let eligible = ratedAll.filter((r) => !r.blocked);
     if (!eligible.length) eligible = ratedAll;
-    const maxScore = eligible[0] ? eligible[0].score : 0;
-    const topMatches = eligible.filter((r) => r.score === maxScore);
-    topMatches.sort((a, b) => a.oil.price - b.oil.price);
-    const midIdx = topMatches.length <= 2 ? 0 : Math.floor(topMatches.length / 2);
-    const mid = topMatches[midIdx].oil;
-    const needPro = needA5B5 || needC1 || needC2 || needC3 || isDieselVehicle;
-    const spotCandidates = shopOils.filter((o) => o.isSpot && o.v === targetVisc);
-    let spot;
-    if (requiredClass) {
-      const spotWithClass = spotCandidates.filter((o) => hasAceaClass(o, requiredClass));
-      if (spotWithClass.length) {
-        spot = spotWithClass.find((o) => o.tier === (needPro ? "pro" : "optimal")) || spotWithClass[0];
-      }
+    if (!requiredClass) {
+      const thick = eligible.filter((r) => oilMeetsClass(r.oil, "A3B4"));
+      if (thick.length) eligible = thick;
     }
-    if (!spot) {
-      spot = spotCandidates.find((o) => o.tier === (needPro ? "pro" : "optimal")) || spotCandidates[0];
+    const sufficient = cheapestFirst(eligible);
+    const mid = sufficient.length ? sufficient[0].oil : (eligible[0] || ratedAll[0] || {}).oil || null;
+    const needPro = needA5B5 || needC1 || needC2 || needC3 || isDieselVehicle;
+    agg.spotWarn = null;
+    const spotRated = shopOils.filter((o) => o.isSpot && o.v === targetVisc).map(rateOil);
+    for (const r of spotRated) r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
+    const pickSpot = (list) => (list.find((r) => r.oil.tier === (needPro ? "pro" : "optimal")) || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
+    const spotFit = spotRated.filter((r) => !r.blocked && r.classOk);
+    const spotSafe = spotRated.filter((r) => !r.blocked);
+    let spot = null;
+    if (spotFit.length) {
+      spot = pickSpot(spotFit);
+    } else if (spotSafe.length) {
+      spot = pickSpot(spotSafe);
+      agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass} — проверь, требует его завод или только разрешает`;
+    } else if (spotRated.length) {
+      const worst = spotRated.find((r) => r.blocked) || spotRated[0];
+      agg.spotWarn = `SPOT ${targetVisc} не подходит: ${(worst.fitNotes || []).join("; ")}`;
     }
     agg.approvals = approvals;
     agg.isDiesel = isDieselVehicle;
     agg.requiredClass = requiredClass;
     agg.approvalAnalysis = analysis;
     agg.allCandidates = ratedAll.map((r) => r.oil);
-    agg.topCandidates = topMatches.map((r) => r.oil);
+    agg.topCandidates = sufficient.map((r) => r.oil);
     agg.ranked = ratedAll.map((r) => ({
       oil: r.oil,
       score: r.score,
+      core: r.core,
       direct: r.direct,
       hier: r.hier,
       classMiss: r.classMiss || null,
       blocked: r.blocked || false,
-      fitNotes: r.fitNotes || []
+      fitNotes: r.fitNotes || [],
+      // Закрывает все требования, которые вообще закрываются этой вязкостью,
+      // и безопасно по физике — такое можно предлагать не глядя.
+      sufficient: sufficient.some((s) => s.oil === r.oil)
     }));
     return { mid, spot };
   }
@@ -3048,6 +3106,7 @@
       }
       return { oil, total: Math.round(total), breakdown };
     });
+    if (agg.group === "engine") costs.sort((a, b) => a.total - b.total);
     return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
   }
   function totalAggLabel(agg) {
@@ -3836,13 +3895,17 @@
         <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a0000;border:1px solid #e53935;border-radius:6px;margin-top:6px;color:#ff8a80">
             ⚠ ${escapeHtmlSafe(manualWarnText(calc.mkppWarn))}
         </div>` : "";
+    const spotWarnBox = agg.group === "engine" && agg.spotWarn ? `
+        <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a1d00;border:1px solid #E67E00;border-radius:6px;margin-top:6px;color:#ff9800">
+            ⚠ ${escapeHtmlSafe(agg.spotWarn)}
+        </div>` : "";
     const html = `
         ${volEditHtml}
         <div class="zm-formula">📐 ${formula}</div>
         ${flushBox}
-        ${atfWarnBox}${mkppWarnBox}
+        ${atfWarnBox}${mkppWarnBox}${spotWarnBox}
         ${costs.map((c, i) => {
-      const canPick = agg.group === "engine" && i === 0 && !c.oil.isSpot && !isFixedSingle && agg.allCandidates && agg.allCandidates.length > 1;
+      const canPick = agg.group === "engine" && !c.oil.isSpot && !isFixedSingle && agg.allCandidates && agg.allCandidates.length > 1;
       const regMatches = agg.group === "engine" ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
       const regBadge = regMatches.length ? `<button class="zm-reg-badge" data-reg-info="${escapeHtmlSafe(JSON.stringify(regMatches))}" title="Совпадение с регламентом — нажми">⭐ⓘ</button>` : "";
       const sumpSuffix = agg.group === "engine" ? calcState.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>` : " + 550₽ (снятие/установка защиты картера)" : "";
@@ -3865,7 +3928,8 @@
             <div class="zm-oil-picker">
                 <div class="zm-oil-picker-head">Выбери масло (${agg.allCandidates.length} подходящих):</div>
                 ${agg.allCandidates.map((o) => {
-      const isCurrent = costs[0] && costs[0].oil.b + "_" + costs[0].oil.n === o.b + "_" + o.n;
+      const cur = costs.find((c) => !c.oil.isSpot) || costs[0];
+      const isCurrent = cur && cur.oil.b + "_" + cur.oil.n === o.b + "_" + o.n;
       const regOpt = matchOilToReglament(o, calcState.car?.makeShort);
       const regMark = regOpt.length ? '<span class="zm-reg-mark" title="по регламенту">⭐</span>' : "";
       const rk = (agg.ranked || []).find((r) => r.oil === o);
