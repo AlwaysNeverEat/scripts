@@ -662,8 +662,10 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             : new Set();
 
         parts.push(displayedCosts.map((c, i) => {
-            // Первое (не-SPOT) масло двс — сама карточка открывает выбор замены
-            const canPick = agg.group === 'engine' && i === 0 && !c.oil.isSpot &&
+            // Выбор замены открывает карточка брендового масла — привязываться
+            // к индексу нельзя: карточки идут по возрастанию цены, и первым
+            // теперь обычно стоит SPOT, который в пикере не участвует.
+            const canPick = agg.group === 'engine' && !c.oil.isSpot &&
                             allCandidates.length > 1;
             const { matched, others, hier } = splitOilApprovals(c.oil.a || [], carApprovals);
             const regMatches = agg.group === 'engine' ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
@@ -708,14 +710,21 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             `;
         }).join(''));
 
-        // Oil picker for engine oils — открывается кликом по первой карточке
+        // Своё масло не прошло проверку по допускам — в предложении одна
+        // позиция вместо двух, и оператору нужно понимать, почему.
+        if (agg.group === 'engine' && agg.spotWarn) {
+            parts.push(`<div class="warn-box">${esc(agg.spotWarn)}</div>`);
+        }
+
+        // Oil picker for engine oils — открывается кликом по карточке масла
         if (agg.group === 'engine' && allCandidates.length > 1) {
             if (isPickerOpen) {
                 parts.push(`
                     <div class="oil-picker">
                         <div class="oil-picker-head">Выбери масло (${allCandidates.length} подходящих):</div>
                         ${allCandidates.map((oil, i) => {
-                            const isCur = calc.costs[0] && (calc.costs[0].oil.b + '_' + calc.costs[0].oil.n) === (oil.b + '_' + oil.n);
+                            const cur = calc.costs.find(c => !c.oil.isSpot) || calc.costs[0];
+                            const isCur = cur && (cur.oil.b + '_' + cur.oil.n) === (oil.b + '_' + oil.n);
                             const regOpt = matchOilToReglament(oil, calcState.car?.makeShort);
                             const rMark = '';
                             const rk = (agg.ranked || []).find(r => r.oil === oil);

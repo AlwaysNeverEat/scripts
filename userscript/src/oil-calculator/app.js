@@ -543,13 +543,23 @@ function calcForAggregate(agg) {
             ⚠ ${escapeHtmlSafe(manualWarnText(calc.mkppWarn))}
         </div>` : '';
 
+    // Своё масло не прошло проверку по допускам — предложение из одной позиции
+    // вместо двух, и оператору нужно понимать, почему.
+    const spotWarnBox = (agg.group === 'engine' && agg.spotWarn) ? `
+        <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a1d00;border:1px solid #E67E00;border-radius:6px;margin-top:6px;color:#ff9800">
+            ⚠ ${escapeHtmlSafe(agg.spotWarn)}
+        </div>` : '';
+
     const html = `
         ${volEditHtml}
         <div class="zm-formula">📐 ${formula}</div>
         ${flushBox}
-        ${atfWarnBox}${mkppWarnBox}
+        ${atfWarnBox}${mkppWarnBox}${spotWarnBox}
         ${costs.map((c, i) => {
-            const canPick = agg.group === 'engine' && i === 0 && !c.oil.isSpot &&
+            // Кнопка выбора живёт на карточке брендового масла: карточки идут
+            // по возрастанию цены, и первым обычно стоит SPOT, которого в
+            // пикере нет.
+            const canPick = agg.group === 'engine' && !c.oil.isSpot &&
                             !isFixedSingle &&
                             agg.allCandidates && agg.allCandidates.length > 1;
             const regMatches = (agg.group === 'engine')
@@ -587,7 +597,8 @@ function calcForAggregate(agg) {
             <div class="zm-oil-picker">
                 <div class="zm-oil-picker-head">Выбери масло (${agg.allCandidates.length} подходящих):</div>
                 ${agg.allCandidates.map(o => {
-                    const isCurrent = (costs[0] && (costs[0].oil.b + '_' + costs[0].oil.n) === (o.b + '_' + o.n));
+                    const cur = costs.find(c => !c.oil.isSpot) || costs[0];
+                    const isCurrent = (cur && (cur.oil.b + '_' + cur.oil.n) === (o.b + '_' + o.n));
                     const regOpt = matchOilToReglament(o, calcState.car?.makeShort);
                     const regMark = regOpt.length ? '<span class="zm-reg-mark" title="по регламенту">⭐</span>' : '';
                     const rk = (agg.ranked || []).find(r => r.oil === o);
