@@ -168,10 +168,32 @@ for (const c of CASES) {
     const normSump = h => h
         .replace(/\+ 550₽ \(картер\)/g, `+ 550₽ (${SUMP_WORK})`)
         .replace(new RegExp(`</b> \\+ 550₽ \\(${SUMP_WORK}\\)</div>`, 'g'), '</b></div>');
-    const h1 = normSump((r1.html || '').replace(/\s+/g, ' ').trim());
-    const h2 = normSump((r2.html || '').replace(/\s+/g, ' ').trim());
-    const t1 = JSON.stringify((r1.costs || []).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
-    const t2 = JSON.stringify((r2.costs || []).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
+    // Третье расхождение: ПОРЯДОК карточек масла ДВС. Раньше первой шла
+    // брендовая позиция, теперь — самая дешёвая из подходящих
+    // (docs/DOPUSKI.md, §8). Сравниваем карточки как множество: содержимое
+    // каждой по-прежнему сверяется целиком, а порядок больше не считается
+    // расхождением. Кнопка выбора масла тоже переехала с «первой карточки» на
+    // «брендовую» — после сортировки обе стороны дают одинаковый набор.
+    // Ключ раскрытия списка допусков — позиционный (`engine_0_…`), и от
+    // перестановки карточек он меняется, оставаясь при этом уникальным (в нём
+    // есть и марка масла). Для сравнения номер позиции убираем.
+    const CARD = '<div class="zm-oil-line';
+    const normCards = (h) => {
+        const noIdx = h.replace(/data-oilapp="([a-z]+)_\d+_/g, 'data-oilapp="$1_#_');
+        const at = noIdx.indexOf(CARD);
+        if (at === -1) return noIdx;
+        // Режем по началу карточки (lookahead — маркер остаётся в куске) и
+        // склеиваем через один пробел: иначе отсортированный порядок сам по
+        // себе менял бы пробел между карточками.
+        const cards = noIdx.slice(at).split(/\s*(?=<div class="zm-oil-line)/)
+            .map(s => s.trim()).filter(Boolean).sort();
+        return noIdx.slice(0, at).trimEnd() + ' ' + cards.join(' ');
+    };
+    const byTotal = (costs) => [...(costs || [])].sort((a, b) => a.total - b.total);
+    const h1 = normCards(normSump((r1.html || '').replace(/\s+/g, ' ').trim()));
+    const h2 = normCards(normSump((r2.html || '').replace(/\s+/g, ' ').trim()));
+    const t1 = JSON.stringify(byTotal(r1.costs).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
+    const t2 = JSON.stringify(byTotal(r2.costs).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
 
     if (h1 === h2 && t1 === t2) {
         console.log(`✓ ${c.name}`);

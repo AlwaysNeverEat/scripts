@@ -553,24 +553,27 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
 
     // Оцениваем ВСЮ вязкость сразу: пикеру нужен полный список, а основной
     // выбор берём из безопасного подмножества.
+    // Совпадение с требуемым классом — это балл, а не фильтр, и попадает оно и
+    // в score, и в core: масло с нужным классом закрывает требование мотора, а
+    // без него — не закрывает, и в одну группу «одинаково подходящих» они не
+    // попадут. Отсекать по классу нельзя: RN 0700 РАЗРЕШАЕТ и A3/B4, и A5/B5
+    // (профиль отдаёт по нему A5B5), и жёсткий фильтр вычёркивал у Nissan с
+    // RN 0700 все густые масла, которые Renault для этого мотора и одобрил.
     const ratedAll = poolAll.map(rateOil);
     for (const r of ratedAll) {
         r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
         if (!requiredClass) continue;
-        if (r.classOk) r.score += 30;
+        if (r.classOk) { r.score += 30; r.core += 30; }
         else r.classMiss = requiredClass;
     }
     ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
 
-    // Основной выбор (идёт в отчёт) исключает физически опасные масла и те, у
-    // которых нет требуемого класса. Ограничение одностороннее и уже учтено в
-    // oilMeetsClass: мотору, которому хватает полнозольного (BMW LL-01), масло
-    // C3 подходит — оно строже, а строже всегда безопасно. Обратное
-    // (полнозольное в мотор с сажевым фильтром) ловит blocked.
-    // Пустой список для оператора хуже компромисса, поэтому условия
-    // ослабляются по одному шагу, а не отбрасываются разом.
-    let eligible = ratedAll.filter(r => !r.blocked && r.classOk);
-    if (!eligible.length) eligible = ratedAll.filter(r => !r.blocked);
+    // Основной выбор (идёт в отчёт) исключает только физически опасные масла.
+    // Ограничение одностороннее и учтено в oilMeetsClass: мотору, которому
+    // хватает полнозольного (BMW LL-01), масло C3 подходит — оно строже, а
+    // строже всегда безопасно. Обратное (полнозольное в мотор с сажевым
+    // фильтром) ловит blocked.
+    let eligible = ratedAll.filter(r => !r.blocked);
     if (!eligible.length) eligible = ratedAll;
 
     // Про машину не известно ничего: ни допусков, ни выведенного класса (или
@@ -606,23 +609,22 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
     const spotFit = spotRated.filter(r => !r.blocked && r.classOk);
     const spotSafe = spotRated.filter(r => !r.blocked);
-    // Доверие low/none — это машины без родных допусков (японцы, корейцы): класс
-    // там выведен из классов ACEA в чужих паспортах, и docs/DOPUSKI.md прямо
-    // говорит держать блокировки на нём мягкими. Убирать по такой догадке своё
-    // масло с половины корейского парка нельзя — оставляем с пометкой.
-    const softClass = !analysis || analysis.confidence === 'low' || analysis.confidence === 'none';
     let spot = null;
     if (spotFit.length) {
         spot = pickSpot(spotFit);
-    } else if (softClass && spotSafe.length) {
+    } else if (spotSafe.length) {
+        // Класса нет, но и физического запрета нет. Отличить «завод ТРЕБУЕТ
+        // A5/B5» (Ford WSS-M2C913-D) от «завод РАЗРЕШАЕТ A5/B5» (RN 0700) по
+        // данным нельзя — у обоих в справочнике один и тот же HTHS 2.9–3.5.
+        // Поэтому не решаем за оператора: предлагаем с оговоркой.
         spot = pickSpot(spotSafe);
-        agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass}, но допуск машины выведен ` +
-                       'неточно — решение за тобой';
+        agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass} — ` +
+                       'проверь, требует его завод или только разрешает';
     } else if (spotRated.length) {
+        // А вот физика — это запрет: полнозольное масло в мотор с сажевым
+        // фильтром не предлагаем вовсе.
         const worst = spotRated.find(r => r.blocked) || spotRated[0];
-        agg.spotWarn = worst.blocked
-            ? `SPOT ${targetVisc} не подходит: ${(worst.fitNotes || []).join('; ')}`
-            : `у SPOT ${targetVisc} нет требуемого класса ${requiredClass}`;
+        agg.spotWarn = `SPOT ${targetVisc} не подходит: ${(worst.fitNotes || []).join('; ')}`;
     }
 
     agg.approvals = approvals;
