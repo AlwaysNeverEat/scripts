@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.477
+// @version      2.23.481
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -2760,9 +2760,6 @@
   }
   function pickEngineOils(agg, shopOils, calcState2, carApprovals) {
     const mileage = calcState2.mileage;
-    const excluded = calcState2.excludeOils instanceof Set ? calcState2.excludeOils : new Set(calcState2.excludeOils || []);
-    const notExcluded = (o) => !excluded.has(o.b + "_" + o.n);
-    shopOils = excluded.size ? shopOils.filter((o) => o.isSpot || notExcluded(o)) : shopOils;
     if (mileage === ">=200") {
       const oils10w40 = shopOils.filter((o) => o.v === "10W-40" && !o.isSpot);
       const oil = oils10w40[0] || { b: "Mobil", n: "Ultra 10W-40", price: 1350, v: "10W-40", a: ["API SN"], ad: [] };
@@ -3110,18 +3107,18 @@
       if (lines.length > 1) lines.push("");
       if (isFixedSingle) {
         calc.costs.slice(0, 1).forEach((c) => {
-          const sumpLine = calcState2.showWithSump ? ` + 550₽ (картер) = ${c.total + 550}₽` : "";
+          const sumpLine = calcState2.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : "";
           lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
         });
       } else if (is0w20) {
         calc.costs.forEach((c) => {
-          const sumpLine = calcState2.showWithSump ? ` + 550₽ (картер) = ${c.total + 550}₽` : "";
+          const sumpLine = calcState2.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : "";
           lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
         });
       } else {
         calc.costs.forEach((c) => {
           const base = `${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`;
-          const sumpLine = calcState2.showWithSump ? ` + 550₽ (картер) = ${c.total + 550}₽` : " + 550₽ (картер)";
+          const sumpLine = calcState2.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : " + 550₽ (снятие/установка защиты картера)";
           lines.push(base + sumpLine);
         });
       }
@@ -3174,7 +3171,7 @@
       }
       if (!parts.length) continue;
       if (calcState2.showWithSump && hasEngine) {
-        lines.push(`${parts.join(" + ")} + 550(картер) = ${sum + 550}₽`);
+        lines.push(`${parts.join(" + ")} + 550(снятие/установка защиты картера) = ${sum + 550}₽`);
       } else {
         lines.push(`${parts.join(" + ")} = ${sum}₽`);
       }
@@ -3848,7 +3845,7 @@
       const canPick = agg.group === "engine" && i === 0 && !c.oil.isSpot && !isFixedSingle && agg.allCandidates && agg.allCandidates.length > 1;
       const regMatches = agg.group === "engine" ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
       const regBadge = regMatches.length ? `<button class="zm-reg-badge" data-reg-info="${escapeHtmlSafe(JSON.stringify(regMatches))}" title="Совпадение с регламентом — нажми">⭐ⓘ</button>` : "";
-      const sumpSuffix = agg.group === "engine" ? calcState.showWithSump ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>` : " + 550₽ (картер)" : "";
+      const sumpSuffix = agg.group === "engine" ? calcState.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>` : " + 550₽ (снятие/установка защиты картера)" : "";
       let oilDetailsHtml = "";
       if (agg.group === "engine") {
         oilDetailsHtml = renderOilDetailsBlock(agg, c.oil, i, spotAddsLower);
@@ -4240,7 +4237,7 @@
                     </label>
                     <label class="zm-chk" style="font-size:11px">
                         <input type="checkbox" id="zm-show-sump" ${calcState.showWithSump ? "checked" : ""}/>
-                        <span class="zm-chk-lbl" style="color:#81c784">🪣 С картером (+550₽)</span>
+                        <span class="zm-chk-lbl" style="color:#81c784">🪣 Снятие/установка защиты картера (+550₽)</span>
                     </label>
                 </div>
                 <div class="zm-ctrl-row" style="margin-top:4px">
@@ -4698,7 +4695,7 @@
       const totalSum = computeTotalSum(tot, aggData);
       const sumpAdd = calcState.showWithSump && totalSum.hasEngine ? 550 : 0;
       const displaySum = totalSum.sum + sumpAdd;
-      const sumpSuffix = sumpAdd ? ` + 550₽ картер = <b>${displaySum}₽</b>` : "";
+      const sumpSuffix = sumpAdd ? ` + 550₽ (снятие/установка защиты картера) = <b>${displaySum}₽</b>` : "";
       return `
                 <div class="zm-tot-block">
                     <div class="zm-tot-block-h">

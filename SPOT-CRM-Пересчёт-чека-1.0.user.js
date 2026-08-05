@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM: Пересчёт чека
 // @namespace    zamena-masla-spot.ru
-// @version      1.7.477
+// @version      1.7.481
 // @description  Пересчёт стоимости услуги по чеку /sale/{id} по актуальным ценам
 // @match        *://crm.zamena-masla-spot.ru/sale/*
 // @match        *://crm.zamena-masla-spot.ru/for-sale/*
@@ -668,8 +668,8 @@
     if (state.mode === "engine") {
       const { sump, sumpPrice, flush } = state;
       return `<hr class="sr-div"><div class="sr-sec">
-                <div class="sr-row">
-                    <span class="sr-lbl" style="margin:0">Картер:</span>
+                <div class="sr-row" title="снятие/установка защиты картера">
+                    <span class="sr-lbl" style="margin:0">Защита картера:</span>
                     <button class="sr-chip${sump ? " on" : ""}" id="sr-sump-tog">${sump ? "вкл" : "выкл"}</button>
                     <input type="number" class="sr-inp" id="sr-sump-p" value="${sumpPrice}" min="0" style="width:58px"${!sump ? " disabled" : ""}/>₽
                 </div>
@@ -715,7 +715,7 @@
       const fl = flushCost(vol);
       if (flt) parts.push(`фильтры ${flt}₽`);
       if (fl) parts.push(`промывка ${fl}₽`);
-      if (state.sump) parts.push(`картер ${state.sumpPrice}₽`);
+      if (state.sump) parts.push(`защита картера ${state.sumpPrice}₽`);
       breakdown = `<div style="font-size:10px;color:#5a6a80;margin-top:2px">${parts.join(" + ")}</div>`;
     }
     return `<hr class="sr-div"><div class="sr-total">
