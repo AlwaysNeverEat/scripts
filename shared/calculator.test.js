@@ -207,6 +207,19 @@ test('SPOT не предлагается, когда не подходит ма�
     assert.equal(mid.n, 'Professional 5W-30 A5/B5', 'брендовое подходящее — самое дешёвое из них');
 });
 
+test('SPOT остаётся с пометкой там, где класс выведен неточно', () => {
+    // У корейцев родных допусков в справочнике нет, класс собран из чужих
+    // паспортов (доверие low). Убирать по такой догадке своё масло нельзя —
+    // блокировки на low мягкие, решение за оператором.
+    const state = makeState({ car: { makeShort:'KIA', modelShort:'Rio', fuelType:'01', yearFrom:2017 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { spot } = pickEngineOils(agg, getShopOils(), state, ['API SN','ILSAC GF-5','ACEA A5/B5']);
+
+    assert.equal(agg.approvalAnalysis.confidence, 'low');
+    assert.ok(spot && spot.isSpot, 'своё масло предлагается');
+    assert.ok(agg.spotWarn && /неточно/.test(agg.spotWarn), 'но с оговоркой');
+});
+
 test('DPF-дизель: полнозольное SPOT не уезжает клиенту', () => {
     const state = makeState({ car: { makeShort:'RENAULT', modelShort:'Megane', fuelType:'05', yearFrom:2012 } });
     const agg = { key: 'engine', label: 'ДВС', group: 'engine' };

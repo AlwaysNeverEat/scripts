@@ -602,11 +602,22 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     agg.spotWarn = null;
     const spotRated = shopOils.filter(o => o.isSpot && o.v === targetVisc).map(rateOil);
     for (const r of spotRated) r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
+    const pickSpot = (list) => (list.find(r => r.oil.tier === (needPro ? 'pro' : 'optimal'))
+        || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
     const spotFit = spotRated.filter(r => !r.blocked && r.classOk);
+    const spotSafe = spotRated.filter(r => !r.blocked);
+    // Доверие low/none — это машины без родных допусков (японцы, корейцы): класс
+    // там выведен из классов ACEA в чужих паспортах, и docs/DOPUSKI.md прямо
+    // говорит держать блокировки на нём мягкими. Убирать по такой догадке своё
+    // масло с половины корейского парка нельзя — оставляем с пометкой.
+    const softClass = !analysis || analysis.confidence === 'low' || analysis.confidence === 'none';
     let spot = null;
     if (spotFit.length) {
-        const byTier = spotFit.find(r => r.oil.tier === (needPro ? 'pro' : 'optimal'));
-        spot = (byTier || spotFit.sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
+        spot = pickSpot(spotFit);
+    } else if (softClass && spotSafe.length) {
+        spot = pickSpot(spotSafe);
+        agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass}, но допуск машины выведен ` +
+                       'неточно — решение за тобой';
     } else if (spotRated.length) {
         const worst = spotRated.find(r => r.blocked) || spotRated[0];
         agg.spotWarn = worst.blocked
