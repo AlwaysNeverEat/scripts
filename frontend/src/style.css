@@ -1385,8 +1385,8 @@ input[data-edit-filter-absent]:checked::after {
 }
 .edit-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr));
+  gap: 10px 12px;
 }
 .edit-field { display: flex; flex-direction: column; gap: 3px; }
 .edit-field span { font-size: 10px; color: var(--sub); }
@@ -1404,14 +1404,26 @@ input[data-edit-filter-absent]:checked::after {
 }
 .edit-field input:focus, .edit-field select:focus, .car-ed-pane textarea:focus,
 .edit-filter-row input:focus { outline: none; border-color: var(--accent); }
-.edit-filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.edit-filter-row input[type="text"] { flex: 1; width: auto; font-family: "JetBrains Mono", Consolas, monospace; }
+.edit-filter-row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.edit-filter-row input[type="text"] { width: auto; font-family: "JetBrains Mono", Consolas, monospace; }
 .edit-lbl { font-size: 12px; color: var(--sub); min-width: 110px; }
 .edit-flag { display: flex; margin-bottom: 6px; }
 .edit-oils-note { font-size: 11px; color: var(--sub); margin-bottom: 8px; }
-.edit-agg-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.edit-agg-row .edit-agg-name {
-  flex: 1;
+.edit-agg-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.edit-agg-row input {
+  min-width: 0;
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -1420,9 +1432,16 @@ input[data-edit-filter-absent]:checked::after {
   font-size: 13px;
   font-family: inherit;
 }
-.edit-agg-row .edit-agg-name:focus { outline: none; border-color: var(--accent); }
+.edit-agg-row input:focus { outline: none; border-color: var(--accent); }
 
 /* Штатный агрегат — карточка «название + объём + допуска», как у своих */
+.edit-aggs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
+  gap: 8px;
+  align-items: start;
+}
+.edit-aggs-grid > .edit-std-agg, .edit-aggs-grid > .edit-custom-agg { margin-bottom: 0; }
 .edit-std-agg {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1431,9 +1450,20 @@ input[data-edit-filter-absent]:checked::after {
   background: var(--bg2);
 }
 .edit-std-agg .edit-agg-row { margin-bottom: 0; }
-.edit-std-agg .edit-agg-name { background: var(--bg); }
+/* Подпись над полем допусков: без неё пустая карточка — это два поля и
+   безымянная textarea, и непонятно, что в неё писать. */
+.edit-agg-cap {
+  font-size: 10px;
+  color: var(--sub);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-top: 10px;
+}
+.edit-agg-cap + textarea { margin-top: 4px; }
+.edit-std-agg .edit-agg-row input { background: var(--bg); }
 .edit-std-agg textarea {
   width: 100%;
+  min-height: 92px;
   margin-top: 8px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1454,8 +1484,14 @@ input[data-edit-filter-absent]:checked::after {
 }
 .edit-custom-agg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .edit-custom-agg-head input { flex: 1; }
-.edit-custom-agg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.edit-custom-agg-row select { flex: 1; }
+.edit-custom-agg-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.edit-custom-agg-row select { min-width: 0; }
 .edit-custom-agg input, .edit-custom-agg select, .edit-custom-agg textarea {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1468,7 +1504,7 @@ input[data-edit-filter-absent]:checked::after {
 .edit-custom-agg input:focus, .edit-custom-agg select:focus, .edit-custom-agg textarea:focus {
   outline: none; border-color: var(--accent);
 }
-.edit-custom-agg textarea { width: 100%; }
+.edit-custom-agg textarea { width: 100%; min-height: 92px; }
 
 /* ── Теги (как на ютубе) ────────────────────────────────────────── */
 .edit-tags-input { display: flex; gap: 8px; align-items: center; }
@@ -1516,18 +1552,23 @@ input[data-edit-filter-absent]:checked::after {
 .edit-tag-del:hover { opacity: 1; background: var(--red-dim); color: var(--red); }
 
 /* ── Окно правки данных машины (вкладки) ────────────────────────
-   Одна кнопка «Исправить данные» открывает окно, где каждая вкладка — свой
-   кусок данных. Окно само не прокручивается: скроллится только область
-   вкладки, чтобы кнопка «Сохранить» и подпись «изменено» всегда были видны. */
-.car-ed-win {
-  max-width: 900px;
+   Составное имя .modal-win.car-ed-win — не для красоты: правило .modal-win
+   идёт НИЖЕ по файлу и с одиночным классом перебивало ширину, из-за чего
+   окно с вкладками ужималось до 520px общих модалок.
+   Высота фиксированная: иначе окно прыгало на каждом переключении вкладки.
+   Прокручивается только область вкладки — кнопка «Сохранить» и счётчик
+   изменений всегда на виду. */
+.modal-win.car-ed-win {
+  max-width: 1040px;
+  max-height: calc(100dvh - var(--tabs-h) - 32px);
+  height: min(760px, calc(100dvh - var(--tabs-h) - 32px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 .car-ed-body {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 210px minmax(0, 1fr);
   min-height: 0;
   flex: 1;
 }
@@ -1538,6 +1579,7 @@ input[data-edit-filter-absent]:checked::after {
   padding: 12px;
   border-right: 1px solid var(--border);
   overflow-y: auto;
+  min-width: 0;
 }
 .car-ed-tab {
   display: flex;
@@ -1569,9 +1611,16 @@ input[data-edit-filter-absent]:checked::after {
   color: var(--green);
   min-height: 12px;
 }
-.car-ed-panes { overflow-y: auto; padding: 16px 18px; min-height: 0; }
+.car-ed-panes {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 18px;
+  min-width: 0;
+  min-height: 0;
+}
 .car-ed-pane-h { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
 .car-ed-pane .edit-sec-h:first-of-type { margin-top: 6px; }
+.car-ed-pane textarea { resize: vertical; }
 .car-ed-foot {
   border-top: 1px solid var(--border);
   padding: 12px 18px;
@@ -1595,6 +1644,26 @@ input[data-edit-filter-absent]:checked::after {
 .car-ed-foot-btns { display: flex; align-items: center; gap: 8px; }
 .car-ed-status { margin-right: auto; font-size: 12px; color: var(--sub); }
 .car-ed-foot .edit-error { margin-top: 0; }
+
+/* Узкий экран: вкладки лентой сверху, а не колонкой сбоку */
+@media (max-width: 760px) {
+  .modal-win.car-ed-win { height: calc(100dvh - var(--tabs-h) - 32px); }
+  .car-ed-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .car-ed-tabs {
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .car-ed-tab { flex: 0 0 auto; white-space: nowrap; }
+  .car-ed-panes { padding: 14px; }
+  .edit-filter-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .edit-filter-row .edit-lbl { grid-column: 1 / -1; }
+}
+
+.edit-error { margin-top: 0; }
 .edit-agg-unit { color: var(--sub); font-size: 12px; }
 
 /* Узкий экран: вкладки лентой сверху, а не колонкой сбоку */
@@ -1610,6 +1679,8 @@ input[data-edit-filter-absent]:checked::after {
   }
   .car-ed-tab { flex: 0 0 auto; white-space: nowrap; }
   .car-ed-panes { padding: 14px; }
+  .edit-filter-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .edit-filter-row .edit-lbl { grid-column: 1 / -1; }
 }
 
 .edit-error {
