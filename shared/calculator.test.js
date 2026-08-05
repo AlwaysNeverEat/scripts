@@ -180,7 +180,9 @@ test('«ничего не известно про машину» не означ
     // Без допусков и без выведенного класса ошибка «залил жиже» стоит износа
     // вкладышей, а «залил гуще» — расхода топлива. Дешёвое A5/B5 (HTHS 2.9–3.5)
     // в основной выбор не идёт.
-    const state = makeState({ car: { makeShort:'TOYOTA', modelShort:'Corolla', fuelType:'01', yearFrom:2010 } });
+    // Марка взята такая, для которой правила по годам нет (shared/oemRules.js):
+    // иначе про машину уже кое-что известно, и это отдельный тест ниже.
+    const state = makeState({ car: { makeShort:'CHERY', modelShort:'Tiggo', fuelType:'01', yearFrom:2019 } });
     const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
     const { mid } = pickEngineOils(agg, getShopOils(), state, []);
 
@@ -208,14 +210,14 @@ test('SPOT не предлагается, когда не подходит ма�
 });
 
 test('SPOT остаётся с пометкой там, где класс выведен неточно', () => {
-    // У корейцев родных допусков в справочнике нет, класс собран из чужих
-    // паспортов (доверие low). Убирать по такой догадке своё масло нельзя —
-    // блокировки на low мягкие, решение за оператором.
+    // У корейцев родных допусков в справочнике нет: класс выведен по марке,
+    // году и топливу (доверие assumed). Убирать по такой догадке своё масло
+    // нельзя — блокировки мягкие, решение за оператором.
     const state = makeState({ car: { makeShort:'KIA', modelShort:'Rio', fuelType:'01', yearFrom:2017 } });
     const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
     const { spot } = pickEngineOils(agg, getShopOils(), state, ['API SN','ILSAC GF-5','ACEA A5/B5']);
 
-    assert.equal(agg.approvalAnalysis.confidence, 'low');
+    assert.equal(agg.approvalAnalysis.confidence, 'assumed');
     assert.ok(spot && spot.isSpot, 'своё масло предлагается');
     assert.ok(agg.spotWarn && /неточно/.test(agg.spotWarn), 'но с оговоркой');
 });

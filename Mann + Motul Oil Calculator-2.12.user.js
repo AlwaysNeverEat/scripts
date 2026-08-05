@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.481
+// @version      2.23.489
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -811,6 +811,392 @@
   }
   function crmPrefersPartial(car, data) {
     return crmQuirksFor(car, data).some((q) => q.partialDefault);
+  }
+
+  // shared/oemRules.js
+  var normMake = (s) => String(s == null ? "" : s).toUpperCase().replace(/[^A-ZА-Я0-9]/g, "");
+  var MB = ["MERCEDES", "MERCEDESBENZ", "MB", "SMART", "MAYBACH"];
+  var BMW = ["BMW", "MINI", "ROLLSROYCE"];
+  var VAG = ["VW", "VOLKSWAGEN", "AUDI", "SKODA", "SEAT", "CUPRA"];
+  var RENO = ["RENAULT", "DACIA"];
+  var LADA = ["LADA", "VAZ", "AVTOVAZ", "ЛАДА", "ВАЗ", "АВТОВАЗ"];
+  var PSA = ["PEUGEOT", "CITROEN", "CITROËN", "DS"];
+  var GM = ["OPEL", "VAUXHALL", "CHEVROLET", "DAEWOO", "UZDAEWOO", "RAVON"];
+  var KOREA = ["HYUNDAI", "KIA", "GENESIS"];
+  var JAPAN = [
+    "TOYOTA",
+    "LEXUS",
+    "MAZDA",
+    "HONDA",
+    "ACURA",
+    "MITSUBISHI",
+    "SUZUKI",
+    "SUBARU",
+    "DAIHATSU",
+    "NISSAN",
+    "INFINITI",
+    "DATSUN"
+  ];
+  var RULES = [
+    // ── АвтоВАЗ ──────────────────────────────────────────────────────────────
+    // Единственный случай, где правило ОСЛАБЛЯЕТ возрастную эвристику: Лада
+    // выпускается под Евро-5 без бензинового сажевого фильтра, и правило
+    // «бензин с 2018 → GPF» для неё просто неверно — оно снимало с подбора все
+    // полнозольные масла, включая то, которое одобрил сам завод.
+    {
+      id: "VAZ",
+      makes: LADA,
+      specs: ["АвтоВАЗ"],
+      filter: "none",
+      why: "АвтоВАЗ — сажевого фильтра нет ни на одной модели, требований по зольности завод не предъявляет. Годится любое масло нужной вязкости с одобрением ВАЗа."
+    },
+    // ── Mercedes-Benz ────────────────────────────────────────────────────────
+    // Дизели CDI получили сажевый фильтр раньше общеевропейского Euro 5:
+    // OM 642 и OM 646 идут с ним с 2005 года, поэтому здесь `filter: 'dpf'`.
+    {
+      id: "MB-DIESEL-DPF",
+      makes: MB,
+      fuel: "diesel",
+      from: 2005,
+      specs: ["MB 229.51"],
+      filter: "dpf",
+      why: "Дизель Mercedes с 2005 года — сажевый фильтр уже стоит (OM 642/646 CDI). Завод требует 229.51: среднезольное при HTHS ≥ 3.5."
+    },
+    {
+      id: "MB-DIESEL",
+      makes: MB,
+      fuel: "diesel",
+      to: 2004,
+      specs: ["MB 229.5"],
+      why: "Дизель Mercedes до 2005 года — сажевого фильтра нет, завод требует полнозольное 229.5 (HTHS ≥ 3.5)."
+    },
+    {
+      id: "MB-PETROL-GPF",
+      makes: MB,
+      fuel: "petrol",
+      from: 2018,
+      specs: ["MB 229.52"],
+      why: "Бензиновый Mercedes с 2018 года (Euro 6d) — бензиновый сажевый фильтр. Требование 229.52: среднезольное при HTHS ≥ 3.5."
+    },
+    {
+      id: "MB-PETROL",
+      makes: MB,
+      fuel: "petrol",
+      from: 1998,
+      to: 2017,
+      specs: ["MB 229.5"],
+      why: "Бензиновый Mercedes до 2018 года — фильтра нет, штатное требование 229.5."
+    },
+    {
+      id: "MB-ANY",
+      makes: MB,
+      from: 2005,
+      specs: ["MB 229.51"],
+      why: "Mercedes с 2005 года. Топливо в карточке не указано, поэтому берём более строгую из двух веток — 229.51: среднезольное масло подходит и бензиновому мотору, а полнозольное дизельному с фильтром — нет."
+    },
+    // ── BMW / Mini ───────────────────────────────────────────────────────────
+    // Дизели BMW получили сажевый фильтр с 2004 года — раньше Euro 5.
+    {
+      id: "BMW-DIESEL-DPF",
+      makes: BMW,
+      fuel: "diesel",
+      from: 2004,
+      specs: ["BMW LL-04"],
+      filter: "dpf",
+      why: "Дизель BMW с 2004 года — сажевый фильтр. Требование Longlife-04: среднезольное при HTHS ≥ 3.5."
+    },
+    {
+      id: "BMW-DIESEL",
+      makes: BMW,
+      fuel: "diesel",
+      to: 2003,
+      specs: ["BMW LL-01"],
+      why: "Дизель BMW до 2004 года — фильтра нет, штатное требование Longlife-01."
+    },
+    {
+      id: "BMW-PETROL-GPF",
+      makes: BMW,
+      fuel: "petrol",
+      from: 2018,
+      specs: ["BMW LL-04"],
+      why: "Бензиновый BMW с 2018 года (Euro 6d) — бензиновый сажевый фильтр, поэтому Longlife-04, а не полнозольный Longlife-01."
+    },
+    {
+      id: "BMW-PETROL",
+      makes: BMW,
+      fuel: "petrol",
+      from: 2001,
+      to: 2017,
+      specs: ["BMW LL-01"],
+      why: "Бензиновый BMW 2001–2017 — штатное требование Longlife-01 (полнозольное, HTHS ≥ 3.5)."
+    },
+    {
+      id: "BMW-PETROL-98",
+      makes: BMW,
+      fuel: "petrol",
+      from: 1998,
+      to: 2e3,
+      specs: ["BMW LL-98"],
+      why: "Бензиновый BMW 1998–2000 — эпоха Longlife-98."
+    },
+    {
+      id: "BMW-ANY",
+      makes: BMW,
+      from: 2004,
+      specs: ["BMW LL-04"],
+      why: "BMW с 2004 года. Топливо не указано — берём Longlife-04: он подходит и бензиновому мотору, а полнозольный Longlife-01 дизелю с фильтром нет."
+    },
+    // ── Концерн VAG ──────────────────────────────────────────────────────────
+    // У VAG сажевый фильтр на дизелях стал стандартом с 2007 года — на два года
+    // раньше Euro 5.
+    {
+      id: "VAG-DIESEL-DPF",
+      makes: VAG,
+      fuel: "diesel",
+      from: 2007,
+      specs: ["VW 507 00"],
+      filter: "dpf",
+      why: "Дизель VAG с 2007 года — сажевый фильтр. Требование 507 00 (LongLife III): среднезольное, HTHS ≥ 3.5. Полнозольное 505 00 такому мотору льют только по недосмотру — оно забивает фильтр."
+    },
+    {
+      id: "VAG-DIESEL",
+      makes: VAG,
+      fuel: "diesel",
+      from: 1996,
+      to: 2006,
+      specs: ["VW 505 00"],
+      why: "Дизель VAG до 2007 года — фильтра нет, штатное требование 505 00."
+    },
+    {
+      id: "VAG-PETROL-LL3",
+      makes: VAG,
+      fuel: "petrol",
+      from: 2010,
+      specs: ["VW 504 00"],
+      why: "Бензиновый VAG с 2010 года — эпоха LongLife III (504 00). Масло по 504 00 покрывает и 502 00, поэтому подходит и моторам с фиксированным интервалом."
+    },
+    {
+      id: "VAG-PETROL",
+      makes: VAG,
+      fuel: "petrol",
+      from: 1999,
+      to: 2009,
+      specs: ["VW 502 00"],
+      why: "Бензиновый VAG 1999–2009 — штатное требование 502 00 (полнозольное, HTHS ≥ 3.5)."
+    },
+    {
+      id: "VAG-ANY",
+      makes: VAG,
+      from: 2007,
+      specs: ["VW 504 00", "VW 507 00"],
+      why: "VAG с 2007 года, топливо не указано. Берём пару 504 00 / 507 00 — масло этого класса подходит обоим типам моторов, включая дизель с сажевым фильтром."
+    },
+    // ── Porsche ──────────────────────────────────────────────────────────────
+    {
+      id: "PORSCHE-C30",
+      makes: ["PORSCHE"],
+      from: 2009,
+      specs: ["Porsche C30"],
+      why: "Porsche с 2009 года — допуск C30 (среднезольное, HTHS ≥ 3.5)."
+    },
+    {
+      id: "PORSCHE-A40",
+      makes: ["PORSCHE"],
+      to: 2008,
+      specs: ["Porsche A40"],
+      why: "Porsche до 2009 года — допуск A40 (полнозольное, HTHS ≥ 3.5)."
+    },
+    // ── Renault / Dacia ──────────────────────────────────────────────────────
+    {
+      id: "RN-DIESEL-DPF",
+      makes: RENO,
+      fuel: "diesel",
+      from: 2010,
+      specs: ["RN 0720"],
+      why: "Дизель dCi с 2010 года — сажевый фильтр, Renault требует RN 0720 (ACEA C4, зола ≤0.5%). Малозольных масел в наличии обычно нет, поэтому это не запрет, а приоритет: чем меньше золы, тем лучше."
+    },
+    {
+      id: "RN-DIESEL",
+      makes: RENO,
+      fuel: "diesel",
+      to: 2009,
+      specs: ["RN 0710"],
+      why: "Дизель Renault до 2010 года — фильтра нет, требование RN 0710 (полнозольное, HTHS ≥ 3.5)."
+    },
+    {
+      id: "RN-PETROL",
+      makes: RENO,
+      fuel: "petrol",
+      specs: ["RN 0700", "RN 0710"],
+      why: "Бензиновый Renault — базовые допуски RN 0700/0710. Сам RN 0700 разрешает и A5/B5, и A3/B4; берём пару, потому что ошибка «залили гуще» стоит расхода топлива, а «залили жиже» — вкладышей."
+    },
+    // ── PSA / Stellantis ─────────────────────────────────────────────────────
+    // У PSA сажевый фильтр (FAP) появился на дизелях HDi в 2000 году — на девять
+    // лет раньше общеевропейского Euro 5, отсюда `filter: 'dpf'`.
+    {
+      id: "PSA-DIESEL-FAP",
+      makes: PSA,
+      fuel: "diesel",
+      from: 2006,
+      specs: ["PSA B71 2290", "PSA B71 2294"],
+      filter: "dpf",
+      why: "Дизель HDi с 2006 года — сажевый фильтр FAP, отсюда среднезольное. Точную ступень (C2 по 2290 или C3 по 2294) год не различает, поэтому берём пару: масла C2 в наличии почти нет, а «залил гуще» стоит расхода топлива, тогда как «залил жиже» — вкладышей."
+    },
+    {
+      id: "PSA-DIESEL",
+      makes: PSA,
+      fuel: "diesel",
+      to: 2005,
+      specs: ["PSA B71 2294"],
+      why: "Дизель PSA до 2006 года — требование B71 2294 (уровень C3)."
+    },
+    {
+      id: "PSA-PETROL-EP6",
+      makes: PSA,
+      fuel: "petrol",
+      from: 2006,
+      specs: ["PSA B71 2290", "PSA B71 2297"],
+      why: "Бензиновый PSA с 2006 года (семейство EP) — среднезольное масло (B71 2290 или 2297). Как и на дизеле, берём пару: между C2 и C3 год выпуска не различает, а густое масло — обратимая ошибка."
+    },
+    {
+      id: "PSA-PETROL",
+      makes: PSA,
+      fuel: "petrol",
+      to: 2005,
+      specs: ["PSA B71 2296"],
+      why: "Бензиновый PSA до 2006 года — требование B71 2296 (полнозольное A3/B4)."
+    },
+    // ── GM / Opel / Chevrolet ────────────────────────────────────────────────
+    {
+      id: "GM-DEXOS2",
+      makes: GM,
+      from: 2010,
+      specs: ["GM dexos2"],
+      why: "GM/Opel с 2010 года — универсальный допуск dexos2 (уровень C3): среднезольное при HTHS ≥ 3.5, подходит и бензину, и дизелю."
+    },
+    {
+      id: "GM-LL-DIESEL",
+      makes: GM,
+      fuel: "diesel",
+      from: 1998,
+      to: 2009,
+      specs: ["GM-LL-B-025"],
+      why: "Дизель GM/Opel до 2010 года — допуск GM-LL-B-025 (полнозольное)."
+    },
+    {
+      id: "GM-LL-PETROL",
+      makes: GM,
+      fuel: "petrol",
+      from: 1998,
+      to: 2009,
+      specs: ["GM-LL-A-025"],
+      why: "Бензиновый GM/Opel до 2010 года — допуск GM-LL-A-025 (полнозольное)."
+    },
+    // ── Ford (Европа) ────────────────────────────────────────────────────────
+    {
+      id: "FORD-DIESEL-DPF",
+      makes: ["FORD"],
+      fuel: "diesel",
+      from: 2010,
+      specs: ["Ford WSS-M2C934-B"],
+      why: "Дизель TDCi с 2010 года — сажевый фильтр, спецификация 934-B (малозольное). Полнозольное масло фильтр забивает."
+    },
+    {
+      id: "FORD-DIESEL",
+      makes: ["FORD"],
+      fuel: "diesel",
+      from: 2e3,
+      to: 2009,
+      specs: ["Ford WSS-M2C913-D"],
+      why: "Дизель TDCi до 2010 года — линейка 913 (ACEA A5/B5, HTHS 2.9–3.5). Исключение — 1.8 TDCi под 917-A: если в карточке этот мотор, проверь вручную."
+    },
+    {
+      id: "FORD-PETROL",
+      makes: ["FORD"],
+      fuel: "petrol",
+      from: 2e3,
+      specs: ["Ford WSS-M2C913-D"],
+      why: "Бензиновый Ford с 2000 года — спецификация 913-D: топливосберегающее масло A5/B5. Мотор рассчитан на низкий HTHS, густое A3/B4 Ford не одобряет."
+    },
+    // ── Volvo ────────────────────────────────────────────────────────────────
+    {
+      id: "VOLVO-DRIVE-E",
+      makes: ["VOLVO"],
+      from: 2014,
+      specs: ["Volvo VCC 95200377"],
+      why: "Volvo с 2014 года — моторы Drive-E, собственный допуск VCC 95200377 (среднезольное, HTHS 2.9–3.5)."
+    },
+    {
+      id: "VOLVO-OLD",
+      makes: ["VOLVO"],
+      from: 2e3,
+      to: 2013,
+      specs: ["ACEA A5/B5"],
+      why: "Volvo 2000–2013 — моторы разработки Ford, требование ACEA A5/B5."
+    },
+    // ── Hyundai / Kia ────────────────────────────────────────────────────────
+    // Своих допусков у корейцев нет — завод пишет класс ACEA и уровень API.
+    {
+      id: "KOR-DIESEL-DPF",
+      makes: KOREA,
+      fuel: "diesel",
+      from: 2011,
+      specs: ["ACEA C3"],
+      why: "Дизель CRDi с 2011 года (Euro 5) — сажевый фильтр. Завод требует ACEA C3: среднезольное при HTHS ≥ 3.5."
+    },
+    {
+      id: "KOR-DIESEL",
+      makes: KOREA,
+      fuel: "diesel",
+      from: 2e3,
+      to: 2010,
+      specs: ["ACEA A3/B4"],
+      why: "Дизель CRDi до 2011 года — фильтра нет, класс ACEA B4."
+    },
+    {
+      id: "KOR-PETROL",
+      makes: KOREA,
+      fuel: "petrol",
+      from: 2e3,
+      maxHpPerL: 105,
+      specs: ["ACEA A5/B5"],
+      why: "Бензиновый Hyundai/Kia — завод пишет API SM/SN + ILSAC, то есть мотор рассчитан на топливосберегающее масло (ACEA A5/B5, HTHS 2.9–3.5). Это ориентир по семейству моторов, а не допуск конкретной машины."
+    },
+    // ── Японские марки ───────────────────────────────────────────────────────
+    {
+      id: "JP-PETROL",
+      makes: JAPAN,
+      fuel: "petrol",
+      from: 2e3,
+      maxHpPerL: 105,
+      specs: ["ACEA A5/B5", "ILSAC GF-6A"],
+      why: "Японский бензиновый мотор — семейство ILSAC: рассчитан на топливосберегающее масло с HTHS 2.9–3.5. Густое A3/B4 здесь не нужно. Наддувные и спортивные версии (выше 105 л.с. с литра) под правило не подпадают — им нужно гуще."
+    }
+  ];
+  function specificPower(ctx) {
+    const bhp = Number(ctx.bhp);
+    let vol = parseFloat(String(ctx.engineVolume == null ? "" : ctx.engineVolume).replace(",", "."));
+    if (!Number.isFinite(bhp) || bhp <= 0 || !Number.isFinite(vol) || vol <= 0) return null;
+    if (vol > 100) vol /= 1e3;
+    return bhp / vol;
+  }
+  function oemRuleFor(ctx = {}) {
+    const make = normMake(ctx.make || ctx.makeShort);
+    if (!make) return null;
+    const year = Number(ctx.yearFrom) || 0;
+    const ft = ctx.fuelType;
+    const fuel = isDieselFuel(ft) ? "diesel" : isPetrolFuel(ft) ? "petrol" : null;
+    const hpPerL = specificPower(ctx);
+    for (const r of RULES) {
+      if (!r.makes.some((k) => make === k || make.startsWith(k))) continue;
+      if (r.fuel && r.fuel !== fuel) continue;
+      if ((r.from != null || r.to != null) && !year) continue;
+      if (r.from != null && year < r.from) continue;
+      if (r.to != null && year > r.to) continue;
+      if (r.maxHpPerL != null && hpPerL != null && hpPerL > r.maxHpPerL) continue;
+      return { id: r.id, specs: [...r.specs], filter: r.filter || null, why: r.why };
+    }
+    return null;
   }
 
   // shared/approvals.js
@@ -2141,7 +2527,9 @@
     }
     return lo;
   }
-  function ashGateFor(nativeSpecs, ctx) {
+  function ashGateFor(nativeSpecs, ctx, rule) {
+    if (rule && rule.filter === "none") return null;
+    if (rule && (rule.filter === "dpf" || rule.filter === "gpf")) return ASH_MID;
     const year = Number(ctx.yearFrom) || 0;
     const diesel = isDieselLike(ctx.fuelType);
     if (diesel && year >= 2009) return ASH_MID;
@@ -2221,6 +2609,11 @@
   var RANKS = {
     critical: { weight: 100, label: "ключевой", color: "red" },
     important: { weight: 40, label: "важный", color: "green" },
+    // Допуск не из данных машины, а из правила «марка + годы + топливо».
+    // Вес как у физического класса ACEA: это настоящее требование завода к
+    // поколению моторов, но конкретно эта машина его не подтверждала — поэтому
+    // ниже родного допуска (100) и с отдельной подписью в интерфейсе.
+    assumed: { weight: 40, label: "по марке и годам", color: "violet" },
     minor: { weight: 12, label: "второстепенный", color: "blue" },
     info: { weight: 2, label: "справочный", color: "grey" },
     noise: { weight: 0, label: "шум", color: "grey" },
@@ -2241,25 +2634,31 @@
     const confirmedIds = new Set(confirmed.map((s) => s.id));
     const nonOilCount = parsed.filter((p) => p.nonOil).length;
     const notOil = parsed.length >= 5 && nonOilCount >= parsed.length * 0.5;
-    let profileSpecs, confidence;
-    if (notOil) {
-      profileSpecs = [];
-      confidence = "none";
-    } else if (nativeSpecs.length || evidenceNative.length) {
+    const rule = oemRuleFor(ctx);
+    const ruleSpecs = rule ? parseApprovals(rule.specs).flatMap((p) => p.specs) : [];
+    let profileSpecs, confidence, ruleApplied = false;
+    if (!notOil && (nativeSpecs.length || evidenceNative.length)) {
       profileSpecs = [...nativeSpecs, ...evidenceNative];
       confidence = confirmed.length ? "high" : "medium";
+    } else if (ruleSpecs.length) {
+      profileSpecs = ruleSpecs;
+      confidence = "assumed";
+      ruleApplied = true;
+    } else if (notOil) {
+      profileSpecs = [];
+      confidence = "none";
     } else {
       profileSpecs = parsed.flatMap((p) => p.specs).filter((s) => s.role === "acea");
       confidence = "low";
     }
     const profile = profileOfSpecs(profileSpecs);
-    profile.ashGate = notOil ? null : ashGateFor(nativeSpecs, ctx);
-    profile.hthsGate = notOil ? null : hthsGateFor(nativeSpecs) ?? profile.hthsMin;
+    profile.ashGate = ashGateFor(nativeSpecs, ctx, rule);
+    profile.hthsGate = notOil && !ruleApplied ? null : hthsGateFor(nativeSpecs) ?? profile.hthsMin;
     const carLabel = String(ctx.make || "этой машины").trim();
     const items = parsed.map((p) => {
       const primary = p.specs[0] || null;
       const nativeSpec = p.specs.find(isNative) || null;
-      const rank = rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidence });
+      const rank = rankApproval({ p, primary, nativeSpec, profile, confirmedIds, notOil });
       return {
         raw: p.raw,
         parts: p.parts,
@@ -2272,7 +2671,7 @@
         rank,
         weight: RANKS[rank].weight,
         what: p.nonOil ? NON_ENGINE_WHAT[p.kind] : primary ? primary.what : "Строка не опознана справочником допусков.",
-        why: explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence }),
+        why: explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence, notOil }),
         ash: primary ? primary.ash : null,
         hths: primary ? primary.hths : null
       };
@@ -2301,6 +2700,41 @@
         hths: s.hths
       });
     }
+    if (ruleApplied) {
+      for (const s of ruleSpecs) {
+        const same = items.find((it) => (it.parts || []).some((part) => {
+          const found = findSpec(part);
+          return found && found.id === s.id;
+        }));
+        const why = `У этой машины допусков в базе нет — требование выведено по марке, году и топливу. ${rule.why}` + physicsTail(s) + "\nЭто ориентир по поколению моторов, а не допуск конкретной машины: если знаешь допуск точно — впиши его в карточку, он важнее правила.";
+        if (same) {
+          if (same.weight < RANKS.assumed.weight) {
+            same.rank = "assumed";
+            same.weight = RANKS.assumed.weight;
+          }
+          same.fromRule = true;
+          same.why = why;
+          continue;
+        }
+        items.push({
+          raw: s.label,
+          parts: [s.label],
+          label: s.label,
+          family: s.family || s.role,
+          role: s.role,
+          known: true,
+          native: !!(s.family && familySet.has(s.family)),
+          confirmed: false,
+          fromRule: true,
+          rank: "assumed",
+          weight: RANKS.assumed.weight,
+          what: s.what,
+          why,
+          ash: s.ash,
+          hths: s.hths
+        });
+      }
+    }
     const counts = {};
     for (const it of items) counts[it.rank] = (counts[it.rank] || 0) + 1;
     return {
@@ -2312,9 +2746,12 @@
       counts,
       notOil,
       missing,
+      // Правило по марке/годам: сработало ли оно, применено ли как требование
+      // (applied) и что именно оно сказало про сажевый фильтр.
+      rule: rule ? { ...rule, applied: ruleApplied } : null,
       // Список — объединение паспортов масел, а не требования мотора
       unionSuspect: conflicts.some((c) => c.hard) || countFamilies(parsed) >= 3,
-      decisive: items.filter((i) => i.rank === "critical" || i.rank === "important")
+      decisive: items.filter((i) => ["critical", "important", "assumed"].includes(i.rank))
     };
   }
   function countFamilies(parsed) {
@@ -2322,11 +2759,11 @@
     for (const p of parsed) for (const s of p.specs) if (s.family) fams.add(s.family);
     return fams.size;
   }
-  function rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidence }) {
+  function rankApproval({ p, primary, nativeSpec, profile, confirmedIds, notOil }) {
     if (p.nonOil) return "noise";
     if (!primary) return "noise";
     if (primary.role === "api") return "info";
-    if (confidence === "none") return "noise";
+    if (notOil) return "noise";
     const target = nativeSpec || (primary.role === "acea" ? primary : null);
     if (target) {
       if (viscConflict(target, profile)) return "conflict";
@@ -2355,7 +2792,7 @@
     if (profile.hthsMin != null && spec.hths && spec.hths[1] < profile.hthsMin) return false;
     return true;
   }
-  function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence }) {
+  function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence, notOil }) {
     const famLabel = primary && primary.family ? FAMILY_LABEL[primary.family] || primary.family : "";
     if (p.nonOil) return NON_ENGINE_WHY[p.kind] || NON_ENGINE_WHY.coolant;
     if (rank === "critical") {
@@ -2380,8 +2817,8 @@
     if (rank === "info") {
       return "Уровень качества API/ILSAC, а не допуск. Есть практически у всех масел каталога, поэтому между ними ничего не различает — работает только как отсечка совсем старых масел.";
     }
-    if (confidence === "none") {
-      return "Список допусков этой машины собран не по маслу, поэтому ни одна строка в нём не считается требованием. Подбор идёт как для машины без допусков.";
+    if (notOil) {
+      return "Список допусков этой машины собран не по маслу, поэтому ни одна строка в нём не считается требованием. Подбор идёт как для машины без допусков" + (confidence === "assumed" ? " — по марке, году и топливу." : ".");
     }
     if (primary && primary.role === "oem") {
       return `Заводской допуск ${famLabel} — к ${carLabel} отношения не имеет. Попал в список потому, что источник отдаёт паспорт рекомендованного масла целиком, а там стоят допуска пары десятков чужих марок. Обязательств не создаёт, в подборе игнорируется.`;
@@ -2405,10 +2842,12 @@
     const { profile, confidence } = analysis;
     const prof = oilProfile(oilApprovals);
     let blocked = false, penalty = 0;
+    const hardAsh = confidence === "high" || confidence === "medium" || confidence === "assumed";
+    const hardHths = confidence === "high" || confidence === "medium";
     if (profile.ashGate != null && prof.ash != null) {
       if (prof.ash > profile.ashGate) {
         const note = `масло ${sapsLabel(prof.ash)}, мотору нужно ${sapsLabel(profile.ashGate)}`;
-        if (confidence === "high" || confidence === "medium") {
+        if (hardAsh) {
           blocked = true;
           notes.push(note);
         } else {
@@ -2422,7 +2861,7 @@
     }
     const hthsGate = profile.hthsGate != null ? profile.hthsGate : profile.hthsMin;
     if (hthsGate != null && prof.hthsMin != null && prof.hthsMin + 1e-3 < hthsGate) {
-      if (confidence === "high" || confidence === "medium") {
+      if (hardHths) {
         blocked = true;
         notes.push(`HTHS масла ниже требуемого ${hthsGate}`);
       } else {
@@ -2709,6 +3148,7 @@
     if (item.role === "api") return "API";
     return item.family || item.role || item.label;
   }
+  var CORE_MIN = Math.round(RANKS.important.weight * 0.7);
   function buildOilRater(analysis) {
     const scoredItems = analysis ? analysis.items.filter((i) => i.weight > 0) : [];
     return (oil) => {
@@ -2737,7 +3177,7 @@
             }
           }
           if (via) {
-            gained = Math.round(item.weight * 0.7);
+            gained = item.rank === "assumed" ? item.weight : Math.round(item.weight * 0.7);
             hier.push({ covers: item.label, via });
           }
         }
@@ -2745,18 +3185,61 @@
         const key = requirementGroup(item);
         if (gained > (best.get(key) || 0)) best.set(key, gained);
       }
-      let score = 0;
-      for (const v of best.values()) score += v;
+      let score = 0, core = 0;
+      for (const v of best.values()) {
+        score += v;
+        if (v >= CORE_MIN) core += v;
+      }
       const fit = analysis ? oilFitsProfile(oil.a, analysis) : { blocked: false, penalty: 0, notes: [] };
       return {
         oil,
         score: score - fit.penalty,
+        core: core - fit.penalty,
         direct,
         hier,
         blocked: fit.blocked,
         fitNotes: fit.notes
       };
     };
+  }
+  function oilMeetsClass(oil, cls) {
+    if (hasLiteralAceaClass(oil, cls)) return true;
+    const p = oilProfile(oil.a || []);
+    if (p.hthsMin == null) return false;
+    const thick = p.hthsMin >= 3.5;
+    switch (cls) {
+      // Полнозольные классы золу не ограничивают — важен только HTHS, и
+      // зольность масла для них можно не знать вовсе. Иначе японские масла
+      // с одним лишь ILSAC в паспорте (Molygen, ZEPRO, ZIC X9) выпадали из
+      // выбора именно там, где они и нужны, — на машинах под ILSAC.
+      case "A3B4":
+        return thick;
+      case "A5B5":
+        return !thick;
+      // Малозольные классы — наоборот: без замера по золе подтвердить нечем.
+      case "C3":
+        return p.ash != null && thick && p.ash <= ASH_MID;
+      case "C2":
+        return p.ash != null && !thick && p.ash <= ASH_MID;
+      case "C1":
+        return p.ash != null && p.ash <= ASH_LOW;
+      default:
+        return false;
+    }
+  }
+  function cheapestFirst(rated) {
+    if (!rated.length) return [];
+    const bestCore = rated.reduce((m, r) => Math.max(m, r.core), -Infinity);
+    return rated.filter((r) => r.core === bestCore).sort((a, b) => a.oil.price !== b.oil.price ? a.oil.price - b.oil.price : b.score - a.score);
+  }
+  function hasLiteralAceaClass(oil, cls) {
+    const t = tokenSet(oil.a);
+    if (cls === "A5B5") return [...t].some((x) => /A5B5|ACEAA5B5/.test(x));
+    if (cls === "C3") return [...t].some((x) => /ACEAC3|^C3$/.test(x));
+    if (cls === "C2") return [...t].some((x) => /ACEAC2|^C2$/.test(x));
+    if (cls === "C1") return [...t].some((x) => /ACEAC1|^C1$/.test(x));
+    if (cls === "A3B4") return [...t].some((x) => /A3B4|ACEAA3B4/.test(x));
+    return true;
   }
   function pickEngineOils(agg, shopOils, calcState2, carApprovals) {
     const mileage = calcState2.mileage;
@@ -2778,12 +3261,26 @@
       agg.approvalAnalysis = analysis0w;
       rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
       const fallback0w = mileage === "0w20" ? { b: "ZIC", n: "X9 FE 0W-20", price: 1550, v: "0W-20", a: ["API SP"], ad: [] } : { b: "ZIC", n: "ZERO 0W-30", price: 2150, v: "0W-30", a: ["ACEA C3"], ad: [] };
-      const mid0w = rated0w[0] ? rated0w[0].oil : fallback0w;
+      let eligible0w = rated0w.filter((r) => !r.blocked);
+      if (!eligible0w.length) eligible0w = rated0w;
+      const sufficient0w = cheapestFirst(eligible0w);
+      const mid0w = sufficient0w.length ? sufficient0w[0].oil : fallback0w;
       let second0w = null;
       if (calcState2.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
       agg.approvals = carApp0w;
       agg.allCandidates = rated0w.map((r) => r.oil);
-      agg.topCandidates = rated0w.filter((r) => r.score === (rated0w[0]?.score || 0)).map((r) => r.oil);
+      agg.topCandidates = sufficient0w.map((r) => r.oil);
+      agg.ranked = rated0w.map((r) => ({
+        oil: r.oil,
+        score: r.score,
+        core: r.core,
+        direct: r.direct,
+        hier: r.hier,
+        classMiss: null,
+        blocked: r.blocked || false,
+        fitNotes: r.fitNotes || [],
+        sufficient: sufficient0w.some((s) => s.oil === r.oil)
+      }));
       return { mid: mid0w, spot: second0w };
     }
     const targetVisc = mileage === ">=100" ? "5W-40" : "5W-30";
@@ -2800,15 +3297,6 @@
     const needC2 = [...effectiveCarTokens].some((t) => /ACEAC2|^C2$/.test(t));
     const needC1 = [...effectiveCarTokens].some((t) => /ACEAC1|^C1$/.test(t));
     const needA3B4 = [...effectiveCarTokens].some((t) => /A3B4|ACEAA3B4|ACEAA3|ACEAB4/.test(t));
-    const hasAceaClass = (oil, cls) => {
-      const t = tokenSet(oil.a);
-      if (cls === "A5B5") return [...t].some((x) => /A5B5|ACEAA5B5/.test(x));
-      if (cls === "C3") return [...t].some((x) => /ACEAC3|^C3$/.test(x));
-      if (cls === "C2") return [...t].some((x) => /ACEAC2|^C2$/.test(x));
-      if (cls === "C1") return [...t].some((x) => /ACEAC1|^C1$/.test(x));
-      if (cls === "A3B4") return [...t].some((x) => /A3B4|ACEAA3B4/.test(x));
-      return true;
-    };
     let requiredClass = null;
     if (!calcState2.ignoreApprovals) {
       if (analysis && analysis.confidence !== "low" && analysis.confidence !== "none") {
@@ -2826,44 +3314,57 @@
     const rateOil = buildOilRater(analysis);
     const ratedAll = poolAll.map(rateOil);
     for (const r of ratedAll) {
+      r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
       if (!requiredClass) continue;
-      if (hasAceaClass(r.oil, requiredClass)) r.score += 30;
+      if (r.classOk) r.score += 30;
       else r.classMiss = requiredClass;
     }
     ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-    let eligible = ratedAll.filter((r) => !r.blocked);
+    let eligible = ratedAll.filter((r) => !r.blocked && r.classOk);
+    if (!eligible.length) eligible = ratedAll.filter((r) => !r.blocked);
     if (!eligible.length) eligible = ratedAll;
-    const maxScore = eligible[0] ? eligible[0].score : 0;
-    const topMatches = eligible.filter((r) => r.score === maxScore);
-    topMatches.sort((a, b) => a.oil.price - b.oil.price);
-    const midIdx = topMatches.length <= 2 ? 0 : Math.floor(topMatches.length / 2);
-    const mid = topMatches[midIdx].oil;
-    const needPro = needA5B5 || needC1 || needC2 || needC3 || isDieselVehicle;
-    const spotCandidates = shopOils.filter((o) => o.isSpot && o.v === targetVisc);
-    let spot;
-    if (requiredClass) {
-      const spotWithClass = spotCandidates.filter((o) => hasAceaClass(o, requiredClass));
-      if (spotWithClass.length) {
-        spot = spotWithClass.find((o) => o.tier === (needPro ? "pro" : "optimal")) || spotWithClass[0];
-      }
+    if (!requiredClass) {
+      const thick = eligible.filter((r) => oilMeetsClass(r.oil, "A3B4"));
+      if (thick.length) eligible = thick;
     }
-    if (!spot) {
-      spot = spotCandidates.find((o) => o.tier === (needPro ? "pro" : "optimal")) || spotCandidates[0];
+    const sufficient = cheapestFirst(eligible);
+    const mid = sufficient.length ? sufficient[0].oil : (eligible[0] || ratedAll[0] || {}).oil || null;
+    const needPro = needA5B5 || needC1 || needC2 || needC3 || isDieselVehicle;
+    agg.spotWarn = null;
+    const spotRated = shopOils.filter((o) => o.isSpot && o.v === targetVisc).map(rateOil);
+    for (const r of spotRated) r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
+    const pickSpot = (list) => (list.find((r) => r.oil.tier === (needPro ? "pro" : "optimal")) || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
+    const spotFit = spotRated.filter((r) => !r.blocked && r.classOk);
+    const spotSafe = spotRated.filter((r) => !r.blocked);
+    const softClass = !analysis || analysis.confidence === "low" || analysis.confidence === "none" || analysis.confidence === "assumed";
+    let spot = null;
+    if (spotFit.length) {
+      spot = pickSpot(spotFit);
+    } else if (softClass && spotSafe.length) {
+      spot = pickSpot(spotSafe);
+      agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass}, но допуск машины выведен неточно — решение за тобой`;
+    } else if (spotRated.length) {
+      const worst = spotRated.find((r) => r.blocked) || spotRated[0];
+      agg.spotWarn = worst.blocked ? `SPOT ${targetVisc} не подходит: ${(worst.fitNotes || []).join("; ")}` : `у SPOT ${targetVisc} нет требуемого класса ${requiredClass}`;
     }
     agg.approvals = approvals;
     agg.isDiesel = isDieselVehicle;
     agg.requiredClass = requiredClass;
     agg.approvalAnalysis = analysis;
     agg.allCandidates = ratedAll.map((r) => r.oil);
-    agg.topCandidates = topMatches.map((r) => r.oil);
+    agg.topCandidates = sufficient.map((r) => r.oil);
     agg.ranked = ratedAll.map((r) => ({
       oil: r.oil,
       score: r.score,
+      core: r.core,
       direct: r.direct,
       hier: r.hier,
       classMiss: r.classMiss || null,
       blocked: r.blocked || false,
-      fitNotes: r.fitNotes || []
+      fitNotes: r.fitNotes || [],
+      // Закрывает все требования, которые вообще закрываются этой вязкостью,
+      // и безопасно по физике — такое можно предлагать не глядя.
+      sufficient: sufficient.some((s) => s.oil === r.oil)
     }));
     return { mid, spot };
   }
@@ -2871,8 +3372,14 @@
     const car = calcState2.car || {};
     return analyzeCarApprovals(approvals, {
       make: car.makeShort || car.make || "",
+      model: car.modelShort || car.model || "",
       fuelType: car.fuelType,
       yearFrom: car.yearFrom,
+      // Марка, год и топливо нужны правилам из shared/oemRules.js, а мощность
+      // с объёмом — чтобы правило не накрыло наддувную версию семейства,
+      // которой нужно масло гуще базовой.
+      bhp: car.bhp,
+      engineVolume: car.volume,
       evidence: specsFromProductNames(agg.motulProducts || [])
     });
   }
@@ -3048,6 +3555,7 @@
       }
       return { oil, total: Math.round(total), breakdown };
     });
+    if (agg.group === "engine") costs.sort((a, b) => a.total - b.total);
     return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
   }
   function totalAggLabel(agg) {
@@ -3836,13 +4344,17 @@
         <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a0000;border:1px solid #e53935;border-radius:6px;margin-top:6px;color:#ff8a80">
             ⚠ ${escapeHtmlSafe(manualWarnText(calc.mkppWarn))}
         </div>` : "";
+    const spotWarnBox = agg.group === "engine" && agg.spotWarn ? `
+        <div class="zm-warn" style="padding:8px 10px;font-size:11px;background:#2a1d00;border:1px solid #E67E00;border-radius:6px;margin-top:6px;color:#ff9800">
+            ⚠ ${escapeHtmlSafe(agg.spotWarn)}
+        </div>` : "";
     const html = `
         ${volEditHtml}
         <div class="zm-formula">📐 ${formula}</div>
         ${flushBox}
-        ${atfWarnBox}${mkppWarnBox}
+        ${atfWarnBox}${mkppWarnBox}${spotWarnBox}
         ${costs.map((c, i) => {
-      const canPick = agg.group === "engine" && i === 0 && !c.oil.isSpot && !isFixedSingle && agg.allCandidates && agg.allCandidates.length > 1;
+      const canPick = agg.group === "engine" && !c.oil.isSpot && !isFixedSingle && agg.allCandidates && agg.allCandidates.length > 1;
       const regMatches = agg.group === "engine" ? matchOilToReglament(c.oil, calcState.car?.makeShort) : [];
       const regBadge = regMatches.length ? `<button class="zm-reg-badge" data-reg-info="${escapeHtmlSafe(JSON.stringify(regMatches))}" title="Совпадение с регламентом — нажми">⭐ⓘ</button>` : "";
       const sumpSuffix = agg.group === "engine" ? calcState.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>` : " + 550₽ (снятие/установка защиты картера)" : "";
@@ -3865,7 +4377,8 @@
             <div class="zm-oil-picker">
                 <div class="zm-oil-picker-head">Выбери масло (${agg.allCandidates.length} подходящих):</div>
                 ${agg.allCandidates.map((o) => {
-      const isCurrent = costs[0] && costs[0].oil.b + "_" + costs[0].oil.n === o.b + "_" + o.n;
+      const cur = costs.find((c) => !c.oil.isSpot) || costs[0];
+      const isCurrent = cur && cur.oil.b + "_" + cur.oil.n === o.b + "_" + o.n;
       const regOpt = matchOilToReglament(o, calcState.car?.makeShort);
       const regMark = regOpt.length ? '<span class="zm-reg-mark" title="по регламенту">⭐</span>' : "";
       const rk = (agg.ranked || []).find((r) => r.oil === o);
@@ -4737,10 +5250,11 @@
   function normalizeAdditive(s) {
     return String(s || "").toLowerCase().replace(/[ёе]/g, "е").replace(/[\s\-\/]+/g, "").trim();
   }
-  var RANK_ORDER_ZM = ["critical", "important", "minor", "conflict", "info", "noise"];
+  var RANK_ORDER_ZM = ["critical", "important", "assumed", "minor", "conflict", "info", "noise"];
   var RANK_TITLE_ZM = {
     critical: "решают выбор",
     important: "важны физически",
+    assumed: "выведено по марке, году и топливу",
     minor: "перекрыты более строгими",
     conflict: "противоречат профилю",
     info: "уровень качества",
@@ -4752,11 +5266,12 @@
     if (!a || !a.items.length) {
       return `<div class="zm-app-list">${plain || "<i>не определены</i>"}</div>`;
     }
-    const decisive = a.items.filter((i) => i.rank === "critical" || i.rank === "important").length;
+    const decisive = a.items.filter((i) => ["critical", "important", "assumed"].includes(i.rank)).length;
     const need = [];
     if (a.profile.ashGate != null) need.push(`${sapsLabel(a.profile.ashGate)} (зола ≤ ${a.profile.ashGate}%)`);
     const hths = a.profile.hthsGate != null ? a.profile.hthsGate : a.profile.hthsMin;
     if (hths != null) need.push(`HTHS ≥ ${hths}`);
+    const ruleNote = a.rule && a.rule.applied ? `<div class="zm-app-rule" title="${escapeHtmlSafe(a.rule.why)}">≈ допусков в базе нет — требование выведено по марке, году и топливу</div>` : "";
     const groups = RANK_ORDER_ZM.map((rank) => ({
       rank,
       items: a.items.filter((i) => i.rank === rank)
@@ -4764,12 +5279,13 @@
     const warn = a.unionSuspect ? `<div class="zm-app-warn" title="${escapeHtmlSafe(a.conflicts[0] && a.conflicts[0].note || "")}">⚠ список собран из паспортов рекомендованных масел, а не из требований мотора</div>` : "";
     return `<div class="zm-app-list zm-app-list-col">
             <div class="zm-app-sum"><b>решают ${decisive} из ${a.items.length}</b>${need.length ? " · мотору нужно: " + escapeHtml(need.join(", ")) : ""}${agg.requiredClass ? " · класс " + escapeHtml(agg.requiredClass) : ""}</div>
+            ${ruleNote}
             ${warn}
             ${groups.map((g) => `
                 <div class="zm-app-grp">
                     <div class="zm-app-grp-h">${RANK_TITLE_ZM[g.rank]} (${g.items.length})</div>
                     <div>${g.items.map(
-      (it) => `<span class="zm-app-tag zm-app-${it.rank}" title="${escapeHtmlSafe(it.label + "\n" + it.what + "\n\n" + it.why)}">${escapeHtml(it.label)}${it.fromEvidence ? " +" : ""}</span>`
+      (it) => `<span class="zm-app-tag zm-app-${it.rank}" title="${escapeHtmlSafe(it.label + "\n" + it.what + "\n\n" + it.why)}">${escapeHtml(it.label)}${it.fromEvidence ? " +" : it.fromRule ? " ≈" : ""}</span>`
     ).join("")}</div>
                 </div>`).join("")}
         </div>`;
@@ -5502,6 +6018,9 @@
             /* цвет = что решает выбор, а что попало в список из чужого паспорта */
             .zm-app-critical{background:#3a1420;color:#ff8a80;border:1px solid #b04a4a}
             .zm-app-important{background:#12301c;color:#7fd18a;border:1px solid #3f7a4a}
+            /* пунктир = требование выведено по марке и годам, а не прочитано у машины */
+            .zm-app-assumed{background:#12301c;color:#7fd18a;border:1px dashed #3f7a4a}
+            .zm-app-rule{color:#7fd18a;font-size:10px;margin-top:4px;cursor:help}
             .zm-app-minor{background:#14203a;color:#7fa8e8;border:1px solid #3a5a8a}
             .zm-app-conflict{background:#1a1a20;color:#8a8a95;border:1px dashed #b04a4a;text-decoration:line-through}
             .zm-app-info{background:#1a1c28;color:#7a8090}

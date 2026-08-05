@@ -390,8 +390,16 @@ function buildOilRater(analysis) {
                 let via = null;
                 for (const t of tk) { const lab = covered.get(t); if (lab) { via = lab.via; break; } }
                 // Старший допуск покрывает младший, но это не прямое
-                // одобрение — засчитываем 70% веса.
-                if (via) { gained = Math.round(item.weight * 0.7); hier.push({ covers: item.label, via }); }
+                // одобрение — засчитываем 70% веса. Исключение — требование,
+                // выведенное правилом по марке и годам: сама ступень там
+                // угадана по эпохе, и разницу между «прямым» и «покрытым»
+                // допуском она не переживает. Иначе BMW 320i 2008 без допусков
+                // уезжал на масле за 2400 ₽ с прямым LL-01 вместо такого же
+                // подходящего за 1600 ₽ со старшим LL-04.
+                if (via) {
+                    gained = item.rank === 'assumed' ? item.weight : Math.round(item.weight * 0.7);
+                    hier.push({ covers: item.label, via });
+                }
             }
             if (!gained) continue;
             const key = requirementGroup(item);
@@ -427,15 +435,19 @@ function buildOilRater(analysis) {
 function oilMeetsClass(oil, cls) {
     if (hasLiteralAceaClass(oil, cls)) return true;
     const p = oilProfile(oil.a || []);
-    if (p.ash == null || p.hthsMin == null) return false;
+    if (p.hthsMin == null) return false;
     const thick = p.hthsMin >= 3.5;
     switch (cls) {
-        // Полнозольные классы золу не ограничивают — важен только HTHS.
+        // Полнозольные классы золу не ограничивают — важен только HTHS, и
+        // зольность масла для них можно не знать вовсе. Иначе японские масла
+        // с одним лишь ILSAC в паспорте (Molygen, ZEPRO, ZIC X9) выпадали из
+        // выбора именно там, где они и нужны, — на машинах под ILSAC.
         case 'A3B4': return thick;
         case 'A5B5': return !thick;
-        case 'C3':   return thick && p.ash <= ASH_MID;
-        case 'C2':   return !thick && p.ash <= ASH_MID;
-        case 'C1':   return p.ash <= ASH_LOW;
+        // Малозольные классы — наоборот: без замера по золе подтвердить нечем.
+        case 'C3':   return p.ash != null && thick && p.ash <= ASH_MID;
+        case 'C2':   return p.ash != null && !thick && p.ash <= ASH_MID;
+        case 'C1':   return p.ash != null && p.ash <= ASH_LOW;
         default:     return false;
     }
 }
@@ -528,11 +540,12 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     // ошибка «залили гуще» дешевле, чем «залили жиже».
     let requiredClass = null;
     if (!calcState.ignoreApprovals) {
-        // Класс выводим из профиля только там, где у машины есть РОДНЫЕ допуска
-        // марки. У японцев и корейцев их нет вовсе, и профиль тогда собирается
-        // из классов ACEA чужих паспортов — то есть ровно из того шума, ради
-        // которого всё и затевалось. Для таких машин работает прежний разбор
-        // сырых строк: он хотя бы не выдаёт густое A3/B4 мотору под ILSAC.
+        // Класс выводим из профиля там, где он на чём-то стоит: родные допуска
+        // марки ('high'/'medium') или правило по марке, году и топливу
+        // ('assumed'). Не годится только профиль из классов ACEA чужих
+        // паспортов ('low') — это ровно тот шум, ради которого всё и
+        // затевалось. Для таких машин работает прежний разбор сырых строк: он
+        // хотя бы не выдаёт густое A3/B4 мотору под ILSAC.
         if (analysis && analysis.confidence !== 'low' && analysis.confidence !== 'none') {
             requiredClass = aceaClassOfProfile(analysis.profile);
         }
@@ -610,7 +623,11 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     // там выведен из классов ACEA в чужих паспортах, и docs/DOPUSKI.md прямо
     // говорит держать блокировки на нём мягкими. Убирать по такой догадке своё
     // масло с половины корейского парка нельзя — оставляем с пометкой.
-    const softClass = !analysis || analysis.confidence === 'low' || analysis.confidence === 'none';
+    // 'assumed' сюда же: класс выведен из марки и года, а не из допуска самой
+    // машины. Физически опасное масло всё равно не пройдёт — его снимает
+    // blocked (по золе правило блокирует наравне с настоящим допуском).
+    const softClass = !analysis || analysis.confidence === 'low' ||
+                      analysis.confidence === 'none' || analysis.confidence === 'assumed';
     let spot = null;
     if (spotFit.length) {
         spot = pickSpot(spotFit);
@@ -654,8 +671,14 @@ function analyzeApprovalsFor(agg, calcState, approvals) {
     const car = calcState.car || {};
     return analyzeCarApprovals(approvals, {
         make: car.makeShort || car.make || '',
+        model: car.modelShort || car.model || '',
         fuelType: car.fuelType,
         yearFrom: car.yearFrom,
+        // Марка, год и топливо нужны правилам из shared/oemRules.js, а мощность
+        // с объёмом — чтобы правило не накрыло наддувную версию семейства,
+        // которой нужно масло гуще базовой.
+        bhp: car.bhp,
+        engineVolume: car.volume,
         evidence: specsFromProductNames(agg.motulProducts || []),
     });
 }

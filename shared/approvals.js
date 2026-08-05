@@ -26,8 +26,17 @@
 // Дальше — марка. MB 229.51 обязателен на Mercedes и не значит НИЧЕГО на Kia:
 // это чужое обязательство, попавшее в список из паспорта масла.
 //
+// Третий источник — правила «марка + годы + топливо» (shared/oemRules.js): у
+// каждой пятой машины список допусков пуст вовсе, и тогда единственное, что мы
+// про мотор знаем достоверно, — это его марка, год и топливо. Правило отдаёт
+// такие же строки допусков, и разбираются они этим же кодом; отличается только
+// доверие (`confidence: 'assumed'`) и то, что правило уступает любому родному
+// допуску машины.
+//
 // Подробный разбор с обоснованием весов: docs/DOPUSKI.md
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { oemRuleFor } from './oemRules.js';
 
 // Пределы сульфатной золы (% масс.) по классам ACEA. Значения — верхняя
 // граница класса; используем их как «сколько золы масло МОЖЕТ иметь».
@@ -651,8 +660,17 @@ function hthsGateFor(nativeSpecs) {
 // Надёжный признак фильтра — не допуск, а сама машина: дизели получили DPF
 // с Euro 5, бензиновые — GPF с Euro 6d. Плюс случай, когда марка сама не
 // разрешает ничего полнозольного.
+//
+// Границы по годам — грубое приближение, и там, где про марку известно точнее,
+// правило из oemRules.js их поправляет (`filter`): у PSA сажевый фильтр стоит
+// с 2000 года, у Mercedes — с 2005, а у Лады его нет вовсе ни в каком году.
+// Это единственное, что правило говорит ВСЕГДА, даже когда допуска у машины
+// нашлись: наличие фильтра — свойство железа, а не списка допусков.
 
-function ashGateFor(nativeSpecs, ctx) {
+function ashGateFor(nativeSpecs, ctx, rule) {
+    if (rule && rule.filter === 'none') return null;
+    if (rule && (rule.filter === 'dpf' || rule.filter === 'gpf')) return ASH_MID;
+
     const year = Number(ctx.yearFrom) || 0;
     const diesel = isDieselLike(ctx.fuelType);
     if (diesel && year >= 2009) return ASH_MID;      // Euro 5: сажевый фильтр
@@ -776,6 +794,11 @@ const NON_ENGINE_WHY = {
 export const RANKS = {
     critical:  { weight: 100, label: 'ключевой',       color: 'red'   },
     important: { weight:  40, label: 'важный',         color: 'green' },
+    // Допуск не из данных машины, а из правила «марка + годы + топливо».
+    // Вес как у физического класса ACEA: это настоящее требование завода к
+    // поколению моторов, но конкретно эта машина его не подтверждала — поэтому
+    // ниже родного допуска (100) и с отдельной подписью в интерфейсе.
+    assumed:   { weight:  40, label: 'по марке и годам', color: 'violet' },
     minor:     { weight:  12, label: 'второстепенный', color: 'blue'  },
     info:      { weight:   2, label: 'справочный',     color: 'grey'  },
     noise:     { weight:   0, label: 'шум',            color: 'grey'  },
@@ -784,7 +807,7 @@ export const RANKS = {
 
 // ── Главный разбор: список допусков машины → что из него реально значит ──────
 //
-// ctx: { make, fuelType, yearFrom, evidence }
+// ctx: { make, model, fuelType, yearFrom, bhp, engineVolume, evidence }
 //   evidence — допуска, подтверждённые вторым независимым источником (у нас
 //   это продукты Motul для конкретной машины). Motul отвечает на запрос по
 //   VIN-подобной модификации, поэтому его список короче и ближе к правде.
@@ -793,7 +816,14 @@ export const RANKS = {
 //   items      — по одной записи на исходную строку, с рангом и текстом подсказки
 //   profile    — { ash, hthsMin, visc } — что мотору реально нужно
 //   conflicts  — найденные физические противоречия
-//   confidence — 'high' | 'medium' | 'low': насколько можно опираться на profile
+//   rule       — сработавшее правило по марке/годам и применено ли оно
+//   confidence — насколько можно опираться на profile:
+//                'high'    — родной допуск марки, подтверждённый Motul;
+//                'medium'  — родной допуск марки;
+//                'assumed' — допусков у машины нет, требование выведено по
+//                            марке, годам и топливу (shared/oemRules.js);
+//                'low'     — только классы ACEA из чужих паспортов;
+//                'none'    — список вообще не про моторное масло.
 
 export function analyzeCarApprovals(carApprovals, ctx = {}) {
     const families = makeFamilies(ctx.make);
@@ -821,17 +851,31 @@ export function analyzeCarApprovals(carApprovals, ctx = {}) {
     const nonOilCount = parsed.filter(p => p.nonOil).length;
     const notOil = parsed.length >= 5 && nonOilCount >= parsed.length * 0.5;
 
+    // Третий источник: правило «марка + годы + топливо». Оно уступает родному
+    // допуску машины (тот точнее любой эпохи) и вступает в дело только там, где
+    // родного допуска нет вовсе: список пуст, или в нём одни чужие паспорта, или
+    // источник вообще уехал не в тот продукт. Зато про сажевый фильтр правило
+    // говорит всегда — см. ashGateFor.
+    const rule = oemRuleFor(ctx);
+    const ruleSpecs = rule ? parseApprovals(rule.specs).flatMap(p => p.specs) : [];
+
     // Второй источник ДОПОЛНЯЕТ родные допуска, а не заменяет их. Замена была
     // ошибкой: у Renault Duster Motul предлагает масло под RN 17 (допуск для
     // моторов Euro 6), и профиль строился по нему одному — а настоящие RN0700
     // и RN0710 из списка машины выпадали из расчёта совсем.
-    let profileSpecs, confidence;
-    if (notOil) {
-        profileSpecs = [];
-        confidence = 'none';
-    } else if (nativeSpecs.length || evidenceNative.length) {
+    let profileSpecs, confidence, ruleApplied = false;
+    if (!notOil && (nativeSpecs.length || evidenceNative.length)) {
         profileSpecs = [...nativeSpecs, ...evidenceNative];
         confidence = confirmed.length ? 'high' : 'medium';
+    } else if (ruleSpecs.length) {
+        // Правило лучше и пустоты, и классов ACEA из чужих паспортов: это
+        // требование завода к поколению моторов, а не след чужого масла.
+        profileSpecs = ruleSpecs;
+        confidence = 'assumed';
+        ruleApplied = true;
+    } else if (notOil) {
+        profileSpecs = [];
+        confidence = 'none';
     } else {
         // Родных допусков нет вовсе (японцы, корейцы) — остаются классы ACEA.
         profileSpecs = parsed.flatMap(p => p.specs).filter(s => s.role === 'acea');
@@ -840,15 +884,15 @@ export function analyzeCarApprovals(carApprovals, ctx = {}) {
     const profile = profileOfSpecs(profileSpecs);
     // Предел по золе задаёт наличие сажевого фильтра, а не самый строгий
     // допуск в свалке. Считаем по родным допускам машины и по ней самой.
-    profile.ashGate = notOil ? null : ashGateFor(nativeSpecs, ctx);
-    profile.hthsGate = notOil ? null : (hthsGateFor(nativeSpecs) ?? profile.hthsMin);
+    profile.ashGate = ashGateFor(nativeSpecs, ctx, rule);
+    profile.hthsGate = notOil && !ruleApplied ? null : (hthsGateFor(nativeSpecs) ?? profile.hthsMin);
 
     const carLabel = String(ctx.make || 'этой машины').trim();
 
     const items = parsed.map(p => {
         const primary = p.specs[0] || null;
         const nativeSpec = p.specs.find(isNative) || null;
-        const rank = rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidence });
+        const rank = rankApproval({ p, primary, nativeSpec, profile, confirmedIds, notOil });
         return {
             raw: p.raw,
             parts: p.parts,
@@ -862,7 +906,7 @@ export function analyzeCarApprovals(carApprovals, ctx = {}) {
             weight: RANKS[rank].weight,
             what: p.nonOil ? NON_ENGINE_WHAT[p.kind]
                 : (primary ? primary.what : 'Строка не опознана справочником допусков.'),
-            why: explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence }),
+            why: explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence, notOil }),
             ash: primary ? primary.ash : null,
             hths: primary ? primary.hths : null,
         };
@@ -893,14 +937,54 @@ export function analyzeCarApprovals(carApprovals, ctx = {}) {
         });
     }
 
+    // Требования, выведенные правилом по марке и годам. Показываем их такими же
+    // плашками, как настоящие допуска, — но отдельным рангом, чтобы оператор
+    // видел разницу между «так написано у машины» и «так завод требовал в эту
+    // эпоху». Если такая строка уже есть в списке машины (класс ACEA из чужого
+    // паспорта случайно совпал с правилом), плашку не дублируем — поднимаем вес
+    // существующей: это ровно то же требование, просто подтверждённое дважды.
+    if (ruleApplied) {
+        for (const s of ruleSpecs) {
+            const same = items.find(it => (it.parts || []).some(part => {
+                const found = findSpec(part);
+                return found && found.id === s.id;
+            }));
+            const why = `У этой машины допусков в базе нет — требование выведено по ` +
+                `марке, году и топливу. ${rule.why}` + physicsTail(s) +
+                '\nЭто ориентир по поколению моторов, а не допуск конкретной машины: ' +
+                'если знаешь допуск точно — впиши его в карточку, он важнее правила.';
+            if (same) {
+                if (same.weight < RANKS.assumed.weight) {
+                    same.rank = 'assumed';
+                    same.weight = RANKS.assumed.weight;
+                }
+                same.fromRule = true;
+                same.why = why;
+                continue;
+            }
+            items.push({
+                raw: s.label, parts: [s.label], label: s.label,
+                family: s.family || s.role, role: s.role,
+                known: true, native: !!(s.family && familySet.has(s.family)),
+                confirmed: false, fromRule: true,
+                rank: 'assumed', weight: RANKS.assumed.weight,
+                what: s.what, why,
+                ash: s.ash, hths: s.hths,
+            });
+        }
+    }
+
     const counts = {};
     for (const it of items) counts[it.rank] = (counts[it.rank] || 0) + 1;
 
     return {
         items, profile, conflicts, confidence, families, counts, notOil, missing,
+        // Правило по марке/годам: сработало ли оно, применено ли как требование
+        // (applied) и что именно оно сказало про сажевый фильтр.
+        rule: rule ? { ...rule, applied: ruleApplied } : null,
         // Список — объединение паспортов масел, а не требования мотора
         unionSuspect: conflicts.some(c => c.hard) || countFamilies(parsed) >= 3,
-        decisive: items.filter(i => i.rank === 'critical' || i.rank === 'important'),
+        decisive: items.filter(i => ['critical', 'important', 'assumed'].includes(i.rank)),
     };
 }
 
@@ -910,11 +994,12 @@ function countFamilies(parsed) {
     return fams.size;
 }
 
-function rankApproval({ p, primary, nativeSpec, profile, confirmedIds, confidence }) {
+function rankApproval({ p, primary, nativeSpec, profile, confirmedIds, notOil }) {
     if (p.nonOil) return 'noise';
     if (!primary) return 'noise';
     if (primary.role === 'api') return 'info';
-    if (confidence === 'none') return 'noise';
+    // Список собран не по маслу: даже опознанные строки в нём ничего не значат.
+    if (notOil) return 'noise';
 
     const target = nativeSpec || (primary.role === 'acea' ? primary : null);
 
@@ -970,7 +1055,7 @@ function matchesProfile(spec, profile) {
 
 // ── Текст подсказки: почему этот допуск важен или почему на него плевать ─────
 
-function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence }) {
+function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confidence, notOil }) {
     const famLabel = primary && primary.family ? (FAMILY_LABEL[primary.family] || primary.family) : '';
 
     if (p.nonOil) return NON_ENGINE_WHY[p.kind] || NON_ENGINE_WHY.coolant;
@@ -1018,9 +1103,10 @@ function explainRank({ rank, p, primary, nativeSpec, profile, carLabel, confiden
     }
 
     // noise
-    if (confidence === 'none') {
+    if (notOil) {
         return 'Список допусков этой машины собран не по маслу, поэтому ни одна строка в нём ' +
-               'не считается требованием. Подбор идёт как для машины без допусков.';
+               'не считается требованием. Подбор идёт как для машины без допусков' +
+               (confidence === 'assumed' ? ' — по марке, году и топливу.' : '.');
     }
     if (primary && primary.role === 'oem') {
         return `Заводской допуск ${famLabel} — к ${carLabel} отношения не имеет. Попал в список потому, ` +
@@ -1054,6 +1140,14 @@ export function oilFitsProfile(oilApprovals, analysis) {
 
     let blocked = false, penalty = 0;
 
+    // Насколько жёстко можно опираться на профиль. По золе доверяем и правилу
+    // «марка + годы + топливо» (`assumed`): фильтр — это железо машины, а не
+    // строка в списке, и ошибка по нему необратима. По HTHS правило только
+    // штрафует: какой именно HTHS завод разрешил конкретному мотору, из года
+    // выпуска не следует, а лишний блок оставит оператора без ассортимента.
+    const hardAsh  = confidence === 'high' || confidence === 'medium' || confidence === 'assumed';
+    const hardHths = confidence === 'high' || confidence === 'medium';
+
     // Зола. Режем только там, где есть что забивать: profile.ashGate стоит
     // лишь при реальном сажевом фильтре. Разницу между средне- и малозольным
     // (0.8 против 0.5) держим мягкой — она влияет на скорость забивания
@@ -1061,7 +1155,7 @@ export function oilFitsProfile(oilApprovals, analysis) {
     if (profile.ashGate != null && prof.ash != null) {
         if (prof.ash > profile.ashGate) {
             const note = `масло ${sapsLabel(prof.ash)}, мотору нужно ${sapsLabel(profile.ashGate)}`;
-            if (confidence === 'high' || confidence === 'medium') { blocked = true; notes.push(note); }
+            if (hardAsh) { blocked = true; notes.push(note); }
             else { penalty += 40; notes.push(note + ' (профиль выведен неточно)'); }
         } else if (profile.ash != null && prof.ash > profile.ash) {
             penalty += 15;
@@ -1075,7 +1169,7 @@ export function oilFitsProfile(oilApprovals, analysis) {
     // но железо от этого не умирает, а альтернативы в наличии может не быть.
     const hthsGate = profile.hthsGate != null ? profile.hthsGate : profile.hthsMin;
     if (hthsGate != null && prof.hthsMin != null && prof.hthsMin + 0.001 < hthsGate) {
-        if (confidence === 'high' || confidence === 'medium') {
+        if (hardHths) {
             blocked = true;
             notes.push(`HTHS масла ниже требуемого ${hthsGate}`);
         } else {
