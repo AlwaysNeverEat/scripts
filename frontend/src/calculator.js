@@ -43,9 +43,11 @@ export function initCalculator(dbRecord) {
     const data = dbRecordToData(dbRecord);
     const carApprovals = Array.isArray(dbRecord.car_approvals) ? dbRecord.car_approvals : [];
 
-    // Ручные правки списка масел, сохранённые для этой машины («Нашли ошибку?»)
+    // Закреплённое для этой машины масло (oil_overrides.pin). Список «какие
+    // масла вообще предлагать» отсюда убран: держать у каждой машины галочки на
+    // весь каталог магазина оказалось бесполезно — выбор и так делают допуски,
+    // цена и наличие на станции, а лишний фильтр только прятал подходящее масло.
     const ov = dbRecord.oil_overrides || {};
-    const excludeOils = new Set(Array.isArray(ov.exclude) ? ov.exclude : []);
     const pinnedOverride = (ov.pin && typeof ov.pin === 'object') ? { ...ov.pin } : {};
 
     const defaultPartial = shouldDefaultToPartial(car, data);
@@ -63,7 +65,6 @@ export function initCalculator(dbRecord) {
         showApprovals: new Set(),
         expandedOilApp: new Set(),
         oilOverride: pinnedOverride,
-        excludeOils,
         showOilPicker: null,
         ignoreApprovals: false,
         showWithSump: false,
@@ -472,7 +473,7 @@ function renderAggCard(agg, calcState, carApprovals) {
     const appCount = agg.group === 'engine'
         ? (agg.approvalAnalysis ? agg.approvalAnalysis.items.length : carApprovals.length)
         : (agg.approvals || []).length;
-    // Допуска агрегатов теперь правятся вручную («Нашли ошибку?»), поэтому у
+    // Допуска агрегатов теперь правятся вручную («Исправить данные»), поэтому у
     // всех неспецифичных агрегатов подпись одна — «Допуска» (раньше у штатных
     // стояло «Продукты Motul», хотя это тот же список).
     const appLabel = agg.group === 'engine' ? 'Допуска машины' : 'Допуска';

@@ -257,7 +257,7 @@ export function pickAtfOils(motulProducts, atfDefs) {
 
 export function getAggregates(data) {
     const out = [];
-    // Название агрегата можно переопределить вручную («Нашли ошибку?»): если в
+    // Название агрегата можно переопределить вручную («Исправить данные»): если в
     // данных лежит непустой label — берём его, иначе штатное имя по типу.
     const lbl = (a, def) => (a && typeof a.label === 'string' && a.label.trim()) ? a.label.trim() : def;
     const renamed = (a) => !!(a && typeof a.label === 'string' && a.label.trim());
@@ -282,7 +282,7 @@ export function getAggregates(data) {
     if (data.diffRear)  out.push({ key:'diffRear',  group:'gear', ...pickTotal(data.diffRear),  label: lbl(data.diffRear, 'Дифференциал (зад)'),   labelOverride: renamed(data.diffRear) });
 
     // Пользовательские агрегаты — их добавляют/редактируют вручную на странице
-    // машины («Нашли ошибку?»): свои названия, объём и допуска. Хранятся в
+    // машины («Исправить данные»): свои названия, объём и допуска. Хранятся в
     // fluid_capacities.custom как массив, поэтому база (JSONB) не требует миграции.
     const custom = Array.isArray(data.custom) ? data.custom : [];
     for (const c of custom) {
@@ -396,13 +396,6 @@ function buildOilRater(analysis) {
 
 export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const mileage = calcState.mileage;
-
-    // Масла, исключённые из предложений вручную (oil_overrides со страницы машины)
-    const excluded = calcState.excludeOils instanceof Set
-        ? calcState.excludeOils
-        : new Set(calcState.excludeOils || []);
-    const notExcluded = (o) => !excluded.has(o.b + '_' + o.n);
-    shopOils = excluded.size ? shopOils.filter(o => o.isSpot || notExcluded(o)) : shopOils;
 
     if (mileage === '>=200') {
         const oils10w40 = shopOils.filter(o => o.v === '10W-40' && !o.isSpot);

@@ -8,14 +8,20 @@ const router = Router();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+// «Артикул неизвестен» — законное состояние, а не ошибка ввода. Раньше пустое
+// поле требовало отметки absent:true, то есть человек, не знающий артикул
+// салонного фильтра, был обязан заявить «фильтра у машины нет» — и заодно не
+// мог сохранить НИЧЕГО другого у этой машины: правка тега упиралась в 400 по
+// фильтрам. Пустое поле = не знаем, absent:true = фильтра действительно нет.
 function validateFilters(fpn) {
-  if (!fpn || typeof fpn !== 'object') return 'filter_part_numbers must be an object';
+  if (!fpn || typeof fpn !== 'object' || Array.isArray(fpn)) return 'filter_part_numbers must be an object';
   for (const key of ['vf', 'mf', 'sf']) {
     const entry = fpn[key];
-    if (!entry || typeof entry !== 'object') return `filter_part_numbers.${key} is missing`;
-    if (entry.absent !== true && (!entry.part || typeof entry.part !== 'string' || !entry.part.trim())) {
-      return `filter_part_numbers.${key}: provide a part number or set absent:true`;
-    }
+    if (entry === undefined || entry === null) continue;
+    if (typeof entry !== 'object' || Array.isArray(entry)) return `filter_part_numbers.${key} must be an object`;
+    if (entry.absent === true) continue;
+    if (entry.part === undefined || entry.part === null || entry.part === '') continue;
+    if (typeof entry.part !== 'string') return `filter_part_numbers.${key}.part must be a string`;
   }
   return null;
 }
