@@ -12,6 +12,7 @@ import { isDieselFuel } from './fuel.js';
 import { crmPrefersPartial } from './crmQuirks.js';
 import {
     analyzeCarApprovals, specsFromProductNames, oilFitsProfile, aceaClassOfProfile,
+    oilProfile, RANKS, ASH_MID, ASH_LOW,
 } from './approvals.js';
 
 export { analyzeCarApprovals, specsFromProductNames, oilFitsProfile, aceaClassOfProfile, sapsLabel, RANKS } from './approvals.js';
@@ -354,8 +355,20 @@ function requirementGroup(item) {
     return item.family || item.role || item.label;
 }
 
+// Ниже какого веса совпадение перестаёт быть настоящим требованием. Второй
+// множитель — скидка за покрытие по иерархии (0.7): «важный» допуск, закрытый
+// старшим (40 × 0.7 = 28), всё ещё требование, а вот «второстепенная» ветка
+// (12) и уровень API (2) — уже нет.
+const CORE_MIN = Math.round(RANKS.important.weight * 0.7);
+
 // Строит функцию оценки масла по разобранным допускам машины.
-// Возвращает { oil, score, direct, hier, blocked, fitNotes }.
+// Возвращает { oil, score, core, direct, hier, blocked, fitNotes }.
+//
+// score — полный рейтинг, по нему строится порядок в пикере.
+// core  — только настоящие обязательства (родной допуск марки, класс ACEA по
+//         физике). Два масла с одинаковым core закрывают ровно одни и те же
+//         требования мотора, и разница в score между ними — это лишние строки
+//         в паспорте, за которые клиенту платить не за что.
 function buildOilRater(analysis) {
     const scoredItems = analysis ? analysis.items.filter(i => i.weight > 0) : [];
     return (oil) => {
@@ -384,14 +397,69 @@ function buildOilRater(analysis) {
             const key = requirementGroup(item);
             if (gained > (best.get(key) || 0)) best.set(key, gained);
         }
-        let score = 0;
-        for (const v of best.values()) score += v;
+        let score = 0, core = 0;
+        for (const v of best.values()) { score += v; if (v >= CORE_MIN) core += v; }
         const fit = analysis
             ? oilFitsProfile(oil.a, analysis)
             : { blocked: false, penalty: 0, notes: [] };
-        return { oil, score: score - fit.penalty, direct, hier,
+        // Мягкое отклонение по физике (масло гуще, чем рассчитан мотор; зола
+        // выше желаемой) вычитается и из core: иначе «одинаково закрывают
+        // требования» получалось у масла, которое мотору не совсем подходит, и
+        // выбор по цене отдавал предпочтение именно ему.
+        return { oil, score: score - fit.penalty, core: core - fit.penalty, direct, hier,
                  blocked: fit.blocked, fitNotes: fit.notes };
     };
+}
+
+// ── Есть ли у масла требуемый класс ACEA ─────────────────────────────────────
+// Литеральной строки «ACEA C3» в паспорте мало. Во-первых, у части масел класса
+// в паспорте нет вовсе: SPOT PROFESSIONAL 5W-40 несёт MB 229.51 + BMW LL-04 +
+// dexos2 — это ровно C3, но слова «ACEA» в списке нет, и масло помечалось «не
+// C3», хотя дешевле подходящих аналогов на 400–700 ₽. Во-вторых, ограничение
+// одностороннее (docs/DOPUSKI.md, §3): строгое масло подходит туда, где
+// разрешено нестрогое, а литеральная проверка резала в обе стороны — машине с
+// ACEA A3/B4 переставали предлагать C3-масла, хотя C3 строже по золе при том
+// же HTHS.
+//
+// Поэтому: сначала прямое совпадение строки, потом физика, выведенная из ВСЕХ
+// допусков масла (oilProfile берёт самый строгий по золе и самый высокий пол
+// по HTHS — то, что масло реально прошло на замерах).
+function oilMeetsClass(oil, cls) {
+    if (hasLiteralAceaClass(oil, cls)) return true;
+    const p = oilProfile(oil.a || []);
+    if (p.ash == null || p.hthsMin == null) return false;
+    const thick = p.hthsMin >= 3.5;
+    switch (cls) {
+        // Полнозольные классы золу не ограничивают — важен только HTHS.
+        case 'A3B4': return thick;
+        case 'A5B5': return !thick;
+        case 'C3':   return thick && p.ash <= ASH_MID;
+        case 'C2':   return !thick && p.ash <= ASH_MID;
+        case 'C1':   return p.ash <= ASH_LOW;
+        default:     return false;
+    }
+}
+
+// Масла, закрывающие максимум настоящих требований (максимальный core),
+// от самого дешёвого к дорогому. При равной цене впереди тот, у кого
+// совпадений больше.
+function cheapestFirst(rated) {
+    if (!rated.length) return [];
+    const bestCore = rated.reduce((m, r) => Math.max(m, r.core), -Infinity);
+    return rated.filter(r => r.core === bestCore)
+        .sort((a, b) => a.oil.price !== b.oil.price
+            ? a.oil.price - b.oil.price
+            : b.score - a.score);
+}
+
+function hasLiteralAceaClass(oil, cls) {
+    const t = tokenSet(oil.a);
+    if (cls === 'A5B5') return [...t].some(x => /A5B5|ACEAA5B5/.test(x));
+    if (cls === 'C3')   return [...t].some(x => /ACEAC3|^C3$/.test(x));
+    if (cls === 'C2')   return [...t].some(x => /ACEAC2|^C2$/.test(x));
+    if (cls === 'C1')   return [...t].some(x => /ACEAC1|^C1$/.test(x));
+    if (cls === 'A3B4') return [...t].some(x => /A3B4|ACEAA3B4/.test(x));
+    return true;
 }
 
 export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
@@ -416,12 +484,22 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         const fallback0w = mileage === '0w20'
             ? { b:'ZIC', n:'X9 FE 0W-20', price:1550, v:'0W-20', a:['API SP'], ad:[] }
             : { b:'ZIC', n:'ZERO 0W-30', price:2150, v:'0W-30', a:['ACEA C3'], ad:[] };
-        const mid0w = rated0w[0] ? rated0w[0].oil : fallback0w;
+        // Как и в основной ветке: среди масел, закрывающих одни и те же
+        // требования, берём самое дешёвое, а не первое по длине паспорта.
+        let eligible0w = rated0w.filter(r => !r.blocked);
+        if (!eligible0w.length) eligible0w = rated0w;
+        const sufficient0w = cheapestFirst(eligible0w);
+        const mid0w = sufficient0w.length ? sufficient0w[0].oil : fallback0w;
         let second0w = null;
         if (calcState.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
         agg.approvals = carApp0w;
         agg.allCandidates = rated0w.map(r => r.oil);
-        agg.topCandidates = rated0w.filter(r => r.score === (rated0w[0]?.score || 0)).map(r => r.oil);
+        agg.topCandidates = sufficient0w.map(r => r.oil);
+        agg.ranked = rated0w.map(r => ({
+            oil: r.oil, score: r.score, core: r.core, direct: r.direct, hier: r.hier,
+            classMiss: null, blocked: r.blocked || false, fitNotes: r.fitNotes || [],
+            sufficient: sufficient0w.some(s => s.oil === r.oil),
+        }));
         return { mid: mid0w, spot: second0w };
     }
 
@@ -442,16 +520,6 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const needC2   = [...effectiveCarTokens].some(t => /ACEAC2|^C2$/.test(t));
     const needC1   = [...effectiveCarTokens].some(t => /ACEAC1|^C1$/.test(t));
     const needA3B4 = [...effectiveCarTokens].some(t => /A3B4|ACEAA3B4|ACEAA3|ACEAB4/.test(t));
-
-    const hasAceaClass = (oil, cls) => {
-        const t = tokenSet(oil.a);
-        if (cls === 'A5B5') return [...t].some(x => /A5B5|ACEAA5B5/.test(x));
-        if (cls === 'C3')   return [...t].some(x => /ACEAC3|^C3$/.test(x));
-        if (cls === 'C2')   return [...t].some(x => /ACEAC2|^C2$/.test(x));
-        if (cls === 'C1')   return [...t].some(x => /ACEAC1|^C1$/.test(x));
-        if (cls === 'A3B4') return [...t].some(x => /A3B4|ACEAA3B4/.test(x));
-        return true;
-    };
 
     // Требуемый класс берём из выведенного профиля — он учитывает и родство
     // марки, и второй источник. Старое сканирование сырых строк оставлено
@@ -487,38 +555,74 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     // выбор берём из безопасного подмножества.
     const ratedAll = poolAll.map(rateOil);
     for (const r of ratedAll) {
+        r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
         if (!requiredClass) continue;
-        if (hasAceaClass(r.oil, requiredClass)) r.score += 30;
+        if (r.classOk) r.score += 30;
         else r.classMiss = requiredClass;
     }
     ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
 
-    // Основной выбор (идёт в отчёт) исключает только физически опасные масла.
-    // Промах мимо требуемого класса ACEA сам по себе НЕ исключает: ограничение
-    // одностороннее. Мотору, которому хватает полнозольного (BMW LL-01), можно
-    // лить среднезольное C3 — оно строже, а строже всегда безопасно. Обратное
-    // (полнозольное в мотор с сажевым фильтром) как раз и ловит blocked.
-    // Совпадение класса влияет через бонус к рейтингу, а не через фильтр.
-    let eligible = ratedAll.filter(r => !r.blocked);
+    // Основной выбор (идёт в отчёт) исключает физически опасные масла и те, у
+    // которых нет требуемого класса. Ограничение одностороннее и уже учтено в
+    // oilMeetsClass: мотору, которому хватает полнозольного (BMW LL-01), масло
+    // C3 подходит — оно строже, а строже всегда безопасно. Обратное
+    // (полнозольное в мотор с сажевым фильтром) ловит blocked.
+    // Пустой список для оператора хуже компромисса, поэтому условия
+    // ослабляются по одному шагу, а не отбрасываются разом.
+    let eligible = ratedAll.filter(r => !r.blocked && r.classOk);
+    if (!eligible.length) eligible = ratedAll.filter(r => !r.blocked);
     if (!eligible.length) eligible = ratedAll;
 
-    const maxScore   = eligible[0] ? eligible[0].score : 0;
-    const topMatches = eligible.filter(r => r.score === maxScore);
-    topMatches.sort((a, b) => a.oil.price - b.oil.price);
-    const midIdx = topMatches.length <= 2 ? 0 : Math.floor(topMatches.length / 2);
-    const mid = topMatches[midIdx].oil;
-
-    const needPro = needA5B5 || needC1 || needC2 || needC3 || isDieselVehicle;
-    const spotCandidates = shopOils.filter(o => o.isSpot && o.v === targetVisc);
-    let spot;
-    if (requiredClass) {
-        const spotWithClass = spotCandidates.filter(o => hasAceaClass(o, requiredClass));
-        if (spotWithClass.length) {
-            spot = spotWithClass.find(o => o.tier === (needPro ? 'pro' : 'optimal')) || spotWithClass[0];
-        }
+    // Про машину не известно ничего: ни допусков, ни выведенного класса (или
+    // оператор снял галочку «учитывать допуска»). Тогда «дешевле» не должно
+    // означать «жиже»: масло A5/B5 или ILSAC в мотор, рассчитанный на A3/B4, —
+    // это тонкая плёнка и износ вкладышей, а обратная ошибка стоит только
+    // расхода топлива. Оставляем в выборе густые — то же правило, по которому
+    // запасной разбор сырых строк идёт от жидкого к густому.
+    if (!requiredClass) {
+        const thick = eligible.filter(r => oilMeetsClass(r.oil, 'A3B4'));
+        if (thick.length) eligible = thick;
     }
-    if (!spot) {
-        spot = spotCandidates.find(o => o.tier === (needPro ? 'pro' : 'optimal')) || spotCandidates[0];
+
+    // Дальше решает ЦЕНА, а не длина паспорта. Масла с одинаковым core
+    // закрывают одни и те же обязательства мотора; всё, чем они ещё
+    // отличаются, — второстепенные ветки, уровни API и чужие ОЕМ-строки, за
+    // которые клиент платить не должен. Раньше здесь бралось масло из СЕРЕДИНЫ
+    // ценового ряда (midIdx), то есть калькулятор сознательно предлагал не
+    // самое дешёвое из подходящих.
+    const sufficient = cheapestFirst(eligible);
+    const mid = sufficient.length ? sufficient[0].oil : (eligible[0] || ratedAll[0] || {}).oil || null;
+
+    // Своё масло (SPOT) проходит те же проверки, что и остальные. Раньше оно
+    // выбиралось по одному лишь тиру: если ни у одного SPOT не находилось
+    // требуемого класса, срабатывал безусловный запасной вариант — и мотору с
+    // сажевым фильтром могло уехать полнозольное OPTIMAL. Теперь не подходит —
+    // не предлагаем вовсе и объясняем причину.
+    const needPro = needA5B5 || needC1 || needC2 || needC3 || isDieselVehicle;
+    agg.spotWarn = null;
+    const spotRated = shopOils.filter(o => o.isSpot && o.v === targetVisc).map(rateOil);
+    for (const r of spotRated) r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
+    const pickSpot = (list) => (list.find(r => r.oil.tier === (needPro ? 'pro' : 'optimal'))
+        || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
+    const spotFit = spotRated.filter(r => !r.blocked && r.classOk);
+    const spotSafe = spotRated.filter(r => !r.blocked);
+    // Доверие low/none — это машины без родных допусков (японцы, корейцы): класс
+    // там выведен из классов ACEA в чужих паспортах, и docs/DOPUSKI.md прямо
+    // говорит держать блокировки на нём мягкими. Убирать по такой догадке своё
+    // масло с половины корейского парка нельзя — оставляем с пометкой.
+    const softClass = !analysis || analysis.confidence === 'low' || analysis.confidence === 'none';
+    let spot = null;
+    if (spotFit.length) {
+        spot = pickSpot(spotFit);
+    } else if (softClass && spotSafe.length) {
+        spot = pickSpot(spotSafe);
+        agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass}, но допуск машины выведен ` +
+                       'неточно — решение за тобой';
+    } else if (spotRated.length) {
+        const worst = spotRated.find(r => r.blocked) || spotRated[0];
+        agg.spotWarn = worst.blocked
+            ? `SPOT ${targetVisc} не подходит: ${(worst.fitNotes || []).join('; ')}`
+            : `у SPOT ${targetVisc} нет требуемого класса ${requiredClass}`;
     }
 
     agg.approvals = approvals;
@@ -527,15 +631,18 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     // Разбор допусков — для подсказок в UI («почему этот допуск важен»)
     agg.approvalAnalysis = analysis;
     agg.allCandidates = ratedAll.map(r => r.oil);
-    agg.topCandidates = topMatches.map(r => r.oil);
+    agg.topCandidates = sufficient.map(r => r.oil);
     // Полный рейтинг с деталями совпадений — для пикера масел в UI. Масла с
     // промахом по классу и заблокированные по физике не прячем: показываем с
     // пометкой, решение за оператором.
     agg.ranked = ratedAll.map(r => ({
-        oil: r.oil, score: r.score, direct: r.direct, hier: r.hier,
+        oil: r.oil, score: r.score, core: r.core, direct: r.direct, hier: r.hier,
         classMiss: r.classMiss || null,
         blocked: r.blocked || false,
         fitNotes: r.fitNotes || [],
+        // Закрывает все требования, которые вообще закрываются этой вязкостью,
+        // и безопасно по физике — такое можно предлагать не глядя.
+        sufficient: sufficient.some(s => s.oil === r.oil),
     }));
     return { mid, spot };
 }
@@ -731,6 +838,12 @@ export function calcForAggregate(agg, calcState, carApprovals) {
         }
         return { oil, total: Math.round(total), breakdown };
     });
+
+    // Клиенту первым называем то, что дешевле, а дорогое остаётся вариантом на
+    // выбор. Порядок «сначала брендовое, потом SPOT» был историческим: слот
+    // определял происхождение масла, а не цену, и в отчёт первой строкой уходил
+    // вариант на 500–1000 ₽ дороже подходящего.
+    if (agg.group === 'engine') costs.sort((a, b) => a.total - b.total);
 
     return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
 }

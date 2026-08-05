@@ -9,6 +9,7 @@ import {
     calcForAggregate, manualOilWarn, manualWarnText,
 } from './calculator.js';
 import { getShopOils } from './oils.js';
+import { oilProfile, ASH_MID } from './approvals.js';
 
 const oilByName = (n) => getShopOils().find(o => o.n === n);
 
@@ -117,14 +118,134 @@ test('требуемый ACEA-класс не режет пикер до одн�
     const scored = agg.ranked.filter(r => r.score > 0);
     assert.ok(scored.length >= 5, `подходящих с ненулевым рейтингом ≥5, получили ${scored.length}`);
 
-    // масла без требуемого класса помечены, а не спрятаны
+    // Масла ЖИЖЕ требуемого помечены, а не спрятаны: A5/B5 — это HTHS 2.9–3.5,
+    // мотору под A3/B4 такое лить нельзя.
+    const mobilFE = agg.ranked.find(r => r.oil.n === 'Super 3000 FE 5W-30');
+    assert.ok(mobilFE, 'Mobil Super 3000 FE присутствует в списке');
+    assert.equal(mobilFE.classMiss, 'A3B4');
+
+    // А вот СТРОГОЕ масло на месте нестрогого пометки не получает: у Top Tec
+    // класса A3/B4 в паспорте нет, но по физике это C3 — та же густота
+    // (HTHS ≥ 3.5) при меньшей золе. Ограничение одностороннее
+    // (docs/DOPUSKI.md, §3), и раньше литеральная проверка резала в обе.
     const topTec = agg.ranked.find(r => r.oil.n === '5W-30 Top Tec');
     assert.ok(topTec, 'Top Tec присутствует в списке');
-    assert.equal(topTec.classMiss, 'A3B4');
+    assert.equal(topTec.classMiss, null, 'C3 подходит туда, где разрешено A3/B4');
+
     // совпавшее по классу масло — без пометки и в топе
     const leicht = agg.ranked.find(r => r.oil.n === 'Leichtlauf HC 7 5W-30');
     assert.equal(leicht.classMiss, null);
     assert.equal(agg.ranked[0].oil.n, 'Leichtlauf HC 7 5W-30', 'класс-матч + прямые допуски держат его первым');
+});
+
+// ── Цена: из одинаково подходящих предлагаем самое дешёвое ───────────────────
+// Раньше основной выбор брался из СЕРЕДИНЫ ценового ряда масел с максимальным
+// рейтингом, а карточки шли «брендовое, потом SPOT» независимо от цены. То
+// есть первой строкой в отчёт клиенту уходил не самый дешёвый из подходящих
+// вариантов, хотя разница доходила до 1000 ₽/л.
+
+test('из масел с одинаковыми обязательствами выбирается самое дешёвое', () => {
+    const state = makeState({ car: { makeShort:'SKODA', modelShort:'Octavia', fuelType:'01', yearFrom:2015 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid } = pickEngineOils(agg, getShopOils(), state,
+        ['VW 504 00','VW 507 00','ACEA C3','API SN','MB 229.51','BMW LL-04']);
+
+    assert.equal(agg.requiredClass, 'C3');
+    assert.equal(mid.n, 'Professional 5W-30 C3', 'ROLF C3 за 1700 вместо Top Tec за 2400');
+
+    // «Достаточные» — те, у кого закрыты те же настоящие требования; между
+    // ними решает цена, и список идёт по возрастанию.
+    const prices = agg.topCandidates.map(o => o.price);
+    assert.deepEqual(prices, [...prices].sort((a, b) => a - b), 'по возрастанию цены');
+    assert.equal(agg.topCandidates[0].price, Math.min(...prices));
+    assert.ok(agg.topCandidates.some(o => o.n === '5W-30 Top Tec'),
+        'Top Tec остаётся равноценным вариантом — просто дороже');
+});
+
+test('карточки масел ДВС идут от дешёвого к дорогому', () => {
+    const state = makeState({
+        car: { makeShort:'MERCEDES', modelShort:'C 180', fuelType:'01', yearFrom:2006 },
+        volumeOverride: {}, flush: 'none',
+        filters: { mf:{enabled:false}, vf:{enabled:false}, sf:{enabled:false} },
+    });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine', volume: 4.3 };
+    const calc = calcForAggregate(agg, state, ['MB 229.3']);
+
+    assert.equal(calc.costs.length, 2, 'брендовое + своё');
+    assert.ok(calc.costs[0].total < calc.costs[1].total, 'первым — то, что дешевле');
+    assert.ok(calc.costs[0].oil.isSpot, 'здесь дешевле своё масло');
+});
+
+test('«ничего не известно про машину» не означает «лей самое жидкое»', () => {
+    // Без допусков и без выведенного класса ошибка «залил жиже» стоит износа
+    // вкладышей, а «залил гуще» — расхода топлива. Дешёвое A5/B5 (HTHS 2.9–3.5)
+    // в основной выбор не идёт.
+    const state = makeState({ car: { makeShort:'TOYOTA', modelShort:'Corolla', fuelType:'01', yearFrom:2010 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid } = pickEngineOils(agg, getShopOils(), state, []);
+
+    assert.equal(agg.requiredClass, null);
+    assert.notEqual(mid.n, 'Professional 5W-30 A5/B5', 'самое дешёвое, но жидкое — не предлагаем');
+    assert.ok(agg.topCandidates.every(o => o.n !== 'Super 3000 FE 5W-30'),
+        'A5/B5-масла в основном выборе не участвуют');
+    assert.equal(mid.price, Math.min(...agg.topCandidates.map(o => o.price)),
+        'внутри густых — по-прежнему самое дешёвое');
+});
+
+test('SPOT не предлагается, когда не подходит машине', () => {
+    // Ford под WSS-M2C913-D рассчитан на HTHS 2.9–3.5. У SPOT 5W-30 оба масла
+    // густые (A3/B4 и C3) — раньше срабатывал безусловный запасной вариант «взять
+    // SPOT по тиру», и своё масло уходило в предложение вопреки допуску Ford.
+    const state = makeState({ car: { makeShort:'FORD', modelShort:'Focus', fuelType:'01', yearFrom:2014 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid, spot } = pickEngineOils(agg, getShopOils(), state,
+        ['FORD WSS-M2C913-D','ACEA A5/B5','API SL']);
+
+    assert.equal(agg.requiredClass, 'A5B5');
+    assert.equal(spot, null, 'своё масло под этот допуск не подходит');
+    assert.ok(agg.spotWarn, 'причина проговорена оператору');
+    assert.equal(mid.n, 'Professional 5W-30 A5/B5', 'брендовое подходящее — самое дешёвое из них');
+});
+
+test('SPOT остаётся с пометкой там, где класс выведен неточно', () => {
+    // У корейцев родных допусков в справочнике нет, класс собран из чужих
+    // паспортов (доверие low). Убирать по такой догадке своё масло нельзя —
+    // блокировки на low мягкие, решение за оператором.
+    const state = makeState({ car: { makeShort:'KIA', modelShort:'Rio', fuelType:'01', yearFrom:2017 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { spot } = pickEngineOils(agg, getShopOils(), state, ['API SN','ILSAC GF-5','ACEA A5/B5']);
+
+    assert.equal(agg.approvalAnalysis.confidence, 'low');
+    assert.ok(spot && spot.isSpot, 'своё масло предлагается');
+    assert.ok(agg.spotWarn && /неточно/.test(agg.spotWarn), 'но с оговоркой');
+});
+
+test('DPF-дизель: полнозольное SPOT не уезжает клиенту', () => {
+    const state = makeState({ car: { makeShort:'RENAULT', modelShort:'Megane', fuelType:'05', yearFrom:2012 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid, spot } = pickEngineOils(agg, getShopOils(), state,
+        ['RN 0700','RN 0710','ACEA A3/B4','API SN']);
+
+    assert.equal(agg.requiredClass, 'C3', 'дизель Euro 5 — сажевый фильтр');
+    assert.ok(spot, 'среднезольное SPOT PROFESSIONAL подходит');
+    assert.equal(spot.tier, 'pro');
+    // И брендовое, и своё — не полнозольные. Проверяем по физике, а не по
+    // строкам: у GM 5W-30 Dexos II в паспорте рядом с dexos2 стоят и A3/B3, и
+    // VW 502 00, но сертификацию оно прошло по золе ≤0.8%.
+    for (const oil of [mid, spot]) {
+        assert.ok(oilProfile(oil.a).ash <= ASH_MID, `${oil.n} не должно быть полнозольным`);
+    }
+});
+
+test('режим 0W-20: масло гуще требуемого проигрывает подходящему, даже если дешевле', () => {
+    // VW 508 00 — это HTHS 2.6–2.9. ZIC X9 FE (ILSAC GF-6A, HTHS от 2.9) на
+    // 400 ₽ дешевле, но для этого мотора он густой — берём ROLF с ACEA C5.
+    const state = makeState({ mileage: '0w20',
+        car: { makeShort:'VOLKSWAGEN', modelShort:'Golf', fuelType:'01', yearFrom:2020 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid } = pickEngineOils(agg, getShopOils(), state, ['VW 508 00','ACEA C5']);
+
+    assert.equal(mid.n, 'Professional 0W-20');
 });
 
 test('VW 507 00 покрывает 505 00/505 01; RN 0710 покрывает 0700; LL 04 ⊃ LL 01 ⊃ LL 98', () => {
