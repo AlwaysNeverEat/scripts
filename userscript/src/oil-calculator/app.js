@@ -1555,10 +1555,11 @@ function calcForAggregate(agg) {
     // Ранг допуска (решает / фон / шум) и причина в title: у машины их бывает
     // 30+, и без пометок оператор не видит, какие 2-3 из них реально
     // определяют выбор масла. Разбор живёт в shared/approvals.js.
-    const RANK_ORDER_ZM = ['critical', 'important', 'minor', 'conflict', 'info', 'noise'];
+    const RANK_ORDER_ZM = ['critical', 'important', 'assumed', 'minor', 'conflict', 'info', 'noise'];
     const RANK_TITLE_ZM = {
         critical:  'решают выбор',
         important: 'важны физически',
+        assumed:   'выведено по марке, году и топливу',
         minor:     'перекрыты более строгими',
         conflict:  'противоречат профилю',
         info:      'уровень качества',
@@ -1572,13 +1573,18 @@ function calcForAggregate(agg) {
             return `<div class="zm-app-list">${plain || '<i>не определены</i>'}</div>`;
         }
 
-        const decisive = a.items.filter(i => i.rank === 'critical' || i.rank === 'important').length;
+        const decisive = a.items.filter(i => ['critical', 'important', 'assumed'].includes(i.rank)).length;
         // Показываем то, что реально ограничивает выбор, а не самый строгий
         // допуск из списка: без фильтра зольность не ограничивает ничего.
         const need = [];
         if (a.profile.ashGate != null) need.push(`${sapsLabel(a.profile.ashGate)} (зола ≤ ${a.profile.ashGate}%)`);
         const hths = a.profile.hthsGate != null ? a.profile.hthsGate : a.profile.hthsMin;
         if (hths != null) need.push(`HTHS ≥ ${hths}`);
+        // Допусков у машины нет — требование выведено по марке, году и топливу.
+        // Оператор обязан видеть, что это ориентир, а не строка из карточки.
+        const ruleNote = a.rule && a.rule.applied
+            ? `<div class="zm-app-rule" title="${escapeHtmlSafe(a.rule.why)}">≈ допусков в базе нет — требование выведено по марке, году и топливу</div>`
+            : '';
 
         const groups = RANK_ORDER_ZM.map(rank => ({
             rank, items: a.items.filter(i => i.rank === rank),
@@ -1592,12 +1598,13 @@ function calcForAggregate(agg) {
             <div class="zm-app-sum"><b>решают ${decisive} из ${a.items.length}</b>${
                 need.length ? ' · мотору нужно: ' + escapeHtml(need.join(', ')) : ''
             }${agg.requiredClass ? ' · класс ' + escapeHtml(agg.requiredClass) : ''}</div>
+            ${ruleNote}
             ${warn}
             ${groups.map(g => `
                 <div class="zm-app-grp">
                     <div class="zm-app-grp-h">${RANK_TITLE_ZM[g.rank]} (${g.items.length})</div>
                     <div>${g.items.map(it =>
-                        `<span class="zm-app-tag zm-app-${it.rank}" title="${escapeHtmlSafe(it.label + '\n' + it.what + '\n\n' + it.why)}">${escapeHtml(it.label)}${it.fromEvidence ? ' +' : ''}</span>`
+                        `<span class="zm-app-tag zm-app-${it.rank}" title="${escapeHtmlSafe(it.label + '\n' + it.what + '\n\n' + it.why)}">${escapeHtml(it.label)}${it.fromEvidence ? ' +' : it.fromRule ? ' ≈' : ''}</span>`
                     ).join('')}</div>
                 </div>`).join('')}
         </div>`;
@@ -2507,6 +2514,9 @@ function calcForAggregate(agg) {
             /* цвет = что решает выбор, а что попало в список из чужого паспорта */
             .zm-app-critical{background:#3a1420;color:#ff8a80;border:1px solid #b04a4a}
             .zm-app-important{background:#12301c;color:#7fd18a;border:1px solid #3f7a4a}
+            /* пунктир = требование выведено по марке и годам, а не прочитано у машины */
+            .zm-app-assumed{background:#12301c;color:#7fd18a;border:1px dashed #3f7a4a}
+            .zm-app-rule{color:#7fd18a;font-size:10px;margin-top:4px;cursor:help}
             .zm-app-minor{background:#14203a;color:#7fa8e8;border:1px solid #3a5a8a}
             .zm-app-conflict{background:#1a1a20;color:#8a8a95;border:1px dashed #b04a4a;text-decoration:line-through}
             .zm-app-info{background:#1a1c28;color:#7a8090}

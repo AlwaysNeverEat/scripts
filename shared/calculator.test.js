@@ -180,7 +180,9 @@ test('«ничего не известно про машину» не означ
     // Без допусков и без выведенного класса ошибка «залил жиже» стоит износа
     // вкладышей, а «залил гуще» — расхода топлива. Дешёвое A5/B5 (HTHS 2.9–3.5)
     // в основной выбор не идёт.
-    const state = makeState({ car: { makeShort:'TOYOTA', modelShort:'Corolla', fuelType:'01', yearFrom:2010 } });
+    // Марка взята такая, для которой правила по годам нет (shared/oemRules.js):
+    // иначе про машину уже кое-что известно, и это отдельный тест ниже.
+    const state = makeState({ car: { makeShort:'CHERY', modelShort:'Tiggo', fuelType:'01', yearFrom:2019 } });
     const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
     const { mid } = pickEngineOils(agg, getShopOils(), state, []);
 

@@ -497,10 +497,11 @@ function renderAggCard(agg, calcState, carApprovals) {
 }
 
 // Порядок рангов сверху вниз: сначала то, что решает, потом фон.
-const RANK_ORDER = ['critical', 'important', 'minor', 'conflict', 'info', 'noise'];
+const RANK_ORDER = ['critical', 'important', 'assumed', 'minor', 'conflict', 'info', 'noise'];
 const RANK_TITLE = {
     critical:  'решают выбор',
     important: 'важны физически',
+    assumed:   'выведено по марке, году и топливу',
     minor:     'перекрыты более строгими',
     conflict:  'противоречат профилю',
     info:      'уровень качества',
@@ -510,7 +511,7 @@ const RANK_TITLE = {
 // Итог разбора одной строкой: что мотору реально нужно и на чём это основано.
 function approvalsSummary(a) {
     if (!a) return '';
-    if (a.notOil) {
+    if (a.notOil && a.confidence !== 'assumed') {
         return 'В допусках этой машины лежит паспорт охлаждающей жидкости, а не масла. ' +
                'Подбор идёт как для машины без допусков — проверь вручную.';
     }
@@ -521,11 +522,15 @@ function approvalsSummary(a) {
     const hths = a.profile.hthsGate != null ? a.profile.hthsGate : a.profile.hthsMin;
     if (hths != null) bits.push(`HTHS ≥ ${hths}`);
     if (a.profile.ashGate == null && bits.length) bits.push('по золе ограничений нет — сажевого фильтра у мотора нет');
-    const need = bits.length ? bits.join(', ') : 'определить не удалось';
+    const need = bits.length ? bits.join(', ')
+        : a.rule && a.rule.applied ? 'ограничений по зольности и густоте завод не задаёт'
+        : 'определить не удалось';
     const src = { high: 'подтверждено рекомендацией Motul по этой машине',
                   medium: 'выведено по родным допускам марки',
+                  assumed: 'допусков у машины нет — выведено по марке, году и топливу',
                   low: 'выведено только по классам ACEA — родных допусков в списке нет' }[a.confidence] || '';
-    return `Мотору нужно: ${need}. ${src ? '(' + src + ')' : ''}`;
+    const ruleTail = a.rule && a.rule.applied ? ` ${a.rule.why}` : '';
+    return `Мотору нужно: ${need}. ${src ? '(' + src + ')' : ''}${ruleTail}`;
 }
 
 function renderApprovalsBlock(agg, carApprovals) {
@@ -541,7 +546,7 @@ function renderApprovalsBlock(agg, carApprovals) {
     }
     if (!a.items.length) return '';
 
-    const decisive = a.items.filter(i => i.rank === 'critical' || i.rank === 'important').length;
+    const decisive = a.items.filter(i => ['critical', 'important', 'assumed'].includes(i.rank)).length;
     const groups = RANK_ORDER
         .map(rank => ({ rank, items: a.items.filter(i => i.rank === rank) }))
         .filter(g => g.items.length);
@@ -549,10 +554,13 @@ function renderApprovalsBlock(agg, carApprovals) {
     const chip = (it) => {
         // title — нативная подсказка (работает всегда и на любом устройстве),
         // data-why — текст для панели под списком.
+        // «+» — допуск дописан по рекомендации Motul, «≈» — выведен правилом по
+        // марке и годам: у машины его нет, и оператор должен это видеть.
+        const mark = it.fromEvidence ? ' <b>+</b>' : it.fromRule ? ' <b>≈</b>' : '';
         const tip = `${it.label}\n${it.what}\n\n${it.why}`;
         return `<span class="appr-chip appr-${it.rank}${it.fromEvidence ? ' appr-added' : ''}"
             data-appr-why="${esc(it.why)}" data-appr-what="${esc(it.label + ' — ' + it.what)}"
-            tabindex="0" title="${esc(tip)}">${esc(it.label)}${it.fromEvidence ? ' <b>+</b>' : ''}</span>`;
+            tabindex="0" title="${esc(tip)}">${esc(it.label)}${mark}</span>`;
     };
 
     const conflictNote = a.unionSuspect ? `

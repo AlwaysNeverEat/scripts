@@ -1269,6 +1269,9 @@ input[data-edit-filter-absent]:checked::after {
 .appr-chip:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 .appr-critical  { background: var(--red-dim);   border: 1px solid var(--red);    color: var(--red); font-weight: 600; }
 .appr-important { background: var(--green-dim); border: 1px solid var(--green);  color: var(--green); }
+/* Требование выведено правилом «марка + годы + топливо», а не прочитано
+   у машины: пунктир — визуальный знак того, что это ориентир, а не факт. */
+.appr-assumed   { background: var(--green-dim); border: 1px dashed var(--green); color: var(--green); }
 .appr-minor     { background: var(--blue-dim);  border: 1px solid var(--blue);   color: var(--blue); }
 .appr-conflict  { background: var(--bg3);       border: 1px dashed var(--red);   color: var(--sub); text-decoration: line-through; }
 .appr-info      { background: var(--bg3);       border: 1px solid var(--border); color: var(--sub); }
