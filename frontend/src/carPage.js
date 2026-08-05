@@ -8,6 +8,7 @@ import { initCalculator } from './calculator.js';
 import { initCrmPanel } from './crmPanel.js';
 import { checkAchievementsNow } from './achievements.js';
 import { activeFlags, SERVICE_FLAGS } from '../../shared/serviceFlags.js';
+import { crmQuirksFor, SEVERITY_LABELS } from '../../shared/crmQuirks.js';
 import { getShopOils } from '../../shared/oils.js';
 import { fuelLabel, fuelSelectOptions } from '../../shared/fuel.js';
 import {
@@ -15,6 +16,15 @@ import {
 } from '../../shared/sourceLinks.js';
 
 let editMode = false;
+
+// К какому агрегату относится особенность из CRM — подпись перед текстом,
+// чтобы «полную не делаем» не путали с правилом для механики.
+const SCOPE_LABELS = {
+    engine:    'ДВС:',
+    automatic: 'АКПП / вариатор:',
+    manual:    'МКПП:',
+    general:   '',
+};
 
 // Атрибуты числового поля формы правки: 'decimal' — дробь через точку ИЛИ
 // запятую (обычный текст + числовая клавиатура на телефоне), 'number' —
@@ -84,6 +94,22 @@ function renderView(record, ctx) {
         ? `<div class="head-notes">${esc(record.notes)}</div>`
         : '';
 
+    // Особенности из CRM подставляются сами по марке и модели — их не правят
+    // на этой странице, поэтому отдельной секцией, а не рядом с флагами,
+    // которые проставляет человек.
+    const quirks = crmQuirksFor(record, record.fluid_capacities || {});
+    const quirksHtml = quirks.length
+        ? `<div class="head-quirks">${quirks.map(q => `
+            <div class="head-quirk head-quirk-${q.severity}">
+                <span class="head-quirk-tag">${esc(SEVERITY_LABELS[q.severity])}</span>
+                <span class="head-quirk-body">
+                    <span class="head-quirk-scope">${esc(SCOPE_LABELS[q.scope] || '')}</span>
+                    ${esc(q.text)}
+                    ${q.note ? `<span class="head-quirk-note">${esc(q.note)}</span>` : ''}
+                </span>
+            </div>`).join('')}</div>`
+        : '';
+
     const tags = Array.isArray(record.tags) ? record.tags : [];
     const tagsHtml = tags.length
         ? `<div class="head-tags">${tags.map(t =>
@@ -119,6 +145,7 @@ function renderView(record, ctx) {
             <div class="head-secs">
                 ${section('Страницы машины', sourcesHtml)}
                 ${section('Особенности обслуживания', flagsHtml)}
+                ${section('Особенности из CRM', quirksHtml)}
                 ${section('Заметка', notesHtml)}
                 ${section('Теги для поиска', tagsHtml)}
                 ${section('История', recHtml)}

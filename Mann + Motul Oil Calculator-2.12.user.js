@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.467
+// @version      2.23.475
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -469,6 +469,348 @@
     return FUEL_OPTIONS.map(
       (o) => `<option value="${o.code}"${o.code === cur ? " selected" : ""}>${o.label}</option>`
     ).join("");
+  }
+
+  // shared/crmQuirks.js
+  var SEVERITY_LABELS = {
+    block: "так не делаем",
+    warn: "смотреть по факту",
+    info: "к сведению"
+  };
+  var BRAND_ALIASES = {
+    "шкода": "skoda",
+    "сеат": "seat",
+    "ауди": "audi",
+    "форд": "ford",
+    "ситроен": "citroen",
+    "ситроэн": "citroen",
+    "citroën": "citroen",
+    "пежо": "peugeot",
+    "рено": "renault",
+    "вольво": "volvo",
+    "ниссан": "nissan",
+    "мазда": "mazda",
+    "тойота": "toyota",
+    "мицубиси": "mitsubishi",
+    "митсубиши": "mitsubishi",
+    "мицубиши": "mitsubishi",
+    "фольксваген": "volkswagen",
+    "vw": "volkswagen",
+    "фолькс": "volkswagen",
+    "порше": "porsche",
+    "бмв": "bmw",
+    "мерседес": "mercedes",
+    "мерс": "mercedes",
+    "mercedes benz": "mercedes",
+    "хундай": "hyundai",
+    "хёндай": "hyundai",
+    "хендай": "hyundai",
+    "киа": "kia",
+    "шевроле": "chevrolet",
+    "опель": "opel",
+    "кадиллак": "cadillac",
+    "джили": "geely",
+    "гили": "geely",
+    "чери": "chery",
+    "грейт вол": "great wall",
+    "greatwall": "great wall"
+  };
+  var GM_BRANDS = ["chevrolet", "opel", "cadillac", "gmc", "buick", "hummer", "daewoo"];
+  var WET_ROBOT_BRANDS = ["volkswagen", "skoda", "seat", "audi", "porsche", "ford", "volvo"];
+  var SKODA_SEAT_SUV = ["kodiaq", "karoq", "kamiq", "yeti", "ateca", "tarraco", "arona"];
+  function normStr(s) {
+    return String(s == null ? "" : s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zа-я0-9]+/g, " ").trim();
+  }
+  function canonBrand(raw) {
+    const n = normStr(raw);
+    if (BRAND_ALIASES[n]) return BRAND_ALIASES[n];
+    const first = n.split(" ")[0];
+    return BRAND_ALIASES[first] && n.split(" ").length <= 2 ? BRAND_ALIASES[first] : n;
+  }
+  function num(v) {
+    const n = parseFloat(String(v == null ? "" : v).replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  function quirkContext(car, data) {
+    const src = car || {};
+    const brand = canonBrand(src.makeShort || src.brand || src.make || "");
+    let model = normStr(src.modelShort || src.model || "");
+    if (brand && model.startsWith(brand)) model = model.slice(brand.length).trim();
+    const generation = normStr(src.generation || "");
+    const auto = data && data.automatic || null;
+    return {
+      brand,
+      model,
+      modelTokens: new Set([...model.split(" "), ...generation.split(" ")].filter(Boolean)),
+      generation,
+      engineCode: normStr(src.engineCode || src.engine_code || ""),
+      volume: num(src.volume != null && src.volume !== "" ? src.volume : src.engine_volume),
+      bhp: num(src.bhp),
+      year: num(src.yearFrom || src.year_from),
+      fuel: normStr(src.fuelType || src.fuel_type || ""),
+      hasAuto: !!auto,
+      isCvt: !!(auto && auto.isCvt),
+      isDct: !!(auto && auto.isDct),
+      hasManual: !!(data && data.manual)
+    };
+  }
+  function modelHits(ctx, patterns) {
+    if (!patterns || !patterns.length) return true;
+    return patterns.some((p) => normStr(p).split(" ").every((t) => ctx.modelTokens.has(t)));
+  }
+  var CRM_QUIRKS = [
+    // 1. Skoda / Seat — аппарат не подключить
+    {
+      id: "skoda-seat-at-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["skoda", "seat"],
+      when: (ctx) => !modelHits(ctx, SKODA_SEAT_SUV),
+      text: "Полную (аппаратную) замену не делаем — аппарат не подключается к системе охлаждения. Частичную делаем.",
+      note: "Полная на этих марках допустима только на внедорожниках."
+    },
+    {
+      id: "skoda-seat-suv-at-by-fact",
+      // Пока подключение не проверили — расчёт частичной: это единственный
+      // вариант, который на этой машине точно сделают.
+      scope: "automatic",
+      severity: "warn",
+      partialDefault: true,
+      brands: ["skoda", "seat"],
+      models: SKODA_SEAT_SUV,
+      text: "Полную (аппаратную) на Skoda и Seat делаем только на внедорожниках — этот как раз внедорожник. Смотрим по факту: подключается ли аппарат и есть ли переходники."
+    },
+    // 2. Audi A4 / A5 / A6 — вариатор под высоким давлением
+    {
+      id: "audi-a456-cvt-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["audi"],
+      models: ["a4", "a5", "a6"],
+      text: "Вариатор (мультитроник): полную (аппаратную) не делаем — в системе охлаждения вариатора высокое давление. Частичную делаем.",
+      note: "У этого вариатора есть ещё фильтр тонкой очистки жидкости."
+    },
+    // 3. Ford — пробка МКПП и Kuga
+    {
+      id: "ford-manual-neutral",
+      scope: "manual",
+      severity: "warn",
+      brands: ["ford"],
+      text: "Ручка КПП при замене должна стоять на нейтрали. Если воткнута передача, при закручивании сливной пробки ломается механизм шарика — пробку придётся менять."
+    },
+    {
+      id: "ford-kuga-at-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["ford"],
+      models: ["kuga"],
+      text: "Полную (аппаратную) не делаем — у этой АКПП нет системы охлаждения. Частичную делаем.",
+      note: "Фильтр в этой АКПП не меняется."
+    },
+    // 4. Ford Focus — шестиступенчатая МКПП на DCTF
+    {
+      id: "ford-focus-manual-dctf",
+      scope: "manual",
+      severity: "info",
+      brands: ["ford"],
+      models: ["focus"],
+      text: "Если МКПП шестиступенчатая — заливаем масло DCTF."
+    },
+    // 5. Французы — нет системы охлаждения АКПП
+    {
+      id: "psa-renault-at-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["citroen", "peugeot", "renault"],
+      text: "Полную (аппаратную) не делаем ни на одной модели этой марки — нет системы охлаждения АКПП. Частичную делаем."
+    },
+    // 6. Не откачать через щуп — только слив
+    {
+      id: "engine-no-express",
+      scope: "engine",
+      severity: "block",
+      models: ["hover", "prado", "land cruiser 200", "lc200", "pajero sport"],
+      text: "Экспресс-замену масла ДВС не делаем — откачкой масло полностью не убрать. Меняем только сливом через пробку.",
+      note: "В CRM правило записано для мотора 2.4D (с 2019 года)."
+    },
+    // 7. GM — МКПП без сливной пробки
+    {
+      id: "gm-manual-sump",
+      scope: "manual",
+      severity: "warn",
+      brands: GM_BRANDS,
+      text: "В МКПП нет сливной пробки — снимаем поддон, под ним прокладка. Прокладку мастер подбирает строго по VIN, они разные.",
+      note: "Считаем как «замена масла МКПП» + «замена фильтра КПП / с.у. поддона»."
+    },
+    // 8-9. VW Polo и Tiguan — контура охлаждения нет
+    {
+      id: "vw-polo-tiguan-at-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["volkswagen"],
+      models: ["polo", "tiguan"],
+      text: "Аппаратно (полную) не делаем — нет контура охлаждения АКПП, подключаться некуда. Делаем частичную.",
+      note: "На разных комплектациях подключение иногда есть — смотреть по факту."
+    },
+    // 10. Touareg / Cayenne 3.6 — фильтр можно перепутать с теплообменником
+    {
+      id: "touareg-cayenne-oil-filter",
+      scope: "engine",
+      severity: "warn",
+      models: ["touareg", "cayenne"],
+      when: (ctx) => ctx.volume == null || Math.abs(ctx.volume - 3.6) < 0.15,
+      text: "Мотор 3.6 (280 л.с.): масляный фильтр внизу по левой стороне. Прямо над ним теплообменник с очень похожей крышкой — не перепутать.",
+      note: "Артикул масляного фильтра — HU 932/6n."
+    },
+    // 11. Volvo — высокое давление в АКПП
+    {
+      id: "volvo-at-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["volvo"],
+      text: "Аппаратно (полную) не делаем — высокое давление рабочей жидкости АКПП. Вместо неё предлагаем частичную три раза подряд: с запуском двигателя и перебором режимов АКПП."
+    },
+    // 12. Вариаторы Nissan и Outlander 3 — два фильтра
+    {
+      id: "nissan-cvt-fine-filter",
+      scope: "automatic",
+      severity: "info",
+      when: (ctx) => ctx.isCvt && (ctx.brand === "nissan" || ctx.brand === "mitsubishi" && modelHits(ctx, ["outlander"])),
+      text: "В вариаторе два фильтра — грубой и тонкой очистки. За замену фильтра тонкой очистки берём дополнительно нормо-час."
+    },
+    // 13. Mazda 6 — аппарат не подключить
+    {
+      id: "mazda6-at-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["mazda"],
+      models: ["6"],
+      text: "Полную (аппаратную) замену не делаем — аппарат не подключается к системе охлаждения. Частичную делаем."
+    },
+    // 14. Фильтр АКПП: в шестиступенчатых его физически не поменять
+    {
+      id: "at-filter-6ab",
+      scope: "automatic",
+      severity: "info",
+      when: (ctx) => ctx.hasAuto && !ctx.isCvt && !ctx.isDct && ctx.brand !== "bmw" && ctx.brand !== "mercedes",
+      text: "Почти во всех шестиступенчатых автоматах фильтр АКПП заменить технически нельзя, даже если он там стоит. Исключения — BMW и Mercedes.",
+      note: "Меняется ли фильтр на этой машине и с какого года — смотреть в списке «Фильтра в АКПП»."
+    },
+    {
+      id: "camry-at-filter-fixed",
+      scope: "automatic",
+      severity: "info",
+      brands: ["toyota"],
+      models: ["camry"],
+      text: "В восьмиступенчатой АКПП Камри фильтр несменный."
+    },
+    {
+      id: "creta-at-filter-fixed",
+      scope: "automatic",
+      severity: "info",
+      brands: ["hyundai"],
+      models: ["creta"],
+      text: "Фильтр АКПП на Крете не меняется."
+    },
+    // 16. VAG 1.4 TSI (DJKA) + АКПП AQ 300-8F
+    {
+      id: "vag-aq300-atf",
+      scope: "automatic",
+      severity: "info",
+      brands: ["skoda", "volkswagen"],
+      models: ["karoq", "taos", "jetta", "octavia"],
+      when: (ctx) => ctx.engineCode.includes("djka") || ctx.modelTokens.has("taos") || ctx.modelTokens.has("karoq") || ctx.modelTokens.has("a8") || ctx.volume != null && Math.abs(ctx.volume - 1.4) < 0.05 && (ctx.year == null || ctx.year >= 2018),
+      text: "Поперечный 1.4 TSI 150 л.с. (DJKA) с восьмиступенчатой АКПП AQ 300-8F: допуск по маслу VAG ATF G 053 001 A2.",
+      note: "На Рольфе и ZIC эти машины не бьются — допуск смотреть у Ravenol."
+    },
+    // 17. Роботы
+    {
+      id: "dsg-powershift-no-service",
+      scope: "automatic",
+      severity: "block",
+      when: (ctx) => ctx.isDct && WET_ROBOT_BRANDS.includes(ctx.brand),
+      text: "Масло в роботах DSG и PowerShift не меняем."
+    },
+    {
+      id: "robot-other-as-is",
+      scope: "automatic",
+      severity: "info",
+      when: (ctx) => ctx.isDct && !WET_ROBOT_BRANDS.includes(ctx.brand),
+      text: "Это не DSG и не PowerShift — в остальных роботах масло меняем как есть."
+    },
+    // 19. Chery Tiggo 8 — робот Getrag обслуживается как механика
+    {
+      id: "chery-tiggo8-getrag",
+      scope: "automatic",
+      severity: "info",
+      brands: ["chery"],
+      models: ["tiggo 8"],
+      text: "Замена масла в роботе Getrag делается как в обычной механике — входит ровно 4 литра."
+    },
+    // 20. BMW — только по факту
+    {
+      id: "bmw-at-by-fact",
+      scope: "automatic",
+      severity: "warn",
+      brands: ["bmw"],
+      text: "Аппаратную (полную) делаем только по факту: смотрим на месте, подключается ли аппарат и есть ли переходники."
+    },
+    // 21. Hyundai / Kia — посторонние предметы в масляном фильтре
+    {
+      id: "hyundai-kia-oil-filter-check",
+      scope: "engine",
+      severity: "warn",
+      brands: ["hyundai", "kia"],
+      text: "Перед установкой масляного фильтра проверь его сердцевину: на Хендай и Киа в ней находят посторонние предметы. Оставшаяся внутри пробка забьёт масляный канал."
+    },
+    // 22. Geely Tugella
+    {
+      id: "geely-tugella-at-no-full",
+      scope: "automatic",
+      severity: "block",
+      noFullAt: true,
+      brands: ["geely"],
+      models: ["tugella"],
+      text: "Полную замену в АКПП на Тугелле не сделать. Делаем частичную."
+    }
+  ];
+  function crmQuirksFor(car, data) {
+    const ctx = quirkContext(car, data);
+    if (!ctx.brand && !ctx.model) return [];
+    const out = [];
+    for (const q of CRM_QUIRKS) {
+      if (q.brands && !q.brands.includes(ctx.brand)) continue;
+      if (q.models && !modelHits(ctx, q.models)) continue;
+      if (q.when && !q.when(ctx)) continue;
+      out.push({
+        id: q.id,
+        scope: q.scope,
+        severity: q.severity,
+        text: q.text,
+        note: q.note || "",
+        noFullAt: !!q.noFullAt,
+        partialDefault: !!(q.noFullAt || q.partialDefault)
+      });
+    }
+    return out;
+  }
+  function crmQuirksForAggregate(car, data, aggregate) {
+    const scope = aggregate && (aggregate.group === "engine" ? "engine" : aggregate.group === "auto" ? "automatic" : aggregate.key === "manual" ? "manual" : null);
+    if (!scope) return [];
+    return crmQuirksFor(car, data).filter((q) => q.scope === scope);
+  }
+  function crmNoFullAt(car, data) {
+    return crmQuirksFor(car, data).some((q) => q.noFullAt);
+  }
+  function crmPrefersPartial(car, data) {
+    return crmQuirksFor(car, data).some((q) => q.partialDefault);
   }
 
   // shared/approvals.js
@@ -2347,18 +2689,12 @@
     return out;
   }
   function shouldDefaultToPartial(car, data) {
-    const make = (car.makeShort || "").toLowerCase();
-    const model = (car.modelShort || "").toLowerCase();
     if (data.automatic) {
       if (data.automatic.isCvt) return true;
       if (data.automatic.isDct) return true;
       if (/dsg|dct|cvt|powershift|s\s*tronic|вариатор|робот|двойн[а-я]+ сцеплен/i.test(data.automatic.label || "")) return true;
     }
-    const partialMakes = ["skoda", "seat", "audi", "citroen", "citroën", "peugeot", "renault", "vw", "volkswagen", "volvo"];
-    if (partialMakes.some((m) => make.includes(m))) return true;
-    if (make.includes("mazda") && /\b6\b/.test(model)) return true;
-    if (make.includes("ford") && /kuga/.test(model)) return true;
-    return false;
+    return crmPrefersPartial(car, data);
   }
   function filtersTotal(calcState2) {
     const f = calcState2.filters;
@@ -3431,6 +3767,15 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 12e3);
   }
+  function renderCrmQuirks(agg) {
+    const quirks = crmQuirksForAggregate(calcState.car, calcState.data, agg);
+    if (!quirks.length) return "";
+    return quirks.map((q) => `
+        <div class="zm-quirk zm-quirk-${q.severity}">
+            <span class="zm-quirk-tag">${escapeHtml(SEVERITY_LABELS[q.severity])}</span>
+            <span>${escapeHtml(q.text)}${q.note ? `<span class="zm-quirk-note">${escapeHtml(q.note)}</span>` : ""}</span>
+        </div>`).join("");
+  }
   function calcForAggregate2(agg) {
     const calc = calcForAggregate(agg, calcState, currentCarApprovals());
     if (calc.isHighGear) return { isHighGear: true, html: "" };
@@ -4168,6 +4513,7 @@
                     </label>
                     <span class="zm-agg-vol">${calc.volumeStr}</span>
                 </div>
+                ${renderCrmQuirks(agg)}
                 ${calc.isHighGear ? `<div class="zm-bath-msg">🛁 послан в баню!</div>` : calc.html}
                 <button class="zm-app-btn" data-app="${agg.key}">
                     ${showApp ? "▾" : "▸"} ${agg.group === "engine" ? "допуска машины" : "продукты Motul"} (${agg.group === "engine" && agg.approvalAnalysis ? agg.approvalAnalysis.items.length : (agg.approvals || []).length})
@@ -4183,16 +4529,7 @@
         const typeLabel = isCvt ? "ВАРИАТОР (CVT)" : "АКПП";
         const fullMult = "×1.5";
         const partMult = isCvt ? "×0.8" : "×0.6";
-        const brand = (calcState.car?.makeShort || "").toUpperCase();
-        const model = (calcState.car?.modelShort || "").toUpperCase();
-        const noFullBrands = ["SKODA", "SEAT", "AUDI", "CITROEN", "CITROËN", "PEUGEOT", "RENAULT", "VOLKSWAGEN", "VW", "VOLVO"];
-        const noFullModels = [
-          { brand: "MAZDA", model: "6" },
-          { brand: "FORD", model: "KUGA" }
-        ];
-        let cantFull = noFullBrands.includes(brand);
-        if (!cantFull) cantFull = noFullModels.some((x) => brand === x.brand && model.indexOf(x.model) !== -1);
-        const noFullWarn = cantFull ? `<div class="zm-no-full-warn">⚠ У этой машины полную замену не делаем</div>` : "";
+        const noFullWarn = crmNoFullAt(calcState.car, calcState.data) ? `<div class="zm-no-full-warn">⚠ Полную (аппаратную) не делаем — считаем частичную</div>` : "";
         const ctrls = `
                     <div class="zm-atp-ctrls">
                         <div class="zm-atp-type">${typeLabel}</div>
@@ -5195,6 +5532,12 @@
                 white-space:pre-wrap;margin:0;max-height:300px;overflow-y:auto}
             .zm-warn{color:#ff9800;padding:14px;font-size:12px;line-height:1.5}
             .zm-no-full-warn{background:#3a0000;border:1px solid #ff4d4d;color:#ff8585;padding:6px 10px;font-size:11px;border-radius:6px;margin:6px 0;font-weight:600}
+            .zm-quirk{display:flex;gap:7px;align-items:flex-start;margin:6px 10px 0;padding:6px 9px;
+                border-radius:6px;font-size:11px;line-height:1.45;background:#12141c;border:1px solid #2a2d3e;color:#c5c8d6}
+            .zm-quirk-block{background:#2a0000;border-color:#e53935;color:#ff8a80}
+            .zm-quirk-warn{background:#2a1d00;border-color:#E67E00;color:#ffb74d}
+            .zm-quirk-tag{flex:none;font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;opacity:.85;padding-top:1px}
+            .zm-quirk-note{display:block;margin-top:2px;opacity:.8}
             .zm-oil-line-reg{border:1px solid #2e7d32;background:#0e2014}
             .zm-reg-badge{background:#1b3a1b;border:1px solid #2e7d32;color:#a5d6a7;font-size:11px;padding:1px 6px;border-radius:4px;cursor:pointer;margin-left:6px;font-weight:600;line-height:1.4}
             .zm-reg-badge:hover{background:#2e7d32;color:#fff;border-color:#4caf50}

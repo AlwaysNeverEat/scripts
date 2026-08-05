@@ -821,6 +821,42 @@ a.btn:visited, a.btn:active { color: var(--text); }
   font-weight: 600;
 }
 .head-flag-warn { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+/* Особенности из CRM: подставляются по марке и модели, править их на странице
+   нельзя — поэтому не бейджи, как у ручных флагов, а строки-правила. Красная
+   полоса слева = «так не делаем», жёлтая = «смотреть по факту». */
+.head-quirks { display: flex; flex-direction: column; gap: 8px; }
+.head-quirk {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  background: var(--bg2);
+  border-left: 3px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.head-quirk-block { border-left-color: var(--red); }
+.head-quirk-warn  { border-left-color: var(--accent); }
+.head-quirk-tag {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--sub);
+  padding-top: 2px;
+  min-width: 92px;
+}
+.head-quirk-block .head-quirk-tag { color: var(--red); }
+.head-quirk-warn  .head-quirk-tag { color: var(--accent); }
+.head-quirk-scope { font-weight: 600; margin-right: 4px; }
+.head-quirk-note { display: block; margin-top: 3px; font-size: 12px; color: var(--sub); }
+@media (max-width: 560px) {
+  .head-quirk { flex-direction: column; gap: 4px; }
+  .head-quirk-tag { min-width: 0; padding-top: 0; }
+}
 .head-notes {
   margin-top: 12px;
   padding: 10px 14px;
@@ -1112,6 +1148,35 @@ input[data-edit-filter-absent]:checked::after {
   margin: 6px 0 10px;
 }
 .flush-formula { font-size: 12px; color: var(--accent); margin-bottom: 10px; }
+
+/* Особенности из CRM на карточке агрегата — над расчётом, чтобы «полную не
+   делаем» прочитали раньше, чем назовут цену. */
+.crm-quirks { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.crm-quirk {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+}
+.crm-quirk-block { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+.crm-quirk-warn  { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.crm-quirk-tag {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.85;
+  padding-top: 1px;
+}
+.crm-quirk-note { display: block; margin-top: 2px; opacity: 0.8; }
+/* Кнопку «полная» не отключаем — иногда подключиться всё-таки удаётся */
+.atp-ctrl .chip-nofull { text-decoration: line-through; opacity: 0.75; }
 
 .atp-ctrl { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .atp-ctrl .chip { border-radius: 8px; padding: 6px 12px; font-size: 12px; }
