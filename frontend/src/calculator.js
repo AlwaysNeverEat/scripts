@@ -258,7 +258,7 @@ function renderControls(calcState) {
                 </label>
                 <label class="chk-label">
                     <input type="checkbox" id="chk-sump" ${calcState.showWithSump ? 'checked' : ''}/>
-                    <span>С картером (+550₽)</span>
+                    <span>Снятие/установка защиты картера (+550₽)</span>
                 </label>
             </div>
             <div class="ctrl-lbl" style="margin-bottom:6px">Промывка ДВС</div>
@@ -688,8 +688,8 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
 
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
-                    ? ` + 550₽ (картер) = <b>${c.total + 550}₽</b>`
-                    : ' + 550₽ (картер)')
+                    ? ` + 550₽ (снятие/установка защиты картера) = <b>${c.total + 550}₽</b>`
+                    : ' + 550₽ (снятие/установка защиты картера)')
                 : '';
 
             const pickHint = canPick
@@ -788,7 +788,7 @@ function renderTotals(data, calcState, carApprovals) {
         const { sum, hasEngine } = computeTotalSum(tot, aggData);
         const sumpAdd = calcState.showWithSump && hasEngine ? 550 : 0;
         const display = sum + sumpAdd;
-        const sumpSuffix = sumpAdd ? ` + 550₽ картер = <b>${display}₽</b>` : '';
+        const sumpSuffix = sumpAdd ? ` + 550₽ (снятие/установка защиты картера) = <b>${display}₽</b>` : '';
 
         return `
             <div class="total-block">
