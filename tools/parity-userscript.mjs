@@ -137,7 +137,8 @@ const CASES = [
             filters: { vf: { name: 'W 712/95', price: 750, enabled: true, work: 350 },
                        mf: { name: 'C 27 006', price: 1100, enabled: true },
                        sf: { name: 'CUK 2545', price: 1400, enabled: true, work: 550 } },
-            totals: [{ engine: 0 }],
+            oilOverride: { engine_mid: 'Liqui Moly_Leichtlauf HC 7 5W-30' },
+            totals: [{ engine: 0 }, { engine: 1 }],
         }),
     },
     {
@@ -151,7 +152,8 @@ const CASES = [
         state: makeState({
             selected: new Set(['engine', 'automatic']),
             atpType: 'partial', atpFilter: true,
-            totals: [{ engine: 0, automatic: 1 }, { engine: 1 }],
+            oilOverride: { engine_mid: 'Liqui Moly_Leichtlauf HC 7 5W-30' },
+            totals: [{ engine: 0, automatic: 1 }, { engine: 1, automatic: 1 }],
         }),
     },
     {
@@ -170,7 +172,7 @@ const CASES = [
             // формат/формулы отчёта, а не политику подбора, — фиксируем масло,
             // чтобы добавление новых позиций в shared/oils.js не ломало паритет.
             oilOverride: { engine_mid: 'Motul_5W-40 6100 SYN-CLEAN' },
-            totals: [{ engine: 0, automatic: 0 }],
+            totals: [{ engine: 0, automatic: 0 }, { engine: 1, automatic: 0 }],
         }),
     },
     {
@@ -206,7 +208,8 @@ const CASES = [
             manual: { volumeTotal: 2.2, rawText: 'HIGH GEAR 75W-90', motulProducts: [] },
         },
         approvals: [],
-        state: makeState({ selected: new Set(['engine', 'manual']) }),
+        state: makeState({ selected: new Set(['engine', 'manual']),
+            oilOverride: { engine_mid: 'Liqui Moly_Leichtlauf HC 7 5W-30' } }),
     },
     {
         name: 'АКПП без объёма от Motul + ручной ввод',
@@ -218,6 +221,7 @@ const CASES = [
         approvals: [],
         state: makeState({
             selected: new Set(['engine', 'automatic']),
+            oilOverride: { engine_mid: 'Liqui Moly_Leichtlauf HC 7 5W-30' },
             atpVolumeManual: 6.8, atpType: 'partial',
         }),
     },
@@ -237,6 +241,33 @@ const CASES = [
 // ── Прогон ───────────────────────────────────────────────────────────────────
 
 const SUMP_WORK = 'снятие/установка защиты картера';
+
+// Интенциональное расхождение с базой: ПОРЯДОК вариантов масла. Раньше первой
+// печаталась брендовая позиция, теперь — самая дешёвая из подходящих
+// (docs/DOPUSKI.md, §8). Сортируем строки масел внутри каждого блока и строки
+// «итого» — с обеих сторон. Паритет продолжает сверять их содержимое построчно
+// (подпись, цену за литр, формулу, сумму), но перестаёт спотыкаться о порядок.
+// Поэтому же в фикстурах масло ДВС закреплено через oilOverride, а строки
+// «итого» перечисляют оба варианта: набор строк обязан совпасть, иначе
+// расхождение снова станет видимым.
+const OIL_LINE_RE   = /₽\/л = /;
+const TOTAL_LINE_RE = /^\d+\(/;
+
+function sortLinesInPlace(lines, re) {
+    const idx = lines.map((l, i) => (re.test(l) ? i : -1)).filter(i => i >= 0);
+    if (idx.length < 2) return;
+    const sorted = idx.map(i => lines[i]).sort();
+    idx.forEach((i, k) => { lines[i] = sorted[k]; });
+}
+
+function normOilOrder(text) {
+    return text.split('\n\n').map(block => {
+        const lines = block.split('\n');
+        sortLinesInPlace(lines, OIL_LINE_RE);
+        sortLinesInPlace(lines, TOTAL_LINE_RE);
+        return lines.join('\n');
+    }).join('\n\n');
+}
 
 let failures = 0;
 for (const c of CASES) {
@@ -258,12 +289,13 @@ for (const c of CASES) {
     // печатает более ранние варианты той же строки («с\у\з\к», потом «картер»);
     // приводим их к нынешнему тексту, чтобы паритет продолжал стеречь остальной
     // формат отчёта, а не спотыкался о переименование.
-    const originalNorm = original
+    const originalNorm = normOilOrder(original
         .replace(/ \+ 550р \(с\\у\\з\\к\)/g, ` + 550₽ (${SUMP_WORK})`)
         .replace(/ \+ 550₽ \(картер\)/g, ` + 550₽ (${SUMP_WORK})`)
-        .replace(/ \+ 550\(картер\)/g, ` + 550(${SUMP_WORK})`);
+        .replace(/ \+ 550\(картер\)/g, ` + 550(${SUMP_WORK})`));
+    const modernNorm = normOilOrder(modern);
 
-    if (originalNorm === modern) {
+    if (originalNorm === modernNorm) {
         console.log(`✓ ${c.name}`);
     } else {
         failures++;
@@ -271,7 +303,7 @@ for (const c of CASES) {
         console.log('--- оригинал (нормализован) ---');
         console.log(originalNorm);
         console.log('--- shared ---');
-        console.log(modern);
+        console.log(modernNorm);
     }
 }
 

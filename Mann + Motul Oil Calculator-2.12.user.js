@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.489
+// @version      2.23.490
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -3316,12 +3316,13 @@
     for (const r of ratedAll) {
       r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
       if (!requiredClass) continue;
-      if (r.classOk) r.score += 30;
-      else r.classMiss = requiredClass;
+      if (r.classOk) {
+        r.score += 30;
+        r.core += 30;
+      } else r.classMiss = requiredClass;
     }
     ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
-    let eligible = ratedAll.filter((r) => !r.blocked && r.classOk);
-    if (!eligible.length) eligible = ratedAll.filter((r) => !r.blocked);
+    let eligible = ratedAll.filter((r) => !r.blocked);
     if (!eligible.length) eligible = ratedAll;
     if (!requiredClass) {
       const thick = eligible.filter((r) => oilMeetsClass(r.oil, "A3B4"));
@@ -3336,16 +3337,15 @@
     const pickSpot = (list) => (list.find((r) => r.oil.tier === (needPro ? "pro" : "optimal")) || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
     const spotFit = spotRated.filter((r) => !r.blocked && r.classOk);
     const spotSafe = spotRated.filter((r) => !r.blocked);
-    const softClass = !analysis || analysis.confidence === "low" || analysis.confidence === "none" || analysis.confidence === "assumed";
     let spot = null;
     if (spotFit.length) {
       spot = pickSpot(spotFit);
-    } else if (softClass && spotSafe.length) {
+    } else if (spotSafe.length) {
       spot = pickSpot(spotSafe);
-      agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass}, но допуск машины выведен неточно — решение за тобой`;
+      agg.spotWarn = `у SPOT ${targetVisc} нет класса ${requiredClass} — проверь, требует его завод или только разрешает`;
     } else if (spotRated.length) {
       const worst = spotRated.find((r) => r.blocked) || spotRated[0];
-      agg.spotWarn = worst.blocked ? `SPOT ${targetVisc} не подходит: ${(worst.fitNotes || []).join("; ")}` : `у SPOT ${targetVisc} нет требуемого класса ${requiredClass}`;
+      agg.spotWarn = `SPOT ${targetVisc} не подходит: ${(worst.fitNotes || []).join("; ")}`;
     }
     agg.approvals = approvals;
     agg.isDiesel = isDieselVehicle;
