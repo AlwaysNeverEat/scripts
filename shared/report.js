@@ -48,20 +48,20 @@ export function formatAggText(agg, calc, calcState) {
 
         if (isFixedSingle) {
             calc.costs.slice(0, 1).forEach(c => {
-                const sumpLine = calcState.showWithSump ? ` + 550₽ (картер) = ${c.total + 550}₽` : '';
+                const sumpLine = calcState.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : '';
                 lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
             });
         } else if (is0w20) {
             calc.costs.forEach(c => {
-                const sumpLine = calcState.showWithSump ? ` + 550₽ (картер) = ${c.total + 550}₽` : '';
+                const sumpLine = calcState.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : '';
                 lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
             });
         } else {
             calc.costs.forEach(c => {
                 const base     = `${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`;
                 const sumpLine = calcState.showWithSump
-                    ? ` + 550₽ (картер) = ${c.total + 550}₽`
-                    : ' + 550₽ (картер)';
+                    ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽`
+                    : ' + 550₽ (снятие/установка защиты картера)';
                 lines.push(base + sumpLine);
             });
         }
@@ -122,7 +122,7 @@ export function buildTotalsLines(calcState, data, carApprovals) {
         }
         if (!parts.length) continue;
         if (calcState.showWithSump && hasEngine) {
-            lines.push(`${parts.join(' + ')} + 550(картер) = ${sum + 550}₽`);
+            lines.push(`${parts.join(' + ')} + 550(снятие/установка защиты картера) = ${sum + 550}₽`);
         } else {
             lines.push(`${parts.join(' + ')} = ${sum}₽`);
         }

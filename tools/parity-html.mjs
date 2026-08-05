@@ -158,12 +158,18 @@ for (const c of CASES) {
     const r1 = orig.calc(c.agg());
     const r2 = neu.calc(c.agg());
 
-    // Интенциональное расхождение с базой: при ВЫКЛ галочке «с картером» под
-    // ценой масла двс теперь печатается приписка «+ 550₽ (картер)» (в базе её нет).
-    // Срезаем её с обеих сторон, чтобы паритет стерёг остальную вёрстку карточки.
-    const stripOffSump = h => h.replace(/<\/b> \+ 550₽ \(картер\)<\/div>/g, '</b></div>');
-    const h1 = stripOffSump((r1.html || '').replace(/\s+/g, ' ').trim());
-    const h2 = stripOffSump((r2.html || '').replace(/\s+/g, ' ').trim());
+    // Два интенциональных расхождения с базой:
+    //  1) работа переименована — снимаем не картер, а его защиту; база печатает
+    //     старое «(картер)», приводим обе стороны к нынешнему тексту;
+    //  2) при ВЫКЛ галочке под ценой масла двс теперь печатается приписка
+    //     «+ 550₽ (…)», которой в базе нет, — срезаем её с обеих сторон.
+    // Остальная вёрстка карточки паритетом по-прежнему стережётся.
+    const SUMP_WORK = 'снятие/установка защиты картера';
+    const normSump = h => h
+        .replace(/\+ 550₽ \(картер\)/g, `+ 550₽ (${SUMP_WORK})`)
+        .replace(new RegExp(`</b> \\+ 550₽ \\(${SUMP_WORK}\\)</div>`, 'g'), '</b></div>');
+    const h1 = normSump((r1.html || '').replace(/\s+/g, ' ').trim());
+    const h2 = normSump((r2.html || '').replace(/\s+/g, ' ').trim());
     const t1 = JSON.stringify((r1.costs || []).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
     const t2 = JSON.stringify((r2.costs || []).map(x => ({ o: x.oil.b + ' ' + x.oil.n, t: x.total, br: x.breakdown })));
 

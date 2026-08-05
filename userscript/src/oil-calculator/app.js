@@ -561,8 +561,8 @@ function calcForAggregate(agg) {
 
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
-                    ? ` + 550₽ (картер) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>`
-                    : ' + 550₽ (картер)')
+                    ? ` + 550₽ (снятие/установка защиты картера) = <b class="zm-oil-total zm-oil-total-sump">${c.total + 550}₽</b>`
+                    : ' + 550₽ (снятие/установка защиты картера)')
                 : '';
 
             let oilDetailsHtml = '';
@@ -981,7 +981,7 @@ function calcForAggregate(agg) {
                     </label>
                     <label class="zm-chk" style="font-size:11px">
                         <input type="checkbox" id="zm-show-sump" ${calcState.showWithSump?'checked':''}/>
-                        <span class="zm-chk-lbl" style="color:#81c784">🪣 С картером (+550₽)</span>
+                        <span class="zm-chk-lbl" style="color:#81c784">🪣 Снятие/установка защиты картера (+550₽)</span>
                     </label>
                 </div>
                 <div class="zm-ctrl-row" style="margin-top:4px">
@@ -1482,7 +1482,7 @@ function calcForAggregate(agg) {
             const totalSum = computeTotalSum(tot, aggData);
             const sumpAdd = calcState.showWithSump && totalSum.hasEngine ? 550 : 0;
             const displaySum = totalSum.sum + sumpAdd;
-            const sumpSuffix = sumpAdd ? ` + 550₽ картер = <b>${displaySum}₽</b>` : '';
+            const sumpSuffix = sumpAdd ? ` + 550₽ (снятие/установка защиты картера) = <b>${displaySum}₽</b>` : '';
 
             return `
                 <div class="zm-tot-block">

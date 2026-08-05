@@ -43,9 +43,11 @@ export function initCalculator(dbRecord) {
     const data = dbRecordToData(dbRecord);
     const carApprovals = Array.isArray(dbRecord.car_approvals) ? dbRecord.car_approvals : [];
 
-    // Ручные правки списка масел, сохранённые для этой машины («Нашли ошибку?»)
+    // Закреплённое для этой машины масло (oil_overrides.pin). Список «какие
+    // масла вообще предлагать» отсюда убран: держать у каждой машины галочки на
+    // весь каталог магазина оказалось бесполезно — выбор и так делают допуски,
+    // цена и наличие на станции, а лишний фильтр только прятал подходящее масло.
     const ov = dbRecord.oil_overrides || {};
-    const excludeOils = new Set(Array.isArray(ov.exclude) ? ov.exclude : []);
     const pinnedOverride = (ov.pin && typeof ov.pin === 'object') ? { ...ov.pin } : {};
 
     const defaultPartial = shouldDefaultToPartial(car, data);
@@ -63,7 +65,6 @@ export function initCalculator(dbRecord) {
         showApprovals: new Set(),
         expandedOilApp: new Set(),
         oilOverride: pinnedOverride,
-        excludeOils,
         showOilPicker: null,
         ignoreApprovals: false,
         showWithSump: false,
@@ -257,7 +258,7 @@ function renderControls(calcState) {
                 </label>
                 <label class="chk-label">
                     <input type="checkbox" id="chk-sump" ${calcState.showWithSump ? 'checked' : ''}/>
-                    <span>С картером (+550₽)</span>
+                    <span>Снятие/установка защиты картера (+550₽)</span>
                 </label>
             </div>
             <div class="ctrl-lbl" style="margin-bottom:6px">Промывка ДВС</div>
@@ -472,7 +473,7 @@ function renderAggCard(agg, calcState, carApprovals) {
     const appCount = agg.group === 'engine'
         ? (agg.approvalAnalysis ? agg.approvalAnalysis.items.length : carApprovals.length)
         : (agg.approvals || []).length;
-    // Допуска агрегатов теперь правятся вручную («Нашли ошибку?»), поэтому у
+    // Допуска агрегатов теперь правятся вручную («Исправить данные»), поэтому у
     // всех неспецифичных агрегатов подпись одна — «Допуска» (раньше у штатных
     // стояло «Продукты Motul», хотя это тот же список).
     const appLabel = agg.group === 'engine' ? 'Допуска машины' : 'Допуска';
@@ -687,8 +688,8 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
 
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
-                    ? ` + 550₽ (картер) = <b>${c.total + 550}₽</b>`
-                    : ' + 550₽ (картер)')
+                    ? ` + 550₽ (снятие/установка защиты картера) = <b>${c.total + 550}₽</b>`
+                    : ' + 550₽ (снятие/установка защиты картера)')
                 : '';
 
             const pickHint = canPick
@@ -787,7 +788,7 @@ function renderTotals(data, calcState, carApprovals) {
         const { sum, hasEngine } = computeTotalSum(tot, aggData);
         const sumpAdd = calcState.showWithSump && hasEngine ? 550 : 0;
         const display = sum + sumpAdd;
-        const sumpSuffix = sumpAdd ? ` + 550₽ картер = <b>${display}₽</b>` : '';
+        const sumpSuffix = sumpAdd ? ` + 550₽ (снятие/установка защиты картера) = <b>${display}₽</b>` : '';
 
         return `
             <div class="total-block">
