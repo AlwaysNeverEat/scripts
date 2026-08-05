@@ -47,6 +47,38 @@ test('describeNetworkError: вместо кода undici — человечес�
     );
 });
 
+test('describeNetworkError: просроченный сертификат читается по-русски', () => {
+    // Именно это видел оператор в панели CRM: «CERT_HAS_EXPIRED: certificate
+    // has expired» — из такой строки не понять даже, у кого сломалось.
+    const err = new TypeError('fetch failed');
+    err.cause = Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' });
+    assert.equal(describeNetworkError(err, 15_000), 'сертификат сервера просрочен (CERT_HAS_EXPIRED)');
+});
+
+test('isTransientNetworkError: сертификат не транзиентен — повторять нечего', () => {
+    const err = new TypeError('fetch failed');
+    err.cause = Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' });
+    assert.equal(isTransientNetworkError(err), false);
+});
+
+test('fetchWithRetry: fetchImpl вместо глобального fetch (послабление TLS у CRM)', async () => {
+    // Глобальный fetch не понимает dispatcher из пакета undici, поэтому клиент
+    // CRM передаёт сюда fetch из того же пакета — он и должен быть вызван.
+    const stub = stubFetch(async () => { throw new Error('глобальный fetch звать не должны'); });
+    let seen = null;
+    try {
+        const res = await fetchWithRetry('https://crm.test/analyse/free', { dispatcher: 'агент' }, {
+            timeoutMs: 5_000,
+            fetchImpl: async (_url, init) => { seen = init.dispatcher; return new Response('ok', { status: 200 }); },
+        });
+        assert.equal(res.status, 200);
+        assert.equal(seen, 'агент');
+        assert.equal(stub.calls(), 0);
+    } finally {
+        stub.restore();
+    }
+});
+
 test('fetchWithRetry: GET переживает обрыв и доходит со второй попытки', async () => {
     const stub = stubFetch(async (n) => {
         if (n === 1) throw socketClosed();

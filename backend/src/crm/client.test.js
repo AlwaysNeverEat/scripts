@@ -169,6 +169,32 @@ test('closeCrmSession: сессия уже закрыта самой CRM — в�
     }
 });
 
+test('просроченный сертификат CRM: понятный текст и «сайт тут ни при чём»', async () => {
+    process.env.CRM_THROTTLE_MS = '0';
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+        const err = new TypeError('fetch failed');
+        err.cause = Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' });
+        throw err;
+    };
+    try {
+        await assert.rejects(
+            closeCrmSession(new Map([['PHPSESSID', 'abc']])),
+            (err) => {
+                assert.equal(err.code, 'crm_unavailable');
+                // Оператор видел голое «CERT_HAS_EXPIRED: certificate has
+                // expired» и звал за помощью не туда.
+                assert.match(err.message, /сертификат сервера просрочен/);
+                assert.match(err.message, /сайт тут ни при чём/);
+                return true;
+            },
+        );
+    } finally {
+        globalThis.fetch = realFetch;
+        delete process.env.CRM_THROTTLE_MS;
+    }
+});
+
 test('buildAnalyseFreePath кодирует станцию и запрос', () => {
     assert.equal(
         buildAnalyseFreePath('45', 'W 712/95'),
