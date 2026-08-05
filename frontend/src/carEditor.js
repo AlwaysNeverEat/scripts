@@ -267,10 +267,11 @@ function paneAggs(record) {
                         value="${esc(a?.label || '')}" placeholder="${esc(def)}"
                         title="название агрегата — пусто значит стандартное"/>
                     <input type="text" inputmode="decimal" autocomplete="off" data-edit-vol="${key}"
-                        value="${esc(vol)}" data-initial="${esc(vol)}" style="width:90px" title="объём заправки, л"/>
+                        value="${esc(vol)}" data-initial="${esc(vol)}" title="объём заправки, л"/>
                     <span class="edit-agg-unit">л</span>
                 </div>
-                <textarea ${apprAttr} rows="2" placeholder="${esc(apprHint)}">${esc(appr.join('\n'))}</textarea>
+                <div class="edit-agg-cap">${isEngine ? 'Допуска ДВС — общие для машины' : 'Допуска агрегата'}</div>
+                <textarea ${apprAttr} rows="4" placeholder="${esc(apprHint)}">${esc(appr.join('\n'))}</textarea>
             </div>`;
     }).join('');
 
@@ -278,12 +279,12 @@ function paneAggs(record) {
         <div class="edit-sec-h">Штатные агрегаты</div>
         <div class="edit-oils-note">Пустое название = стандартное. Объём — сколько заливаем, л.
             У ДВС допуска общие для машины: именно по ним калькулятор подбирает моторное масло.</div>
-        ${rows}
+        <div class="edit-aggs-grid">${rows}</div>
 
         <div class="edit-sec-h">Дополнительные агрегаты</div>
         <div class="edit-oils-note">Свои агрегаты сверх основных: хоть 5 вариаторов, мостов,
             редукторов или раздаток. У каждого — название, объём и свои допуска.</div>
-        <div id="edit-custom-aggs"></div>
+        <div id="edit-custom-aggs" class="edit-aggs-grid"></div>
         <button class="btn btn-sec btn-mini" id="btn-add-custom-agg" type="button" style="margin-top:6px">Добавить агрегат</button>`;
 }
 
@@ -399,10 +400,11 @@ function renderCustomAggs(win, customAggs) {
                     </div>
                     <div class="edit-custom-agg-row">
                         <select data-cagg="type">${typeOpts}</select>
-                        <input type="text" inputmode="decimal" autocomplete="off" data-cagg="volume" value="${esc(c.volume)}" placeholder="объём, л" style="width:110px"/>
+                        <input type="text" inputmode="decimal" autocomplete="off" data-cagg="volume" value="${esc(c.volume)}" placeholder="объём, л"/>
                         <span class="edit-agg-unit">л</span>
                     </div>
-                    <textarea data-cagg="approvals" rows="2" placeholder="допуска — по одному в строке (напр. NS-3, Motul CVTF)">${esc(c.approvals)}</textarea>
+                    <div class="edit-agg-cap">Допуска агрегата</div>
+                    <textarea data-cagg="approvals" rows="4" placeholder="допуска — по одному в строке (напр. NS-3, Motul CVTF)">${esc(c.approvals)}</textarea>
                 </div>`;
         }).join('')
         : '<div class="edit-oils-note" style="opacity:.7">Пока нет — нажми «Добавить агрегат».</div>';
