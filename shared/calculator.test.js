@@ -151,7 +151,7 @@ test('из масел с одинаковыми обязательствами �
         ['VW 504 00','VW 507 00','ACEA C3','API SN','MB 229.51','BMW LL-04']);
 
     assert.equal(agg.requiredClass, 'C3');
-    assert.equal(mid.n, 'Professional 5W-30 C3', 'ROLF C3 за 1700 вместо Top Tec за 2400');
+    assert.equal(mid.n, 'Professional 5W-30 C3', 'ROLF C3 за 1750 вместо Top Tec за 2400');
 
     // «Достаточные» — те, у кого закрыты те же настоящие требования; между
     // ними решает цена, и список идёт по возрастанию.
