@@ -24,7 +24,6 @@ import {
     sortFilterRows,
 } from '../../shared/crmAnalyse.js';
 
-const STATION_KEY = 'zm_crm_station';
 const VISCOSITIES = ['0W-20', '0W-30', '5W-30', '5W-40', '10W-40'];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -43,9 +42,14 @@ export function initCrmPanel(record, { apiFetch }) {
         autoLogin: false,        // сессию поднял сам сайт по привязке
         canLink: true,           // бэкенду есть чем шифровать пароль (CRM_LINK_SECRET)
         stations: null,          // [{id, name}] | null пока грузится
-        stationId: localStorage.getItem(STATION_KEY) || '',
+        // Каждая машина открывается с «выбери станцию…»: станция не запоминается
+        // между машинами специально. Раньше сохранённый адрес подхватывался и
+        // панель сразу лезла в CRM за фильтрами и маслом — вхолостую, если
+        // человек открыл карточку просто посмотреть или работает не с той
+        // станции, что в прошлый раз. Запрос идёт только после выбора руками.
+        stationId: '',
         // Стартуем с вязкости калькулятора (он инициализируется раньше) —
-        // тогда первая же автопроверка сможет подставить масло в расчёт
+        // тогда первая же проверка сможет подставить масло в расчёт
         visc: currentCalcViscosity() || defaultViscosity(record),
         loading: false,
         error: null,             // { code, message }
@@ -161,14 +165,9 @@ export function initCrmPanel(record, { apiFetch }) {
             const { stations } = await apiFetch('/api/crm/stations');
             state.stations = stations;
             state.error = null;
-            // сохранённая станция ещё существует → проверяем сразу, как и просили:
-            // «выбрал адрес — дальше он сам»
-            if (state.stationId && stations.some(s => s.id === state.stationId)) {
-                runCheck();
-            } else {
-                state.stationId = '';
-                render();
-            }
+            // Список загружен — и всё, дальше ждём выбора станции. Сами в CRM за
+            // наличием не идём: до выбора адреса проверять нечего.
+            render();
         } catch (e) {
             if (!handleCrmError(e)) {
                 state.stations = [];
@@ -519,8 +518,6 @@ export function initCrmPanel(record, { apiFetch }) {
         if (sel) sel.onchange = () => {
             state.stationId = sel.value;
             dropResults();
-            if (state.stationId) localStorage.setItem(STATION_KEY, state.stationId);
-            else localStorage.removeItem(STATION_KEY);
             if (state.stationId) runCheck(); else render();
         };
         const refresh = root.querySelector('#crm-refresh');
