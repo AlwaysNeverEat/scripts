@@ -364,3 +364,25 @@ test('HIGH GEAR приоритетнее варна МКПП', () => {
     assert.ok(calc.isHighGear);
     assert.ok(!calc.mkppWarn);
 });
+
+test('строка «ACEA C2» рядом с «ACEA C3» не даёт масла классу C2', () => {
+    // Бензиновый Kia под ILSAC: правило по марке даёт A5/B5, год (GPF) —
+    // среднезольное, вместе это класс C2 (зола ≤0.8 при HTHS 2.9–3.5).
+    // Liqui Moly Top Tec несёт в паспорте и C2, и C3 — раз есть C3, замер HTHS
+    // у него ≥3.5 (docs/DOPUSKI.md, §3), и класса C2 у него нет. Иначе он шёл
+    // в предложение без пометки, а физически такое же густое C3-масло рядом
+    // получало «нет класса C2»: одна густота — два вердикта.
+    const state = makeState({ car: { makeShort:'KIA', modelShort:'K5', fuelType:'01',
+                                     yearFrom:2020, volume:'2.0', bhp:150 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    pickEngineOils(agg, getShopOils(), state, ['ACEA A7/B7','API SP','API SN','ILSAC GF-6A']);
+
+    assert.equal(agg.requiredClass, 'C2');
+    const topTec = agg.ranked.find(r => r.oil.n === '5W-30 Top Tec');
+    assert.equal(topTec.classMiss, 'C2', 'густое масло не выдаёт себя за C2');
+
+    // Все «достаточные» — действительно тонкие: HTHS ниже 3.5.
+    for (const oil of agg.topCandidates) {
+        assert.ok(oilProfile(oil.a).hthsMin < 3.5, `${oil.n} гуще, чем нужно мотору`);
+    }
+});
