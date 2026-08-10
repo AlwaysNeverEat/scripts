@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!-- Дев-песочница формы «Добавить машину»: фейковый apiFetch, без бэкенда.
+     Открыть: npx vite → /dev-add-car.html.
+     Здесь проверяются выпадашки и защита от дублей: в базе «живут»
+     Volkswagen / Volvo / Toyota, поэтому набранное «VW» должно ловиться
+     подсказкой, а Passat 1.4 2015 — существующей машиной.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: добавить машину</title>
+  <link rel="stylesheet" href="/src/style.css"/>
+</head>
+<body>
+  <div id="page-search">
+    <div class="search-ui">
+      <div class="search-wrap">
+        <div class="search-top-row">
+          <div class="search-mode-toggle">
+            <button type="button" class="chip active">Поиск</button>
+            <button type="button" class="chip">Теги</button>
+          </div>
+          <button type="button" class="add-car-btn" id="btn-add-car" title="Добавить машину" aria-label="Добавить машину">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span class="add-car-btn-label">Добавить машину</span>
+          </button>
+        </div>
+        <div class="search-box">
+          <input id="search-input" type="search" placeholder="Wake up, neo. . ." autocomplete="off"/>
+        </div>
+      </div>
+    </div>
+  </div>
+  <pre id="dev-log" style="margin:24px;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:12px;white-space:pre-wrap"></pre>
+
+  <script type="module">
+    import { openCarCreator } from '/src/carEditor.js';
+
+    const DB = {
+      brand: [
+        { value: 'Volkswagen', count: 312 },
+        { value: 'Toyota', count: 401 },
+        { value: 'Volvo', count: 88 },
+      ],
+      model: [
+        { value: 'Passat', count: 41 },
+        { value: 'Polo', count: 33 },
+        { value: 'Tiguan', count: 22 },
+      ],
+      generation: [{ value: 'B8', count: 12 }],
+      engine_name: [{ value: '1.4 TSI', count: 9 }, { value: '2.0 TDI', count: 7 }],
+      engine_code: [{ value: 'CZCA', count: 5 }, { value: 'CUAA', count: 3 }],
+    };
+
+    const log = (...a) => {
+      document.getElementById('dev-log').textContent += a.join(' ') + '\n';
+    };
+
+    // Фейковый apiFetch: отвечает на три ручки, которые зовёт форма.
+    async function apiFetch(path, opts = {}) {
+      log('→', opts.method || 'GET', path);
+      const [route, qs] = path.split('?');
+      const q = new URLSearchParams(qs || '');
+      if (route === '/api/cars/suggest') return DB[q.get('field')] || [];
+      if (route === '/api/cars/exact') {
+        const dup = q.get('model') === 'Passat' && q.get('year_from') === '2015';
+        return { car: dup ? { id: 'dev-dup', brand: 'Volkswagen', model: 'Passat', engine_name: '1.4 TSI', year_from: 2015 } : null };
+      }
+      if (route === '/api/cars' && opts.method === 'POST') {
+        log('POST body:', JSON.stringify(opts.body, null, 2));
+        return { ...opts.body, id: 'dev-new', created: true };
+      }
+      throw new Error('нет такой ручки: ' + path);
+    }
+
+    document.getElementById('btn-add-car').onclick = () => openCarCreator({
+      apiFetch,
+      onOpenCar: (id) => log('открыть машину', id),
+      onCreated: (car) => log('создана машина', car.id),
+    });
+  </script>
+</body>
+</html>

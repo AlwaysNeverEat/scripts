@@ -566,6 +566,93 @@ router.get('/tags/results', async (req, res) => {
   }
 });
 
+// ── GET /api/cars/suggest?field=&brand=&model= ────────────────────────────────
+// Что УЖЕ есть в базе по одному полю — для выпадашек формы «Добавить машину».
+// Без них человек пишет «VW» там, где база знает «Volkswagen», и марка
+// раздваивается: поиск по каждой находит половину машин, каскад «Теги»
+// показывает две ветки. Сводить их потом приходится руками.
+//
+// Список каскадный: модели — только выбранной марки, двигатели — только
+// выбранной марки и модели. Спрашиваем сервер, а не снимок базы на клиенте:
+// снимок живёт до 5 минут и не содержит engine_name, а машина, заведённая
+// коллегой минуту назад, — это ровно тот случай, ради которого всё и нужно.
+// Должен стоять ВЫШЕ '/:id', иначе тот перехватит 'suggest' как id.
+
+const SUGGEST_FIELDS = new Set(['brand', 'model', 'generation', 'engine_name', 'engine_code']);
+
+router.get('/suggest', async (req, res) => {
+  const field = String(req.query.field || '');
+  // Имя колонки уходит в SQL текстом, поэтому берём его только из белого списка.
+  if (!SUGGEST_FIELDS.has(field)) return res.status(400).json({ error: 'unknown field' });
+
+  const params = [];
+  const clauses = [`${field} IS NOT NULL`, `btrim(${field}) <> ''`];
+  const brand = (req.query.brand || '').trim();
+  const model = (req.query.model || '').trim();
+  if (brand && field !== 'brand') {
+    params.push(brand);
+    clauses.push(`lower(brand) = lower($${params.length})`);
+  }
+  if (model && field !== 'brand' && field !== 'model') {
+    params.push(model);
+    clauses.push(`lower(model) = lower($${params.length})`);
+  }
+
+  try {
+    const r = await query(
+      `SELECT ${field} AS value, count(*)::int AS count
+         FROM cars
+        WHERE ${clauses.join(' AND ')}
+        GROUP BY ${field}
+        ORDER BY count(*) DESC, ${field} ASC
+        LIMIT 500`,
+      params,
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('GET /api/cars/suggest', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/cars/exact ───────────────────────────────────────────────────────
+// «Такая машина в базе уже есть?» — проверка ПЕРЕД добавлением.
+// Условие повторяет ключ конфликта POST /api/cars (ON CONFLICT ниже по файлу):
+// марка, модель, код двигателя, объём и год начала. Это важно: POST — upsert,
+// и без проверки «добавление» существующей машины молча перезаписало бы её
+// данные (объёмы, допуска, фильтры) тем, что человек набрал в форме.
+// Должен стоять ВЫШЕ '/:id'.
+
+router.get('/exact', async (req, res) => {
+  const brand = (req.query.brand || '').trim();
+  const model = (req.query.model || '').trim();
+  const yearFrom = parseInt(req.query.year_from, 10);
+  if (!brand || !model || !Number.isFinite(yearFrom)) {
+    return res.status(400).json({ error: 'brand, model and year_from are required' });
+  }
+  const engineCode = (req.query.engine_code || '').trim();
+  const volume = parseFloat(req.query.engine_volume);
+
+  try {
+    const r = await query(
+      `SELECT id, brand, model, generation, engine_name, engine_code,
+              engine_volume, year_from, year_to
+         FROM cars
+        WHERE lower(brand) = lower($1)
+          AND lower(model) = lower($2)
+          AND lower(coalesce(engine_code, '')) = lower($3)
+          AND coalesce(engine_volume, 0) = $4
+          AND year_from = $5
+        LIMIT 1`,
+      [brand, model, engineCode, Number.isFinite(volume) ? volume : 0, yearFrom],
+    );
+    res.json({ car: r.rows[0] || null });
+  } catch (err) {
+    console.error('GET /api/cars/exact', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/cars/index ───────────────────────────────────────────────────────
 // Компактный снимок всей базы для клиентского поиска и режима «Теги»: сайт
 // тянет его один раз и дальше фильтрует всё в браузере — ноль запросов на
