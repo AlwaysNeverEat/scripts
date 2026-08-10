@@ -432,11 +432,24 @@ function buildOilRater(analysis) {
 // Поэтому: сначала прямое совпадение строки, потом физика, выведенная из ВСЕХ
 // допусков масла (oilProfile берёт самый строгий по золе и самый высокий пол
 // по HTHS — то, что масло реально прошло на замерах).
+//
+// Но у «тонкой» ветки классов строка в паспорте вообще не аргумент: A5/B5, C2 и
+// C1 — это HTHS 2.9–3.5, а рядом с ними производители печатают и густые классы.
+// Liqui Moly Top Tec 5W-30 несёт и «ACEA C2», и «ACEA C3»: раз масло прошло C3,
+// замер HTHS у него ≥3.5, и строка C2 — маркетинговое наследие
+// (docs/DOPUSKI.md, §3). Из-за неё на бензиновом Kia под C2 Top Tec шёл в
+// предложение без единой пометки, а физически такое же густое C3-масло рядом
+// получало красную плашку «нет класса C2». Одна и та же густота — два разных
+// вердикта, причём в самой же строке Top Tec стоял штраф «масло гуще, чем
+// рассчитан мотор». Поэтому для тонкой ветки измеренный HTHS перебивает строку.
+const THIN_CLASSES = new Set(['A5B5', 'C2', 'C1']);
+
 function oilMeetsClass(oil, cls) {
-    if (hasLiteralAceaClass(oil, cls)) return true;
     const p = oilProfile(oil.a || []);
+    const thick = p.hthsMin != null && p.hthsMin >= 3.5;
+    if (thick && THIN_CLASSES.has(cls)) return false;
+    if (hasLiteralAceaClass(oil, cls)) return true;
     if (p.hthsMin == null) return false;
-    const thick = p.hthsMin >= 3.5;
     switch (cls) {
         // Полнозольные классы золу не ограничивают — важен только HTHS, и
         // зольность масла для них можно не знать вовсе. Иначе японские масла
@@ -446,7 +459,7 @@ function oilMeetsClass(oil, cls) {
         case 'A5B5': return !thick;
         // Малозольные классы — наоборот: без замера по золе подтвердить нечем.
         case 'C3':   return p.ash != null && thick && p.ash <= ASH_MID;
-        case 'C2':   return p.ash != null && !thick && p.ash <= ASH_MID;
+        case 'C2':   return p.ash != null && p.ash <= ASH_MID;
         case 'C1':   return p.ash != null && p.ash <= ASH_LOW;
         default:     return false;
     }

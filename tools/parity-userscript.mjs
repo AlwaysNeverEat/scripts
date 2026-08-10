@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { buildReport } from '../shared/report.js';
+import { getShopOils, getDefaults } from '../shared/oils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -48,9 +49,14 @@ function extractFunction(src, name) {
     return src.slice(start, i + 1);
 }
 
+// getShopOils/getDefaults В СПИСОК НЕ ВХОДЯТ: это каталог магазина с ценами,
+// то есть данные, а не логика. Замороженная копия 2024 года несёт прайс
+// позапрошлого года, и любое обновление цен в shared/oils.js делало паритет
+// красным навсегда — а вместе с ним падала и сборка юзерскрипта, так что в CRM
+// уезжал артефакт со старыми ценами. Обе стороны берут каталог из shared.
 const FN_NAMES = [
-    'getShopOils', 'getMotulOils', 'getReglament', 'getReglamentForBrand',
-    'matchOilToReglament', 'getDefaults',
+    'getMotulOils', 'getReglament', 'getReglamentForBrand',
+    'matchOilToReglament',
     'normApproval', 'tokenSet', 'anyMatch', 'splitOilApprovals',
     'extractAtfSpecs', 'carAtfSpecSet', 'oilAtfMatches', 'pickAtfOils',
     'escapeHtml', 'escapeHtmlSafe',
@@ -65,9 +71,11 @@ const fnSource = FN_NAMES.map(n => extractFunction(source, n)).join('\n\n');
 // ── Песочница с оригинальными функциями ──────────────────────────────────────
 // GM_getValue и calcState — свободные переменные оригинала; подставляем стабы.
 
-const sandboxFactory = new Function('GM_getValue', `
+const sandboxFactory = new Function('GM_getValue', 'DATA', `
     'use strict';
     let calcState = null;
+    const getShopOils = DATA.getShopOils;
+    const getDefaults = DATA.getDefaults;
     const roundL = (x) => {
         const n = Number(x);
         return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : 0;
@@ -273,7 +281,7 @@ let failures = 0;
 for (const c of CASES) {
     const approvalsByKey = { ['rolf_approvals_' + c.car.cacheKey]: c.approvals };
     const GM_getValue = (key, def) => (key in approvalsByKey ? approvalsByKey[key] : def);
-    const sandbox = sandboxFactory(GM_getValue);
+    const sandbox = sandboxFactory(GM_getValue, { getShopOils, getDefaults });
 
     const stateOrig = { ...c.state, car: c.car, data: c.data,
                         selected: new Set(c.state.selected), totals: c.state.totals.map(t => ({ ...t })) };

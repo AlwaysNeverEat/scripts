@@ -38,16 +38,21 @@ function extractFunction(src, name) {
 }
 
 // ── Оригинальная песочница (всё из монолита) ─────────────────────────────────
+// getShopOils/getDefaults берутся из shared, а не из замороженной базы: это
+// каталог с ценами, и держать его копию 2024 года значит ронять паритет (а с
+// ним и сборку юзерскрипта) на каждом обновлении прайса.
 const ORIG_FNS = [
-    'getShopOils','getMotulOils','getReglament','getReglamentForBrand','matchOilToReglament',
-    'getDefaults','normApproval','tokenSet','anyMatch','splitOilApprovals',
+    'getMotulOils','getReglament','getReglamentForBrand','matchOilToReglament',
+    'normApproval','tokenSet','anyMatch','splitOilApprovals',
     'extractAtfSpecs','carAtfSpecSet','oilAtfMatches','pickAtfOils',
     'escapeHtml','escapeHtmlSafe','filtersTotal','normalizeAdditive','renderOilDetailsBlock',
     'pickEngineOils','calcForAggregate',
 ];
-const origFactory = new Function('GM_getValue', `
+const origFactory = new Function('GM_getValue', 'DATA', `
     'use strict';
     let calcState = null;
+    const getShopOils = DATA.getShopOils;
+    const getDefaults = DATA.getDefaults;
     const roundL = (x) => { const n = Number(x); return Number.isFinite(n) ? Math.round(n*1000)/1000 : 0; };
     ${ORIG_FNS.map(n => extractFunction(origSrc, n)).join('\n')}
     return { setState(s){calcState=s;}, calc(agg){return calcForAggregate(agg);} };
@@ -148,7 +153,7 @@ const CASES = [
 let failures = 0;
 for (const c of CASES) {
     const gm = (key, def) => key === 'rolf_approvals_' + c.car.cacheKey ? c.approvals : def;
-    const orig = origFactory(gm);
+    const orig = origFactory(gm, { getShopOils: O.getShopOils, getDefaults: O.getDefaults });
     const neu  = newFactory(gm, sharedBag);
 
     const s1 = { ...c.state, car: c.car, data: {}, selected: new Set(c.state.selected) };
