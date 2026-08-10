@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM: Пересчёт чека
 // @namespace    zamena-masla-spot.ru
-// @version      1.7.495
+// @version      1.7.502
 // @description  Пересчёт стоимости услуги по чеку /sale/{id} по актуальным ценам
 // @match        *://crm.zamena-masla-spot.ru/sale/*
 // @match        *://crm.zamena-masla-spot.ru/for-sale/*
@@ -53,7 +53,7 @@
       {
         b: "Liqui Moly",
         n: "5W-30 Molygen",
-        price: 2300,
+        price: 2350,
         v: "5W-30",
         a: ["API SP", "ILSAC GF-6A", "FIAT 9.55535-CR1", "FORD WSS-M2C 961-A1", "FORD WSS-M2C 946-A", "FORD WSS-M2C 946-B1"],
         ad: ["Америка/Азия", "износ", "отложения", "топливо", "масло-угар", "антифрикционные"]
@@ -78,7 +78,7 @@
       {
         b: "ROLF",
         n: "Professional AM 5W-40",
-        price: 1700,
+        price: 1750,
         v: "5W-40",
         a: ["API CF", "API SN Plus", "ACEA A3/B3", "ACEA A3/B4", "LL 01", "FIAT 9.55535-Z2", "GM LL-A-025", "GM LL-B-025", "PORSCHE A40", "PSA B71 2293", "PSA B71 2296", "RN 0700", "RN 0710", "VW 502 00", "VW 505 00", "MB 226.5", "MB 229.5"],
         ad: ["моющие присадки", "отложения", "нагар", "быстрый запуск"]
@@ -86,7 +86,7 @@
       {
         b: "ROLF",
         n: "Professional 5W-30 C3",
-        price: 1700,
+        price: 1750,
         v: "5W-30",
         a: ["API SN", "ACEA C3", "LL 04", "PORSCHE C30", "VW 504 00", "VW 507 00", "MB 229.51"],
         ad: ["антикоррозия", "моющие присадки", "для турбо"]
@@ -185,7 +185,7 @@
       {
         b: "GM",
         n: "5W-30 Dexos II",
-        price: 1600,
+        price: 1650,
         v: "5W-30",
         a: ["ACEA A3/B3", "GM LL-B-025", "VW 505 01", "VW 502 00", "VW 505 00", "MB 229.51", "LL 04", "GM DEXOS2"],
         ad: ["низкая зольность", "износ", "топливо", "очистка"]
@@ -193,7 +193,7 @@
       {
         b: "Shell",
         n: "5W-30 Ultra AM-L Kia/Hyundai",
-        price: 1950,
+        price: 2100,
         v: "5W-30",
         a: ["LL 04", "MB 229.51", "API SN", "API CF", "ACEA C3"],
         ad: ["топливо", "масло-угар", "пуск в мороз", "сажа", "низкозольное"]
@@ -218,7 +218,7 @@
       {
         b: "Motul",
         n: "5W-30 SAVE-NERGY",
-        price: 2100,
+        price: 2150,
         v: "5W-30",
         a: ["FIAT 9.55535-G1", "FORD WSS M2C 913D", "JAGUAR STJLR 03.5003", "ACEA A5/B5", "API SL"],
         ad: ["трение", "тепловые нагрузки", "износ", "топливо", "масло-угар"]
@@ -226,7 +226,7 @@
       {
         b: "Motul",
         n: "5W-40 6100 SYN-CLEAN",
-        price: 2100,
+        price: 2150,
         v: "5W-40",
         a: ["FORD WSS M2C 917A", "GM DEXOS2", "MB 229.51", "RN 0710", "RN 0700", "VW 505 00", "VW 505 01", "ACEA C3", "API SN"],
         ad: ["трение", "тепловые нагрузки", "износ", "топливо", "масло-угар"]
@@ -318,7 +318,7 @@
         rolfDexron6: {
           b: "ROLF",
           n: "ATF Dexron VI",
-          price: 1650,
+          price: 1750,
           v: "ATF",
           _type: "dexron6",
           a: ["BMW 83 22 0 142 516", "BMW 83 22 0 163 514", "BMW 83 22 0 397 114", "BMW 83 22 2 152 426", "BMW 83 22 2 289 720", "BMW 83 22 2 305 396", "BMW 83 22 2 305 397", "BMW ATF 2", "BMW ATF 3+", "BMW ATF 6", "Ford Mercon LV", "GM AW-1", "GM DEXRON VI", "Honda DW-1", "Hyundai / Kia ATF SPH-IV", "Hyundai / Kia ATF SP-IV", "Hyundai / Kia NWS-9638", "Jaguar Fluid 8432", "Jaguar LR023288", "Land Rover LR0022460", "Land Rover TYK500050", "Mazda FZ", "MB 236.12", "MB 236.14", "MB 236.15", "MB 236.41", "Mitsubishi ATF-J3", "Nissan Matic S", "Saab AW-1", "Toyota WS", "VW G 052 533", "VW G 055 005", "VW G 055 162", "VW G 055 540", "VW G 060 162"]
@@ -326,7 +326,7 @@
         rolfMulti: {
           b: "ROLF",
           n: "Professional ATF Multi",
-          price: 1650,
+          price: 1750,
           v: "ATF",
           _type: "multi",
           a: ["Allison C-4", "BMW 81 22 9 400 272", "BMW 81 22 9 400 275", "BMW 81 22 9 407 858", "BMW 81 22 9 407 859", "BMW 83 22 0 024 249", "BMW 83 22 0 024 359", "BMW 83 22 0 026 922", "BMW 83 22 0 402 413", "BMW 83 22 0 403 248", "BMW 83 22 7 542 290", "BMW 83 22 9 407 765", "BMW 83 22 9 407 807", "Chrysler / Dodge / Jeep ATF+4", "Chrysler / Dodge / Jeep SP-III", "DTFR 13C180", "DTFR 38B100", "Ford WSS-M2C922-A1", "GM DEXRON II", "GM DEXRON IID", "GM DEXRON IIE", "GM DEXRON IIIG", "GM DEXRON IIIH", "GM Type A Suffix A", "Honda Z-1", "Hyundai / Kia ATF Red-1K", "Hyundai / Kia Genuine ATF", "Hyundai / Kia SP-II", "Hyundai / Kia SP-III", "Isuzu ATF II", "Isuzu ATF III", "Isuzu Genuine ATF", "Jaguar JLM 20238", "Jaguar JLM 20292", "Jaguar JLM 21044", "Jaguar K17", "Jaguar LT 71141", "Land Rover ETL-7045E", "MAN 339 A", "Mazda F-1", "Mazda JWS 3317", "Mazda M-V", "Mazda T-IV", "MB 236.10", "MB 236.11", "MB 236.3", "MB 236.5", "MB 236.6", "MB 236.7", "MB 236.8", "MB 236.9", "MB 236.91", "Mitsubishi ATF-J2", "Mitsubishi SP-II", "Mitsubishi SP-III", "Nissan 402", "Nissan Matic D", "Nissan Matic J", "Nissan Matic K", "Nissan Matic W", "Renault Matic D2", "Saab 3309 (T-IV)", "Ssang Yong DSIH 5M-66", "Subaru HP", "Suzuki 3314", "Suzuki 3317", "Toyota D-II", "Toyota T-III", "Toyota T-IV", "VW G 052 025", "VW G 052 055", "VW G 052 162", "VW G 052 990", "VW G 055 025", "VW G US 000 162"]
