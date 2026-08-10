@@ -1,5 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Правка данных машины — ОДНО окно с вкладками.
+// Правка данных машины — ОДНО окно с вкладками. Оно же заводит НОВУЮ машину
+// (openCarCreator): набор полей у «добавить» и «исправить» один и тот же, и
+// держать вторую такую же форму значило бы чинить каждую правку дважды.
+// Отличий ровно три: пустая машина вместо загруженной, POST вместо PATCH и
+// проверка «такая машина уже есть» перед отправкой — POST у нас upsert, и без
+// проверки «добавление» дубля молча переписало бы чужие данные.
 //
 // Раньше правка жила прямо в шапке страницы: кнопка «Нашли ошибку?» превращала
 // всю шапку в одну простыню полей — от марки до списка масел магазина. Найти в
@@ -19,6 +24,7 @@ import {
 } from '../../shared/sourceLinks.js';
 import { changedCarFields } from '../../shared/carPatch.js';
 import { checkAchievementsNow } from './achievements.js';
+import { suggestFieldHtml, attachSuggest } from './suggestInput.js';
 
 // Вкладки и поля, которые в них правятся. Порядок массива = порядок в окне,
 // поля нужны, чтобы у вкладки с изменениями зажигалась метка «изменено».
@@ -83,11 +89,33 @@ function stdAggs(fc) {
 
 // ── Точка входа ───────────────────────────────────────────────────────────────
 
-export function openCarEditor(record, ctx, { tab } = {}) {
+// Пустая машина для режима «Добавить». Ключи перечислены явно (а не собираются
+// по ходу заполнения формы): changedCarFields сравнивает патч именно с этим
+// объектом, и незаполненное поле должно выглядеть как «не трогали».
+function emptyCarRecord() {
+    return {
+        brand: '', model: '', generation: null,
+        engine_name: null, engine_code: null, engine_volume: null,
+        year_from: null, year_to: null, kw: null, bhp: null, fuel_type: null,
+        fluid_capacities: {}, filter_part_numbers: {}, car_approvals: [],
+        service_flags: {}, source_links: {}, tags: [], notes: null,
+    };
+}
+
+/**
+ * Окно «Добавить машину» — та же форма, что и правка, но пустая и с POST.
+ * ctx: { apiFetch, onCreated(car), onOpenCar?(id) }.
+ */
+export function openCarCreator(ctx) {
+    return openCarEditor(emptyCarRecord(), ctx, { mode: 'create' });
+}
+
+export function openCarEditor(record, ctx, { tab, mode = 'edit' } = {}) {
     const old = document.getElementById('car-editor-modal');
     if (old) old.remove();
 
     const state = {
+        mode,
         tab: TABS.some(t => t.id === tab) ? tab : TABS[0].id,
         customAggs: customAggsFromRecord(record),
         tags: Array.isArray(record.tags) ? record.tags.map(String) : [],
@@ -113,7 +141,10 @@ export function openCarEditor(record, ctx, { tab } = {}) {
         try {
             dirty = Object.keys(changedCarFields(record, collectPatch(win, record, state))).length;
         } catch { dirty = 0; }
-        if (dirty && !confirm('Закрыть без сохранения? Изменения потеряются.')) return;
+        const ask = state.mode === 'create'
+            ? 'Закрыть без сохранения? Введённые данные потеряются, машина не добавится.'
+            : 'Закрыть без сохранения? Изменения потеряются.';
+        if (dirty && !confirm(ask)) return;
         close();
     };
     const onKey = (e) => { if (e.key === 'Escape') closeGuarded(); };
@@ -127,6 +158,7 @@ export function openCarEditor(record, ctx, { tab } = {}) {
     bindCustomAggs(win, state);
     bindTags(win, state);
     bindFilterAbsent(win);
+    bindSuggests(win, ctx);
 
     // Метки «изменено» пересчитываются на каждый ввод: человек видит, в каких
     // вкладках он уже что-то тронул, не переключаясь по ним.
@@ -142,6 +174,7 @@ export function openCarEditor(record, ctx, { tab } = {}) {
 // ── Каркас окна ───────────────────────────────────────────────────────────────
 
 function renderShell(record, state) {
+    const creating = state.mode === 'create';
     const title = [record.brand, record.model].filter(Boolean).join(' ');
     const nav = TABS.map(t => `
         <button class="car-ed-tab${t.id === state.tab ? ' active' : ''}" data-ed-tab="${t.id}">
@@ -160,7 +193,9 @@ function renderShell(record, state) {
         <div class="modal-backdrop"></div>
         <div class="modal-win car-ed-win">
             <div class="modal-head">
-                <span>Правка данных${title ? ` — ${esc(title)}` : ''}</span>
+                <span>${creating
+                    ? 'Добавить машину'
+                    : `Правка данных${title ? ` — ${esc(title)}` : ''}`}</span>
                 <button class="btn btn-sec" id="car-ed-close" title="закрыть без сохранения">✕</button>
             </div>
             <div class="car-ed-body">
@@ -169,14 +204,15 @@ function renderShell(record, state) {
             </div>
             <div class="car-ed-foot">
                 <div id="car-ed-error" class="edit-error hidden"></div>
+                ${creating ? '' : `
                 <label class="car-ed-comment">
                     <span>Что исправили — коротко (необязательно, попадёт в историю машины)</span>
                     <input type="text" id="car-ed-comment" autocomplete="off" placeholder="напр. «объём АКПП по мануалу, было 7 л»"/>
-                </label>
+                </label>`}
                 <div class="car-ed-foot-btns">
                     <span class="car-ed-status" id="car-ed-status"></span>
                     <button class="btn btn-sec" id="car-ed-cancel">Отмена</button>
-                    <button class="btn btn-pri" id="car-ed-save">Сохранить</button>
+                    <button class="btn btn-pri" id="car-ed-save">${creating ? 'Добавить машину' : 'Сохранить'}</button>
                 </div>
             </div>
         </div>
@@ -184,8 +220,8 @@ function renderShell(record, state) {
 }
 
 function renderPane(id, record, state) {
-    if (id === 'car')     return paneCar(record);
-    if (id === 'aggs')    return paneAggs(record);
+    if (id === 'car')     return paneCar(record, state);
+    if (id === 'aggs')    return paneAggs(record, state);
     if (id === 'filters') return paneFilters(record);
     if (id === 'flags')   return paneFlags(record);
     if (id === 'links')   return paneLinks(record);
@@ -212,14 +248,32 @@ function field(key, label, value, type = 'text') {
         </label>`;
 }
 
-function paneCar(record) {
+// Текстовое поле с выпадашкой «что уже есть в базе». Ставится на все поля, из
+// которых складывается ИМЯ машины: разнобой в них («VW» против «Volkswagen»,
+// «C5» кириллицей) плодит дубли, а сводить их потом приходится руками.
+// Значение при этом любое: новые марки и модели появляются постоянно.
+function suggestField(key, label, value, placeholder = '') {
+    return suggestFieldHtml({
+        label,
+        attrs: `data-edit="${key}" data-suggest="${key}"`,
+        value: value == null ? '' : String(value),
+        placeholder,
+    });
+}
+
+function paneCar(record, state) {
+    const creating = state.mode === 'create';
     return `
+        ${creating ? `<div class="edit-oils-note">Обязательны марка, модель и год начала выпуска —
+            остальное можно дополнить позже. Под полями марки, модели и двигателя
+            показано то, что уже есть в базе: выбирайте оттуда, если машина той же
+            марки уже заводилась.</div>` : ''}
         <div class="edit-grid">
-            ${field('brand', 'Марка *', record.brand)}
-            ${field('model', 'Модель *', record.model)}
-            ${field('generation', 'Поколение', record.generation)}
-            ${field('engine_name', 'Двигатель', record.engine_name)}
-            ${field('engine_code', 'Код двигателя', record.engine_code)}
+            ${suggestField('brand', 'Марка *', record.brand, 'напр. Volkswagen')}
+            ${suggestField('model', 'Модель *', record.model, 'напр. Passat')}
+            ${suggestField('generation', 'Поколение', record.generation, 'напр. B8')}
+            ${suggestField('engine_name', 'Двигатель', record.engine_name, 'напр. 1.4 TSI')}
+            ${suggestField('engine_code', 'Код двигателя', record.engine_code, 'напр. CZCA')}
             ${field('engine_volume', 'Объём, л', record.engine_volume, 'decimal')}
             ${field('year_from', 'Год с *', record.year_from, 'number')}
             ${field('year_to', 'Год по', record.year_to, 'number')}
@@ -238,22 +292,34 @@ function paneCar(record) {
 // (fluid_capacities[key].motulProducts) — но в форме это одно и то же поле,
 // чтобы не искать допуска мотора в другом месте.
 
-function paneAggs(record) {
+function paneAggs(record, state) {
     const fc = record.fluid_capacities || {};
     const approvals = Array.isArray(record.car_approvals) ? record.car_approvals : [];
+    const creating = state.mode === 'create';
 
     const rows = stdAggs(fc).map(({ key, def }) => {
         const a = fc[key];
         const isEngine = key === 'engine';
         // Агрегата нет в данных — рисуем только ДВС (без него негде править
-        // допуска мотора), остальные не выдумываем.
-        if (!a && !isEngine) return '';
+        // допуска мотора), остальные не выдумываем. У новой машины наоборот:
+        // данных нет ни у одного агрегата, и показать надо все — иначе МКПП
+        // или мост в неё вообще не внести.
+        if (!a && !isEngine && !creating) return '';
         const vol = isEngine
             ? (a?.volumeService || a?.volumeTotal || a?.volumePlain || '')
-            : (a.volumeTotal || a.volumeService || a.volumePlain || '');
+            : (a?.volumeTotal || a?.volumeService || a?.volumePlain || '');
         const appr = isEngine
             ? approvals
-            : (Array.isArray(a.motulProducts) ? a.motulProducts : []);
+            : (Array.isArray(a?.motulProducts) ? a.motulProducts : []);
+        // У новой машины тип «автомата» задаём здесь: от него зависит и подпись
+        // агрегата, и то, что расчёт по умолчанию идёт частичной заменой
+        // (вариатору полную не делают) — см. shouldDefaultToPartial.
+        const cvtRow = creating && key === 'automatic' ? `
+                <div class="edit-agg-cap">Тип автомата</div>
+                <select data-edit-agg-cvt="automatic" class="edit-agg-type">
+                    <option value="">АКПП (гидротрансформатор)</option>
+                    <option value="cvt">Вариатор (CVT)</option>
+                </select>` : '';
         const apprAttr = isEngine
             ? 'data-edit-approvals="engine"'
             : `data-edit-agg-appr="${key}"`;
@@ -270,6 +336,7 @@ function paneAggs(record) {
                         value="${esc(vol)}" data-initial="${esc(vol)}" title="объём заправки, л"/>
                     <span class="edit-agg-unit">л</span>
                 </div>
+                ${cvtRow}
                 <div class="edit-agg-cap">${isEngine ? 'Допуска ДВС — общие для машины' : 'Допуска агрегата'}</div>
                 <textarea ${apprAttr} rows="4" placeholder="${esc(apprHint)}">${esc(appr.join('\n'))}</textarea>
             </div>`;
@@ -278,7 +345,9 @@ function paneAggs(record) {
     return `
         <div class="edit-sec-h">Штатные агрегаты</div>
         <div class="edit-oils-note">Пустое название = стандартное. Объём — сколько заливаем, л.
-            У ДВС допуска общие для машины: именно по ним калькулятор подбирает моторное масло.</div>
+            У ДВС допуска общие для машины: именно по ним калькулятор подбирает моторное масло.
+            ${creating ? 'Заполняйте только те агрегаты, что у машины есть: пустая карточка в базу не попадёт. '
+                       + 'ДВС остаётся всегда — объём можно не знать, калькулятор спросит его при расчёте.' : ''}</div>
         <div class="edit-aggs-grid">${rows}</div>
 
         <div class="edit-sec-h">Дополнительные агрегаты</div>
@@ -472,6 +541,47 @@ function bindTags(win, state) {
     });
 }
 
+// ── Выпадашки «что уже есть в базе» ───────────────────────────────────────────
+// Списки каскадные: модели — только выбранной марки, двигатели — только
+// выбранной марки и модели. Иначе в выпадашке двигателя лежали бы все моторы
+// базы, и найти в них свой было бы дольше, чем набрать руками.
+
+const SUGGEST_FIELDS = ['brand', 'model', 'generation', 'engine_name', 'engine_code'];
+
+function bindSuggests(win, ctx) {
+    if (!ctx || typeof ctx.apiFetch !== 'function') return;
+
+    const val = (k) => {
+        const el = win.querySelector(`[data-edit="${k}"]`);
+        return el ? el.value.trim() : '';
+    };
+
+    const handles = {};
+    for (const f of SUGGEST_FIELDS) {
+        const input = win.querySelector(`[data-suggest="${f}"]`);
+        if (!input) continue;
+        handles[f] = attachSuggest(input, {
+            load: () => {
+                const q = new URLSearchParams({ field: f });
+                if (f !== 'brand' && val('brand')) q.set('brand', val('brand'));
+                if (f !== 'brand' && f !== 'model' && val('model')) q.set('model', val('model'));
+                return ctx.apiFetch('/api/cars/suggest?' + q.toString());
+            },
+        });
+    }
+
+    // Сменилась марка — списки моделей и двигателей относятся уже к другой
+    // машине. Слушаем change (то есть уход из поля), а не input: перезапрашивать
+    // список на каждую букву незачем.
+    const refresh = (deps) => deps.forEach(d => handles[d] && handles[d].refresh());
+    const brandInput = win.querySelector('[data-suggest="brand"]');
+    if (brandInput) brandInput.addEventListener('change',
+        () => refresh(['model', 'generation', 'engine_name', 'engine_code']));
+    const modelInput = win.querySelector('[data-suggest="model"]');
+    if (modelInput) modelInput.addEventListener('change',
+        () => refresh(['generation', 'engine_name', 'engine_code']));
+}
+
 // ── Фильтры: «отсутствует» гасит поле артикула ────────────────────────────────
 
 function bindFilterAbsent(win) {
@@ -540,6 +650,19 @@ function collectPatch(win, record, state) {
     // Объёмы и названия — поверх текущих fluid_capacities, чтобы не потерять
     // поля, которых нет в форме (isCvt, isDct, volumePlain и прочее из импорта).
     const fluid = JSON.parse(JSON.stringify(record.fluid_capacities || {}));
+    const creating = state.mode === 'create';
+    // У новой машины агрегатов нет ни одного, поэтому запись заводим под то,
+    // что реально заполнили. Пустые карточки убираем ниже — иначе у машины
+    // появились бы МКПП, раздатка и два моста только потому, что их поля
+    // нарисованы в форме.
+    const ensureAgg = (key) => {
+        if (!fluid[key]) {
+            if (!creating && key !== 'engine') return null;
+            fluid[key] = {};
+        }
+        return fluid[key];
+    };
+
     win.querySelectorAll('[data-edit-vol]').forEach(inp => {
         const key = inp.dataset.editVol;
         const v = parseDecimal(inp.value);
@@ -550,31 +673,48 @@ function collectPatch(win, record, state) {
         if (unchanged(inp)) return;
         // Мотор мог прийти из импорта без объёма вообще — тогда заводим запись,
         // иначе введённый объём молча пропадал.
-        if (!fluid[key]) {
-            if (key !== 'engine') return;
-            fluid.engine = {};
-        }
-        if (key === 'engine') fluid.engine.volumeService = v;
-        else fluid[key].volumeTotal = v;
+        const agg = ensureAgg(key);
+        if (!agg) return;
+        if (key === 'engine') agg.volumeService = v;
+        else agg.volumeTotal = v;
     });
 
     win.querySelectorAll('[data-edit-agg-label]').forEach(inp => {
         const key = inp.dataset.editAggLabel;
-        if (!fluid[key]) return;
         const name = inp.value.trim();
-        if (name) fluid[key].label = name;
-        else delete fluid[key].label;
+        const agg = fluid[key] || (name ? ensureAgg(key) : null);
+        if (!agg) return;
+        if (name) agg.label = name;
+        else delete agg.label;
     });
 
     // Допуска штатных агрегатов (кроме ДВС — у него car_approvals).
     // Пусто = допуска неизвестны.
     win.querySelectorAll('[data-edit-agg-appr]').forEach(ta => {
         const key = ta.dataset.editAggAppr;
-        if (!fluid[key]) return;
         const list = linesOf(ta);
-        if (list.length) fluid[key].motulProducts = list;
-        else delete fluid[key].motulProducts;
+        const agg = fluid[key] || (list.length ? ensureAgg(key) : null);
+        if (!agg) return;
+        if (list.length) agg.motulProducts = list;
+        else delete agg.motulProducts;
     });
+
+    if (creating) {
+        // Вариатор — не «АКПП с галочкой»: от него зависит и подпись агрегата,
+        // и частичная замена по умолчанию (см. shouldDefaultToPartial).
+        const cvt = win.querySelector('[data-edit-agg-cvt="automatic"]');
+        if (cvt && fluid.automatic && cvt.value === 'cvt') fluid.automatic.isCvt = true;
+        // Пустые карточки в базу не пишем. ДВС — исключение: без него у машины
+        // не будет ни расчёта масла, ни места, где показать допуска мотора, а
+        // объём калькулятор спросит при расчёте.
+        for (const { key } of stdAggs(fluid)) {
+            const a = fluid[key];
+            if (!a || key === 'engine') continue;
+            const filled = a.volumeTotal || a.volumeService || a.volumePlain
+                || (a.label && a.label.trim()) || (a.motulProducts && a.motulProducts.length);
+            if (!filled) delete fluid[key];
+        }
+    }
 
     const custom = state.customAggs.map(c => {
         const vol = parseDecimal(c.volume);
@@ -635,16 +775,20 @@ function refreshDirty(win, record, state) {
         const tab = FIELD_TAB[key];
         if (tab) dirtyTabs.add(tab);
     }
+    // У новой машины «изменено» значило бы не то: там ещё нечего менять,
+    // человек видит, какие вкладки он уже заполнил.
+    const creating = state.mode === 'create';
     win.querySelectorAll('[data-ed-mark]').forEach(mark => {
         const on = dirtyTabs.has(mark.dataset.edMark);
-        mark.textContent = on ? 'изменено' : '';
+        mark.textContent = on ? (creating ? 'заполнено' : 'изменено') : '';
         mark.classList.toggle('on', on);
     });
     const status = win.querySelector('#car-ed-status');
     if (status) {
-        status.textContent = dirtyTabs.size
-            ? `изменений: ${Object.keys(changed).length}`
-            : 'изменений нет';
+        const n = Object.keys(changed).length;
+        status.textContent = creating
+            ? (n ? `заполнено полей: ${n}` : 'пока ничего не заполнено')
+            : (n ? `изменений: ${n}` : 'изменений нет');
     }
     return changed;
 }
@@ -655,6 +799,9 @@ function bindSave(win, record, ctx, state, close) {
     const btn = win.querySelector('#car-ed-save');
     const errBox = win.querySelector('#car-ed-error');
 
+    const creating = state.mode === 'create';
+    const saveLabel = creating ? 'Добавить машину' : 'Сохранить';
+
     const fail = (msg, tab) => {
         errBox.textContent = msg;
         errBox.classList.remove('hidden');
@@ -663,6 +810,63 @@ function bindSave(win, record, ctx, state, close) {
             if (tabBtn) tabBtn.click();
         }
     };
+
+    // Машина уже в базе — предлагаем открыть её, а не заводить второй раз.
+    // Молча дать POST нельзя: он upsert, и «добавление» переписало бы данные,
+    // которые собирали до нас.
+    const failDuplicate = (car) => {
+        const title = [car.brand, car.model, car.engine_name || car.engine_code || '',
+                       car.year_from ? String(car.year_from) : ''].filter(Boolean).join(' ');
+        errBox.innerHTML = `Такая машина в базе уже есть: <b>${esc(title)}</b> — `
+            + '<button type="button" class="btn btn-sec btn-mini" data-ed-open-dup>открыть её</button>. '
+            + 'Если это всё-таки другая машина — измените код двигателя, объём или год.';
+        errBox.classList.remove('hidden');
+        errBox.querySelector('[data-ed-open-dup]').onclick = () => {
+            close();
+            if (ctx.onOpenCar) ctx.onOpenCar(car.id);
+            else location.hash = '#/car/' + car.id;
+        };
+    };
+
+    // Добавление новой машины: сначала проверка на дубль, потом POST целиком
+    // (не диффом — в базе ещё нечего сравнивать).
+    async function createCar(patch) {
+        const q = new URLSearchParams({
+            brand: patch.brand, model: patch.model, year_from: String(patch.year_from),
+        });
+        if (patch.engine_code) q.set('engine_code', patch.engine_code);
+        if (patch.engine_volume != null) q.set('engine_volume', String(patch.engine_volume));
+
+        btn.disabled = true;
+        btn.textContent = 'проверка…';
+        try {
+            const { car } = await ctx.apiFetch('/api/cars/exact?' + q.toString());
+            if (car) return failDuplicate(car);
+
+            btn.textContent = 'добавление…';
+            // ДВС есть у любой машины: без записи о нём калькулятор не покажет
+            // ни расчёта масла, ни допусков мотора. Объём при этом можно не
+            // знать — калькулятор спросит его при расчёте.
+            const fluid = { ...patch.fluid_capacities };
+            if (!fluid.engine) fluid.engine = {};
+            const created = await ctx.apiFetch('/api/cars', {
+                method: 'POST',
+                body: {
+                    ...patch,
+                    fluid_capacities: fluid,
+                    source_keys: buildSourceKeys(patch.source_links),
+                },
+            });
+            close();
+            checkAchievementsNow(); // новая машина могла добить счётчик до ачивки
+            if (ctx.onCreated) ctx.onCreated(created);
+        } catch (e) {
+            fail(e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = saveLabel;
+        }
+    }
 
     btn.onclick = async () => {
         errBox.classList.add('hidden');
@@ -674,6 +878,8 @@ function bindSave(win, record, ctx, state, close) {
         if (!patch.year_from) {
             return fail('Год начала выпуска — обязательное поле.', 'car');
         }
+
+        if (creating) return createCar(patch);
 
         // Уходит только то, что реально изменили: правка заметки не
         // перезаписывает объёмы, которые в это же время правит коллега.
@@ -687,7 +893,8 @@ function bindSave(win, record, ctx, state, close) {
         // копит их объединением, и порядок в базе не совпадает с пересчётом.
         if (changed.source_links) changed.source_keys = buildSourceKeys(patch.source_links);
 
-        const comment = win.querySelector('#car-ed-comment').value.trim() || null;
+        const commentEl = win.querySelector('#car-ed-comment');
+        const comment = commentEl ? (commentEl.value.trim() || null) : null;
 
         btn.disabled = true;
         btn.textContent = 'сохранение…';
@@ -701,7 +908,7 @@ function bindSave(win, record, ctx, state, close) {
             ctx.onChanged();        // перезагрузит страницу машины со свежими данными
         } catch (e) {
             btn.disabled = false;
-            btn.textContent = 'Сохранить';
+            btn.textContent = saveLabel;
             fail(e.message);
         }
     };

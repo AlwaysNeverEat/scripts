@@ -170,9 +170,19 @@
       <canvas id="sphere-canvas"></canvas>
       <div class="search-ui">
         <div class="search-wrap">
-          <div class="search-mode-toggle" id="search-mode-toggle">
-            <button type="button" class="chip active" id="mode-btn-search">Поиск</button>
-            <button type="button" class="chip" id="mode-btn-tags">Теги</button>
+          <!-- Ряд над поиском: режим «Поиск/Теги» и кнопка «Добавить машину».
+               Кнопка свёрнута в кружок с плюсом и раскрывается под курсором —
+               место на главной занимает поиск, а не она. На тач-экранах
+               (там hover не бывает) подпись видна сразу, см. style.css. -->
+          <div class="search-top-row">
+            <div class="search-mode-toggle" id="search-mode-toggle">
+              <button type="button" class="chip active" id="mode-btn-search">Поиск</button>
+              <button type="button" class="chip" id="mode-btn-tags">Теги</button>
+            </div>
+            <button type="button" class="add-car-btn" id="btn-add-car" title="Добавить машину" aria-label="Добавить машину">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span class="add-car-btn-label">Добавить машину</span>
+            </button>
           </div>
           <div class="search-box">
             <input id="search-input" type="search" placeholder="Wake up, neo. . ." autocomplete="off" spellcheck="false"/>

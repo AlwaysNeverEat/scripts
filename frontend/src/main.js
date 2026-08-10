@@ -11,6 +11,7 @@ import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
 import { initNewsFeed, markNewsSeen, unseenNewsCount } from './newsFeed.js';
+import { openCarCreator } from './carEditor.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { carCardInner } from './carCard.js';
 import { initTheme } from './theme.js';
@@ -647,6 +648,23 @@ function setSearchMode(mode) {
 
 modeBtnSearch.onclick = () => setSearchMode('search');
 modeBtnTags.onclick = () => setSearchMode('tags');
+
+// ── «Добавить машину» ─────────────────────────────────────────────────────────
+// Та же форма, что и правка машины (carEditor.js), только пустая: держать
+// вторую такую же значило бы чинить каждое поле дважды. После добавления сразу
+// открываем машину — обычно её и заводят, чтобы тут же посчитать замену.
+document.getElementById('btn-add-car').onclick = () => {
+    openCarCreator({
+        apiFetch,
+        onOpenCar: (id) => { location.hash = '#/car/' + id; },
+        onCreated: (car) => {
+            // Снимок базы устарел на одну машину: без принудительного обновления
+            // она не найдётся ни поиском, ни в тегах до следующего TTL.
+            loadSnapshot(true).catch(() => {});
+            if (car && car.id) location.hash = '#/car/' + car.id;
+        },
+    });
+};
 
 // ── Старт ─────────────────────────────────────────────────────────────────────
 // Boot-экран ждёт пробуждения бэкенда (/health), а затем — пока оверлей ещё
