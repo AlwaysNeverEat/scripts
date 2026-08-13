@@ -3356,3 +3356,92 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   /* Длинные названия масел и допусков не должны распирать карточку */
   .oil-name, .head-title, .calc-car-title { overflow-wrap: anywhere; }
 }
+
+/* ── Пасхалка «Вордле» ────────────────────────────────────────────
+   Окно открывается только из поиска (набрать «вордле»/«wordle» и Enter),
+   поэтому в остальном интерфейсе на эти классы ничего не ссылается.
+   Цвета — те же токены, что и везде: зелёный «на месте», акцентный
+   «есть, но не тут», приглушённый фон «нет вовсе». */
+.modal-win.wordle-win { max-width: 460px; }
+.wordle-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.wordle-msg {
+  min-height: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--sub);
+}
+.wordle-msg.is-win  { color: var(--green); font-weight: 700; }
+.wordle-msg.is-lose { color: var(--red); font-weight: 700; }
+
+.wordle-board { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.wordle-row { display: flex; gap: 6px; }
+.wordle-cell {
+  width: 52px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 800;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+  color: var(--text);
+  user-select: none;
+}
+/* Набранная, но ещё не отправленная буква — только рамка ярче: раскраска
+   появляется лишь после ответа сервера. */
+.wordle-cell.is-typed { border-color: var(--border-strong); }
+.wordle-row.is-played .wordle-cell { animation: wordle-flip 0.5s ease both; }
+.wordle-cell.is-hit  { background: var(--green); border-color: var(--green); color: var(--solid-fg); }
+.wordle-cell.is-near { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.wordle-cell.is-miss { background: var(--bg3); border-color: var(--bg3); color: var(--sub); }
+.wordle-row.is-bad { animation: wordle-shake 0.4s; }
+
+@keyframes wordle-flip {
+  0%   { transform: rotateX(0deg); }
+  50%  { transform: rotateX(90deg); }
+  100% { transform: rotateX(0deg); }
+}
+@keyframes wordle-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.wordle-keyboard { display: flex; flex-direction: column; gap: 6px; }
+.wordle-krow { display: flex; gap: 4px; justify-content: center; }
+.wordle-key {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 0;
+  font-size: 13px; font-weight: 700;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.wordle-key:hover { filter: var(--hover-bright); }
+.wordle-key-wide { flex: 1.6 1 0; font-size: 12px; }
+.wordle-key.is-hit  { background: var(--green); border-color: var(--green); color: var(--solid-fg); }
+.wordle-key.is-near { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.wordle-key.is-miss { background: var(--bg3); border-color: var(--bg3); color: var(--sub); opacity: 0.65; }
+
+.wordle-foot {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--sub);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.wordle-timer { font-variant-numeric: tabular-nums; color: var(--text); }
+
+/* Телефон: клетки и клавиши ужимаются, чтобы ряд из 12 букв влезал в 320px. */
+@media (max-width: 460px) {
+  .wordle-body { padding: 12px 10px 14px; }
+  .wordle-cell { width: 46px; height: 46px; font-size: 20px; }
+  .wordle-key { padding: 11px 0; font-size: 12px; }
+  .wordle-foot { flex-direction: column; gap: 4px; align-items: flex-start; }
+}
+@media (max-width: 380px) {
+  .wordle-cell { width: 40px; height: 40px; font-size: 18px; border-radius: 6px; }
+  .wordle-key { padding: 10px 0; font-size: 11px; }
+}
