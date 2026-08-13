@@ -511,14 +511,18 @@ function postSnapshotToWorker() {
     searchWorker.postMessage({ type: 'snapshot', version: snapshot.version, cars: snapshot.cars });
 }
 
-// Пасхалка: «вордле»/«wordle» в строке поиска — это не запрос к базе, а вход в
-// игру (см. wordle.js). Ровно эти два слова целиком: подсказывать о ней поиск
-// не должен вообще ничем — ни выдачей, ни «ничего не найдено», — иначе она
-// перестаёт быть пасхалкой. Открывается только по Enter.
-const WORDLE_QUERY = /^(вордле|wordle)$/i;
+// Пасхалки: слово-ключ в строке поиска — это не запрос к базе, а вход в игру.
+// Ровно эти слова целиком; подсказывать о них поиск не должен вообще ничем —
+// ни выдачей, ни «ничего не найдено», — иначе пасхалка перестаёт быть
+// пасхалкой. Открываются только по Enter, и модуль игры грузится в этот же
+// момент: в обычной жизни сайта его никто не качает.
+const EASTER_EGGS = [
+    { query: /^(вордле|wordle)$/i, open: () => import('./wordle.js').then(m => m.openWordle) },
+    { query: /^контекстно$/i,      open: () => import('./kontekst.js').then(m => m.openKontekst) },
+];
 
-function isWordleQuery(q) {
-    return WORDLE_QUERY.test(q.trim());
+function easterEggFor(q) {
+    return EASTER_EGGS.find(egg => egg.query.test(q.trim())) || null;
 }
 
 searchInput.addEventListener('input', () => {
@@ -527,7 +531,7 @@ searchInput.addEventListener('input', () => {
     searchGen++;          // всё, что сейчас в полёте, устарело
     pendingQuery = null;
     if (!q) { searchResults.innerHTML = ''; return; }
-    if (isWordleQuery(q)) { searchResults.innerHTML = ''; return; }
+    if (easterEggFor(q)) { searchResults.innerHTML = ''; return; }
     if (q.length < MIN_QUERY_LEN) {
         searchResults.innerHTML = '<div class="search-empty">Введите ещё хотя бы один символ…</div>';
         return;
@@ -535,17 +539,17 @@ searchInput.addEventListener('input', () => {
     searchDebounceTimer = setTimeout(() => runLocalSearch(q), SEARCH_DEBOUNCE_MS);
 });
 
-// Enter по слову-ключу открывает игру. Модуль грузится только в этот момент:
-// в обычной жизни сайта его никто не качает.
 searchInput.addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter' || !isWordleQuery(searchInput.value)) return;
+    if (e.key !== 'Enter') return;
+    const egg = easterEggFor(searchInput.value);
+    if (!egg) return;
     e.preventDefault();
-    searchInput.blur();          // дальше буквы набираются в игре, а не сюда
+    searchInput.blur();          // дальше набирают в игре, а не сюда
     searchInput.value = '';
     searchResults.innerHTML = '';
     try {
-        const { openWordle } = await import('./wordle.js');
-        openWordle({ apiFetch, user: currentUser });
+        const openGame = await egg.open();
+        openGame({ apiFetch, user: currentUser });
     } catch {
         // Не догрузился чанк (сеть/кэш) — пасхалка не та вещь, ради которой
         // стоит показывать человеку ошибку.

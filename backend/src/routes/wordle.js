@@ -19,7 +19,7 @@
 import { Router } from 'express';
 import { markGuess, isWin, normalizeWord, isWordShape, WORD_LENGTH, MAX_TRIES } from '../../../shared/wordle.js';
 import { answerFor, isKnownWord, ANSWERS_COUNT } from '../wordle/words.js';
-import { mskDay, nextMidnightMsk } from '../wordle/day.js';
+import { mskDay, nextMidnightMsk } from '../daily.js';
 
 const router = Router();
 

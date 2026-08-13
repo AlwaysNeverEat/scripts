@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { answerFor, isKnownWord, ANSWERS_COUNT } from './words.js';
-import { mskDay, nextMidnightMsk } from './day.js';
+import { mskDay, nextMidnightMsk } from '../daily.js';
 import { isWordShape } from '../../../shared/wordle.js';
 
 test('слово дня не меняется в течение суток', () => {
