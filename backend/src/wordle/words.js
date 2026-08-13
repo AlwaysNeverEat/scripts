@@ -13,9 +13,9 @@
 // поэтому в базе ничего хранить не нужно, а «сегодняшнее» слово одинаково для
 // всех запросов этого человека в эти сутки и меняется в 00:00 МСК само.
 
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { normalizeWord, isWordShape, WORD_LENGTH } from '../../../shared/wordle.js';
+import { pickForUser } from '../daily.js';
 
 function loadList(file) {
     return readFileSync(new URL(file, import.meta.url), 'utf8')
@@ -44,8 +44,5 @@ export function isKnownWord(word) {
 
 /** Слово дня для конкретного аккаунта: одно и то же весь день, своё у каждого. */
 export function answerFor(userId, day) {
-    const digest = createHash('sha256').update(`${SALT}:${userId}:${day}`).digest();
-    // 32 бита из хэша хватает: перекос от остатка на 915 вариантов исчезающе мал.
-    const n = digest.readUInt32BE(0);
-    return ANSWERS[n % ANSWERS.length];
+    return pickForUser(ANSWERS, userId, day, SALT);
 }

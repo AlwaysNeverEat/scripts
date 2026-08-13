@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<!-- Дев-песочница пасхалки «Контекстно»: окно игры без входа.
+     Открыть: npx vite → /dev-kontekst.html
+     По умолчанию ранги подделываются на месте (настоящие таблицы — 22 МБ на
+     бэкенде), загаданное слово — «кошка», близкие к нему слова прописаны
+     руками. Этого хватает, чтобы править вёрстку и поведение окна.
+     С ?api — ходит в настоящий /api/kontekst через прокси vite (нужен
+     запущенный бэкенд и валидная сессия).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: контекстно</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Контекстно — песочница</h2>
+    <p class="page-sub">Загадано «кошка». Близкие слова: собака, котенок, щенок, зверь, хвост, мышь, молоко.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть игру</button>
+    <button class="btn btn-sec" id="dev-reset">Сбросить прогресс</button>
+    <button class="btn btn-sec" id="dev-soon">Полночь через 10 секунд</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { normalizeWord } from '../shared/kontekst.js';
+    import { openKontekst } from './src/kontekst.js';
+
+    initTheme();
+
+    const USER = { id: 'dev-user' };
+    const VOCAB = 30000;
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    let resetAt = Date.now() + 6 * 60 * 60 * 1000;
+
+    // Ранги «как настоящие»: несколько слов вручную, остальным — устойчивое
+    // псевдослучайное место, чтобы одно и то же слово не прыгало между вводами.
+    const KNOWN = { кошка: 1, кот: 2, котенок: 3, кошечка: 4, собака: 12, щенок: 40,
+                    хвост: 120, зверь: 200, мышь: 340, молоко: 900, лапа: 1500,
+                    животное: 2400, дом: 8000, машина: 21000, бетон: 29000 };
+    const pseudoRank = (w) => {
+      let h = 7;
+      for (const ch of w) h = (h * 31 + ch.charCodeAt(0)) % 100000;
+      return 2000 + h % (VOCAB - 2000);
+    };
+
+    function now() {
+      while (Date.now() > resetAt) resetAt += DAY_MS;
+      return { day: new Date(resetAt - DAY_MS).toISOString().slice(0, 10), resetAt: new Date(resetAt).toISOString() };
+    }
+
+    async function stubFetch(path, { body } = {}) {
+      if (path === '/api/kontekst/today') return { ...now(), vocab: VOCAB, pool: 366 };
+      if (path === '/api/kontekst/guess') {
+        const word = normalizeWord(body.word);
+        if (!/^[а-я]{2,}$/.test(word)) return { ok: false, reason: 'bad_shape' };
+        if (word === 'абырвалг') return { ok: false, reason: 'unknown_word' };
+        const rank = KNOWN[word] ?? pseudoRank(word);
+        return { ok: true, day: now().day, word, rank, win: rank === 1 };
+      }
+      if (path === '/api/kontekst/hint') {
+        const best = Number(body.best);
+        const to = Number.isFinite(best) && best > 2 ? Math.max(2, Math.floor(best / 2)) : 100;
+        const pick = Object.entries(KNOWN).filter(([, r]) => r >= 2 && r <= to).sort((a, b) => a[1] - b[1])[0];
+        return pick ? { ok: true, word: pick[0], rank: pick[1] } : { ok: false };
+      }
+      if (path === '/api/kontekst/giveup') {
+        return {
+          day: now().day, answer: 'кошка',
+          closest: Object.entries(KNOWN).sort((a, b) => a[1] - b[1]).slice(0, 15)
+            .map(([word, rank]) => ({ word, rank })),
+        };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    // ?api — настоящий бэкенд через прокси vite.
+    const realFetch = async (path, { method = 'GET', body } = {}) => {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+    const apiFetch = location.search.includes('api') ? realFetch : stubFetch;
+
+    document.getElementById('dev-open').onclick = () => openKontekst({ apiFetch, user: USER });
+    document.getElementById('dev-reset').onclick = () => {
+      localStorage.removeItem('kontekst_progress_' + USER.id);
+      location.reload();
+    };
+    document.getElementById('dev-soon').onclick = () => { resetAt = Date.now() + 10_000; };
+  </script>
+</body>
+</html>

@@ -3448,3 +3448,84 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .wordle-cell { width: 40px; height: 40px; font-size: 18px; border-radius: 6px; }
   .wordle-key { padding: 10px 0; font-size: 11px; }
 }
+
+/* ── Пасхалка «Контекстно» ────────────────────────────────────────
+   Окно открывается только из поиска (набрать «контекстно» и Enter).
+   Полоска и цвет строки — единственная подсказка «теплее/холоднее»,
+   поэтому шкала логарифмическая (см. rankProgress в shared/kontekst.js):
+   на линейной разница между 5-м и 500-м местом была бы не видна. */
+.modal-win.kontekst-win { max-width: 520px; }
+.kontekst-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+.kontekst-rules { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--sub); }
+.kontekst-rules b { color: var(--text); }
+
+.kontekst-form { display: flex; gap: 8px; }
+.kontekst-form input {
+  flex: 1 1 auto; min-width: 0;
+  padding: 10px 12px;
+  font-size: 15px; font-family: inherit;
+  color: var(--text);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.kontekst-form input:focus { outline: none; border-color: var(--accent); }
+
+.kontekst-msg { font-size: 12.5px; color: var(--sub); min-height: 18px; }
+.kontekst-msg.is-win  { color: var(--green); font-weight: 700; }
+.kontekst-msg.is-lose { color: var(--red); font-weight: 700; }
+
+/* Последняя догадка держится над списком: иначе после сотой попытки её
+   приходится искать глазами по всему списку. */
+.kontekst-last:not(:empty) { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.kontekst-pin-label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--sub); margin-bottom: 4px;
+}
+.kontekst-list { display: flex; flex-direction: column; gap: 4px; max-height: 42vh; overflow-y: auto; }
+
+.kontekst-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) minmax(60px, 2fr) auto;
+  align-items: center; gap: 10px;
+  padding: 7px 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13.5px;
+}
+.kontekst-row.is-last { border-color: var(--accent); background: var(--accent-dim); }
+.kontekst-word { font-weight: 600; overflow-wrap: anywhere; }
+.kontekst-rank { font-variant-numeric: tabular-nums; color: var(--sub); }
+.kontekst-row.is-hot .kontekst-rank { color: var(--green); font-weight: 700; }
+
+.kontekst-bar { display: block; height: 6px; border-radius: 3px; background: var(--bg3); overflow: hidden; }
+.kontekst-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--red); }
+.kontekst-row.is-warm .kontekst-bar > span { background: var(--accent); }
+.kontekst-row.is-hot  .kontekst-bar > span { background: var(--green); }
+
+.kontekst-tag {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  color: var(--sub); border: 1px solid var(--border); border-radius: 4px;
+  padding: 1px 4px; margin-left: 4px; white-space: nowrap;
+}
+
+.kontekst-foot {
+  display: flex; flex-direction: column; gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 12px; color: var(--sub);
+}
+.kontekst-foot-row { display: flex; align-items: center; gap: 8px; }
+.kontekst-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+.kontekst-timer { font-variant-numeric: tabular-nums; color: var(--text); }
+.kontekst-hint-note { margin-left: auto; }
+
+@media (max-width: 460px) {
+  .kontekst-body { padding: 12px 10px 14px; }
+  .kontekst-list { max-height: 38vh; }
+  .kontekst-row { grid-template-columns: minmax(80px, 1fr) minmax(40px, 1.4fr) auto; gap: 8px; font-size: 13px; }
+  .kontekst-foot-row { flex-wrap: wrap; }
+  .kontekst-hint-note { display: none; }  /* на 360px это лишняя строка */
+}
