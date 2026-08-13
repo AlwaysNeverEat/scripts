@@ -47,8 +47,11 @@ export function openMinesweeper(ctx) {
         mines: new Set(),  // известны только после конца партии
         fresh: new Set(),  // что открылось последним ходом — для волны
         rippleFrom: null,  // клетка, из которой волна идёт
+        cells: [],         // узлы клеток по индексу (см. buildBoard)
+        drawn: [],         // что в клетке нарисовано сейчас — чтобы не трогать её зря
         flagMode: false,
         busy: false,
+        pending: null,     // клетка, по которой кликнули, пока ответ в пути
         seconds: 0,
         timerId: 0,
         pressTimer: 0,
@@ -153,7 +156,8 @@ async function move(state, index, mode) {
     // Ход уходит на сервер, и ответ идёт хоть и быстро, но не мгновенно.
     // Клетка под курсором сразу подмигивает: без этого клик выглядит
     // пропущенным, и человек жмёт второй раз.
-    state.modal.querySelector(`.ms-cell[data-i="${index}"]`)?.classList.add('is-pending');
+    state.pending = index;
+    drawCell(state, index);
     let res;
     try {
         res = await state.ctx.apiFetch('/api/minesweeper/open', {
@@ -162,11 +166,13 @@ async function move(state, index, mode) {
         });
     } catch {
         state.busy = false;
-        state.modal.querySelector('.ms-cell.is-pending')?.classList.remove('is-pending');
+        state.pending = null;
+        drawCell(state, index);
         message(state, 'Сервер не ответил — ход не засчитан');
         return;
     }
     state.busy = false;
+    state.pending = null;
     if (!openState) return;
 
     state.game = res.game;
@@ -246,6 +252,11 @@ function buildBoard(state) {
     board.style.setProperty('--ms-cols', cols);
     board.innerHTML = Array.from({ length: rows * cols },
         (_, i) => `<button type="button" class="ms-cell" data-i="${i}"></button>`).join('');
+    // Узлы клеток запоминаем один раз. Искать их по data-i на каждую перерисовку
+    // значило бы 324 обхода поддерева на КАЖДЫЙ ход — это и была основная часть
+    // тормозов: сам поиск дороже той работы, ради которой он затевался.
+    state.cells = [...board.children];
+    state.drawn = [];
     for (let i = 0; i < rows * cols; i++) drawCell(state, i);
 }
 
@@ -262,7 +273,7 @@ function rippleDistance(state, index) {
 }
 
 function drawCell(state, index) {
-    const cell = state.modal.querySelector(`.ms-cell[data-i="${index}"]`);
+    const cell = state.cells[index];
     if (!cell) return;
     const over = state.game.state === 'won' || state.game.state === 'lost';
     const isMine = state.mines.has(index);
@@ -292,12 +303,25 @@ function drawCell(state, index) {
         cls += over ? ' is-flag is-flag-bad' : ' is-flag';
         html = flagIcon();
     }
+    if (state.pending === index) cls += ' is-pending';
     // Задержка волны живёт в CSS-переменной: пересчитывать её на каждый кадр
     // в JS незачем, браузер сам разведёт анимации по времени.
-    if (cls.includes('is-fresh')) cell.style.setProperty('--d', rippleDistance(state, index));
-    else cell.style.removeProperty('--d');
+    const d = cls.includes('is-fresh') ? rippleDistance(state, index) : null;
+
+    // Клетку, в которой ничего не изменилось, не трогаем вовсе. Ход меняет
+    // единицы клеток из 324, а раньше перерисовывались все: каждой заново
+    // присваивались className и innerHTML, то есть браузер получал 324 грязных
+    // элемента и пересчитывал стили и раскладку всего поля. Заодно уходит
+    // мельтешение: innerHTML на клетке с флажком перезапускал анимацию значка,
+    // и флажки подпрыгивали на каждый чужой ход.
+    const was = state.drawn[index];
+    if (was && was.cls === cls && was.d === d && was.html === html) return;
+    state.drawn[index] = { cls, d, html };
+
+    if (d === null) cell.style.removeProperty('--d');
+    else cell.style.setProperty('--d', d);
     cell.className = cls;
-    cell.innerHTML = html;
+    if (!was || was.html !== html) cell.innerHTML = html;
 }
 
 function bindBoard(state) {
