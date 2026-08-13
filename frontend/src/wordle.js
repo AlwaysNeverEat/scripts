@@ -133,7 +133,9 @@ function shellHtml() {
 // ── Сутки и прогресс ─────────────────────────────────────────────────────────
 
 async function startDay(state) {
-    render(state);
+    // Пустая доска рисуется до ответа сервера — иначе окно секунду висит дырой.
+    buildBoard(state);
+    renderKeyboard(state);
     let today;
     try {
         today = await state.ctx.apiFetch('/api/wordle/today');
@@ -145,7 +147,9 @@ async function startDay(state) {
     state.day = today.day;
     state.resetAt = today.resetAt;
     restoreProgress(state);
-    render(state);
+    buildBoard(state);
+    renderKeyboard(state);
+    renderStatus(state);
     startTimer(state);
 }
 
@@ -216,13 +220,13 @@ function handleKey(state, key) {
     if (key === 'Enter') { submit(state); return; }
     if (key === 'Backspace') {
         state.current = state.current.slice(0, -1);
-        render(state);
+        drawCurrentRow(state);
         return;
     }
     if (!/^[а-яё]$/i.test(key)) return;
     if (state.current.length >= WORD_LENGTH) return;
     state.current += normalizeWord(key);
-    render(state);
+    drawCurrentRow(state);
 }
 
 async function submit(state) {
@@ -252,36 +256,68 @@ async function submit(state) {
     // заново, а не дорисовываем чужую раскраску.
     if (res.day !== state.day) { message(state, 'Наступила полночь — слово сменилось'); startDay(state); return; }
 
+    const row = state.rows.length;
     state.rows.push({ guess, marks: res.marks });
     state.current = '';
     if (res.win) state.done = 'win';
     else if (state.rows.length >= MAX_TRIES) state.done = 'lose';
     if (res.answer) state.answer = res.answer;
     saveProgress(state);
-    render(state);
+    drawRow(state, row, { animate: true });
+    renderKeyboard(state);
+    renderStatus(state);
 }
 
 // ── Отрисовка ────────────────────────────────────────────────────────────────
+//
+// Доска собирается ОДИН раз, дальше меняются только те клетки, которые реально
+// изменились. Перерисовывать всё на каждую букву нельзя: новые узлы заново
+// запускают анимацию переворота, и вся доска «прокручивалась» на каждое
+// нажатие. Анимация — только у строки, которую сейчас отправили (is-reveal).
 
-function render(state) {
+function buildBoard(state) {
     const board = state.modal.querySelector('#wordle-board');
     const rows = [];
     for (let r = 0; r < MAX_TRIES; r++) {
-        const played = state.rows[r];
-        const typing = !played && r === state.rows.length ? state.current : '';
-        const cells = [];
-        for (let i = 0; i < WORD_LENGTH; i++) {
-            const letter = played ? played.guess[i] : (typing[i] || '');
-            const mark = played ? played.marks[i] : '';
-            cells.push(`<div class="wordle-cell${mark ? ' is-' + mark : ''}${letter && !mark ? ' is-typed' : ''}"
-                             style="${played ? `animation-delay:${i * 90}ms` : ''}">${letter.toUpperCase()}</div>`);
-        }
-        rows.push(`<div class="wordle-row${played ? ' is-played' : ''}" data-row="${r}">${cells.join('')}</div>`);
+        const cells = Array.from({ length: WORD_LENGTH }, (_, i) =>
+            `<div class="wordle-cell" style="animation-delay:${i * 90}ms"></div>`).join('');
+        rows.push(`<div class="wordle-row" data-row="${r}">${cells}</div>`);
     }
     board.innerHTML = rows.join('');
+    // Сыгранное (после F5 или в новых сутках) показываем сразу раскрашенным:
+    // переворачивать строки, которые человек уже видел, незачем.
+    for (let r = 0; r < state.rows.length; r++) drawRow(state, r, { animate: false });
+    drawCurrentRow(state);
+}
 
-    renderKeyboard(state);
-    renderStatus(state);
+function rowCells(state, r) {
+    return state.modal.querySelectorAll(`.wordle-row[data-row="${r}"] .wordle-cell`);
+}
+
+// Сыгранная строка: буквы и раскраска. animate — только для только что
+// отправленной попытки.
+function drawRow(state, r, { animate }) {
+    const played = state.rows[r];
+    const row = state.modal.querySelector(`.wordle-row[data-row="${r}"]`);
+    if (!played || !row) return;
+    row.classList.add('is-played');
+    row.classList.toggle('is-reveal', !!animate);
+    rowCells(state, r).forEach((cell, i) => {
+        cell.textContent = played.guess[i].toUpperCase();
+        cell.className = 'wordle-cell is-' + played.marks[i];
+    });
+}
+
+// Набираемая строка: меняем только те клетки, где буква стала другой, —
+// иначе браузер считает узел новым и снова играет анимацию.
+function drawCurrentRow(state) {
+    const r = state.rows.length;
+    if (r >= MAX_TRIES) return;
+    rowCells(state, r).forEach((cell, i) => {
+        const letter = (state.current[i] || '').toUpperCase();
+        if (cell.textContent !== letter) cell.textContent = letter;
+        cell.classList.toggle('is-typed', !!letter);
+    });
 }
 
 function renderKeyboard(state) {
@@ -314,6 +350,9 @@ function renderStatus(state) {
         message(state, n === 1 ? 'С первой попытки. Так не бывает.' : `Отгадано с ${n}-й попытки`, 'win');
     } else if (state.done === 'lose') {
         message(state, `Попытки кончились. Слово было «${(state.answer || '').toUpperCase()}»`, 'lose');
+    } else {
+        // Игра снова идёт (новые сутки) — итог прошлой партии убираем.
+        message(state, '');
     }
 }
 

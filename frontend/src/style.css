@@ -3389,7 +3389,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* Набранная, но ещё не отправленная буква — только рамка ярче: раскраска
    появляется лишь после ответа сервера. */
 .wordle-cell.is-typed { border-color: var(--border-strong); }
-.wordle-row.is-played .wordle-cell { animation: wordle-flip 0.5s ease both; }
+/* Переворот играет только у строки, которую сейчас отправили: доска обновляется
+   поклеточно, но правило на .is-played крутило бы анимацию у всех сыгранных
+   строк при каждой перерисовке. */
+.wordle-row.is-reveal .wordle-cell { animation: wordle-flip 0.5s ease both; }
 .wordle-cell.is-hit  { background: var(--green); border-color: var(--green); color: var(--solid-fg); }
 .wordle-cell.is-near { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .wordle-cell.is-miss { background: var(--bg3); border-color: var(--bg3); color: var(--sub); }
