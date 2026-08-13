@@ -3392,7 +3392,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* Переворот играет только у строки, которую сейчас отправили: доска обновляется
    поклеточно, но правило на .is-played крутило бы анимацию у всех сыгранных
    строк при каждой перерисовке. */
-.wordle-row.is-reveal .wordle-cell { animation: wordle-flip 0.5s ease both; }
+.wordle-row.is-reveal .wordle-cell {
+  animation: wordle-flip .5s ease both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
 .wordle-cell.is-hit  { background: var(--green); border-color: var(--green); color: var(--solid-fg); }
 .wordle-cell.is-near { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 .wordle-cell.is-miss { background: var(--bg3); border-color: var(--bg3); color: var(--sub); }
@@ -3539,6 +3542,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 .ms-toolbar { display: flex; align-items: center; gap: 8px; }
 .ms-counter {
+  display: inline-flex; align-items: center; gap: 6px;
   font-variant-numeric: tabular-nums;
   font-size: 13px; font-weight: 700;
   padding: 6px 10px;
@@ -3546,6 +3550,15 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+.ms-counter .icon { color: var(--sub); flex: none; }
+#ms-mines .icon { color: var(--red); }
+.ms-counter.is-bump b { display: inline-block; animation: ms-bump .28s ease-out; }
+@keyframes ms-bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+.ms-flagmode { display: inline-flex; align-items: center; justify-content: center; }
 .ms-toolbar #ms-new { margin-left: auto; }
 .ms-flagmode.active { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 
@@ -3581,16 +3594,73 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   cursor: pointer;
 }
 .ms-cell:hover:not(.is-open) { filter: var(--hover-bright); }
+.ms-cell:active:not(.is-open) { transform: scale(.9); }
+.ms-cell .icon { width: 72%; height: 72%; }
 .ms-cell.is-open {
   background: var(--card);
   border-color: var(--border);
   box-shadow: none;
   cursor: default;
 }
-.ms-cell.is-flag { background: var(--accent-dim); border-color: var(--accent); }
-.ms-cell.is-mine { background: var(--red-dim); border-color: var(--red); }
+.ms-cell.is-flag { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.ms-cell.is-mine { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+/* Победа: оставшиеся закрытыми клетки — это и есть мины, помечаем их сами. */
+.ms-cell.is-found { background: var(--green-dim); border-color: var(--green); color: var(--green); }
 /* Флажок, под которым мины не было: видно, где ошибся. */
-.ms-cell.is-flag-bad { opacity: .55; text-decoration: line-through; }
+.ms-cell.is-flag-bad { opacity: .5; }
+.ms-cell.is-flag-bad::after {
+  content: ''; position: absolute; width: 76%; height: 2px;
+  background: var(--red); transform: rotate(-45deg); border-radius: 2px;
+}
+.ms-cell { position: relative; }
+
+/* ── Движение ─────────────────────────────────────────────────────
+   Всё, что открылось одним ходом, проявляется ВОЛНОЙ: задержка берётся из
+   --d (расстояние в клетках от места клика, ставит minesweeper.js). Полсотни
+   клеток, меняющихся разом, читаются как «подвисло и перерисовалось», хотя
+   ответ сервера пришёл за миллисекунды. Анимируются только transform, opacity
+   и цвета — раскладку страницы это не трогает. */
+.ms-cell.is-fresh {
+  animation: ms-open .26s ease-out both;
+  animation-delay: calc(var(--d, 0) * 26ms);
+}
+@keyframes ms-open {
+  0% {
+    background: var(--bg3);
+    border-color: var(--border-strong);
+    box-shadow: inset 0 1px 0 var(--sheen);
+    color: transparent;
+    transform: scale(.88);
+  }
+  70% { transform: scale(1.03); }
+  100% { transform: none; }
+}
+/* Мина, на которой подорвались: вспышка на месте, остальные всплывают от неё. */
+.ms-cell.is-boom { animation: ms-boom .45s ease-out both; z-index: 1; }
+@keyframes ms-boom {
+  0%   { transform: scale(.6); background: var(--red); color: var(--solid-fg); }
+  45%  { transform: scale(1.25); background: var(--red); color: var(--solid-fg); }
+  100% { transform: none; }
+}
+/* Клик отправлен, ответ ещё в пути. */
+.ms-cell.is-pending { animation: ms-pending .5s ease-in-out infinite alternate; }
+@keyframes ms-pending {
+  from { background: var(--bg3); }
+  to   { background: var(--accent-dim); border-color: var(--accent); }
+}
+.ms-cell.is-flag .icon, .ms-cell.is-found .icon { animation: ms-pop .18s cubic-bezier(.2, 1.5, .4, 1) both; }
+@keyframes ms-pop {
+  from { transform: scale(.4) rotate(-12deg); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+/* Победа: поле коротко «выдыхает» — это единственный момент, когда доска
+   двигается целиком. */
+.ms-board.is-won { animation: ms-won .5s ease-out; }
+@keyframes ms-won {
+  0% { transform: none; }
+  35% { transform: scale(1.012); }
+  100% { transform: none; }
+}
 
 /* Цифры — как в классическом сапёре: 1 синяя, 2 зелёная, 3 красная и дальше. */
 .ms-cell.n1 { color: var(--blue); }
@@ -3608,4 +3678,79 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .ms-body { padding: 12px 10px 14px; }
   .ms-board { gap: 1px; }
   .ms-cell { border-radius: 2px; }
+}
+
+/* ── Движение в окнах пасхалок ────────────────────────────────────
+   Три игры собраны из одинаковых кирпичей, и «оживление» у них общее.
+   Правило одно: двигаем только transform и opacity (это не заставляет
+   браузер пересчитывать раскладку) и ровно там, где что-то ПРОИЗОШЛО —
+   ход, догадка, конец партии. Постоянно шевелящийся интерфейс мешает
+   играть куда сильнее, чем неподвижный. */
+.modal-win.ms-win,
+.modal-win.wordle-win,
+.modal-win.kontekst-win {
+  animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
+}
+@keyframes game-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Кнопки и клавиши игр отзываются на нажатие: без этого клик «в никуда»
+   и создаёт ощущение, что окно подвисло. */
+.wordle-key, .ms-cell, .ms-flagmode, .kontekst-row {
+  transition: background-color .16s ease, border-color .16s ease,
+              color .16s ease, transform .09s ease;
+}
+.wordle-key:active { transform: scale(.94); }
+
+/* Вордле: угаданная строка сначала переворачивается, как любая другая, а потом
+   подпрыгивает — по одной клетке, слева направо. Две анимации в списке, и у
+   каждой своя задержка от номера клетки. */
+.wordle-row.is-win .wordle-cell {
+  animation: wordle-flip .5s ease both, wordle-jump .42s ease-out both;
+  animation-delay: calc(var(--i, 0) * 90ms), calc(520ms + var(--i, 0) * 70ms);
+}
+@keyframes wordle-jump {
+  0%, 100% { transform: none; }
+  35%      { transform: translateY(-9px); }
+  60%      { transform: translateY(2px); }
+}
+
+/* Контекстно: названное слово въезжает в список, а его полоска вырастает
+   от нуля — видно, насколько «теплее» стало. Остальные строки не трогаем:
+   список перерисовывается целиком, и общая анимация превратила бы каждую
+   догадку в мельтешение. */
+.kontekst-row.is-new { animation: kontekst-row-in .26s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes kontekst-row-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+.kontekst-bar > span { width: var(--w, 0); }
+.kontekst-row.is-new .kontekst-bar > span { animation: kontekst-bar .5s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes kontekst-bar {
+  from { width: 0; }
+  to   { width: var(--w, 0); }
+}
+
+/* Уважаем системную настройку «меньше движения»: играть можно и без всего
+   этого, поэтому просто выключаем анимации, а не подменяем их. */
+@media (prefers-reduced-motion: reduce) {
+  .modal-win.ms-win,
+  .modal-win.wordle-win,
+  .modal-win.kontekst-win,
+  .wordle-row.is-reveal .wordle-cell,
+  .wordle-row.is-win .wordle-cell,
+  .kontekst-row.is-new,
+  .kontekst-row.is-new .kontekst-bar > span,
+  .ms-cell.is-fresh,
+  .ms-cell.is-boom,
+  .ms-cell.is-pending,
+  .ms-cell.is-flag .icon,
+  .ms-cell.is-found .icon,
+  .ms-board.is-won,
+  .ms-counter.is-bump b {
+    animation: none;
+  }
+  .wordle-key, .ms-cell, .ms-flagmode, .kontekst-row { transition: none; }
 }

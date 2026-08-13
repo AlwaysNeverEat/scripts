@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { WORD_LENGTH, MAX_TRIES, normalizeWord } from '../../shared/wordle.js';
+import { backspaceIcon } from './icons.js';
 
 const KEY_ROWS = [
     'йцукенгшщзхъ',
@@ -279,8 +280,11 @@ function buildBoard(state) {
     const board = state.modal.querySelector('#wordle-board');
     const rows = [];
     for (let r = 0; r < MAX_TRIES; r++) {
+        // Номер клетки в строке — из него CSS считает задержку и переворота,
+        // и подскока: держать в inline-стиле готовую задержку нельзя, она
+        // накрыла бы обе анимации разом.
         const cells = Array.from({ length: WORD_LENGTH }, (_, i) =>
-            `<div class="wordle-cell" style="animation-delay:${i * 90}ms"></div>`).join('');
+            `<div class="wordle-cell" style="--i:${i}"></div>`).join('');
         rows.push(`<div class="wordle-row" data-row="${r}">${cells}</div>`);
     }
     board.innerHTML = rows.join('');
@@ -302,6 +306,9 @@ function drawRow(state, r, { animate }) {
     if (!played || !row) return;
     row.classList.add('is-played');
     row.classList.toggle('is-reveal', !!animate);
+    // Угаданная строка подпрыгивает — но только когда её открыли сейчас, а не
+    // при восстановлении доски после F5.
+    row.classList.toggle('is-win', !!animate && played.marks.every(m => m === 'hit'));
     rowCells(state, r).forEach((cell, i) => {
         cell.textContent = played.guess[i].toUpperCase();
         cell.className = 'wordle-cell is-' + played.marks[i];
@@ -338,7 +345,7 @@ function renderKeyboard(state) {
         return `<div class="wordle-krow">
                     <button type="button" class="wordle-key wordle-key-wide" data-key="Enter">Ввод</button>
                     ${keys}
-                    <button type="button" class="wordle-key wordle-key-wide" data-key="Backspace">⌫</button>
+                    <button type="button" class="wordle-key wordle-key-wide" data-key="Backspace" aria-label="Стереть">${backspaceIcon(17)}</button>
                 </div>`;
     });
     state.modal.querySelector('#wordle-keyboard').innerHTML = rows.join('');

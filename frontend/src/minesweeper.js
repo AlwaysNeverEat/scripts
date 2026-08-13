@@ -12,7 +12,14 @@
 // Клиентские тут только флажки: это пометки для себя. Они лежат в localStorage
 // (чтобы пережить F5) и уезжают на сервер лишь вместе с «аккордом» — кликом по
 // цифре, вокруг которой уже расставлены все флажки.
+//
+// Открытие показывается ВОЛНОЙ от клетки, по которой кликнули: клеткам ставится
+// --d (расстояние в ходах короля), из него CSS делает задержку анимации. Разом
+// открывшиеся полсотни клеток без этого выглядят одним рывком — «подвисло и
+// перерисовалось», хотя ответ пришёл за десяток миллисекунд.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { mineIcon, flagIcon, timerIcon } from './icons.js';
 
 const FLAGS_PREFIX = 'minesweeper_flags_';
 const MODAL_ID = 'minesweeper-modal';
@@ -38,6 +45,8 @@ export function openMinesweeper(ctx) {
         opened: new Map(), // index → цифра
         flags: new Set(),
         mines: new Set(),  // известны только после конца партии
+        fresh: new Set(),  // что открылось последним ходом — для волны
+        rippleFrom: null,  // клетка, из которой волна идёт
         flagMode: false,
         busy: false,
         seconds: 0,
@@ -79,9 +88,10 @@ function shellHtml() {
             </div>
             <div class="ms-body">
                 <div class="ms-toolbar">
-                    <span class="ms-counter" id="ms-mines">💣 —</span>
-                    <span class="ms-counter" id="ms-timer">⏱ 0:00</span>
-                    <button type="button" class="btn btn-sec ms-flagmode" id="ms-flagmode" title="Режим флажков (или правая кнопка / долгое нажатие)">🚩</button>
+                    <span class="ms-counter" id="ms-mines">${mineIcon(15)}<b>—</b></span>
+                    <span class="ms-counter" id="ms-timer">${timerIcon(15)}<b>0:00</b></span>
+                    <button type="button" class="btn btn-sec ms-flagmode" id="ms-flagmode"
+                            aria-pressed="false" title="Режим флажков (или правая кнопка / долгое нажатие)">${flagIcon(16)}</button>
                     <button type="button" class="btn btn-pri" id="ms-new">Заново</button>
                 </div>
                 <div class="ms-msg" id="ms-msg"></div>
@@ -128,6 +138,9 @@ function applyState(state, res) {
     state.flags = loadFlags(state);
     for (const i of [...state.flags]) if (state.opened.has(i)) state.flags.delete(i);
     state.seconds = res.game.seconds || 0;
+    // Восстановленную партию не «проявляем»: человек её уже видел.
+    state.fresh = new Set();
+    state.rippleFrom = null;
     buildBoard(state);
     startTimer(state);
     renderAll(state);
@@ -137,6 +150,10 @@ async function move(state, index, mode) {
     if (state.busy || !state.game) return;
     if (state.game.state === 'won' || state.game.state === 'lost') return;
     state.busy = true;
+    // Ход уходит на сервер, и ответ идёт хоть и быстро, но не мгновенно.
+    // Клетка под курсором сразу подмигивает: без этого клик выглядит
+    // пропущенным, и человек жмёт второй раз.
+    state.modal.querySelector(`.ms-cell[data-i="${index}"]`)?.classList.add('is-pending');
     let res;
     try {
         res = await state.ctx.apiFetch('/api/minesweeper/open', {
@@ -145,6 +162,7 @@ async function move(state, index, mode) {
         });
     } catch {
         state.busy = false;
+        state.modal.querySelector('.ms-cell.is-pending')?.classList.remove('is-pending');
         message(state, 'Сервер не ответил — ход не засчитан');
         return;
     }
@@ -156,6 +174,10 @@ async function move(state, index, mode) {
     state.mines = new Set(res.game.minePositions || []);
     for (const i of [...state.flags]) if (state.opened.has(i)) state.flags.delete(i);
     state.seconds = res.game.seconds || 0;
+    // Волна пойдёт от клетки, по которой кликнули; на проигрыше — от той, где
+    // рвануло: мины всплывают кругами от неё.
+    state.fresh = new Set(res.revealed || []);
+    state.rippleFrom = index;
     saveFlags(state);
     startTimer(state);
     renderAll(state);
@@ -227,6 +249,18 @@ function buildBoard(state) {
     for (let i = 0; i < rows * cols; i++) drawCell(state, i);
 }
 
+// Расстояние в ходах короля до клетки, из которой идёт волна. Шагов больше
+// десяти не бывает: дальше задержка перестаёт читаться и только тормозит показ.
+const RIPPLE_STEPS = 10;
+
+function rippleDistance(state, index) {
+    if (state.rippleFrom == null) return 0;
+    const { cols } = state.game;
+    const dr = Math.abs(Math.floor(index / cols) - Math.floor(state.rippleFrom / cols));
+    const dc = Math.abs((index % cols) - (state.rippleFrom % cols));
+    return Math.min(Math.max(dr, dc), RIPPLE_STEPS);
+}
+
 function drawCell(state, index) {
     const cell = state.modal.querySelector(`.ms-cell[data-i="${index}"]`);
     if (!cell) return;
@@ -236,22 +270,34 @@ function drawCell(state, index) {
     const flagged = state.flags.has(index);
 
     let cls = 'ms-cell';
-    let text = '';
+    let html = '';
     if (opened) {
         const n = state.opened.get(index);
         cls += ' is-open' + (n ? ` n${n}` : '');
-        text = n ? String(n) : '';
+        if (state.fresh.has(index)) cls += ' is-fresh';
+        html = n ? String(n) : '';
+    } else if (state.game.state === 'won' && !opened) {
+        // Победа: всё, что осталось закрытым, — мины. Расставляем флажки сами,
+        // как в классическом сапёре: поле должно выглядеть законченным.
+        cls += ' is-found';
+        html = flagIcon();
     } else if (over && isMine) {
-        // Конец партии: мины показываем все, а неверные флажки — перечёркнутыми,
-        // иначе непонятно, где именно ошибся.
-        cls += flagged ? ' is-mine is-flag-ok' : ' is-mine';
-        text = '💣';
+        // Проигрыш: показываем все мины, а та, на которой подорвались, — с
+        // вспышкой. Остальные всплывают волной от неё.
+        cls += ' is-mine';
+        if (index === state.rippleFrom) cls += ' is-boom';
+        else cls += ' is-fresh';
+        html = mineIcon();
     } else if (flagged) {
         cls += over ? ' is-flag is-flag-bad' : ' is-flag';
-        text = '🚩';
+        html = flagIcon();
     }
+    // Задержка волны живёт в CSS-переменной: пересчитывать её на каждый кадр
+    // в JS незачем, браузер сам разведёт анимации по времени.
+    if (cls.includes('is-fresh')) cell.style.setProperty('--d', rippleDistance(state, index));
+    else cell.style.removeProperty('--d');
     cell.className = cls;
-    cell.textContent = text;
+    cell.innerHTML = html;
 }
 
 function bindBoard(state) {
@@ -306,12 +352,15 @@ function bindBoard(state) {
 function renderAll(state) {
     const { rows, cols } = state.game;
     for (let i = 0; i < rows * cols; i++) drawCell(state, i);
+    const board = state.modal.querySelector('#ms-board');
+    board.classList.toggle('is-won', state.game.state === 'won');
+    board.classList.toggle('is-lost', state.game.state === 'lost');
     renderToolbar(state);
 }
 
 function renderToolbar(state) {
     const left = state.game ? state.game.mines - state.flags.size : 0;
-    state.modal.querySelector('#ms-mines').textContent = `💣 ${left}`;
+    setCounter(state, '#ms-mines', String(left));
     const btn = state.modal.querySelector('#ms-flagmode');
     btn.classList.toggle('active', state.flagMode);
     btn.setAttribute('aria-pressed', state.flagMode ? 'true' : 'false');
@@ -319,7 +368,19 @@ function renderToolbar(state) {
 }
 
 function renderTimer(state) {
-    state.modal.querySelector('#ms-timer').textContent = `⏱ ${timeText(state.seconds)}`;
+    setCounter(state, '#ms-timer', timeText(state.seconds));
+}
+
+// Меняем только цифру внутри счётчика (иконка остаётся на месте) и коротко
+// подмигиваем, когда значение изменилось: иначе счётчик мин выглядит мёртвым.
+function setCounter(state, sel, text) {
+    const box = state.modal.querySelector(sel);
+    const value = box?.querySelector('b');
+    if (!value || value.textContent === text) return;
+    value.textContent = text;
+    box.classList.remove('is-bump');
+    void box.offsetWidth; // перезапуск анимации
+    box.classList.add('is-bump');
 }
 
 function message(state, text, kind = '') {
