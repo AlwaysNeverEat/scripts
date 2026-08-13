@@ -17,13 +17,26 @@
 // --d (расстояние в ходах короля), из него CSS делает задержку анимации. Разом
 // открывшиеся полсотни клеток без этого выглядят одним рывком — «подвисло и
 // перерисовалось», хотя ответ пришёл за десяток миллисекунд.
+//
+// Пасхалка внутри пасхалки: набранное на клавиатуре слово-код открывает в
+// панели переключатель, который пишет на закрытых клетках шанс мины. Считает их
+// minesweeperOdds.js по открытым цифрам — тем же данным, что видит игрок; поле
+// с сервера так и не запрашивается. Это не «вижу мины», а «вот какие у тебя
+// были шансы» — ради того и затевалось.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { mineIcon, flagIcon, timerIcon } from './icons.js';
+import { computeOdds, oddsLabel } from './minesweeperOdds.js';
 
 const FLAGS_PREFIX = 'minesweeper_flags_';
+const CHEAT_PREFIX = 'minesweeper_odds_';
 const MODAL_ID = 'minesweeper-modal';
 const LONG_PRESS_MS = 400;
+
+// Код набирается вслепую, поэтому принимаем и то, что получится, если забыть
+// переключить раскладку: те же три клавиши в русской дают «мщл».
+const CHEAT_CODES = ['vok', 'мщл'];
+const CHEAT_BUF = Math.max(...CHEAT_CODES.map(c => c.length));
 
 let openState = null; // одно окно за раз
 
@@ -55,17 +68,27 @@ export function openMinesweeper(ctx) {
         seconds: 0,
         timerId: 0,
         pressTimer: 0,
+        cheat: false,      // код набран — переключатель показан
+        oddsOn: false,
+        odds: null,        // [индекс] → шанс мины 0..1, null у открытых
+        oddsExact: true,
+        keyBuf: '',
+        msgTimer: 0,
     };
     openState = state;
 
     const close = () => {
         clearInterval(state.timerId);
+        clearTimeout(state.msgTimer);
         document.removeEventListener('keydown', onKey, true);
         modal.remove();
         document.body.classList.remove('modal-open');
         openState = null;
     };
-    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    const onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+        onCheatKey(state, e);
+    };
     document.addEventListener('keydown', onKey, true);
 
     modal.querySelector('.modal-backdrop').onclick = close;
@@ -75,8 +98,15 @@ export function openMinesweeper(ctx) {
         state.flagMode = !state.flagMode;
         renderToolbar(state);
     };
+    modal.querySelector('#ms-odds').onclick = () => {
+        state.oddsOn = !state.oddsOn;
+        saveCheat(state);
+        if (state.game) renderAll(state);
+        else renderToolbar(state);
+    };
     bindBoard(state);
 
+    loadCheat(state);
     loadState(state);
     return modal;
 }
@@ -95,10 +125,13 @@ function shellHtml() {
                     <span class="ms-counter" id="ms-timer">${timerIcon(15)}<b>0:00</b></span>
                     <button type="button" class="btn btn-sec ms-flagmode" id="ms-flagmode"
                             aria-pressed="false" title="Режим флажков (или правая кнопка / долгое нажатие)">${flagIcon(16)}</button>
+                    <button type="button" class="btn btn-sec ms-odds-toggle hidden" id="ms-odds"
+                            aria-pressed="false" title="Показывать шанс мины в закрытых клетках">%</button>
                     <button type="button" class="btn btn-pri" id="ms-new">Заново</button>
                 </div>
                 <div class="ms-msg" id="ms-msg"></div>
                 <div class="ms-board" id="ms-board"></div>
+                <div class="ms-note hidden" id="ms-odds-note"></div>
                 <div class="ms-hint">Правая кнопка или долгое нажатие — флажок. Клик по цифре с расставленными флажками открывает соседей.</div>
             </div>
         </div>`;
@@ -144,6 +177,9 @@ function applyState(state, res) {
     // Восстановленную партию не «проявляем»: человек её уже видел.
     state.fresh = new Set();
     state.rippleFrom = null;
+    // Проценты от прошлой партии к этой доске отношения не имеют; новые посчитает
+    // renderAll ниже, а до того клетки должны быть пустыми, а не врать старыми.
+    state.odds = null;
     buildBoard(state);
     startTimer(state);
     renderAll(state);
@@ -228,6 +264,92 @@ function toggleFlag(state, index) {
     renderToolbar(state);
 }
 
+// ── Чит-код и проценты ───────────────────────────────────────────────────────
+
+// Слово ловится по последним нажатым клавишам: поля ввода в окне нет, набирать
+// его некуда, кроме как «в воздух». Пока код не набран, ничто о нём не намекает.
+function onCheatKey(state, e) {
+    if (state.cheat) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key.length !== 1) return;              // Shift, стрелки и прочее не в счёт
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    state.keyBuf = (state.keyBuf + e.key.toLowerCase()).slice(-CHEAT_BUF);
+    if (!CHEAT_CODES.some(code => state.keyBuf.endsWith(code))) return;
+    state.cheat = true;
+    state.oddsOn = true;
+    saveCheat(state);
+    if (state.game) renderAll(state);
+    else renderToolbar(state);
+    // Сообщение убираем само: это подтверждение нажатия, а не состояние партии,
+    // и висеть над доской до конца игры ему незачем. Но убираем ровно ЕГО: за
+    // эти секунды партия может кончиться, и стирать «поле разминировано» нельзя.
+    const text = 'Шансы на месте: кнопка «%» в панели';
+    message(state, text, 'cheat');
+    clearTimeout(state.msgTimer);
+    state.msgTimer = setTimeout(() => {
+        if (openState !== state) return;
+        if (state.modal.querySelector('#ms-msg')?.textContent === text) message(state, '');
+    }, 5000);
+}
+
+function cheatKeyName(state) {
+    return CHEAT_PREFIX + (state.ctx.user?.id || 'anon');
+}
+
+// Раз открытый режим переживает F5 вместе с положением переключателя: заставлять
+// набирать код заново после каждой перезагрузки — не секретность, а морока.
+function loadCheat(state) {
+    try {
+        const raw = localStorage.getItem(cheatKeyName(state));
+        if (!raw) return;
+        state.cheat = true;
+        state.oddsOn = !!JSON.parse(raw).on;
+    } catch {
+        // Мусор в хранилище или приватный режим — просто набрать код заново.
+    }
+}
+
+function saveCheat(state) {
+    try {
+        localStorage.setItem(cheatKeyName(state), JSON.stringify({ on: state.oddsOn }));
+    } catch {
+        // Приватный режим: код придётся набрать снова, играть это не мешает.
+    }
+}
+
+// Пересчёт идёт на КАЖДУЮ перерисовку поля, то есть раз в ход: позиция после
+// хода другая, и вчерашние проценты хуже, чем никакие. Считается по открытым
+// цифрам (см. minesweeperOdds.js), сервер для этого не нужен.
+function refreshOdds(state) {
+    const over = !state.game || state.game.state === 'won' || state.game.state === 'lost';
+    if (!state.oddsOn || over) {
+        state.odds = null;
+        state.oddsExact = true;
+        return;
+    }
+    try {
+        const { rows, cols, mines } = state.game;
+        const res = computeOdds({ rows, cols, mines, opened: state.opened });
+        state.odds = res.prob;
+        state.oddsExact = res.exact;
+    } catch {
+        // Считать шансы — развлечение; уронить из-за него партию нельзя.
+        state.odds = null;
+        state.oddsExact = true;
+    }
+}
+
+// Цвет — по смыслу числа, а не по красоте: доказанное безопасно и доказанная
+// мина должны выхватываться взглядом раньше, чем прочитаешь цифру.
+function oddsClass(p) {
+    if (p <= 0) return ' odds-safe';
+    if (p >= 1) return ' odds-sure';
+    if (p < 0.15) return ' odds-lo';     // реже, чем в среднем по полю
+    if (p < 0.35) return ' odds-mid';
+    return ' odds-hi';
+}
+
 // ── Таймер ───────────────────────────────────────────────────────────────────
 
 function startTimer(state) {
@@ -302,6 +424,12 @@ function drawCell(state, index) {
     } else if (flagged) {
         cls += over ? ' is-flag is-flag-bad' : ' is-flag';
         html = flagIcon();
+    } else if (state.odds && state.odds[index] != null) {
+        // Под флажком процент не пишем: там уже стоит ответ игрока, и спорить с
+        // ним поверх его же пометки — только мешать читать доску.
+        const p = state.odds[index];
+        cls += ' has-odds' + oddsClass(p);
+        html = `<span class="ms-odds">${oddsLabel(p)}</span>`;
     }
     if (state.pending === index) cls += ' is-pending';
     // Задержка волны живёт в CSS-переменной: пересчитывать её на каждый кадр
@@ -378,6 +506,7 @@ function bindBoard(state) {
 
 function renderAll(state) {
     const { rows, cols } = state.game;
+    refreshOdds(state);
     for (let i = 0; i < rows * cols; i++) drawCell(state, i);
     const board = state.modal.querySelector('#ms-board');
     board.classList.toggle('is-won', state.game.state === 'won');
@@ -391,7 +520,25 @@ function renderToolbar(state) {
     const btn = state.modal.querySelector('#ms-flagmode');
     btn.classList.toggle('active', state.flagMode);
     btn.setAttribute('aria-pressed', state.flagMode ? 'true' : 'false');
+    renderOdds(state);
     renderTimer(state);
+}
+
+function renderOdds(state) {
+    const btn = state.modal.querySelector('#ms-odds');
+    btn.classList.toggle('hidden', !state.cheat);
+    btn.classList.toggle('active', state.oddsOn);
+    btn.setAttribute('aria-pressed', state.oddsOn ? 'true' : 'false');
+
+    // Подпись под доской объясняет, что это за числа. Без неё «13» на клетке
+    // читается как цифра сапёра, которых больше восьми не бывает.
+    const note = state.modal.querySelector('#ms-odds-note');
+    const on = state.cheat && state.oddsOn && state.odds;
+    note.classList.toggle('hidden', !on);
+    if (!on) { note.textContent = ''; return; }
+    note.textContent = state.oddsExact
+        ? 'Числа — шанс мины в процентах, посчитанный по открытым цифрам и остатку мин.'
+        : 'Числа — шанс мины в процентах. Позиция слишком ветвистая, чтобы перебрать её целиком, — оценка приблизительная.';
 }
 
 function renderTimer(state) {

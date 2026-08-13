@@ -3560,11 +3560,17 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .ms-flagmode { display: inline-flex; align-items: center; justify-content: center; }
 .ms-toolbar #ms-new { margin-left: auto; }
-.ms-flagmode.active { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.ms-flagmode.active,
+.ms-odds-toggle.active { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.ms-odds-toggle { font-weight: 800; }
 
 .ms-msg { font-size: 12.5px; color: var(--sub); }
 .ms-msg.is-win  { color: var(--green); font-weight: 700; }
 .ms-msg.is-lose { color: var(--red); font-weight: 700; }
+.ms-msg.is-cheat { color: var(--accent); font-weight: 700; }
+
+/* Пояснение под доской в режиме шансов: что за числа на клетках. */
+.ms-note { font-size: 11.5px; color: var(--sub); line-height: 1.45; }
 
 .ms-board {
   display: grid;
@@ -3626,6 +3632,27 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   background: var(--red); transform: rotate(-45deg); border-radius: 2px;
 }
 .ms-cell { position: relative; }
+
+/* ── Шансы на мине (чит-режим) ────────────────────────────────────
+   Число на закрытой клетке — вероятность мины в процентах. Своим размером
+   и весом оно должно отличаться от цифры сапёра: их путать нельзя, а стоят
+   они бок о бок. Поэтому шанс — мельче, тоньше и без знака «%»: на клетке
+   в 28 пикселей он всё равно не читается, а место занимает. */
+.ms-cell .ms-odds {
+  font-size: clamp(8px, 1.9vw, 11px);
+  font-weight: 600;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+.ms-cell.odds-lo  .ms-odds { color: var(--green); opacity: .75; }
+.ms-cell.odds-mid .ms-odds { color: var(--sub); }
+.ms-cell.odds-hi  .ms-odds { color: var(--red); opacity: .9; }
+/* Доказанное — не «скорее всего»: 0 и 100 красим клеткой целиком, чтобы их
+   было видно, не читая чисел. */
+.ms-cell.odds-safe { background: var(--green-dim); border-color: var(--green); }
+.ms-cell.odds-safe .ms-odds { color: var(--green); font-weight: 800; }
+.ms-cell.odds-sure { background: var(--red-dim); border-color: var(--red); }
+.ms-cell.odds-sure .ms-odds { color: var(--red); font-weight: 800; }
 
 /* ── Движение ─────────────────────────────────────────────────────
    Всё, что открылось одним ходом, проявляется ВОЛНОЙ: задержка берётся из
@@ -3710,7 +3737,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* Кнопки и клавиши игр отзываются на нажатие: без этого клик «в никуда»
    и создаёт ощущение, что окно подвисло. */
-.wordle-key, .ms-cell, .ms-flagmode, .kontekst-row {
+.wordle-key, .ms-cell, .ms-flagmode, .ms-odds-toggle, .kontekst-row {
   transition: background-color .16s ease, border-color .16s ease,
               color .16s ease, transform .09s ease;
 }
@@ -3764,5 +3791,5 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .ms-counter.is-bump b {
     animation: none;
   }
-  .wordle-key, .ms-cell, .ms-flagmode, .kontekst-row { transition: none; }
+  .wordle-key, .ms-cell, .ms-flagmode, .ms-odds-toggle, .kontekst-row { transition: none; }
 }
