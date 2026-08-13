@@ -3537,8 +3537,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.ms-win { max-width: 560px; }
 .ms-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
 
-.ms-tabs { display: flex; gap: 6px; }
-
 .ms-toolbar { display: flex; align-items: center; gap: 8px; }
 .ms-counter {
   font-variant-numeric: tabular-nums;
@@ -3606,34 +3604,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 .ms-hint { font-size: 11.5px; color: var(--sub); line-height: 1.45; }
 
-/* ── Мини-топ ───────────────────────────────────────────────────── */
-.ms-top { display: flex; flex-direction: column; gap: 4px; }
-.ms-top-head { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
-.ms-top-empty { font-size: 12.5px; color: var(--sub); }
-.ms-top-cols, .ms-top-row {
-  display: grid;
-  grid-template-columns: 28px 1fr 64px 64px;
-  align-items: center; gap: 8px;
-  padding: 7px 10px;
-  font-size: 13px;
-}
-.ms-top-cols { font-size: 11px; text-transform: uppercase; color: var(--sub); padding-bottom: 2px; }
-.ms-top-row {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.ms-top-row.is-me { border-color: var(--accent); background: var(--accent-dim); }
-.ms-top-rank { font-weight: 700; color: var(--sub); font-variant-numeric: tabular-nums; }
-.ms-top-name { overflow-wrap: anywhere; }
-.ms-top-wins, .ms-top-best { text-align: right; font-variant-numeric: tabular-nums; }
-.ms-top-wins { font-weight: 700; }
-.ms-top-best { color: var(--sub); }
-.ms-top-gap { text-align: center; color: var(--sub); line-height: 1; }
-
 @media (max-width: 460px) {
   .ms-body { padding: 12px 10px 14px; }
   .ms-board { gap: 1px; }
   .ms-cell { border-radius: 2px; }
-  .ms-top-cols, .ms-top-row { grid-template-columns: 22px 1fr 52px 52px; gap: 6px; padding: 6px 8px; font-size: 12.5px; }
 }

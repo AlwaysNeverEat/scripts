@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <!-- Дев-песочница пасхалки «Сапёр»: окно игры без входа.
      Открыть: npx vite → /dev-minesweeper.html
-     По умолчанию поле раскладывается прямо здесь, в браузере (на проде это
-     делает сервер — иначе топ можно было бы нарисовать в консоли), а мини-топ
-     подставляется выдуманный. Этого хватает, чтобы править вёрстку и поведение.
+     По умолчанию поле раскладывается прямо здесь, в браузере (на проде этим
+     занимается сервер — там партия переживает F5). Этого хватает, чтобы править
+     вёрстку и поведение окна.
      С ?api — ходит в настоящий /api/minesweeper через прокси vite (нужен
-     запущенный бэкенд, база и валидная сессия).
+     запущенный бэкенд и валидная сессия; база сапёру не нужна).
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -107,27 +107,12 @@
       };
     };
 
-    let devWins = 0;
-    const top = () => ({
-      month: new Date().toISOString().slice(0, 7),
-      rows: [
-        { rank: 1, id: 'u1', display_name: 'Аня', wins: 7, best_seconds: 154 },
-        { rank: 2, id: 'u2', display_name: 'Борис', wins: 4, best_seconds: 201 },
-        ...(devWins ? [{ rank: 3, id: USER.id, display_name: USER.display_name, wins: devWins, best_seconds: 300 }] : []),
-      ],
-      me: devWins ? { rank: 3, id: USER.id, display_name: USER.display_name, wins: devWins, best_seconds: 300 } : null,
-    });
-
     async function stubFetch(path, { body } = {}) {
-      if (path === '/api/minesweeper/state') { if (!field) field = fresh(); return { game: present(), top: top() }; }
-      if (path === '/api/minesweeper/new') { field = fresh(); return { game: present(), top: top() }; }
-      if (path === '/api/minesweeper/top') return top();
+      if (path === '/api/minesweeper/state') { if (!field) field = fresh(); return { game: present() }; }
+      if (path === '/api/minesweeper/new') { field = fresh(); return { game: present() }; }
       if (path === '/api/minesweeper/open') {
-        const wasOver = field.state === 'won' || field.state === 'lost';
         const step = body.mode === 'chord' ? chord(body.index, body.flags || []) : open(body.index);
-        const win = !wasOver && field.state === 'won';
-        if (win) devWins++;
-        return { game: present(), revealed: step.revealed, hit: step.hit, ...(win ? { top: top() } : {}) };
+        return { game: present(), revealed: step.revealed, hit: step.hit };
       }
       throw new Error('dev: неизвестный путь ' + path);
     }

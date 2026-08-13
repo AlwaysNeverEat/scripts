@@ -6,8 +6,8 @@
 //
 // Поле здесь не генерируется и не хранится: раскладка мин живёт на сервере
 // (routes/minesweeper.js), браузер шлёт «открыть клетку» и рисует то, что
-// открылось. Иначе мини-топ был бы бессмысленным — пройденную партию рисовали
-// бы в консоли.
+// открылось. Поэтому партия и переживает F5 — состояние спрашивается у сервера,
+// а не лежит во вкладке.
 //
 // Клиентские тут только флажки: это пометки для себя. Они лежат в localStorage
 // (чтобы пережить F5) и уезжают на сервер лишь вместе с «аккордом» — кликом по
@@ -38,8 +38,6 @@ export function openMinesweeper(ctx) {
         opened: new Map(), // index → цифра
         flags: new Set(),
         mines: new Set(),  // известны только после конца партии
-        top: null,
-        tab: 'game',
         flagMode: false,
         busy: false,
         seconds: 0,
@@ -65,8 +63,6 @@ export function openMinesweeper(ctx) {
         state.flagMode = !state.flagMode;
         renderToolbar(state);
     };
-    modal.querySelector('#ms-tab-game').onclick = () => setTab(state, 'game');
-    modal.querySelector('#ms-tab-top').onclick = () => setTab(state, 'top');
     bindBoard(state);
 
     loadState(state);
@@ -82,26 +78,15 @@ function shellHtml() {
                 <button class="btn btn-sec" id="ms-close" title="Закрыть">✕</button>
             </div>
             <div class="ms-body">
-                <div class="ms-tabs">
-                    <button type="button" class="chip active" id="ms-tab-game">Игра</button>
-                    <button type="button" class="chip" id="ms-tab-top">Топ месяца</button>
+                <div class="ms-toolbar">
+                    <span class="ms-counter" id="ms-mines">💣 —</span>
+                    <span class="ms-counter" id="ms-timer">⏱ 0:00</span>
+                    <button type="button" class="btn btn-sec ms-flagmode" id="ms-flagmode" title="Режим флажков (или правая кнопка / долгое нажатие)">🚩</button>
+                    <button type="button" class="btn btn-pri" id="ms-new">Заново</button>
                 </div>
-
-                <div class="ms-pane" id="ms-pane-game">
-                    <div class="ms-toolbar">
-                        <span class="ms-counter" id="ms-mines">💣 —</span>
-                        <span class="ms-counter" id="ms-timer">⏱ 0:00</span>
-                        <button type="button" class="btn btn-sec ms-flagmode" id="ms-flagmode" title="Режим флажков (или правая кнопка / долгое нажатие)">🚩</button>
-                        <button type="button" class="btn btn-pri" id="ms-new">Заново</button>
-                    </div>
-                    <div class="ms-msg" id="ms-msg"></div>
-                    <div class="ms-board" id="ms-board"></div>
-                    <div class="ms-hint">Правая кнопка или долгое нажатие — флажок. Клик по цифре с расставленными флажками открывает соседей.</div>
-                </div>
-
-                <div class="ms-pane hidden" id="ms-pane-top">
-                    <div class="ms-top" id="ms-top">Загрузка…</div>
-                </div>
+                <div class="ms-msg" id="ms-msg"></div>
+                <div class="ms-board" id="ms-board"></div>
+                <div class="ms-hint">Правая кнопка или долгое нажатие — флажок. Клик по цифре с расставленными флажками открывает соседей.</div>
             </div>
         </div>`;
 }
@@ -137,7 +122,6 @@ function applyState(state, res) {
     state.game = res.game;
     state.opened = new Map(res.game.opened);
     state.mines = new Set(res.game.minePositions || []);
-    if (res.top) state.top = res.top;
     // Флажки живут в браузере и переживают F5 — партия-то на сервере та же.
     // Снимаем только те, что оказались на открытых клетках: партия могла уйти
     // вперёд в другой вкладке, и метка на открытой клетке — мусор.
@@ -147,16 +131,6 @@ function applyState(state, res) {
     buildBoard(state);
     startTimer(state);
     renderAll(state);
-    if (!state.top) loadTop(state);
-}
-
-async function loadTop(state) {
-    try {
-        state.top = await state.ctx.apiFetch('/api/minesweeper/top');
-    } catch {
-        state.top = null;
-    }
-    if (openState === state) renderTop(state);
 }
 
 async function move(state, index, mode) {
@@ -181,14 +155,13 @@ async function move(state, index, mode) {
     state.opened = new Map(res.game.opened);
     state.mines = new Set(res.game.minePositions || []);
     for (const i of [...state.flags]) if (state.opened.has(i)) state.flags.delete(i);
-    if (res.top) state.top = res.top;
     state.seconds = res.game.seconds || 0;
     saveFlags(state);
     startTimer(state);
     renderAll(state);
 
     if (state.game.state === 'won') {
-        message(state, `Поле разминировано за ${timeText(state.seconds)}. Партия засчитана в топ месяца`, 'win');
+        message(state, `Поле разминировано за ${timeText(state.seconds)}`, 'win');
     } else if (state.game.state === 'lost') {
         message(state, 'Мина. Нажмите «Заново» — поле соберётся новое', 'lose');
     }
@@ -334,7 +307,6 @@ function renderAll(state) {
     const { rows, cols } = state.game;
     for (let i = 0; i < rows * cols; i++) drawCell(state, i);
     renderToolbar(state);
-    renderTop(state);
 }
 
 function renderToolbar(state) {
@@ -348,55 +320,6 @@ function renderToolbar(state) {
 
 function renderTimer(state) {
     state.modal.querySelector('#ms-timer').textContent = `⏱ ${timeText(state.seconds)}`;
-}
-
-function renderTop(state) {
-    const el = state.modal.querySelector('#ms-top');
-    if (!state.top) {
-        el.innerHTML = '<div class="ms-top-empty">Топ недоступен</div>';
-        return;
-    }
-    const { month, rows, me } = state.top;
-    if (!rows.length) {
-        el.innerHTML = `<div class="ms-top-head">${monthText(month)}</div>
-            <div class="ms-top-empty">В этом месяце поле ещё никто не разминировал. Можно быть первым.</div>`;
-        return;
-    }
-    const row = (r) => `
-        <div class="ms-top-row${me && r.id === me.id ? ' is-me' : ''}">
-            <span class="ms-top-rank">${r.rank}</span>
-            <span class="ms-top-name">${esc(r.display_name)}</span>
-            <span class="ms-top-wins">${r.wins}</span>
-            <span class="ms-top-best">${r.best_seconds != null ? timeText(r.best_seconds) : '—'}</span>
-        </div>`;
-    const outside = me && !rows.some(r => r.id === me.id) ? row(me) : '';
-    el.innerHTML = `
-        <div class="ms-top-head">${monthText(month)}</div>
-        <div class="ms-top-cols">
-            <span class="ms-top-rank">#</span>
-            <span class="ms-top-name">кто</span>
-            <span class="ms-top-wins">партий</span>
-            <span class="ms-top-best">лучшее</span>
-        </div>
-        ${rows.map(row).join('')}
-        ${outside ? `<div class="ms-top-gap">…</div>${outside}` : ''}`;
-}
-
-const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
-    'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
-
-function monthText(month) {
-    const [y, m] = String(month || '').split('-');
-    return MONTHS[Number(m) - 1] ? `Пройдено за ${MONTHS[Number(m) - 1]} ${y}` : 'Топ месяца';
-}
-
-function setTab(state, tab) {
-    state.tab = tab;
-    state.modal.querySelector('#ms-tab-game').classList.toggle('active', tab === 'game');
-    state.modal.querySelector('#ms-tab-top').classList.toggle('active', tab === 'top');
-    state.modal.querySelector('#ms-pane-game').classList.toggle('hidden', tab !== 'game');
-    state.modal.querySelector('#ms-pane-top').classList.toggle('hidden', tab !== 'top');
-    if (tab === 'top') loadTop(state);
 }
 
 function message(state, text, kind = '') {
