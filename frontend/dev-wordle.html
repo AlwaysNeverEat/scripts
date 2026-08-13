@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!-- Дев-песочница пасхалки «Вордле»: игра без бэкенда и без входа.
+     Открыть: npx vite → /dev-wordle.html
+     Слово фиксированное («карта»), раскраску считает та же shared/wordle.js,
+     что и сервер, — проверять тут нужно окно и ввод, а не подбор слова дня.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: вордле</title>
+  <script>
+    // как в index.html: тема ставится до первого кадра
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Вордле — песочница</h2>
+    <p class="page-sub">Загаданное слово — «карта». Прогресс лежит в localStorage под аккаунтом dev-user.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть игру</button>
+    <button class="btn btn-sec" id="dev-reset">Сбросить прогресс</button>
+    <button class="btn btn-sec" id="dev-soon">Полночь через 10 секунд</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { markGuess, isWin, normalizeWord, isWordShape, MAX_TRIES } from '../shared/wordle.js';
+    import { openWordle } from './src/wordle.js';
+
+    initTheme();
+
+    const ANSWER = 'карта';
+    const USER = { id: 'dev-user' };
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    let resetAt = Date.now() + 6 * 60 * 60 * 1000;
+
+    // «Сутки» песочницы: когда resetAt проходит, дата становится следующей —
+    // так же, как в проде в 00:00 МСК. Иначе смену слова не проверить, не
+    // дожидаясь настоящей полуночи.
+    function now() {
+      while (Date.now() > resetAt) resetAt += DAY_MS;
+      return { day: new Date(resetAt - DAY_MS).toISOString().slice(0, 10), resetAt: new Date(resetAt).toISOString() };
+    }
+
+    // Подделка apiFetch: те же поля, что отдаёт backend/src/routes/wordle.js.
+    async function apiFetch(path, { body } = {}) {
+      if (path === '/api/wordle/today') {
+        return { ...now(), length: 5, tries: MAX_TRIES, pool: 915 };
+      }
+      if (path === '/api/wordle/guess') {
+        const guess = normalizeWord(body.guess);
+        if (!isWordShape(guess)) return { ok: false, reason: 'bad_shape' };
+        // Словарь тут крошечный — «нет такого слова» проверяем на «ааааа».
+        if (guess === 'ааааа') return { ok: false, reason: 'unknown_word' };
+        const marks = markGuess(ANSWER, guess);
+        const win = isWin(marks);
+        const over = win || Number(body.attempt) >= MAX_TRIES;
+        return { ok: true, day: now().day, marks, win, ...(over ? { answer: ANSWER } : {}) };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    document.getElementById('dev-open').onclick = () => openWordle({ apiFetch, user: USER });
+    document.getElementById('dev-reset').onclick = () => {
+      localStorage.removeItem('wordle_progress_' + USER.id);
+      location.reload();
+    };
+    document.getElementById('dev-soon').onclick = () => { resetAt = Date.now() + 10_000; };
+  </script>
+</body>
+</html>

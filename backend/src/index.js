@@ -10,6 +10,7 @@ import usersRouter from './routes/users.js';
 import adminRouter from './routes/admin.js';
 import crmRouter from './routes/crm.js';
 import recordsRouter from './routes/records.js';
+import wordleRouter from './routes/wordle.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
@@ -72,6 +73,9 @@ app.use('/api/users', requireSession, usersRouter);
 // роутера: без личности проверять роль нечем.
 app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm', requireSession, crmRouter);
+// Пасхалка «Вордле» — слово дня считается от id аккаунта, без сессии её и
+// загадать не для кого (см. routes/wordle.js).
+app.use('/api/wordle', requireSession, wordleRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются

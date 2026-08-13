@@ -511,17 +511,45 @@ function postSnapshotToWorker() {
     searchWorker.postMessage({ type: 'snapshot', version: snapshot.version, cars: snapshot.cars });
 }
 
+// Пасхалка: «вордле»/«wordle» в строке поиска — это не запрос к базе, а вход в
+// игру (см. wordle.js). Ровно эти два слова целиком: подсказывать о ней поиск
+// не должен вообще ничем — ни выдачей, ни «ничего не найдено», — иначе она
+// перестаёт быть пасхалкой. Открывается только по Enter.
+const WORDLE_QUERY = /^(вордле|wordle)$/i;
+
+function isWordleQuery(q) {
+    return WORDLE_QUERY.test(q.trim());
+}
+
 searchInput.addEventListener('input', () => {
     const q = searchInput.value.trim();
     clearTimeout(searchDebounceTimer);
     searchGen++;          // всё, что сейчас в полёте, устарело
     pendingQuery = null;
     if (!q) { searchResults.innerHTML = ''; return; }
+    if (isWordleQuery(q)) { searchResults.innerHTML = ''; return; }
     if (q.length < MIN_QUERY_LEN) {
         searchResults.innerHTML = '<div class="search-empty">Введите ещё хотя бы один символ…</div>';
         return;
     }
     searchDebounceTimer = setTimeout(() => runLocalSearch(q), SEARCH_DEBOUNCE_MS);
+});
+
+// Enter по слову-ключу открывает игру. Модуль грузится только в этот момент:
+// в обычной жизни сайта его никто не качает.
+searchInput.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter' || !isWordleQuery(searchInput.value)) return;
+    e.preventDefault();
+    searchInput.blur();          // дальше буквы набираются в игре, а не сюда
+    searchInput.value = '';
+    searchResults.innerHTML = '';
+    try {
+        const { openWordle } = await import('./wordle.js');
+        openWordle({ apiFetch, user: currentUser });
+    } catch {
+        // Не догрузился чанк (сеть/кэш) — пасхалка не та вещь, ради которой
+        // стоит показывать человеку ошибку.
+    }
 });
 
 async function runLocalSearch(q) {
