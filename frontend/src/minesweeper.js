@@ -339,11 +339,14 @@ function bindBoard(state) {
         move(state, i, 'open');
     });
 
+    // Меню браузера гасим на ВСЁМ поле, а не только на клетках: у клеток
+    // скруглённые углы, и на стыках четырёх соседей остаются точки, которые
+    // принадлежат уже контейнеру. Попасть в них правой кнопкой — значит вместо
+    // флажка получить системное меню, и целиться в такие мелочи игрок не должен.
     board.addEventListener('contextmenu', (e) => {
-        const cell = e.target.closest('.ms-cell');
-        if (!cell) return;
         e.preventDefault();
-        toggleFlag(state, Number(cell.dataset.i));
+        const cell = e.target.closest('.ms-cell');
+        if (cell) toggleFlag(state, Number(cell.dataset.i));
     });
 
     // Долгое нажатие на телефоне = флажок. Отпускание раньше времени оставляет

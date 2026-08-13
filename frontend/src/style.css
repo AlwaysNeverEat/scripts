@@ -3569,8 +3569,16 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .ms-board {
   display: grid;
   grid-template-columns: repeat(var(--ms-cols, 18), 1fr);
-  gap: 2px;
-  /* Поле — квадрат: 18 колонок, между ними зазоры. */
+  /* Поле — квадрат из 18 колонок, БЕЗ зазоров между клетками. Зазор был не
+     только украшением: попадание в него уходило в контейнер мимо кнопки,
+     preventDefault не срабатывал — и правая кнопка вместо флажка открывала
+     меню браузера. Клетки теперь стыкуются рамками, разделитель — это они
+     сами. */
+  gap: 0;
+  /* Подложка под цвет рамок: ширина клетки — дробная (ширина окна / 18), и на
+     стыках остаются волоски в полпикселя. На своём цвете их не видно, а на
+     цвете окна поле рябило бы сеткой из светлых точек. */
+  background: var(--border-strong);
   width: 100%;
   touch-action: manipulation;   /* без задержки двойного тапа на телефоне */
   user-select: none;
@@ -3601,6 +3609,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   border-color: var(--border);
   box-shadow: none;
   cursor: default;
+  /* Открытая клетка — вырез в поле, и углы у выреза прямые. Скругление тут не
+     только не нужно, но и вредно: клетки стоят вплотную, и на стыке четырёх
+     скруглённых углов оставалась точка подложки — по белому раскрытому полю
+     это читалось как рябь в клеточку. */
+  border-radius: 0;
 }
 .ms-cell.is-flag { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 .ms-cell.is-mine { background: var(--red-dim); border-color: var(--red); color: var(--red); }
@@ -3676,7 +3689,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 @media (max-width: 460px) {
   .ms-body { padding: 12px 10px 14px; }
-  .ms-board { gap: 1px; }
   .ms-cell { border-radius: 2px; }
 }
 
