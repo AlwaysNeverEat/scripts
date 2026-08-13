@@ -242,7 +242,7 @@ async function submit(state) {
     if (res.win) state.done = 'win';
     message(state, already ? 'Это слово уже было' : '');
     saveProgress(state);
-    render(state);
+    render(state, { animate: !already });
 }
 
 async function askHint(state) {
@@ -272,7 +272,7 @@ async function askHint(state) {
     }
     state.last = res.word;
     saveProgress(state);
-    render(state);
+    render(state, { animate: true });
 }
 
 async function giveUp(state) {
@@ -298,9 +298,13 @@ async function giveUp(state) {
 
 // ── Отрисовка ────────────────────────────────────────────────────────────────
 
-function render(state) {
+// animate — строка появилась прямо сейчас: она въезжает, и её полоска
+// вырастает от нуля. При обычной перерисовке (восстановление после F5, смена
+// суток) этого делать нельзя: список дёргался бы весь и целиком.
+function render(state, { animate = false } = {}) {
     const { modal } = state;
     const sorted = state.guesses.slice().sort((a, b) => a.rank - b.rank);
+    const fresh = animate ? state.last : null;
 
     // Последнюю догадку держим сверху, только когда список успел стать длинным
     // и она могла уехать из виду: на коротком списке она и так подсвечена, а
@@ -309,10 +313,10 @@ function render(state) {
         ? state.guesses.find(g => g.word === state.last)
         : null;
     modal.querySelector('#kontekst-last').innerHTML = pinned
-        ? `<div class="kontekst-pin-label">последняя догадка</div>${rowHtml(state, pinned, true)}`
+        ? `<div class="kontekst-pin-label">последняя догадка</div>${rowHtml(state, pinned, true, fresh)}`
         : '';
     modal.querySelector('#kontekst-list').innerHTML =
-        sorted.map(g => rowHtml(state, g, g.word === state.last)).join('');
+        sorted.map(g => rowHtml(state, g, g.word === state.last, fresh)).join('');
 
     const n = state.guesses.length;
     modal.querySelector('#kontekst-count').textContent = n ? `Попыток: ${n}` : '';
@@ -329,14 +333,17 @@ function render(state) {
     }
 }
 
-function rowHtml(state, guess, isLast = false) {
+function rowHtml(state, guess, isLast = false, fresh = null) {
     if (!guess) return '';
     const pct = Math.round(rankProgress(guess.rank, state.vocab) * 100);
     const heat = rankHeat(guess.rank);
+    const isNew = fresh && guess.word === fresh;
+    // Ширину полоски отдаём переменной, а не свойством: из неё же CSS
+    // анимирует рост от нуля у только что названного слова.
     return `
-        <div class="kontekst-row is-${heat}${isLast ? ' is-last' : ''}${guess.hint ? ' is-hint' : ''}">
+        <div class="kontekst-row is-${heat}${isLast ? ' is-last' : ''}${guess.hint ? ' is-hint' : ''}${isNew ? ' is-new' : ''}">
             <span class="kontekst-word">${esc(guess.word)}${guess.hint ? ' <span class="kontekst-tag">подсказка</span>' : ''}</span>
-            <span class="kontekst-bar"><span style="width:${pct}%"></span></span>
+            <span class="kontekst-bar"><span style="--w:${pct}%"></span></span>
             <span class="kontekst-rank">${guess.rank}</span>
         </div>`;
 }
