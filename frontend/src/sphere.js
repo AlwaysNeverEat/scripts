@@ -198,10 +198,22 @@ export function startSphere(canvas, initialNodes) {
         // И цикл на это время останавливаем совсем: раньше кадры продолжали
         // запрашиваться на любой другой вкладке сайта, впустую будя телефон
         // шестьдесят раз в секунду. Обратно его заводит kick() — по возврату
-        // вкладки, по setVisible/setNodes и по ResizeObserver (страница поиска
-        // снова получила размер).
-        if (W === 0 || !visible || layout.nodes.length === 0 || contextLost || document.hidden) {
-            if (W !== 0 && !contextLost) ctx.clearRect(0, 0, W, H);
+        // вкладки, по setVisible/setNodes, по закрытию модалки и по
+        // ResizeObserver (страница поиска снова получила размер).
+        //
+        // Открытая модалка (игры-пасхалки, карточка машины, редактор) — тоже
+        // повод замереть, но НЕ стирать: за подложкой окна сфера ещё
+        // просвечивает (на светлой теме overlay всего 35%), и очищенный канвас
+        // читался бы как «фон пропал». Замирание же не видно никак, а платит за
+        // движение вся страница дважды: сначала сам кадр, потом
+        // backdrop-filter — подложка окна размывает то, что под ней, и каждый
+        // кадр сферы заставляет пересчитывать это размытие на весь экран (а над
+        // окном ещё и панель вкладок со своим blur). Сильнее всех от этого лагал
+        // сапёр: он единственный держит окно открытым минутами и сам при этом
+        // анимирует 324 клетки.
+        const paused = document.body.classList.contains('modal-open');
+        if (W === 0 || !visible || layout.nodes.length === 0 || contextLost || document.hidden || paused) {
+            if (W !== 0 && !contextLost && !paused) ctx.clearRect(0, 0, W, H);
             prevTime = 0;
             running = false;
             return;
@@ -362,6 +374,14 @@ export function startSphere(canvas, initialNodes) {
     // возобновить rAF сама — перезапускаем цикл, когда страница снова видна
     document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
     window.addEventListener('pageshow', kick);
+    // Окно закрыли — сфера снова на виду, заводим цикл. Слушаем именно класс на
+    // body: модалок на сайте много (игры, карточка машины, редактор), и каждая
+    // из них ставит modal-open сама — так сфере не нужно про них знать.
+    if (typeof MutationObserver === 'function') {
+        new MutationObserver(() => {
+            if (!running && !document.body.classList.contains('modal-open')) kick();
+        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    }
     // Цикл останавливается, когда канвас нулевого размера (ушли с поиска на
     // другую вкладку сайта) — ResizeObserver будит его, когда страница поиска
     // снова получает размер.
