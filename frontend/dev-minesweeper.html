@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<!-- Дев-песочница пасхалки «Сапёр»: окно игры без входа.
+     Открыть: npx vite → /dev-minesweeper.html
+     По умолчанию поле раскладывается прямо здесь, в браузере (на проде этим
+     занимается сервер — там партия переживает F5). Этого хватает, чтобы править
+     вёрстку и поведение окна.
+     С ?api — ходит в настоящий /api/minesweeper через прокси vite (нужен
+     запущенный бэкенд и валидная сессия; база сапёру не нужна).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: сапёр</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Сапёр — песочница</h2>
+    <p class="page-sub">Поле 18×18, 50 мин. Заглушка играет теми же правилами, что и сервер.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть игру</button>
+    <button class="btn btn-sec" id="dev-clear">Забыть флажки</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { openMinesweeper } from './src/minesweeper.js';
+
+    initTheme();
+    const USER = { id: 'dev-user', display_name: 'Я' };
+
+    // ── Заглушка сервера: та же логика, что в backend/src/minesweeper/field.js,
+    // но в браузере. Держать её здесь честнее, чем отдавать окну готовое поле:
+    // окно не должно знать, где мины, ни в дев-режиме, ни на проде.
+    const ROWS = 18, COLS = 18, MINES = 50, SIZE = ROWS * COLS;
+    let field = null;
+
+    const nb = (i) => {
+      const r = Math.floor(i / COLS), c = i % COLS, out = [];
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if (!dr && !dc) continue;
+        const nr = r + dr, ncc = c + dc;
+        if (nr >= 0 && nr < ROWS && ncc >= 0 && ncc < COLS) out.push(nr * COLS + ncc);
+      }
+      return out;
+    };
+    const fresh = () => ({ mine: new Uint8Array(SIZE), count: new Uint8Array(SIZE),
+                           opened: new Uint8Array(SIZE), placed: false, state: 'new',
+                           startedAt: 0, finishedAt: 0 });
+    const place = (safe) => {
+      const forbidden = new Set([safe, ...nb(safe)]);
+      let placed = 0;
+      while (placed < MINES) {
+        const i = Math.floor(Math.random() * SIZE);
+        if (field.mine[i] || forbidden.has(i)) continue;
+        field.mine[i] = 1; placed++;
+      }
+      for (let i = 0; i < SIZE; i++) if (!field.mine[i]) field.count[i] = nb(i).reduce((n, j) => n + field.mine[j], 0);
+      field.placed = true; field.state = 'play'; field.startedAt = Date.now();
+    };
+    const won = () => { for (let i = 0; i < SIZE; i++) if (!field.mine[i] && !field.opened[i]) return false; return true; };
+    const open = (i) => {
+      if (field.state === 'won' || field.state === 'lost' || field.opened[i]) return { revealed: [], hit: false };
+      if (!field.placed) place(i);
+      if (field.mine[i]) { field.state = 'lost'; field.finishedAt = Date.now(); return { revealed: [], hit: true }; }
+      const revealed = [i], queue = [i];
+      field.opened[i] = 1;
+      while (queue.length) {
+        const cur = queue.pop();
+        if (field.count[cur]) continue;
+        for (const n of nb(cur)) if (!field.opened[n] && !field.mine[n]) { field.opened[n] = 1; revealed.push(n); queue.push(n); }
+      }
+      if (won()) { field.state = 'won'; field.finishedAt = Date.now(); }
+      return { revealed, hit: false };
+    };
+    const chord = (i, flags) => {
+      if (field.state !== 'play' || !field.opened[i] || !field.count[i]) return { revealed: [], hit: false };
+      const f = new Set(flags), around = nb(i);
+      if (around.filter(x => f.has(x)).length !== field.count[i]) return { revealed: [], hit: false };
+      const revealed = [];
+      for (const n of around) {
+        if (field.opened[n] || f.has(n)) continue;
+        const step = open(n);
+        revealed.push(...step.revealed);
+        if (step.hit) return { revealed, hit: true };
+      }
+      return { revealed, hit: false };
+    };
+    const present = () => {
+      const over = field.state === 'won' || field.state === 'lost';
+      const opened = [];
+      for (let i = 0; i < SIZE; i++) if (field.opened[i]) opened.push([i, field.count[i]]);
+      const mines = [];
+      for (let i = 0; i < SIZE; i++) if (field.mine[i]) mines.push(i);
+      return {
+        rows: ROWS, cols: COLS, mines: MINES, state: field.state, opened,
+        seconds: field.startedAt ? Math.round(((field.finishedAt || Date.now()) - field.startedAt) / 1000) : 0,
+        ...(over ? { minePositions: mines } : {}),
+      };
+    };
+
+    async function stubFetch(path, { body } = {}) {
+      if (path === '/api/minesweeper/state') { if (!field) field = fresh(); return { game: present() }; }
+      if (path === '/api/minesweeper/new') { field = fresh(); return { game: present() }; }
+      if (path === '/api/minesweeper/open') {
+        const step = body.mode === 'chord' ? chord(body.index, body.flags || []) : open(body.index);
+        return { game: present(), revealed: step.revealed, hit: step.hit };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    const realFetch = async (path, { method = 'GET', body } = {}) => {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+    const apiFetch = location.search.includes('api') ? realFetch : stubFetch;
+
+    document.getElementById('dev-open').onclick = () => openMinesweeper({ apiFetch, user: USER });
+    document.getElementById('dev-clear').onclick = () => {
+      localStorage.removeItem('minesweeper_flags_' + USER.id);
+      location.reload();
+    };
+  </script>
+</body>
+</html>

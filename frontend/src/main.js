@@ -519,6 +519,9 @@ function postSnapshotToWorker() {
 const EASTER_EGGS = [
     { query: /^(вордле|wordle)$/i, open: () => import('./wordle.js').then(m => m.openWordle) },
     { query: /^контекстно$/i,      open: () => import('./kontekst.js').then(m => m.openKontekst) },
+    // «сапёр» с «ё» — то же слово: заставлять человека попадать в неё на
+    // клавиатуре ради пасхалки было бы издевательством.
+    { query: /^сап[её]р$/i,        open: () => import('./minesweeper.js').then(m => m.openMinesweeper) },
 ];
 
 function easterEggFor(q) {
