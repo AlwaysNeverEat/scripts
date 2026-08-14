@@ -4368,16 +4368,30 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    потолок, ширина экрана на семь столбцов и остаток высоты после шапки,
    счётчиков, мини-топа и подсказки. Поэтому стол целиком виден и на
    360px телефона, и на ноутбуке с короткой рамкой, без прокрутки. */
-.modal-win.sol-win { max-width: 560px; }
-.sol-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 9px; }
+/* Окно ужимается ПО СТОЛУ, а не растягивается на всю разрешённую ширину:
+   размер карты считается от высоты экрана (см. --sol-cw), поэтому на невысоком
+   мониторе стол уже своего потолка — и окно в 760px обрамляло бы его сотней
+   пикселей пустоты с каждой стороны. 760 — это стол из семи карт по 96 плюс
+   промежутки и поля. */
+.modal-win.sol-win { width: fit-content; max-width: min(760px, 100%); }
+/* Ширину окна задаёт СТОЛ, а не текст: строка новостей и мини-топ тянутся по
+   нему (width: 0 + min-width: 100% — их собственная ширина в расчёт не идёт),
+   иначе подсказка «клик — карта уедет сама…» расталкивала бы окно шире стола. */
+.sol-note, .sol-top { width: 0; min-width: 100%; }
+.sol-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
 
 .sol-win {
-  /* Ширина карты. По ширине вычтено 96px — это отступы окна (16+16) и полей
-     (16+16) плюс шесть промежутков по 5px между семью столбцами. По высоте
-     6.8 — это высота стола в ширинах карты: два ряда по 1.338 (пропорция
-     картинки 71×95) плюс 11 шагов столбца по 0.28. Посчитано по факту, не на
-     глаз: ошибка здесь — это седьмой столбец, срезанный краем телефона. */
-  --sol-cw: max(30px, min(64px, calc((100vw - 96px) / 7), calc((85vh - 300px) / 6.8)));
+  /* Ширина карты. Потолок 96px — это картинка 71px, увеличенная в 1.35 раза:
+     выше номинал уже не становится читаемее, а стол перестаёт помещаться в
+     окно. По ширине вычтено 96px — отступы окна (16+16) и полей (16+16) плюс
+     шесть промежутков по 5px между семью столбцами. По высоте 310px — это всё
+     «не стол» в окне (шапка 60, счётчики 48, строка новостей 32, мини-топ с
+     полным списком 119, отступы и рамка 62 — замерено, а не прикинуто), а
+     6.05 — высота стола в ширинах карты: два ряда по 1.338 (пропорция картинки
+     71×95) плюс девять шагов столбца по 0.28. Оба числа посчитаны по факту, не
+     на глаз: ошибка в первом — это срезанный краем телефона седьмой столбец, во
+     втором — прокрутка внутри окна. */
+  --sol-cw: max(30px, min(96px, calc((100vw - 96px) / 7), calc((85vh - 325px) / 6.05)));
   --sol-ch: calc(var(--sol-cw) * 1.338);
   --sol-gap: 5px;
   /* Насколько карта в столбце сдвинута относительно предыдущей. Больше — не
@@ -4385,8 +4399,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   --sol-step: calc(var(--sol-ch) * 0.28);
   /* Сколько шагов помещается в столбец. ДОЛЖНО совпадать с PILE_UNITS в
      solitaire.js: там этим числом ужимаются длинные столбцы, здесь оно даёт
-     высоту, под которую ужимают. */
-  --sol-units: 11;
+     высоту, под которую ужимают. Каждый лишний шаг — это ещё 0.28 высоты карты
+     пустого места под столбцами, за которое платит РАЗМЕР КАРТЫ (см. --sol-cw),
+     поэтому запас тут ровно на обычный столбец, а редкий длинный ужимается. */
+  --sol-units: 9;
   --sol-round: calc(var(--sol-cw) * 0.1);
 
   /* Лицо карты. У картинок из колоды нарисован только верхний слой на
@@ -4568,11 +4584,24 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .sol-over-sub { font-size: 12.5px; color: var(--sub); max-width: 260px; }
 .sol-record { color: var(--gold); }
 
+/* Одна строка на две работы: до первого хода в ней висит подсказка «как
+   ходить», дальше — новости партии («колода перевёрнута»). Своя строка у
+   подсказки стоила бы двадцать пикселей высоты, а высота здесь — это размер
+   карты (см. --sol-cw).
+   Место под ДВЕ строки занято всегда: на узком окне подсказка переносится, и
+   без запаса окно в этот момент подрастало бы выше 85vh — то есть обзаводилось
+   прокруткой внутри себя. */
 .sol-note {
-  min-height: 15px; font-size: 12px; color: var(--sub); text-align: center;
+  min-height: 32px; font-size: 12px; color: var(--sub); text-align: center;
   opacity: 0; transition: opacity .2s ease;
 }
 .sol-note.is-show { opacity: 1; }
+.sol-note .sol-key {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; padding: 0 5px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg2); font-size: 10.5px; font-family: inherit;
+}
 
 /* ── Мини-топ ── */
 /* Разметка та же, что у тетриса и тройки: человек должен узнавать коллег
@@ -4582,7 +4611,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   letter-spacing: .04em; margin-bottom: 4px;
 }
 .sol-top-empty { font-size: 12px; color: var(--sub); }
-.sol-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 116px; overflow-y: auto; }
+.sol-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 100px; overflow-y: auto; }
 .sol-top-row {
   display: grid; grid-template-columns: 20px 22px 1fr auto;
   align-items: center; gap: 8px;
@@ -4598,27 +4627,28 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .sol-top-score { font-weight: 700; font-variant-numeric: tabular-nums; }
 .sol-top-row.is-mine-extra { grid-template-columns: 20px 1fr auto; margin-top: 4px; }
 
-.sol-hint {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
-  font-size: 11.5px; color: var(--sub);
-}
-.sol-key {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; padding: 1px 5px;
-  border: 1px solid var(--border); border-radius: 5px;
-  background: var(--bg2); font-size: 10.5px; font-family: inherit;
-}
-
 /* Пальцем список крутить труднее, чем мышью, — на телефоне он короче
    (то же, что у тетриса и тройки, и по той же причине). */
 @media (pointer: coarse) { .sol-top-list { max-height: 86px; } }
 
-/* Короткий экран: ужимаем всё «не стол» — список до двух строк, подсказку
-   убираем совсем (мышью и пальцем играют, ничего не читая). */
+/* Экран ниже тысячи пикселей: размер карты упирается не в свой потолок, а в
+   высоту окна, и самый дорогой кусок «не стола» — список мини-топа. Ужимаем его
+   до двух строк с прокруткой и на освободившееся уменьшаем вычитаемое в
+   --sol-cw (282 вместо 325 — тоже замерено): в игре карты важнее списка, а свою
+   строку игрок всё равно видит отдельно. Тот же приём и по той же причине, что
+   у тройки. */
+@media (max-height: 1000px) {
+  .sol-win {
+    --sol-cw: max(30px, min(96px, calc((100vw - 96px) / 7), calc((85vh - 282px) / 6.05)));
+  }
+  .sol-top-list { max-height: 62px; }
+}
+
+/* Короткий экран: ужимаем всё «не стол» — список до двух строк и отступы до
+   минимума, чтобы карты остались читаемыми. */
 @media (max-height: 700px) {
   .sol-top-list { max-height: 46px; }
-  .sol-hint { display: none; }
-  .sol-body { gap: 7px; }
+  .sol-body { gap: 6px; }
 }
 
 /* ── Движение в окнах пасхалок ────────────────────────────────────
