@@ -56,7 +56,7 @@ const AUTO_MS = 70;
 // Сколько шагов помещается в столбец, считая шагом сдвиг открытой карты.
 // Столбцы длиннее ужимаются (см. renderPiles): в косынке в столбце бывает до
 // девятнадцати карт, и без этого нижние уезжали бы за край стола.
-const PILE_UNITS = 11;
+const PILE_UNITS = 9;
 // Закрытая карта сдвигается меньше открытой: у неё нечего показывать, кроме
 // того, что она есть.
 const DOWN_UNIT = 0.5;
@@ -133,6 +133,9 @@ export function openSolitaire(ctx) {
 
     bindTable(state);
     render(state);
+    // Подсказку показываем только новой партии: поднятую из отложенной человек
+    // уже играл, и объяснять ему правила мыши второй раз незачем.
+    if (!state.game.moves) note(state, HINT, true);
     loadTop(state);
     return modal;
 }
@@ -180,11 +183,6 @@ function shellHtml() {
 
                 <div class="sol-note" id="sol-note"></div>
                 <div class="sol-top" id="sol-top"></div>
-                <div class="sol-hint">
-                    <span>клик — карта уедет сама</span>
-                    <span>тянуть мышью — куда нужно</span>
-                    <span><kbd class="sol-key">пробел</kbd> — карта из колоды</span>
-                </div>
             </div>
         </div>`;
 }
@@ -221,6 +219,8 @@ function frame(state, ts) {
 // начали, а не когда открыли окно.
 function began(state) {
     if (state.game.won) return;
+    // Первый ход убирает подсказку: она объясняла, как ходить, а ход уже сделан.
+    if (!state.started) note(state, '');
     state.started = true;
     startLoop(state);
 }
@@ -596,14 +596,22 @@ function plural(n, one, few, many) {
     return many;
 }
 
+// Как ходить — в той же строке, где потом появляются новости партии. Отдельная
+// строка подсказки стоила бы двадцать пикселей высоты, а высота здесь — это
+// РАЗМЕР КАРТЫ (см. --sol-cw в style.css): подсказка съедала бы номиналы,
+// которые сама же и объясняет. Висит она до первого хода — дальше человек уже
+// знает, а строка нужна под «колода перевёрнута».
+const HINT = 'клик — карта уедет сама · перетащить — куда нужно ·'
+    + ' <kbd class="sol-key">пробел</kbd> — карта из колоды';
+
 let noteTimer = 0;
-function note(state, text) {
+function note(state, html, sticky = false) {
     const box = state.modal.querySelector('#sol-note');
     if (!box) return;
-    box.textContent = text;
-    box.classList.toggle('is-show', !!text);
+    box.innerHTML = html;
+    box.classList.toggle('is-show', !!html);
     clearTimeout(noteTimer);
-    if (text) noteTimer = setTimeout(() => { if (openState === state) note(state, ''); }, 2200);
+    if (html && !sticky) noteTimer = setTimeout(() => { if (openState === state) note(state, ''); }, 2200);
 }
 
 // ── Мини-топ ─────────────────────────────────────────────────────────────────
