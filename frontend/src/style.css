@@ -4122,17 +4122,26 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 
 /* 2. Уборка: выделенное уходит в точку, на его месте остаётся дырка. Дырку
-   видно всю следующую фазу — в неё и посыплется всё сверху. */
-.tro-cell.is-clear { animation: tro-clear var(--clear-ms, 190ms) ease-in forwards; }
+   видно всю следующую фазу — в неё и посыплется всё сверху.
+   
+   Прозрачность падает В ПЕРВОЙ ТРЕТИ фазы, и дальше клетка стоит пустой. Это
+   важнее, чем кажется: раньше кривая была ease-in, и на середине уборки фишка
+   всё ещё была непрозрачна на две трети — то есть большую часть времени она
+   выглядела «потускневшей, но оставшейся». Именно так это и читалось: «удаляется
+   не всё». Поэтому кривая тут linear, а числа — прямо в кадрах. */
+.tro-cell.is-clear { animation: tro-clear var(--clear-ms, 230ms) linear forwards; }
 @keyframes tro-clear {
-  from { transform: scale(1.14); opacity: 1; }
-  to   { transform: scale(.2) rotate(8deg); opacity: 0; }
+  0%   { transform: scale(1.14); opacity: 1; }
+  30%  { transform: scale(.72) rotate(4deg); opacity: .3; }
+  55%  { transform: scale(.3) rotate(8deg); opacity: 0; }
+  100% { transform: scale(.2) rotate(10deg); opacity: 0; }
 }
-.tro-cell.is-boom { animation: tro-boom var(--clear-ms, 190ms) ease-in forwards; }
+.tro-cell.is-boom { animation: tro-boom var(--clear-ms, 230ms) linear forwards; }
 @keyframes tro-boom {
-  from { transform: scale(1.2); opacity: 1; filter: brightness(1.5); }
-  40%  { transform: scale(1.45); filter: brightness(2.4) saturate(1.4); }
-  to   { transform: scale(.2); opacity: 0; }
+  0%   { transform: scale(1.2); opacity: 1; filter: brightness(1.6); }
+  22%  { transform: scale(1.5); opacity: .95; filter: brightness(2.6) saturate(1.4); }
+  60%  { transform: scale(.3); opacity: 0; }
+  100% { transform: scale(.2); opacity: 0; }
 }
 
 /* 3. Очки всплывают ТАМ, где только что были фишки: цифра в углу отвечает
