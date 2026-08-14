@@ -4140,16 +4140,21 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* Подсказка: игрок несколько секунд не ходит — пара, которую можно обменять,
    начинает пульсировать (см. showHint в troika.js). Пульсация, а не рамка:
    неподвижную подсветку на пёстром поле из картинок просто не замечают. */
-.tro-cell.is-hint { animation: tro-hint 1.15s ease-in-out infinite; z-index: 1; }
+/* Подсказка: пара ТОЛКАЕТСЯ НАВСТРЕЧУ друг другу — показывает не «вот эти
+   фишки», а «поменяй их местами», то есть сам ход. Направление приходит из
+   troika.js переменными --nx/--ny (клетка слева/сверху едет вперёд, вторая
+   назад).
+   Вспышкой и увеличением подсказка не пользуется НАМЕРЕННО: этим занята
+   подсветка засчитанного (is-mark), и когда они были похожи, оставшаяся на поле
+   подсказка честно читалась как «эти фишки не убрались». */
+.tro-cell.is-hint { animation: tro-hint 1.25s ease-in-out infinite; }
 @keyframes tro-hint {
-  0%, 100% { transform: none; box-shadow: 0 0 0 0 transparent; filter: none; }
-  50%      {
-    transform: scale(1.12);
-    /* Кольцо И свечение: одно кольцо теряется на пёстром поле из картинок, одно
-       свечение — на светлой плашке самой фишки. */
-    box-shadow: 0 0 0 3px var(--accent), 0 0 16px 2px var(--accent);
-    filter: brightness(1.12);
+  0%, 100% { transform: none; box-shadow: none; }
+  45%      {
+    transform: translate(calc(var(--nx, 0) * 6px), calc(var(--ny, 0) * 6px));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 60%, transparent);
   }
+  90%      { transform: none; }
 }
 
 /* ── Фазы шага цепочки ────────────────────────────────────────────
@@ -4160,7 +4165,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* 1. Выделение: засчитанные фишки вспыхивают и подрастают, оставаясь на месте.
    Это главная фаза шага — она отвечает на вопрос «за что дали очки». */
-.tro-cell.is-mark { animation: tro-mark .26s ease-out both; z-index: 2; }
+.tro-cell.is-mark { animation: tro-mark var(--mark-ms, 260ms) ease-out both; z-index: 2; }
 @keyframes tro-mark {
   0%   { transform: none; }
   100% {
@@ -4171,7 +4176,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 /* Сработавшая ракета/бомба/призма выделяется сильнее: должно быть видно, что
    полполя унесла именно она, а не «оно само». */
-.tro-cell.is-mark.is-fired { animation: tro-mark-fired .26s ease-out both; }
+.tro-cell.is-mark.is-fired { animation: tro-mark-fired var(--mark-ms, 260ms) ease-out both; }
 @keyframes tro-mark-fired {
   0%   { transform: none; }
   60%  { transform: scale(1.3) rotate(-4deg); filter: brightness(1.8) saturate(1.3); }
@@ -4180,12 +4185,12 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* 2. Уборка: выделенное уходит в точку, на его месте остаётся дырка. Дырку
    видно всю следующую фазу — в неё и посыплется всё сверху. */
-.tro-cell.is-clear { animation: tro-clear .18s ease-in forwards; }
+.tro-cell.is-clear { animation: tro-clear var(--clear-ms, 190ms) ease-in forwards; }
 @keyframes tro-clear {
   from { transform: scale(1.14); opacity: 1; }
   to   { transform: scale(.2) rotate(8deg); opacity: 0; }
 }
-.tro-cell.is-boom { animation: tro-boom .18s ease-in forwards; }
+.tro-cell.is-boom { animation: tro-boom var(--clear-ms, 190ms) ease-in forwards; }
 @keyframes tro-boom {
   from { transform: scale(1.2); opacity: 1; filter: brightness(1.5); }
   40%  { transform: scale(1.45); filter: brightness(2.4) saturate(1.4); }
@@ -4254,6 +4259,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   display: flex; align-items: center; justify-content: center;
   background: var(--overlay); backdrop-filter: blur(2px);
   border-radius: 10px;
+  /* Выше всего, что бывает на поле. Клетки — позиционированные элементы, и та
+     из них, что приподнята (выбранная, подсказанная, вспыхнувшая), рисовалась
+     ПОВЕРХ затемнения: на паузе из-под него торчала пара светящихся фишек, и
+     выглядело это как «фишки, которые не убрались». */
+  z-index: 6;
 }
 .tro-overlay-card {
   text-align: center; padding: 14px 16px; max-width: 92%;

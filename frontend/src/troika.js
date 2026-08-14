@@ -349,6 +349,15 @@ function showHint(state) {
     const move = findMove(state.game);
     if (!move) return;              // тупик разберёт afterSettle
     state.hint = move;
+    // Куда толкаться каждой из пары: findMove отдаёт клетки по возрастанию, то
+    // есть первая всегда слева или сверху. Направление уезжает в CSS
+    // переменными — так анимация одна на оба случая (см. @keyframes tro-hint).
+    const [a, b] = move;
+    const horiz = b - a === 1;
+    state.cells[a]?.style.setProperty('--nx', horiz ? '1' : '0');
+    state.cells[a]?.style.setProperty('--ny', horiz ? '0' : '1');
+    state.cells[b]?.style.setProperty('--nx', horiz ? '-1' : '0');
+    state.cells[b]?.style.setProperty('--ny', horiz ? '0' : '-1');
     move.forEach(i => paintMarks(state, i));
 }
 
@@ -396,6 +405,16 @@ function runCascade(state) {
  */
 function playStep(state, step, next) {
     const k = stepSpeed(step.cascade);
+    // Длительности анимаций отдаём в CSS переменными — теми же числами, по
+    // которым отсчитываются фазы. Иначе на быстрых шагах глубокой цепочки
+    // получалось ровно то, на что это и похоже: подсветка длиной в четверть
+    // секунды не успевала доиграть за отведённые ей сто миллисекунд, уборка
+    // накладывалась на неё, а падение начиналось раньше, чем глаз успевал
+    // заметить, что вообще убрали.
+    const board = state.modal.querySelector('#tro-board');
+    board.style.setProperty('--mark-ms', `${Math.round(PHASE_MARK * k)}ms`);
+    board.style.setProperty('--clear-ms', `${Math.round(PHASE_CLEAR * k)}ms`);
+
     const phases = [
         [() => markCleared(state, step), PHASE_MARK],
         [() => clearCells(state, step), PHASE_CLEAR],
@@ -412,10 +431,11 @@ function playStep(state, step, next) {
     run();
 }
 
-// Чем глубже цепочка, тем короче её показ — но не быстрее, чем вдвое: иначе
-// самый красивый момент партии превращается в мельтешение.
+// Чем глубже цепочка, тем короче её показ — но не сильнее, чем на треть: ниже
+// этого фазы перестают читаться как последовательность, и длинная цепочка
+// превращается в мельтешение, из которого не понять, что убралось.
 function stepSpeed(cascade) {
-    return Math.max(0.5, 1 - (cascade - 1) * 0.12);
+    return Math.max(0.66, 1 - (cascade - 1) * 0.08);
 }
 
 function afterSettle(state) {
@@ -426,7 +446,11 @@ function afterSettle(state) {
         renderBoard(state);
         note(state, `${shuffleIcon(14)} Ходов не осталось — поле перемешано`);
     }
-    // Каскад кончился — поле другое, и отсчёт «сижу и ищу» начинается заново.
+    // Цепочка кончилась — снимаем классы её последнего шага. Сами по себе они
+    // уже ничего не рисуют (анимации доиграли), но клетка с таким классом
+    // остаётся приподнятой над соседями, а на паузе — и над затемнением.
+    for (const node of state.cells) node.classList.remove(...ANIM_CLASSES);
+    // Поле другое, и отсчёт «сижу и ищу» начинается заново.
     clearHint(state);
     if (state.game.over) finish(state);
 }
@@ -442,6 +466,9 @@ function bindBoard(state) {
         e.preventDefault();          // иначе палец «выделяет» клетку и скроллит окно
         cell.setPointerCapture?.(e.pointerId);
         state.drag = { from: Number(cell.dataset.i), x: e.clientX, y: e.clientY };
+        // Взялся за фишку — подсказку убираем: она нужна тому, кто ищет, а не
+        // тому, кто уже ходит, и на поле от неё остаётся только лишняя рамка.
+        clearHint(state);
     });
 
     const finishDrag = (e) => {
