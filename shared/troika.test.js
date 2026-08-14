@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     createGame, applySwap, swapKind, canSwap, resolveStep, findGroups, hasMatchAt,
-    hasMove, shuffle, tickTime, levelFor, clockChance, maxPlausibleScore, isPlausibleRun,
+    hasMove, findMove, shuffle, tickTime, levelFor, clockChance, maxPlausibleScore, isPlausibleRun,
     idx, areNeighbours,
     SIZE, CELLS, KIND_COUNT, NONE, ROCKET_H, ROCKET_V, BOMB, PRISM, CLOCK,
     START_MS, MAX_MS, CLOCK_MS, TILE_POINTS, CLOCK_POINTS, MAX_CASCADE_MULT, CREATE_BONUS,
@@ -12,20 +12,21 @@ import {
 const g = (seed = 1) => createGame({ seed });
 
 // Тестам нужна разобранная позиция, а не случайное поле: раскладываем поле
-// «шахматкой» из двух видов, в которой заведомо нет ни одной тройки, и дальше
-// ставим руками ровно то, что проверяем.
+// диагональными полосами из трёх видов и дальше ставим руками ровно то, что
+// проверяем.
+//
+// Полосы по диагонали — единственная простая раскладка, в которой нет НИ линии
+// из трёх, НИ квадрата 2×2 (в шахматке и в полосках по две клетки квадраты как
+// раз есть, и с тех пор как квадрат стал фигурой, такая заготовка «срабатывала»
+// бы сама). Виды 3, 4 и 5 в ней не заняты — ими и рисуются проверяемые фигуры,
+// так что к заготовке они не прилипают.
 function blank(seed = 1) {
     const game = g(seed);
     game.special.fill(NONE);
     for (let y = 0; y < SIZE; y++) {
-        for (let x = 0; x < SIZE; x++) {
-            // Полоски по две клетки: тройки не складываются ни по строке, ни по
-            // столбцу, а видов задействовано всего четыре — остаётся, чем
-            // заполнять проверяемые фигуры.
-            game.color[idx(x, y)] = ((x >> 1) & 1) + 2 * ((y >> 1) & 1);
-        }
+        for (let x = 0; x < SIZE; x++) game.color[idx(x, y)] = (x + y) % 3;
     }
-    assert.equal(findGroups(game).length, 0, 'заготовка поля не должна содержать троек');
+    assert.equal(findGroups(game).length, 0, 'в заготовке поля ничего не собрано');
     return game;
 }
 
@@ -117,6 +118,73 @@ test('четвёрка по вертикали даёт ракету по сто
     const step = resolveStep(five);
     assert.equal(step.tiles, 5);
     assert.equal(step.created[0].special, PRISM);
+});
+
+test('квадрат 2×2 собирается и считается за четвёрку — даёт ракету', () => {
+    const game = blank();
+    // Три угла квадрата на месте, четвёртый подводим сбоку.
+    paint(game, [[2, 2], [3, 2], [2, 3]], 5);
+    paint(game, [[4, 3]], 5);
+    paint(game, [[3, 3]], 4);
+    assert.equal(findGroups(game).length, 0, 'три угла — ещё не квадрат');
+
+    // Обмен по ГОРИЗОНТАЛИ — значит и ракета полетит по строке.
+    assert.equal(swapKind(game, idx(3, 3), idx(4, 3)), 'match');
+    assert.equal(applySwap(game, idx(3, 3), idx(4, 3)), 'match');
+
+    const step = resolveStep(game);
+    assert.equal(step.tiles, 4);
+    assert.equal(step.created.length, 1);
+    assert.equal(step.created[0].special, ROCKET_H);
+    assert.equal(step.created[0].cell, idx(3, 3), 'награда — в тронутой клетке');
+    assert.equal(step.gained, 4 * TILE_POINTS + CREATE_BONUS[ROCKET_H]);
+});
+
+test('квадрат, собранный ходом по вертикали, даёт ракету по столбцу', () => {
+    const game = blank();
+    paint(game, [[2, 2], [3, 2], [2, 3]], 5);
+    paint(game, [[3, 4]], 5);
+    paint(game, [[3, 3]], 4);
+
+    assert.equal(applySwap(game, idx(3, 3), idx(3, 4)), 'match');
+    assert.equal(resolveStep(game).created[0].special, ROCKET_V);
+});
+
+test('к линии прилипают соседние фишки того же вида — они тоже убираются', () => {
+    const game = blank();
+    // Тройка по строке 3 (x=2..4) плюс одиночки, приклеенные сверху и снизу:
+    // сами по себе они ничего не собирают, но пятно на поле — одно.
+    paint(game, [[2, 3], [3, 3]], 5);
+    paint(game, [[4, 4]], 5);      // её и подведём
+    paint(game, [[4, 3]], 4);
+    paint(game, [[2, 2], [3, 4]], 5);
+
+    assert.equal(findGroups(game).length, 0, 'до хода ничего не собрано');
+    assert.equal(applySwap(game, idx(4, 3), idx(4, 4)), 'match');
+
+    const groups = findGroups(game);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].cells.size, 5, 'тройка плюс две прилипшие');
+
+    const step = resolveStep(game);
+    assert.equal(step.tiles, 5);
+    assert.equal(step.gained, 5 * TILE_POINTS, 'прилипшие дают очки');
+    assert.equal(step.created.length, 0, 'но награду считает ФОРМА: это всё ещё тройка');
+});
+
+test('прилипшая фишка не превращает тройку в четвёрку', () => {
+    // Тройка в столбце плюс соседка сбоку — по клеткам это четыре фишки, но
+    // ракету за такое давать нельзя: иначе достаточно копить пятна одного вида.
+    const game = blank();
+    paint(game, [[3, 2], [3, 3]], 5);
+    paint(game, [[4, 4]], 5);
+    paint(game, [[3, 4]], 4);
+    paint(game, [[4, 2]], 5);          // прилипнет сбоку
+
+    assert.equal(applySwap(game, idx(3, 4), idx(4, 4)), 'match');
+    const step = resolveStep(game);
+    assert.equal(step.tiles, 4);
+    assert.equal(step.created.length, 0);
 });
 
 test('угол (тройка + тройка) — одна фигура и одна бомба, а не две награды', () => {
@@ -236,8 +304,8 @@ test('каскад: второй шаг дороже первого, множи�
     // Позиция собрана так, чтобы после первой тройки поле сложилось САМО:
     // столбец 3 проседает на три клетки, и пятёрка из (3,1) приезжает в строку 4,
     // где её уже ждут соседки в столбцах 2 и 4.
-    paint(game, [[3, 5], [3, 6]], 1);
-    paint(game, [[4, 4]], 1);
+    paint(game, [[3, 5], [3, 6]], 4);
+    paint(game, [[4, 4]], 4);
     paint(game, [[3, 4], [2, 4], [3, 1]], 5);
 
     assert.equal(findGroups(game).length, 0, 'готовых троек в позиции нет');
@@ -332,12 +400,35 @@ test('уровень и шанс часов: чем больше очков, т�
     assert.equal(clockChance(50), clockChance(99), 'ниже пола шанс не падает');
 });
 
-test('hasMatchAt смотрит только через свою клетку', () => {
+test('hasMatchAt смотрит только через свою клетку — и знает про квадрат', () => {
     const game = blank();
     paint(game, [[1, 1], [2, 1], [3, 1]], 5);
     assert.ok(hasMatchAt(game, idx(2, 1)));
     assert.ok(hasMatchAt(game, idx(1, 1)));
     assert.ok(!hasMatchAt(game, idx(5, 5)));
+
+    const square = blank();
+    paint(square, [[5, 5], [6, 5], [5, 6], [6, 6]], 4);
+    // Квадрат виден из любого своего угла и не виден снаружи.
+    for (const [x, y] of [[5, 5], [6, 5], [5, 6], [6, 6]]) assert.ok(hasMatchAt(square, idx(x, y)));
+    assert.ok(!hasMatchAt(square, idx(4, 5)));
+});
+
+test('findMove: находит ход, молчит в тупике и отвечает одинаково на одном поле', () => {
+    const game = blank();
+    paint(game, [[0, 0], [1, 0]], 5);
+    paint(game, [[2, 1]], 5);
+    paint(game, [[2, 0]], 4);
+
+    const move = findMove(game);
+    assert.ok(move, 'ход есть');
+    assert.equal(canSwap(game, move[0], move[1]), true);
+    assert.deepEqual(findMove(game), move, 'подсказка не должна прыгать между вызовами');
+
+    // Диагональные полосы из трёх видов — тупик (см. blank).
+    const dead = blank();
+    assert.equal(findMove(dead), null);
+    assert.equal(hasMove(dead), false);
 });
 
 // ── Проверка результата на сервере ───────────────────────────────────────────

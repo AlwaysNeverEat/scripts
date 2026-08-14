@@ -29,7 +29,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-    createGame, applySwap, resolveStep, hasMove, shuffle, tickTime,
+    createGame, applySwap, resolveStep, hasMove, findMove, shuffle, tickTime,
     areNeighbours, idx, xOf, yOf,
     SIZE, CELLS, KINDS, SPECIAL_CLASS,
     NONE, CLOCK,
@@ -50,6 +50,10 @@ const MODAL_ID = 'troika-modal';
 // рывок, больше — партия на время начинает раздражать ожиданием.
 const CLEAR_MS = 150;
 const FALL_MS = 90;
+
+// Через сколько молчания показать подсказку. Пять секунд — это уже «сижу и ищу»,
+// а не «думаю»: за это время человек успевает просмотреть поле один раз.
+const HINT_AFTER_MS = 5_000;
 
 // Свайп: с какого смещения жест считается «потянул фишку», а не «ткнул». Меньше
 // десятка пикселей — и обычный тап пальцем становится случайным ходом.
@@ -116,6 +120,8 @@ export function openTroika(ctx) {
         keyboard: false,                         // курсор показываем, только когда им играют
         drag: null,                              // { from, x, y } — начатый жест
         busy: false,                             // идёт каскад, ход не принимается
+        idleMs: 0,                               // сколько игрок не делает ходов
+        hint: null,                              // подсвеченная пара [a, b]
         // Партию, поднятую из отложенной, продолжают с паузы: см. шапку файла.
         paused: resumed,
         finished: false,
@@ -227,7 +233,7 @@ function shellHtml() {
 function legendHtml() {
     const chip = (kind, state) => `<i class="tro-chip k-${kind} s-${state}"></i>`;
     const item = (tile, text) => `<span class="tro-legend-item">${tile}<span>${text}</span></span>`;
-    return item(chip('square', 'rocket-h'), 'четвёрка — ракета, сносит линию')
+    return item(chip('square', 'rocket-h'), 'четвёрка или квадрат 2×2 — ракета, сносит линию')
         + item(chip('drop', 'bomb'), 'угол — бомба, сносит 5×5')
         + item(chip('star', 'prism'), 'пятёрка — призма, сносит все свои')
         + item(chip('triangle', 'clock'), `часы — плюс ${CLOCK_MS / 1000} с к таймеру`);
@@ -272,6 +278,12 @@ function frame(state, ts) {
 
     const ended = tickTime(state.game, dt);
     renderTime(state);
+    // Простой считаем только когда ход ВОЗМОЖЕН: во время каскада игрок не
+    // бездельничает, он смотрит, что натворил.
+    if (!state.busy && !state.hint) {
+        state.idleMs += dt;
+        if (state.idleMs >= HINT_AFTER_MS) showHint(state);
+    }
     if (ended) {
         state.raf = 0;
         // Каскад, начатый до нуля на таймере, доигрывается — и только потом
@@ -309,8 +321,34 @@ function tryMove(state, a, b) {
         return;
     }
     setSel(state, -1);
+    clearHint(state);
     renderBoard(state);
     runCascade(state);
+}
+
+// ── Подсказка ────────────────────────────────────────────────────────────────
+
+// Игрок несколько секунд не ходит — показываем ОДИН возможный обмен: обе фишки
+// пары начинают пульсировать. Это подсказка «вот здесь», а не «сделай так»:
+// ходов на поле обычно с десяток, и правила всегда возвращают один и тот же
+// (см. findMove), чтобы подсветка не прыгала, пока человек на неё смотрит.
+//
+// Подсказка ничего не стоит игроку и никак не мешает: очки за неё не снимаются
+// — партия и так идёт на время, и потерянные на поиск секунды это уже цена.
+function showHint(state) {
+    if (state.paused || state.game.over) return;
+    const move = findMove(state.game);
+    if (!move) return;              // тупик разберёт afterSettle
+    state.hint = move;
+    move.forEach(i => paintMarks(state, i));
+}
+
+function clearHint(state) {
+    state.idleMs = 0;
+    const hint = state.hint;
+    if (!hint) return;
+    state.hint = null;
+    hint.forEach(i => paintMarks(state, i));
 }
 
 // Каскад: шаг правил — подсветка — перерисовка — следующий шаг. Пока цепочка
@@ -344,6 +382,8 @@ function afterSettle(state) {
         renderBoard(state);
         note(state, `${shuffleIcon(14)} Ходов не осталось — поле перемешано`);
     }
+    // Каскад кончился — поле другое, и отсчёт «сижу и ищу» начинается заново.
+    clearHint(state);
     if (state.game.over) finish(state);
 }
 
@@ -473,6 +513,8 @@ function restart(state) {
     state.paused = false;
     state.finished = false;
     state.sel = -1;
+    state.hint = null;
+    state.idleMs = 0;
     state.drag = null;
     state.drawn.fill(-1);
     state.stats = { score: -1, level: -1 };
@@ -578,7 +620,8 @@ function renderBoard(state, step = null) {
 // перерисовывать из-за них всё поле незачем.
 function marks(state, i) {
     return (state.sel === i ? ' is-sel' : '')
-        + (state.keyboard && state.cursor === i ? ' is-cursor' : '');
+        + (state.keyboard && state.cursor === i ? ' is-cursor' : '')
+        + (state.hint && (state.hint[0] === i || state.hint[1] === i) ? ' is-hint' : '');
 }
 
 function paintMarks(state, i) {

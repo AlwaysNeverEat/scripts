@@ -4066,6 +4066,21 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    мышью играющему человеку рамка «где-то там» только мешает. */
 .tro-cell.is-cursor { box-shadow: 0 0 0 2px var(--text); }
 
+/* Подсказка: игрок несколько секунд не ходит — пара, которую можно обменять,
+   начинает пульсировать (см. showHint в troika.js). Пульсация, а не рамка:
+   неподвижную подсветку на пёстром поле из картинок просто не замечают. */
+.tro-cell.is-hint { animation: tro-hint 1.15s ease-in-out infinite; z-index: 1; }
+@keyframes tro-hint {
+  0%, 100% { transform: none; box-shadow: 0 0 0 0 transparent; filter: none; }
+  50%      {
+    transform: scale(1.12);
+    /* Кольцо И свечение: одно кольцо теряется на пёстром поле из картинок, одно
+       свечение — на светлой плашке самой фишки. */
+    box-shadow: 0 0 0 3px var(--accent), 0 0 16px 2px var(--accent);
+    filter: brightness(1.12);
+  }
+}
+
 /* Уборка: фишка уходит в точку. Именно поэтому окно и рисует шаг каскада в два
    приёма — иначе исчезновение не показать вовсе. */
 .tro-cell.is-clear { animation: tro-clear .15s ease-in forwards; }
@@ -4322,6 +4337,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   /* «+540» и «+3 с» без движения всё равно должны быть видны — показываем их
      статично, а не прячем. */
   .tro-gain.is-show, .tro-time-gain.is-show { opacity: 1; }
+  /* Подсказка без пульсации — просто рамка: без неё игрок, которому она уже
+     понадобилась, останется вовсе без ответа. */
+  .tro-cell.is-hint { animation: none; box-shadow: 0 0 0 2px var(--accent); }
   .wordle-key, .ms-cell, .ms-flagmode, .ms-odds-toggle, .kontekst-row { transition: none; }
   .tro-cell, .tro-time-bar > i { transition: none; }
 }
