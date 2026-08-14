@@ -3719,6 +3719,213 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .ms-cell { border-radius: 2px; }
 }
 
+/* ── Пасхалка «Тетрис» ────────────────────────────────────────────
+   Окно открывается только из поиска (набрать «тетрис» и Enter).
+   Стакан 10×20: размер клетки считается сразу от трёх ограничений —
+   потолок в 22px, высота экрана и ширина окна за вычетом боковой
+   колонки, — поэтому поле целиком видно и на 360px телефона, и на
+   ноутбуке с короткой рамкой, без прокрутки внутри окна. */
+.modal-win.tet-win { max-width: 520px; }
+.tet-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+.tet-play {
+  position: relative;
+  display: flex; gap: 12px; justify-content: center;
+  /* Колонка справа ниже стакана — и растягиваться до его высоты ей нельзя:
+     иначе grid стакана вытягивается следом, и под последней строкой висит
+     пустая полоса на треть окна. */
+  align-items: flex-start;
+}
+
+.tet-board {
+  display: grid;
+  grid-template-columns: repeat(10, var(--tet-cell));
+  grid-auto-rows: var(--tet-cell);
+  gap: 1px;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  /* Стакан не тянется и не сжимается вместе с колонкой справа: клетки
+     обязаны остаться квадратными, иначе фигуры «плывут». */
+  flex: none;
+}
+
+/* Цвета фигур — канонические, одни и те же в обеих темах: тетрис узнают
+   именно по ним, и подгонять палочку под акцент сайта было бы хуже.
+   Живут на самом окне, а не в :root, — за пределами игры они не нужны. */
+.tet-win {
+  /* Размер клетки — самое узкое из трёх ограничений: потолок в 22px, ширина
+     окна за вычетом боковой колонки и ОСТАТОК ВЫСОТЫ после шапки, мини-топа и
+     подсказки (выше 85vh модалка не бывает — см. .modal-win). Пол в 10px нужен
+     на совсем коротких экранах: мелкие клетки лучше, чем окно с прокруткой,
+     в котором стакан наполовину за краем.
+     От этой же величины считается ширина превью справа — иначе на низком
+     экране стакан сжимается, а колонка рядом остаётся прежней высоты и сама
+     становится причиной прокрутки. */
+  --tet-cell: max(10px, min(22px, calc((100vw - 190px) / 10), calc((85vh - 296px) / 20)));
+  --tet-I: oklch(0.78 0.13 200);
+  --tet-J: oklch(0.62 0.16 260);
+  --tet-L: oklch(0.75 0.16 60);
+  --tet-O: oklch(0.84 0.15 95);
+  --tet-S: oklch(0.75 0.18 145);
+  --tet-T: oklch(0.68 0.17 305);
+  --tet-Z: oklch(0.65 0.19 25);
+}
+.tet-cell { display: block; border-radius: 3px; background: var(--bg2); }
+.p-I { --c: var(--tet-I); } .p-J { --c: var(--tet-J); } .p-L { --c: var(--tet-L); }
+.p-O { --c: var(--tet-O); } .p-S { --c: var(--tet-S); } .p-T { --c: var(--tet-T); }
+.p-Z { --c: var(--tet-Z); }
+
+/* Лежащие и живые клетки различаются не цветом, а бликом: цвет уже занят
+   под тип фигуры, и второго «цветового» смысла клетка не выдержит. */
+.tet-cell.is-lock { background: var(--c); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .18); }
+.tet-cell.is-live { background: var(--c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35); }
+/* Тень — куда фигура упадёт. Контур на фоне ПУСТОЙ клетки, а не на фоне
+   стакана: прозрачная тень читается как дырка в дне, потому что подложка
+   стакана темнее пустых клеток. Заливкой её делать нельзя — спорила бы с самой
+   фигурой, и в высоком стакане было бы не понять, где что. */
+.tet-cell.is-ghost { background: var(--bg2); border: 1.5px solid var(--c); opacity: .75; }
+
+/* Убрали линии — стакан коротко подсвечивается. Насколько ярко, зависит от
+   числа линий: тетрис должен читаться как событие, а не как «ещё одна». */
+.tet-board.is-clear { animation: tet-flash .3s ease-out; }
+.tet-board.is-clear[data-clear="4"] { animation-duration: .45s; }
+@keyframes tet-flash {
+  0%   { box-shadow: 0 0 0 0 var(--accent-dim); }
+  35%  { box-shadow: 0 0 18px 4px var(--accent-dim); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.tet-side {
+  display: flex; flex-direction: column; gap: 7px; flex: none;
+  width: max(72px, calc(var(--tet-cell) * 4.4));
+}
+.tet-stat {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px; color: var(--sub);
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+}
+.tet-stat b { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
+/* Та же «подмигивающая» цифра, что и у счётчиков сапёра (@keyframes ms-bump):
+   счётчик, который меняется молча, выглядит сломанным. */
+.tet-stat b.is-bump { display: inline-block; animation: ms-bump .28s ease-out; }
+
+.tet-mini { display: flex; flex-direction: column; gap: 4px; }
+.tet-mini-label { font-size: 10.5px; color: var(--sub); text-transform: uppercase; letter-spacing: .04em; }
+.tet-mini-grid {
+  /* Превью держим мелкими: они подсказка, а не вторая доска, и высота окна
+     нужнее стакану. */
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  width: calc(var(--tet-cell) * 3.2);
+  padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.tet-mini-grid .tet-cell { aspect-ratio: 1; background: transparent; }
+.tet-mini-grid .tet-cell.is-lock { background: var(--c); }
+
+/* Пауза и конец партии закрывают ТОЛЬКО стакан, а не всё окно: мини-топ под
+   ним в этот момент как раз и хочется прочитать. */
+.tet-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--overlay); backdrop-filter: blur(2px);
+  border-radius: 10px;
+}
+.tet-overlay-card {
+  text-align: center; padding: 14px 16px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-1);
+}
+.tet-over-title { font-size: 15px; font-weight: 800; }
+.tet-over-sub { font-size: 12px; color: var(--sub); margin-top: 4px; }
+.tet-record { color: var(--accent); }
+.tet-over-actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+
+/* Кнопки для пальцев. На десктопе их нет вовсе — там играют с клавиатуры,
+   и лишний ряд кнопок только отнимал бы высоту у стакана. */
+/* Шесть колонок на пять кнопок: в верхнем ряду три по две колонки, в нижнем
+   две по три. Иначе последний ряд остаётся с дыркой на месте кнопки, которой
+   нет. */
+.tet-pad { display: none; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.tet-pad .btn {
+  grid-column: span 2;
+  display: flex; align-items: center; justify-content: center;
+  padding: 11px 0; touch-action: none; user-select: none;
+}
+.tet-pad .btn[data-act="soft"], .tet-pad .btn[data-act="drop"] { grid-column: span 3; }
+@media (pointer: coarse) {
+  .tet-pad { display: grid; }
+  /* Два ряда кнопок съедают высоту — стакану её остаётся меньше, чем на
+     десктопе, зато боковая колонка может быть уже: подсказка «дальше» на
+     телефоне и так мельче. */
+  .tet-win { --tet-cell: max(10px, min(22px, calc((100vw - 130px) / 10), calc((85vh - 362px) / 20))); }
+}
+
+/* Мини-топ: лучший результат каждого, десять строк. Своя строка подсвечена,
+   а если в десятку не попал — она добавляется отдельно снизу. */
+.tet-top {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-top: 8px; border-top: 1px solid var(--border);
+}
+.tet-top-head {
+  font-size: 10.5px; color: var(--sub); text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: 4px;
+}
+.tet-top-empty { font-size: 12px; color: var(--sub); }
+/* Список прокручивается САМ, а не тянет за собой всё окно: игроков может стать
+   и десять, и тогда стакан уехал бы за нижний край экрана. */
+.tet-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 132px; overflow-y: auto; }
+.tet-top-row {
+  display: grid; grid-template-columns: 20px 22px 1fr auto;
+  align-items: center; gap: 8px;
+  padding: 3px 6px; border-radius: 7px;
+  font-size: 12.5px;
+}
+.tet-top-row.is-me { background: var(--accent-dim); }
+.tet-top-row.is-first .tet-top-score { color: var(--gold); }
+.tet-top-rank { color: var(--sub); font-variant-numeric: tabular-nums; text-align: right; }
+.tet-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
+.tet-top-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tet-top-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tet-top-score { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Своя строка вне десятки: колонки те же, но аватарки в ней нет — имя занимает
+   её место, иначе строка «съезжает» относительно списка. */
+.tet-top-row.is-mine-extra { grid-template-columns: 20px 1fr auto; margin-top: 4px; }
+
+/* Легенда клавиш: в рамке значок самой клавиши, рядом — что она делает. */
+.tet-hint {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px;
+  font-size: 11.5px; color: var(--sub);
+}
+.tet-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.tet-key {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 5px;
+  font: inherit; font-size: 10.5px; color: var(--text);
+  background: var(--bg2); border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 5px;
+}
+.tet-key + .tet-key { margin-left: -2px; }
+@media (pointer: coarse) { .tet-hint { display: none; } }  /* на телефоне клавиш нет */
+
+@media (max-width: 460px) {
+  .tet-body { padding: 12px 10px 14px; }
+  .tet-play { gap: 8px; }
+}
+/* Потолок списка ниже там, где высоту делить не с кем: на телефоне её отнимают
+   кнопки, на низком экране её просто мало. Оба правила стоят ПОСЛЕ базового
+   .tet-top-list — иначе оно, будучи ниже по файлу, их и перебило бы. */
+@media (pointer: coarse) {
+  .tet-top-list { max-height: 92px; }
+}
+/* Короткий экран (ноутбук с невысокой рамкой): мини-топ ужимаем до трёх строк
+   с прокруткой — стакан важнее списка. */
+@media (max-height: 700px) {
+  .tet-top-list { max-height: 92px; }
+}
+
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
    Три игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
@@ -3727,7 +3934,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    играть куда сильнее, чем неподвижный. */
 .modal-win.ms-win,
 .modal-win.wordle-win,
-.modal-win.kontekst-win {
+.modal-win.kontekst-win,
+.modal-win.tet-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
 @keyframes game-in {
@@ -3788,7 +3996,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .ms-cell.is-flag .icon,
   .ms-cell.is-found .icon,
   .ms-board.is-won,
-  .ms-counter.is-bump b {
+  .ms-counter.is-bump b,
+  .modal-win.tet-win,
+  .tet-board.is-clear,
+  .tet-stat b.is-bump {
     animation: none;
   }
   .wordle-key, .ms-cell, .ms-flagmode, .ms-odds-toggle, .kontekst-row { transition: none; }

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<!-- Дев-песочница пасхалки «Тетрис»: окно игры без входа.
+     Открыть: npx vite → /dev-tetris.html
+     Сама игра целиком в браузере (на проде тоже — см. shared/tetris.js), так
+     что заглушка нужна только для мини-топа: по умолчанию он выдуманный.
+     С ?api — ходит в настоящий /api/tetris через прокси vite (нужен запущенный
+     бэкенд, валидная сессия и накатанная миграция 025).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: тетрис</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Тетрис — песочница</h2>
+    <p class="page-sub">Стакан 10×20, вращение с отталкиванием от стен, одна следующая фигура.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть игру</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { openTetris } from './src/tetris.js';
+
+    initTheme();
+    const USER = { id: 'dev-user', display_name: 'Я' };
+
+    // Выдуманный мини-топ: проверять на нём нужно вёрстку строк и подсветку
+    // своей, а не работу базы.
+    const rows = [
+      { rank: 1, id: 'u1', display_name: 'Костя', avatar: null, role_prefix: null, score: 24800, lines: 62, games: 9 },
+      { rank: 2, id: 'dev-user', display_name: 'Я', avatar: null, role_prefix: null, score: 12400, lines: 40, games: 4 },
+      { rank: 3, id: 'u3', display_name: 'Оля', avatar: null, role_prefix: null, score: 9300, lines: 31, games: 2 },
+    ];
+    let me = { rank: 2, score: 12400, lines: 40, level: 5, games: 4 };
+
+    async function stubFetch(path, { body } = {}) {
+      if (path === '/api/tetris/top') return { rows, me };
+      if (path === '/api/tetris/score') {
+        const improved = body.score > me.score;
+        if (improved) { me = { ...me, score: body.score, lines: body.lines, games: me.games + 1 }; }
+        const mine = rows.find(r => r.id === USER.id);
+        if (mine && improved) mine.score = body.score;
+        rows.sort((a, b) => b.score - a.score).forEach((r, i) => { r.rank = i + 1; });
+        console.log('dev: результат партии', body, improved ? '— рекорд' : '');
+        return { ok: true, best: me.score, games: me.games, improved, rows, me };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    const realFetch = async (path, { method = 'GET', body } = {}) => {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+    const apiFetch = location.search.includes('api') ? realFetch : stubFetch;
+
+    document.getElementById('dev-open').onclick = () => openTetris({ apiFetch, user: USER });
+  </script>
+</body>
+</html>

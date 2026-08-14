@@ -522,6 +522,7 @@ const EASTER_EGGS = [
     // «сапёр» с «ё» — то же слово: заставлять человека попадать в неё на
     // клавиатуре ради пасхалки было бы издевательством.
     { query: /^сап[её]р$/i,        open: () => import('./minesweeper.js').then(m => m.openMinesweeper) },
+    { query: /^(тетрис|tetris)$/i, open: () => import('./tetris.js').then(m => m.openTetris) },
 ];
 
 function easterEggFor(q) {
