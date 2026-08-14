@@ -3942,6 +3942,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
      рамка поля — вместе ровно те 400px, что вычтены; посчитано по факту, а не на
      глаз). Выше 85vh модалка не бывает — см. .modal-win. */
   --tro-cell: max(26px, min(44px, calc((100vw - 58px) / 8), calc((85vh - 400px) / 8)));
+  /* Промежуток между клетками. Живёт переменной, потому что из него же считается
+     высота, с которой падают фишки (@keyframes tro-fall). */
+  --tro-gap: 3px;
   /* Цвет вида фишки. Сами фишки нарисованы картинками (спрайт --tro-sheet,
      подставляется в troika.js), а эти цвета сняты с них и нужны эффектам:
      свечению выбранной, вспышке взрыва, подсветке в легенде. Без них подсветка
@@ -3982,7 +3985,13 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   order: 3; min-width: 34px; text-align: right;
   font-size: 11.5px; font-weight: 700; color: var(--green); opacity: 0;
 }
-.tro-time-gain.is-show { animation: tro-gain-in .9s ease-out; }
+.tro-time-gain.is-show { animation: tro-time-gain .9s ease-out; }
+@keyframes tro-time-gain {
+  0%   { opacity: 0; transform: translateY(6px); }
+  25%  { opacity: 1; transform: none; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
 .tro-time-bar { height: 5px; border-radius: 3px; background: var(--bg); overflow: hidden; }
 .tro-time-bar > i {
   display: block; height: 100%; width: 100%;
@@ -4014,7 +4023,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   display: grid;
   grid-template-columns: repeat(8, var(--tro-cell));
   grid-auto-rows: var(--tro-cell);
-  gap: 3px;
+  gap: var(--tro-gap);
   padding: 4px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -4081,29 +4090,91 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   }
 }
 
-/* Уборка: фишка уходит в точку. Именно поэтому окно и рисует шаг каскада в два
-   приёма — иначе исчезновение не показать вовсе. */
-.tro-cell.is-clear { animation: tro-clear .15s ease-in forwards; }
+/* ── Фазы шага цепочки ────────────────────────────────────────────
+   Порядок и смысл — в playStep (troika.js). Длительности здесь и там
+   заданы отдельно НАМЕРЕННО: тут — как оно двигается, там — сколько
+   ждать до следующей фазы, и вторая всегда чуть длиннее первой, чтобы
+   движение успело закончиться. */
+
+/* 1. Выделение: засчитанные фишки вспыхивают и подрастают, оставаясь на месте.
+   Это главная фаза шага — она отвечает на вопрос «за что дали очки». */
+.tro-cell.is-mark { animation: tro-mark .26s ease-out both; z-index: 2; }
+@keyframes tro-mark {
+  0%   { transform: none; }
+  100% {
+    transform: scale(1.14);
+    box-shadow: 0 0 0 3px var(--accent), 0 0 18px 2px var(--c);
+    filter: brightness(1.25) saturate(1.15);
+  }
+}
+/* Сработавшая ракета/бомба/призма выделяется сильнее: должно быть видно, что
+   полполя унесла именно она, а не «оно само». */
+.tro-cell.is-mark.is-fired { animation: tro-mark-fired .26s ease-out both; }
+@keyframes tro-mark-fired {
+  0%   { transform: none; }
+  60%  { transform: scale(1.3) rotate(-4deg); filter: brightness(1.8) saturate(1.3); }
+  100% { transform: scale(1.2) rotate(0); filter: brightness(1.5); box-shadow: 0 0 22px 4px var(--c); }
+}
+
+/* 2. Уборка: выделенное уходит в точку, на его месте остаётся дырка. Дырку
+   видно всю следующую фазу — в неё и посыплется всё сверху. */
+.tro-cell.is-clear { animation: tro-clear .18s ease-in forwards; }
 @keyframes tro-clear {
-  to { transform: scale(.25); opacity: 0; }
+  from { transform: scale(1.14); opacity: 1; }
+  to   { transform: scale(.2) rotate(8deg); opacity: 0; }
 }
-/* Сработавшая ракета/бомба/призма — вспышка: должно быть видно, что рвануло
-   именно тут, а не просто «полполя исчезло». */
-.tro-cell.is-boom { animation: tro-boom .15s ease-out forwards; }
+.tro-cell.is-boom { animation: tro-boom .18s ease-in forwards; }
 @keyframes tro-boom {
-  0%   { transform: scale(1); }
-  45%  { transform: scale(1.4); filter: brightness(2.2) saturate(1.4); }
-  100% { transform: scale(.3); opacity: 0; }
+  from { transform: scale(1.2); opacity: 1; filter: brightness(1.5); }
+  40%  { transform: scale(1.45); filter: brightness(2.4) saturate(1.4); }
+  to   { transform: scale(.2); opacity: 0; }
 }
-.tro-cell.is-fall { animation: tro-fall .16s cubic-bezier(.3, .8, .4, 1); }
+
+/* 3. Очки всплывают ТАМ, где только что были фишки: цифра в углу отвечает
+   «сколько», а цифра на месте — «за что». Живёт она свою фазу плюс падение
+   (--pop-ms из troika.js) и исчезает до следующего шага. */
+.tro-pop {
+  position: absolute; z-index: 3;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: baseline; gap: 5px;
+  padding: 3px 9px;
+  font-size: 16px; font-weight: 800; line-height: 1.1;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 999px;
+  backdrop-filter: blur(2px);
+  white-space: nowrap; pointer-events: none;
+  animation: tro-pop var(--pop-ms, 640ms) cubic-bezier(.2, .8, .3, 1) both;
+}
+.tro-pop-mult { font-size: 13px; color: var(--gold); }
+.tro-pop-time { font-size: 12px; color: var(--green); }
+@keyframes tro-pop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.5); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  30%  { transform: translate(-50%, -50%) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -160%) scale(.95); }
+}
+
+/* 4. Падение: фишка стоит уже на своём месте, но начинает движение на --fall
+   строк выше — столько она и «пролетела» (шаг сетки = клетка плюс промежуток).
+   Двигать сами клетки по сетке нельзя: это перекладка всего поля на каждый кадр. */
+.tro-cell.is-fall { animation: tro-fall var(--fall-ms, 260ms) cubic-bezier(.35, .05, .3, 1) both; }
 @keyframes tro-fall {
-  from { transform: translateY(-40%); opacity: .35; }
-  to   { transform: none; opacity: 1; }
+  from { transform: translateY(calc(-1 * var(--fall, 1) * (var(--tro-cell) + var(--tro-gap)))); }
+  to   { transform: none; }
 }
-.tro-cell.is-born { animation: tro-born .3s cubic-bezier(.2, .8, .3, 1); }
+/* Пока всё падает, поле обрезает вылезающее: новые фишки должны прилетать из-за
+   верхней рамки, а не из шапки окна. В остальное время обрезки нет — иначе
+   свечение выбранной фишки и подсказки срезалось бы по краям поля. */
+.tro-board.is-falling { overflow: hidden; }
+
+/* Специальная фишка, выданная за фигуру, не падает, а появляется на месте. */
+.tro-cell.is-born { animation: tro-born .34s cubic-bezier(.2, .8, .3, 1) both; z-index: 2; }
 @keyframes tro-born {
-  from { transform: scale(.4) rotate(-12deg); }
-  60%  { transform: scale(1.14) rotate(2deg); }
+  from { transform: scale(.3) rotate(-20deg); }
+  55%  { transform: scale(1.22) rotate(4deg); }
   to   { transform: none; }
 }
 /* Обмен не по правилам: короткий отказ клеткой понятнее любой надписи. */
@@ -4112,24 +4183,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   0%, 100% { transform: none; }
   25%      { transform: translateX(-3px); }
   75%      { transform: translateX(3px); }
-}
-
-/* Сколько дал шаг — над полем, у самого края: цифра должна попасть в глаз, не
-   закрывая при этом фишки, по которым сейчас думают. */
-.tro-gain {
-  position: absolute; top: 4px; right: 8px;
-  display: flex; align-items: baseline; gap: 4px;
-  font-size: 15px; font-weight: 800; color: var(--accent);
-  text-shadow: 0 1px 6px var(--bg);
-  opacity: 0; pointer-events: none;
-}
-.tro-gain.is-show { animation: tro-gain-in .8s ease-out; }
-.tro-gain-mult { font-size: 12px; color: var(--gold); }
-@keyframes tro-gain-in {
-  0%   { opacity: 0; transform: translateY(6px); }
-  25%  { opacity: 1; transform: none; }
-  75%  { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-8px); }
 }
 
 /* Пауза и конец партии закрывают ТОЛЬКО поле, а не всё окно: мини-топ под ним
@@ -4323,20 +4376,22 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .modal-win.tro-win,
   .tro-stat b.is-bump,
   .tro-time.is-low .tro-time-row b,
-  .tro-cell.is-fall,
   .tro-cell.is-born,
   .tro-cell.is-nope,
-  .tro-gain.is-show,
   .tro-time-gain.is-show {
     animation: none;
   }
-  /* Уборке фишек анимацию НЕ отключаем, а только укорачиваем: она не украшение,
-     а единственное, что показывает, какие именно фишки исчезли. Без неё поле
-     просто подменяется, и понять, за что дали очки, нельзя. */
-  .tro-cell.is-clear, .tro-cell.is-boom { animation-duration: .01s; }
-  /* «+540» и «+3 с» без движения всё равно должны быть видны — показываем их
+  /* Фазы шага цепочки НЕ выключаем, а укорачиваем. Выделение, уборка и падение —
+     не украшение: это единственное, что показывает, какие фишки засчитались и
+     откуда приехали новые. Без них поле просто подменяется, и понять, за что
+     дали очки, нельзя. Время фаз в troika.js от этого не зависит — шаг просто
+     постоит на месте. */
+  .tro-cell.is-mark, .tro-cell.is-clear, .tro-cell.is-boom { animation-duration: .08s; }
+  .tro-cell.is-fall { animation-duration: .08s; }
+  /* Цифра очков без движения всё равно должна быть видна — показываем её
      статично, а не прячем. */
-  .tro-gain.is-show, .tro-time-gain.is-show { opacity: 1; }
+  .tro-pop { animation: none; opacity: 1; }
+  .tro-time-gain.is-show { opacity: 1; }
   /* Подсказка без пульсации — просто рамка: без неё игрок, которому она уже
      понадобилась, останется вовсе без ответа. */
   .tro-cell.is-hint { animation: none; box-shadow: 0 0 0 2px var(--accent); }
