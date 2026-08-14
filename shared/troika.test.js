@@ -6,6 +6,7 @@ import {
     idx, areNeighbours,
     SIZE, CELLS, KIND_COUNT, NONE, ROCKET_H, ROCKET_V, BOMB, PRISM, CLOCK,
     START_MS, MAX_MS, CLOCK_MS, TILE_POINTS, CLOCK_POINTS, MAX_CASCADE_MULT, CREATE_BONUS,
+    POINTS_PER_LEVEL,
 } from './troika.js';
 
 // Партии с зерном повторяемы — иначе половина тестов была бы «как повезёт».
@@ -170,6 +171,28 @@ test('к линии прилипают соседние фишки того же
     assert.equal(step.tiles, 5);
     assert.equal(step.gained, 5 * TILE_POINTS, 'прилипшие дают очки');
     assert.equal(step.created.length, 0, 'но награду считает ФОРМА: это всё ещё тройка');
+});
+
+test('фишка, прилипшая по ДИАГОНАЛИ, тоже часть пятна', () => {
+    const game = blank();
+    // Тройка по строке 3 и одна фишка того же вида наискосок от её края: глазом
+    // это одно пятно из четырёх, и убраться должно всё.
+    paint(game, [[2, 3], [3, 3]], 5);
+    paint(game, [[4, 4]], 5);          // её и подведём в строку
+    paint(game, [[4, 3]], 4);
+    paint(game, [[5, 2]], 5);          // наискосок от правого края тройки
+
+    assert.equal(findGroups(game).length, 0, 'до хода ничего не собрано');
+    assert.equal(applySwap(game, idx(4, 3), idx(4, 4)), 'match');
+
+    const groups = findGroups(game);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].cells.size, 4, 'тройка плюс диагональная соседка');
+    assert.ok(groups[0].cells.has(idx(5, 2)));
+
+    const step = resolveStep(game);
+    assert.equal(step.tiles, 4);
+    assert.equal(step.created.length, 0, 'но фигура — всё та же тройка, награды нет');
 });
 
 test('прилипшая фишка не превращает тройку в четвёрку', () => {
@@ -433,8 +456,8 @@ test('после конца партии ход не принимается', ()
 
 test('уровень и шанс часов: чем больше очков, тем реже время', () => {
     assert.equal(levelFor(0), 1);
-    assert.equal(levelFor(2_499), 1);
-    assert.equal(levelFor(2_500), 2);
+    assert.equal(levelFor(POINTS_PER_LEVEL - 1), 1);
+    assert.equal(levelFor(POINTS_PER_LEVEL), 2);
     assert.ok(clockChance(2) < clockChance(1));
     assert.ok(clockChance(50) > 0, 'часы не исчезают совсем — иначе партия обрывается вслепую');
     assert.equal(clockChance(50), clockChance(99), 'ниже пола шанс не падает');
