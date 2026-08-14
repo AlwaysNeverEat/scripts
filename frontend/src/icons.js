@@ -83,3 +83,68 @@ export const hardDropIcon = (size = 18) => svg(size, `
 export const pauseIcon = (size = 18) => svg(size, `
     <line x1="9.5" y1="5" x2="9.5" y2="19"/>
     <line x1="14.5" y1="5" x2="14.5" y2="19"/>`);
+
+// ── Тройка (матч-3) ──────────────────────────────────────────────────────────
+// Шесть видов фишек РАЗЛИЧАЮТСЯ ФОРМОЙ, а не только цветом: играть в матч-3 с
+// нарушением цветовосприятия иначе нельзя вовсе, а «шесть оттенков подряд» плохо
+// читаются и в обычных глазах — особенно на клетке 34×34 в тёмной теме.
+//
+// Фигуры залиты (fill), а не обведены: на клетке такого размера контур
+// превращается в мутное пятно, а залитая форма узнаётся мгновенно — по силуэту,
+// который и надо сравнивать глазами три раза в секунду.
+
+export const ringIcon = (size = 20) => svg(size, `
+    <circle cx="12" cy="12" r="7.2" stroke-width="3.6"/>`);
+
+export const squareIcon = (size = 20) => svg(size, `
+    <rect x="5.2" y="5.2" width="13.6" height="13.6" rx="3.4" fill="currentColor" stroke="none"/>`);
+
+export const triangleIcon = (size = 20) => svg(size, `
+    <path d="M12 4.4 20 18.8H4z" fill="currentColor" stroke="none" stroke-width="2.2" stroke-linejoin="round"/>`);
+
+export const hexIcon = (size = 20) => svg(size, `
+    <path d="M12 3.6 19.2 7.8v8.4L12 20.4 4.8 16.2V7.8z" fill="currentColor" stroke="none"/>`);
+
+export const starIcon = (size = 20) => svg(size, `
+    <path d="M12 3.4l2.65 5.85 6.35.62-4.75 4.3 1.35 6.28L12 17.2l-5.6 3.25 1.35-6.28-4.75-4.3 6.35-.62z"
+          fill="currentColor" stroke="none"/>`);
+
+export const dropIcon = (size = 20) => svg(size, `
+    <path d="M12 3.4c3.7 4.3 5.9 7.5 5.9 10.2a5.9 5.9 0 0 1-11.8 0c0-2.7 2.2-5.9 5.9-10.2z"
+          fill="currentColor" stroke="none"/>`);
+
+// Специальные фишки. У них своя роль в разметке: рисуются КРУПНО вместо вида
+// фишки, а сам вид уезжает в маленький значок в углу клетки, — так видно и что
+// это за фигура, и по какому виду она соберётся в тройку.
+
+// Ракета по строке: линия со стрелками в обе стороны — сносит всю строку.
+export const rocketHIcon = (size = 20) => svg(size, `
+    <line x1="3.5" y1="12" x2="20.5" y2="12" stroke-width="2.2"/>
+    <polyline points="8,7 3.5,12 8,17" stroke-width="2.2"/>
+    <polyline points="16,7 20.5,12 16,17" stroke-width="2.2"/>`);
+
+export const rocketVIcon = (size = 20) => svg(size, `
+    <line x1="12" y1="3.5" x2="12" y2="20.5" stroke-width="2.2"/>
+    <polyline points="7,8 12,3.5 17,8" stroke-width="2.2"/>
+    <polyline points="7,16 12,20.5 17,16" stroke-width="2.2"/>`);
+
+// Призма: ромб с гранью — сносит все фишки своего вида. Не звезда (звезда уже
+// занята видом фишки) и не «радуга»: цвет у призмы вполне определённый, именно
+// его она и собирает.
+export const prismIcon = (size = 20) => svg(size, `
+    <path d="M12 3.2 20.8 12 12 20.8 3.2 12z" fill="currentColor" fill-opacity=".35" stroke-width="2"/>
+    <path d="M12 3.2 12 20.8M3.2 12h17.6" stroke-width="1.3" stroke-opacity=".7"/>`);
+
+// Часы: циферблат со стрелками. Отдельно от секундомера (timerIcon в сапёре):
+// тот стоит в панели и обведён тонко, а этот живёт НА КЛЕТКЕ 34×34, где тонкие
+// линии сливаются.
+export const clockIcon = (size = 20) => svg(size, `
+    <circle cx="12" cy="12" r="8" stroke-width="2.2"/>
+    <polyline points="12,7 12,12 15.6,14.2" stroke-width="2.2"/>`);
+
+// Поле перемешано: две стрелки, меняющиеся местами.
+export const shuffleIcon = (size = 18) => svg(size, `
+    <path d="M4 7h4.2l7.6 10H20"/>
+    <path d="M4 17h4.2l7.6-10H20"/>
+    <polyline points="17,4.5 20,7 17,9.5"/>
+    <polyline points="17,14.5 20,17 17,19.5"/>`);
