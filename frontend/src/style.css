@@ -3393,6 +3393,20 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   -webkit-user-drag: none;
 }
 .games-tile span { font-size: 13px; font-weight: 600; text-align: center; }
+/* Игра без своей иконки: плитка того же размера, но со значками вёрсткой
+   (см. blank в games.js). Пустое место на её месте читалось бы как «меню
+   сломалось», а не как «иконку ещё не нарисовали». */
+.games-tile-blank {
+  display: grid; grid-template-columns: 1fr 1fr;
+  place-items: center;
+  width: 100%; max-width: 84px; aspect-ratio: 1;
+  border-radius: 16px;
+  background: var(--bg2); border: 1px solid var(--border);
+  font-size: 26px; line-height: 1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .35);
+}
+.games-tile-blank > i { font-style: normal; color: var(--sub); }
+.games-tile-blank > i:nth-child(2), .games-tile-blank > i:nth-child(3) { color: var(--red); }
 .games-tile:hover { background: var(--bg2); }
 .games-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .games-tile:active { transform: scale(.94); }
@@ -4346,6 +4360,267 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 
 
+/* ── Пасхалка «Пасьянс» (косынка) ─────────────────────────────────
+   Окно открывается только из меню игр («игры» + Enter в поиске).
+
+   Вся раскладка считается от ОДНОГО числа — ширины карты (--sol-cw), а
+   она, как клетка тетриса и тройки, зажата сразу тремя ограничениями:
+   потолок, ширина экрана на семь столбцов и остаток высоты после шапки,
+   счётчиков, мини-топа и подсказки. Поэтому стол целиком виден и на
+   360px телефона, и на ноутбуке с короткой рамкой, без прокрутки. */
+.modal-win.sol-win { max-width: 560px; }
+.sol-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 9px; }
+
+.sol-win {
+  /* Ширина карты. По ширине вычтено 96px — это отступы окна (16+16) и полей
+     (16+16) плюс шесть промежутков по 5px между семью столбцами. По высоте
+     6.8 — это высота стола в ширинах карты: два ряда по 1.338 (пропорция
+     картинки 71×95) плюс 11 шагов столбца по 0.28. Посчитано по факту, не на
+     глаз: ошибка здесь — это седьмой столбец, срезанный краем телефона. */
+  --sol-cw: max(30px, min(64px, calc((100vw - 96px) / 7), calc((85vh - 300px) / 6.8)));
+  --sol-ch: calc(var(--sol-cw) * 1.338);
+  --sol-gap: 5px;
+  /* Насколько карта в столбце сдвинута относительно предыдущей. Больше — не
+     влезает длинный столбец, меньше — не видно номинала. */
+  --sol-step: calc(var(--sol-ch) * 0.28);
+  /* Сколько шагов помещается в столбец. ДОЛЖНО совпадать с PILE_UNITS в
+     solitaire.js: там этим числом ужимаются длинные столбцы, здесь оно даёт
+     высоту, под которую ужимают. */
+  --sol-units: 11;
+  --sol-round: calc(var(--sol-cw) * 0.1);
+
+  /* Лицо карты. У картинок из колоды нарисован только верхний слой на
+     прозрачном фоне — подложка целиком отсюда, и она НЕ меняется с темой:
+     карты белые в жизни, а тёмная «бумага» под чёрными пиками читалась бы
+     хуже, чем светлая на тёмном столе. */
+  --sol-face: oklch(0.97 0.012 85);
+  --sol-face-line: oklch(0.66 0.02 85);
+  /* Цвета мастей сняты с самой колоды: пустая база помечена своей мастью, и
+     метка обязана быть того же цвета, что карты, которые на неё лягут. */
+  --sol-hearts: oklch(0.68 0.19 5);
+  --sol-clubs: oklch(0.55 0.10 175);
+  --sol-diamonds: oklch(0.70 0.17 45);
+  --sol-spades: oklch(0.48 0.11 275);
+}
+.s-hearts { color: var(--sol-hearts); } .s-clubs { color: var(--sol-clubs); }
+.s-diamonds { color: var(--sol-diamonds); } .s-spades { color: var(--sol-spades); }
+
+/* ── Счётчики ── */
+.sol-hud { display: flex; align-items: stretch; gap: 6px; }
+.sol-stat {
+  display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  min-width: 58px; padding: 4px 9px;
+  font-size: 10.5px; color: var(--sub);
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+}
+.sol-stat b { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
+.sol-hud .sol-btn { padding: 4px 12px; font-size: 12.5px; }
+/* Кнопки прижаты вправо: слева считают, справа делают. */
+.sol-hud #sol-auto { margin-left: auto; }
+.sol-hud #sol-auto.hidden + #sol-restart { margin-left: auto; }
+
+/* ── Стол ── */
+/* Сетка из семи столбцов на оба ряда: колода с отбоем и базы обязаны стоять
+   ровно над столбцами, иначе стол выглядит съехавшим. */
+.sol-table {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, var(--sol-cw));
+  gap: var(--sol-gap);
+  justify-content: center;
+  margin: 0 auto;
+  touch-action: none;          /* карту тянут пальцем — страница при этом не едет */
+  user-select: none;
+}
+.sol-deal { grid-column: 1 / 3; }
+.sol-founds { grid-column: 4 / 8; }
+.sol-piles { grid-column: 1 / 8; }
+.sol-deal, .sol-founds, .sol-piles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, var(--sol-cw));
+  gap: var(--sol-gap);
+}
+
+.sol-slot, .sol-pile {
+  position: relative;
+  width: var(--sol-cw);
+  border-radius: var(--sol-round);
+}
+.sol-slot { height: var(--sol-ch); }
+/* Высота столбца постоянна и посчитана из тех же --sol-units, которыми
+   solitaire.js ужимает длинные столбцы: стол не должен дёргаться по высоте от
+   того, что кто-то положил девятнадцатую карту. */
+.sol-pile { height: calc(var(--sol-ch) + var(--sol-units) * var(--sol-step)); }
+/* Пустое место обведено пунктиром — иначе непонятно, что туда можно класть.
+   У столбца пунктир рисуется отдельным слоем РАЗМЕРОМ С КАРТУ: сам столбец
+   высотой в одиннадцать шагов, и рамка по нему выглядела бы дырой в столе. */
+.sol-slot { border: 1px dashed var(--border); }
+.sol-pile.is-empty::before {
+  content: '';
+  position: absolute; left: 0; top: 0; right: 0; height: var(--sol-ch);
+  border: 1px dashed var(--border); border-radius: var(--sol-round);
+}
+.sol-slot:has(.sol-card) { border-color: transparent; }
+.sol-slot-mark {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--sol-cw) * 0.5);
+  color: var(--sub); opacity: .45;
+  pointer-events: none;
+}
+.sol-found.is-full { box-shadow: 0 0 0 2px var(--gold); }
+/* Сколько карт осталось в колоде. Стопку из двух десятков рубашек не рисуем —
+   на ход это два десятка лишних узлов, а число понятнее. */
+.sol-count {
+  position: absolute; right: 2px; bottom: 2px;
+  padding: 0 4px; border-radius: 6px;
+  font-size: 10px; font-weight: 700;
+  color: var(--text); background: var(--card);
+  border: 1px solid var(--border);
+  pointer-events: none;
+}
+
+/* ── Карта ── */
+/* Подложка — сама карта, картинка из листа колоды — слой поверх. Позиция в
+   листе считается из --col и --row, которые ставит solitaire.js прямо из
+   правил (масть → строка, достоинство → столбец): таблицы соответствия между
+   кодом и картинкой нет нигде. */
+.sol-card {
+  position: absolute; left: 0;
+  top: calc(var(--y, 0) * var(--sol-step));
+  width: var(--sol-cw); height: var(--sol-ch);
+  border-radius: var(--sol-round);
+  background: var(--sol-face);
+  border: 1px solid var(--sol-face-line);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .28);
+  cursor: pointer;
+}
+.sol-card > i {
+  position: absolute; inset: 0;
+  background-image: var(--sol-sheet);
+  /* Лист 13×4: одна клетка = размер карты, поэтому позиция считается простыми
+     процентами и не зависит от того, какого размера сейчас карта. */
+  background-size: 1300% 400%;
+  background-position: calc(var(--col, 0) * 100% / 12) calc(var(--row, 0) * 100% / 3);
+  background-repeat: no-repeat;
+  /* Колода восьмибитная: без этого сглаживание превращает цифры в кашу. */
+  image-rendering: pixelated;
+  border-radius: inherit;
+}
+/* Рубашка — отдельная картинка (assets/card-back.png), вырезанная из того же
+   листа, что и колода, и той же клеткой 71×95. Своей подложки у закрытой карты
+   нет: у картинки нарисованы и белая рамка, и скруглённые прозрачные углы,
+   поэтому и фон, и рамку гасим — иначе из-под рубашки торчали бы белые уголки
+   лицевой стороны. */
+.sol-card.is-down {
+  background: var(--sol-back) center / 100% 100% no-repeat;
+  background-origin: border-box;
+  border-color: transparent;
+  image-rendering: pixelated;
+}
+.sol-pile .sol-card.is-down { cursor: default; }
+.sol-card:last-child { box-shadow: 0 2px 5px rgba(0, 0, 0, .3); }
+/* Карта уехала «в руку» — место за ней остаётся, иначе столбец подпрыгивал бы
+   в момент, когда карту только приподняли. */
+.sol-card.is-taken { visibility: hidden; }
+
+/* Стопка в руке: отдельный слой поверх стола (карты живут внутри столбцов, и
+   уехавшая карта пропала бы под краем). Указатель сквозь неё проходит — иначе
+   под курсором всегда была бы она сама, а не то, на что целятся. */
+.sol-ghost {
+  position: absolute; left: 0; top: 0;
+  width: var(--sol-cw); height: var(--sol-ch);
+  pointer-events: none;
+  z-index: 6;
+  display: none;
+}
+.sol-ghost.is-on { display: block; }
+.sol-ghost .sol-card {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+  transform: scale(1.03);
+}
+
+/* Отказ: карту некуда положить. Короткое «нет» самой картой понятнее любой
+   надписи под столом. */
+.sol-card.is-nope { animation: sol-nope .3s ease; z-index: 5; }
+@keyframes sol-nope {
+  0%, 100% { transform: none; }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+
+/* ── Конец партии ── */
+.sol-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+  backdrop-filter: blur(2px);
+  border-radius: 12px;
+  z-index: 7;
+}
+.sol-overlay-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 16px 20px; text-align: center;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-3);
+}
+.sol-over-title { font-size: 17px; font-weight: 800; }
+.sol-over-sub { font-size: 12.5px; color: var(--sub); max-width: 260px; }
+.sol-record { color: var(--gold); }
+
+.sol-note {
+  min-height: 15px; font-size: 12px; color: var(--sub); text-align: center;
+  opacity: 0; transition: opacity .2s ease;
+}
+.sol-note.is-show { opacity: 1; }
+
+/* ── Мини-топ ── */
+/* Разметка та же, что у тетриса и тройки: человек должен узнавать коллег
+   одинаково везде. Отличие одно — в строке время, а не очки. */
+.sol-top-head {
+  font-size: 10.5px; color: var(--sub); text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: 4px;
+}
+.sol-top-empty { font-size: 12px; color: var(--sub); }
+.sol-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 116px; overflow-y: auto; }
+.sol-top-row {
+  display: grid; grid-template-columns: 20px 22px 1fr auto;
+  align-items: center; gap: 8px;
+  padding: 3px 6px; border-radius: 7px;
+  font-size: 12.5px;
+}
+.sol-top-row.is-me { background: var(--accent-dim); }
+.sol-top-row.is-first .sol-top-score { color: var(--gold); }
+.sol-top-rank { color: var(--sub); font-variant-numeric: tabular-nums; text-align: right; }
+.sol-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
+.sol-top-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sol-top-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sol-top-score { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sol-top-row.is-mine-extra { grid-template-columns: 20px 1fr auto; margin-top: 4px; }
+
+.sol-hint {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  font-size: 11.5px; color: var(--sub);
+}
+.sol-key {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; padding: 1px 5px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg2); font-size: 10.5px; font-family: inherit;
+}
+
+/* Пальцем список крутить труднее, чем мышью, — на телефоне он короче
+   (то же, что у тетриса и тройки, и по той же причине). */
+@media (pointer: coarse) { .sol-top-list { max-height: 86px; } }
+
+/* Короткий экран: ужимаем всё «не стол» — список до двух строк, подсказку
+   убираем совсем (мышью и пальцем играют, ничего не читая). */
+@media (max-height: 700px) {
+  .sol-top-list { max-height: 46px; }
+  .sol-hint { display: none; }
+  .sol-body { gap: 7px; }
+}
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
    Игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
@@ -4357,7 +4632,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.wordle-win,
 .modal-win.kontekst-win,
 .modal-win.tet-win,
-.modal-win.tro-win {
+.modal-win.tro-win,
+.modal-win.sol-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
 @keyframes game-in {
@@ -4428,7 +4704,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .tro-time.is-low .tro-time-row b,
   .tro-cell.is-born,
   .tro-cell.is-nope,
-  .tro-time-gain.is-show {
+  .tro-time-gain.is-show,
+  .modal-win.sol-win,
+  .sol-card.is-nope {
     animation: none;
   }
   /* Фазы шага цепочки НЕ выключаем, а укорачиваем. Выделение, уборка и падение —
