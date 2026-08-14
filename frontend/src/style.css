@@ -3357,8 +3357,56 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .oil-name, .head-title, .calc-car-title { overflow-wrap: anywhere; }
 }
 
+/* ── Пасхалка «Игры» — меню ───────────────────────────────────────
+   Окно открывается только из поиска (набрать «игры» и Enter). Три колонки
+   фиксированно, а не auto-fit: игр пять, и при четырёх колонках последняя
+   иконка висела бы в ряду одна. Три дают 3 + 2 — так же, как выглядит экран
+   телефона, откуда этот вид и взят.
+   Ширина окна считается от иконок, а не наоборот: 3 × 96 + отступы. */
+.modal-win.games-win { max-width: 380px; }
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 18px;
+}
+.games-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px 4px 10px;
+  background: none;
+  border: 0;
+  border-radius: 16px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color .16s ease, transform .09s ease;
+}
+/* Иконки нарисованы со своим скруглением и прозрачными углами, поэтому
+   border-radius им не нужен — нужна только тень, иначе на тёмном фоне они
+   выглядят наклейками, лежащими поверх окна. */
+.games-tile img {
+  width: 100%;
+  max-width: 84px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+  -webkit-user-drag: none;
+}
+.games-tile span { font-size: 13px; font-weight: 600; text-align: center; }
+.games-tile:hover { background: var(--bg2); }
+.games-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.games-tile:active { transform: scale(.94); }
+/* Пока летит чанк игры — гасим плитку: клик уже сработал, и единственное, что
+   тут можно сообщить, это «да, я услышал». */
+.games-tile.is-loading { opacity: .5; }
+
+@media (max-width: 380px) {
+  .games-grid { padding: 14px 10px; }
+  .games-tile span { font-size: 12px; }
+}
+
 /* ── Пасхалка «Вордле» ────────────────────────────────────────────
-   Окно открывается только из поиска (набрать «вордле»/«wordle» и Enter),
+   Окно открывается только из меню игр (в поиске — «игры» и Enter),
    поэтому в остальном интерфейсе на эти классы ничего не ссылается.
    Цвета — те же токены, что и везде: зелёный «на месте», акцентный
    «есть, но не тут», приглушённый фон «нет вовсе». */
@@ -3453,7 +3501,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 
 /* ── Пасхалка «Контекстно» ────────────────────────────────────────
-   Окно открывается только из поиска (набрать «контекстно» и Enter).
+   Окно открывается только из меню игр («игры» + Enter в поиске).
    Полоска и цвет строки — единственная подсказка «теплее/холоднее»,
    поэтому шкала логарифмическая (см. rankProgress в shared/kontekst.js):
    на линейной разница между 5-м и 500-м местом была бы не видна. */
@@ -3534,7 +3582,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 
 /* ── Пасхалка «Сапёр» ─────────────────────────────────────────────
-   Окно открывается только из поиска (набрать «сапер» и Enter).
+   Окно открывается только из меню игр («игры» + Enter в поиске).
    Поле 18×18: ширина клетки считается от ширины окна, поэтому доска
    одинаково влезает и в 520px десктопа, и в 360px телефона. */
 .modal-win.ms-win { max-width: 560px; }
@@ -3720,7 +3768,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 
 /* ── Пасхалка «Тетрис» ────────────────────────────────────────────
-   Окно открывается только из поиска (набрать «тетрис» и Enter).
+   Окно открывается только из меню игр («игры» + Enter в поиске).
    Стакан 10×20: размер клетки считается сразу от трёх ограничений —
    потолок в 22px, высота экрана и ширина окна за вычетом боковой
    колонки, — поэтому поле целиком видно и на 360px телефона, и на
@@ -3927,7 +3975,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 
 /* ── Пасхалка «Тройка» (матч-3 на время) ──────────────────────────
-   Окно открывается только из поиска (набрать «тройка» и Enter).
+   Окно открывается только из меню игр («игры» + Enter в поиске).
    Поле 8×8: размер клетки, как у тетриса, считается сразу от трёх
    ограничений — потолок, ширина экрана и ОСТАТОК высоты после шапки,
    счётчиков, легенды, мини-топа и подсказки, — поэтому поле целиком
@@ -4304,6 +4352,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    браузер пересчитывать раскладку) и ровно там, где что-то ПРОИЗОШЛО —
    ход, догадка, конец партии. Постоянно шевелящийся интерфейс мешает
    играть куда сильнее, чем неподвижный. */
+.modal-win.games-win,
 .modal-win.ms-win,
 .modal-win.wordle-win,
 .modal-win.kontekst-win,
@@ -4356,6 +4405,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* Уважаем системную настройку «меньше движения»: играть можно и без всего
    этого, поэтому просто выключаем анимации, а не подменяем их. */
 @media (prefers-reduced-motion: reduce) {
+  .modal-win.games-win,
   .modal-win.ms-win,
   .modal-win.wordle-win,
   .modal-win.kontekst-win,
@@ -4396,5 +4446,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
      понадобилась, останется вовсе без ответа. */
   .tro-cell.is-hint { animation: none; box-shadow: 0 0 0 2px var(--accent); }
   .wordle-key, .ms-cell, .ms-flagmode, .ms-odds-toggle, .kontekst-row { transition: none; }
+  .games-tile { transition: none; }
   .tro-cell, .tro-time-bar > i { transition: none; }
 }

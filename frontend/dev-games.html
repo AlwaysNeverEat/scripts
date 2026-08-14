@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!-- Дев-песочница меню игр: окно без входа.
+     Открыть: npx vite → /dev-games.html
+     Меню само по себе ничего не спрашивает у сервера — ctx оно только передаёт
+     дальше, в игру. Поэтому здесь заглушка apiFetch, которая просто ругается в
+     консоль: чтобы проверить сетку иконок и переход в игру, бэкенд не нужен.
+     С ?api — ходит в настоящий /api через прокси vite (нужен запущенный
+     бэкенд и валидная сессия), тогда работают и мини-топы внутри игр.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: игры</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Игры — песочница</h2>
+    <p class="page-sub">Меню, из которого открываются все пасхалки. На проде — «игры» + Enter в поиске.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть меню</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { openGames } from './src/games.js';
+
+    initTheme();
+    const USER = { id: 'dev-user', display_name: 'Я' };
+
+    const stubFetch = async (path) => {
+      console.warn('dev: без ?api сеть не работает —', path);
+      throw new Error('dev: заглушка');
+    };
+    const realFetch = async (path, { method = 'GET', body } = {}) => {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+    const apiFetch = location.search.includes('api') ? realFetch : stubFetch;
+
+    document.getElementById('dev-open').onclick = () => openGames({ apiFetch, user: USER });
+  </script>
+</body>
+</html>

@@ -511,23 +511,18 @@ function postSnapshotToWorker() {
     searchWorker.postMessage({ type: 'snapshot', version: snapshot.version, cars: snapshot.cars });
 }
 
-// Пасхалки: слово-ключ в строке поиска — это не запрос к базе, а вход в игру.
-// Ровно эти слова целиком; подсказывать о них поиск не должен вообще ничем —
+// Пасхалка: слово-ключ в строке поиска — это не запрос к базе, а вход в меню
+// игр. Слово ОДНО на все игры: раньше их было по одному на игру, и к пятой
+// список стал таким, что его надо помнить наизусть, — а дальше игру выбирают
+// иконкой (frontend/src/games.js).
+// Ровно это слово целиком; подсказывать о нём поиск не должен вообще ничем —
 // ни выдачей, ни «ничего не найдено», — иначе пасхалка перестаёт быть
-// пасхалкой. Открываются только по Enter, и модуль игры грузится в этот же
-// момент: в обычной жизни сайта его никто не качает.
-const EASTER_EGGS = [
-    { query: /^(вордле|wordle)$/i, open: () => import('./wordle.js').then(m => m.openWordle) },
-    { query: /^контекстно$/i,      open: () => import('./kontekst.js').then(m => m.openKontekst) },
-    // «сапёр» с «ё» — то же слово: заставлять человека попадать в неё на
-    // клавиатуре ради пасхалки было бы издевательством.
-    { query: /^сап[её]р$/i,        open: () => import('./minesweeper.js').then(m => m.openMinesweeper) },
-    { query: /^(тетрис|tetris)$/i, open: () => import('./tetris.js').then(m => m.openTetris) },
-    { query: /^(тройка|troika)$/i, open: () => import('./troika.js').then(m => m.openTroika) },
-];
+// пасхалкой. Открывается только по Enter, и меню грузится в этот же момент: в
+// обычной жизни сайта его никто не качает.
+const GAMES_QUERY = /^(игры|games)$/i;
 
-function easterEggFor(q) {
-    return EASTER_EGGS.find(egg => egg.query.test(q.trim())) || null;
+function isGamesQuery(q) {
+    return GAMES_QUERY.test(q.trim());
 }
 
 searchInput.addEventListener('input', () => {
@@ -536,7 +531,7 @@ searchInput.addEventListener('input', () => {
     searchGen++;          // всё, что сейчас в полёте, устарело
     pendingQuery = null;
     if (!q) { searchResults.innerHTML = ''; return; }
-    if (easterEggFor(q)) { searchResults.innerHTML = ''; return; }
+    if (isGamesQuery(q)) { searchResults.innerHTML = ''; return; }
     if (q.length < MIN_QUERY_LEN) {
         searchResults.innerHTML = '<div class="search-empty">Введите ещё хотя бы один символ…</div>';
         return;
@@ -546,15 +541,14 @@ searchInput.addEventListener('input', () => {
 
 searchInput.addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
-    const egg = easterEggFor(searchInput.value);
-    if (!egg) return;
+    if (!isGamesQuery(searchInput.value)) return;
     e.preventDefault();
-    searchInput.blur();          // дальше набирают в игре, а не сюда
+    searchInput.blur();          // дальше выбирают в меню, а не набирают сюда
     searchInput.value = '';
     searchResults.innerHTML = '';
     try {
-        const openGame = await egg.open();
-        openGame({ apiFetch, user: currentUser });
+        const { openGames } = await import('./games.js');
+        openGames({ apiFetch, user: currentUser });
     } catch {
         // Не догрузился чанк (сеть/кэш) — пасхалка не та вещь, ради которой
         // стоит показывать человеку ошибку.
