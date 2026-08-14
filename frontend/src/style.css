@@ -3937,25 +3937,29 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .tro-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 9px; }
 
 .tro-win {
-  /* Три ограничения: потолок в 38px, ширина экрана и ОСТАТОК ВЫСОТЫ после всего
+  /* Три ограничения: потолок в 44px, ширина экрана и ОСТАТОК ВЫСОТЫ после всего
      остального в окне (шапка, счётчики, легенда, мини-топ, подсказка, отступы и
      рамка поля — вместе ровно те 400px, что вычтены; посчитано по факту, а не на
      глаз). Выше 85vh модалка не бывает — см. .modal-win. */
-  --tro-cell: max(26px, min(38px, calc((100vw - 58px) / 8), calc((85vh - 400px) / 8)));
-  /* Шесть видов фишек. Цвета разнесены по кругу И по светлоте: сравнивать их
-     приходится по три раза в секунду, и соседние виды обязаны отличаться даже
-     в оттенках серого. Форма при этом всё равно своя у каждого (см. icons.js) —
-     цвет здесь помощник, а не единственный признак. */
-  --tro-ring: oklch(0.78 0.13 200);
-  --tro-square: oklch(0.62 0.16 260);
-  --tro-triangle: oklch(0.78 0.15 62);
-  --tro-hex: oklch(0.72 0.17 145);
-  --tro-star: oklch(0.66 0.17 305);
-  --tro-drop: oklch(0.64 0.19 25);
+  --tro-cell: max(26px, min(44px, calc((100vw - 58px) / 8), calc((85vh - 400px) / 8)));
+  /* Цвет вида фишки. Сами фишки нарисованы картинками (спрайт --tro-sheet,
+     подставляется в troika.js), а эти цвета сняты с них и нужны эффектам:
+     свечению выбранной, вспышке взрыва, подсветке в легенде. Без них подсветка
+     спорила бы с картинкой. */
+  --tro-ring: oklch(0.72 0.13 205);
+  --tro-square: oklch(0.55 0.20 262);
+  --tro-triangle: oklch(0.75 0.17 62);
+  --tro-hex: oklch(0.72 0.21 138);
+  --tro-star: oklch(0.55 0.21 305);
+  --tro-drop: oklch(0.57 0.22 27);
 }
-.k-ring { --c: var(--tro-ring); } .k-square { --c: var(--tro-square); }
-.k-triangle { --c: var(--tro-triangle); } .k-hex { --c: var(--tro-hex); }
-.k-star { --c: var(--tro-star); } .k-drop { --c: var(--tro-drop); }
+/* Вид фишки — строка спрайта и цвет эффектов, состояние — столбец. Порядок
+   ровно тот же, что у констант в shared/troika.js: спрайт собран под него. */
+.k-ring { --c: var(--tro-ring); --row: 0; } .k-square { --c: var(--tro-square); --row: 1; }
+.k-triangle { --c: var(--tro-triangle); --row: 2; } .k-hex { --c: var(--tro-hex); --row: 3; }
+.k-star { --c: var(--tro-star); --row: 4; } .k-drop { --c: var(--tro-drop); --row: 5; }
+.s-plain { --col: 0; } .s-rocket-h { --col: 1; } .s-rocket-v { --col: 2; }
+.s-bomb  { --col: 3; } .s-prism    { --col: 4; } .s-clock    { --col: 5; }
 
 /* ── Счётчики и таймер ── */
 .tro-hud { display: flex; align-items: stretch; gap: 8px; }
@@ -4020,47 +4024,47 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   touch-action: none;          /* фишку тянут пальцем — страница при этом не едет */
 }
 
+/* Фишка — картинка из спрайта 6×6: строка берётся из вида (--row), столбец из
+   состояния (--col). Размер фона 600% × 600% значит «шесть клеток по каждой
+   стороне», поэтому позиция считается простыми процентами и не зависит от того,
+   какого размера сейчас клетка. Отдельная картинка на каждую фишку означала бы
+   36 запросов при открытии окна. */
+.tro-cell, .tro-chip {
+  background-image: var(--tro-sheet);
+  background-size: 600% 600%;
+  background-position: calc(var(--col, 0) * 20%) calc(var(--row, 0) * 20%);
+  background-repeat: no-repeat;
+}
 .tro-cell {
-  position: relative;          /* значок вида специальной фишки — в углу клетки */
-  display: flex; align-items: center; justify-content: center;
   width: var(--tro-cell); height: var(--tro-cell); padding: 0;
-  color: var(--c);
-  background: color-mix(in srgb, var(--c) 20%, transparent);
-  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
-  border-radius: 9px;
+  border: 0; border-radius: 10px;
+  /* Кнопка со своим оформлением по умолчанию — серый фон и подсветка нажатия,
+     которые вылезают в прозрачных полях картинки. Гасим и то, и другое: фон
+     клетки — это сама фишка. */
+  appearance: none;
+  background-color: transparent;
   cursor: pointer;
-  /* Форма фишки — SVG внутри, он и наследует var(--c). Заливка клетки нарочно
-     бледная: шесть насыщенных квадратов рядом рябят так, что фигуры на них
-     не различить. */
-  transition: transform .1s ease, box-shadow .14s ease, border-color .14s ease;
+  transition: transform .1s ease, box-shadow .14s ease, filter .14s ease;
 }
-.tro-cell .icon { display: block; }
-.tro-glyph { display: flex; }
-/* Вид специальной фишки — маленьким значком в углу: крупно нарисована сама
-   фигура (ракета, бомба, призма, часы), но по какому виду она соберётся в
-   тройку, видеть надо тоже. */
-.tro-badge {
-  position: absolute; right: 2px; bottom: 1px;
-  opacity: .85; pointer-events: none;
-}
-.tro-cell.is-special {
-  background: color-mix(in srgb, var(--c) 34%, transparent);
-  border-color: color-mix(in srgb, var(--c) 62%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
-}
-/* Призма — самая сильная фигура, и она единственная светится: её ищут глазами
-   специально. */
-.tro-cell.is-prism { box-shadow: 0 0 10px -1px color-mix(in srgb, var(--c) 70%, transparent); }
-.tro-cell.is-clock { border-style: dashed; }
+/* Фишка в легенде — та же картинка, только мелко. */
+.tro-chip { width: 20px; height: 20px; border-radius: 5px; flex: none; }
 
+/* Спрайт ещё не загрузился (или не загрузился совсем — класс снимает troika.js
+   по onload): клетки красятся цветами своих видов. Поле из цветных квадратов
+   играбельно, поле из пустых — нет. */
+.tro-win.no-tiles .tro-cell,
+.tro-win.no-tiles .tro-chip { background-color: color-mix(in srgb, var(--c) 55%, transparent); }
+
+/* Выбранная фишка приподнимается и светится своим же цветом: рамка поверх
+   картинки перекрыла бы саму фишку, а свечение читается и не мешает. */
 .tro-cell.is-sel {
   transform: scale(1.08);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-dim);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 12px -2px var(--c);
+  z-index: 1;
 }
 /* Курсор клавиатуры показывается только тогда, когда ею играют (см. troika.js):
    мышью играющему человеку рамка «где-то там» только мешает. */
-.tro-cell.is-cursor { border-color: var(--text); border-style: dashed; }
+.tro-cell.is-cursor { box-shadow: 0 0 0 2px var(--text); }
 
 /* Уборка: фишка уходит в точку. Именно поэтому окно и рисует шаг каскада в два
    приёма — иначе исчезновение не показать вовсе. */
@@ -4073,7 +4077,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .tro-cell.is-boom { animation: tro-boom .15s ease-out forwards; }
 @keyframes tro-boom {
   0%   { transform: scale(1); }
-  45%  { transform: scale(1.35); background: var(--c); }
+  45%  { transform: scale(1.4); filter: brightness(2.2) saturate(1.4); }
   100% { transform: scale(.3); opacity: 0; }
 }
 .tro-cell.is-fall { animation: tro-fall .16s cubic-bezier(.3, .8, .4, 1); }
@@ -4150,6 +4154,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .tro-legend-item { display: inline-flex; align-items: center; gap: 5px; }
 .tro-legend .icon { color: var(--text); flex: none; }
+/* Подсказка в легенде — настоящая фишка со спрайта (см. legendHtml), поэтому
+   ей нужен только размер, заданный выше в .tro-chip. */
 
 /* ── Мини-топ ── */
 .tro-top {
@@ -4216,7 +4222,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .tro-note { min-height: 0; }
   .tro-top { padding-top: 6px; }
   .tro-top-list { max-height: 46px; }
+  /* Фишки в легенде мельче: две строки по 20px здесь стоят дороже, чем читаются. */
   .tro-legend { gap: 2px 10px; }
+  .tro-chip { width: 16px; height: 16px; border-radius: 4px; }
   .tro-hud { gap: 6px; }
   .tro-time { padding: 4px 8px; }
 }
