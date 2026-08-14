@@ -707,11 +707,27 @@ function setCursor(state, i) {
 // DOM до последней фазы висит старая картинка — она и нужна, чтобы показать, что
 // именно исчезает.
 
+// Классы анимаций на клетке ВЗАИМОИСКЛЮЧАЮЩИЕ: висит ровно один или ни одного.
+// Иначе выбирать между ними будет браузер — по порядку правил в CSS, а не по
+// смыслу. Так и было: фишка, упавшая на прошлом шаге, оставалась с классом
+// падения, он перебивал подсветку нынешнего шага, и она НЕ ИСЧЕЗАЛА — стояла на
+// месте до самой перерисовки. На первом шаге хода этого не видно (перед ним поле
+// перерисовывается целиком), а дальше половина убранных фишек «оставалась».
+const ANIM_CLASSES = ['is-mark', 'is-fired', 'is-clear', 'is-boom', 'is-fall', 'is-born', 'is-nope'];
+
+function setAnim(node, ...classes) {
+    node.classList.remove(...ANIM_CLASSES);
+    if (classes.length) node.classList.add(...classes);
+}
+
 // 1. Выделение: вспыхивают те фишки, которые засчитались. Сработавшие
 // специальные помечаются отдельно — у ракеты и бомбы должно быть видно, что
 // рвануло именно тут, а не просто «полполя пропало».
 function markCleared(state, step) {
     const fired = new Set(step.fired.map(f => f.cell));
+    // Со ВСЕГО поля снимаем анимации прошлого шага: фишки, которые тогда упали,
+    // так и остались с его классом (см. ANIM_CLASSES).
+    for (const node of state.cells) node.classList.remove(...ANIM_CLASSES);
     for (const i of step.cells) {
         const node = state.cells[i];
         if (!node) continue;
@@ -726,8 +742,7 @@ function clearCells(state, step) {
     for (const i of step.cells) {
         const node = state.cells[i];
         if (!node) continue;
-        node.classList.remove('is-mark', 'is-fired');
-        node.classList.add(fired.has(i) ? 'is-boom' : 'is-clear');
+        setAnim(node, fired.has(i) ? 'is-boom' : 'is-clear');
     }
 }
 
@@ -839,9 +854,9 @@ function cancelCount(state) {
 function shake(state, i) {
     const node = state.cells[i];
     if (!node) return;
-    node.classList.remove('is-nope');
+    setAnim(node);
     void node.offsetWidth;      // перезапуск анимации
-    node.classList.add('is-nope');
+    setAnim(node, 'is-nope');
     later(state, () => node.classList.remove('is-nope'), 300);
 }
 

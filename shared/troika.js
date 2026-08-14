@@ -602,7 +602,13 @@ export function resolveStep(game) {
         game.timeMs += timeGained;
     }
 
-    const { spawned, fall } = collapse(game);
+    const { spawned, fall, movedTo } = collapse(game);
+    // Выданная за фигуру специальная могла тут же уехать вниз — если под ней
+    // убрали клетки. Окну она нужна там, где ВСТАЛА: иначе «рождение» покажется
+    // на её старом месте, где к этому времени лежит уже другая фишка.
+    for (const c of created) {
+        if (movedTo[c.cell] >= 0) c.cell = movedTo[c.cell];
+    }
     return {
         cells: [...clear], created, fired, spawned, fall,
         tiles, clocks, gained, timeGained, cascade: game.cascade, mult,
@@ -612,11 +618,13 @@ export function resolveStep(game) {
 /**
  * Обвалить столбцы вниз и досыпать сверху новые фишки.
  *
- * Возвращает { spawned, fall }: список клеток, которых на поле раньше не было, и
- * массив «на сколько строк фишка приехала вниз» для КАЖДОЙ клетки. Второе нужно
- * окну, чтобы показать падение: без него оно знает только, что картинка стала
- * другой, и фишки просто подменяются на месте — рывком, из которого не понять,
- * что вообще произошло.
+ * Возвращает { spawned, fall, movedTo }: клетки, которых на поле раньше не было,
+ * «на сколько строк фишка приехала вниз» для КАЖДОЙ клетки и «куда уехала» для
+ * тех, что сдвинулись. Второе нужно окну, чтобы показать падение: без него оно
+ * знает только, что картинка стала другой, и фишки просто подменяются на месте —
+ * рывком, из которого не понять, что вообще произошло. Третье — чтобы найти
+ * специальную фишку, выданную за фигуру: если под ней тоже убрали клетки, она
+ * едет вниз вместе со всеми, и «родиться» должна там, где встала.
  *
  * Досыпанные считаются приехавшими из-за верхнего края: сколько клеток в столбце
  * досыпали, столько строк они и «пролетели».
@@ -627,6 +635,7 @@ export function resolveStep(game) {
 function collapse(game) {
     const spawned = [];
     const fall = new Uint8Array(CELLS);
+    const movedTo = new Int8Array(CELLS).fill(-1);
     const chance = clockChance(game.level);
     for (let x = 0; x < SIZE; x++) {
         let write = SIZE - 1;
@@ -640,6 +649,7 @@ function collapse(game) {
                 game.color[i] = -1;
                 game.special[i] = NONE;
                 fall[w] = write - y;
+                movedTo[i] = w;
             }
             write--;
         }
@@ -652,7 +662,7 @@ function collapse(game) {
             spawned.push(w);
         }
     }
-    return { spawned, fall };
+    return { spawned, fall, movedTo };
 }
 
 // ── Тупик ────────────────────────────────────────────────────────────────────
