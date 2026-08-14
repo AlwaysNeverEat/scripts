@@ -38,6 +38,9 @@ const GAMES = [
     { name: 'Сапёр',      icon: iconMinesweeper, open: () => import('./minesweeper.js').then(m => m.openMinesweeper) },
     { name: 'Тетрис',     icon: iconTetris,      open: () => import('./tetris.js').then(m => m.openTetris) },
     { name: 'Тройка',     icon: iconTroika,      open: () => import('./troika.js').then(m => m.openTroika) },
+    // Иконки ещё нет: вместо картинки плитка рисует значки из blank. Пустое
+    // место было бы хуже — игра работает, а меню выглядело бы сломанным.
+    { name: 'Пасьянс',    blank: ['♠', '♥', '♦', '♣'], open: () => import('./solitaire.js').then(m => m.openSolitaire) },
 ];
 
 let openModal = null;   // одно окно за раз
@@ -101,7 +104,9 @@ export function openGames(ctx) {
 function shellHtml() {
     const tiles = GAMES.map(g => `
         <button type="button" class="games-tile">
-            <img src="${g.icon}" alt="" width="256" height="256" draggable="false">
+            ${g.icon
+                ? `<img src="${g.icon}" alt="" width="256" height="256" draggable="false">`
+                : `<span class="games-tile-blank" aria-hidden="true">${g.blank.map(s => `<i>${s}</i>`).join('')}</span>`}
             <span>${g.name}</span>
         </button>`).join('');
     return `

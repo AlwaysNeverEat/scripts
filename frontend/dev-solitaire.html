@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!-- Дев-песочница пасхалки «Пасьянс»: окно игры без входа.
+     Открыть: npx vite → /dev-solitaire.html
+     Сама игра целиком в браузере (на проде тоже — см. shared/solitaire.js), так
+     что заглушка нужна только для мини-топа: по умолчанию он выдуманный.
+     С ?api — ходит в настоящий /api/solitaire через прокси vite (нужен
+     запущенный бэкенд, валидная сессия и накатанная миграция 027).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: пасьянс</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Пасьянс — песочница</h2>
+    <p class="page-sub">Косынка по одной карте с бесконечными кругами. Мини-топ — по времени партии.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть игру</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { openSolitaire } from './src/solitaire.js';
+
+    initTheme();
+    const USER = { id: 'dev-user', display_name: 'Я' };
+
+    // Выдуманный мини-топ: проверять на нём нужно вёрстку строк и подсветку
+    // своей, а не работу базы.
+    const rows = [
+      { rank: 1, id: 'u1', display_name: 'Костя', avatar: null, role_prefix: null, seconds: 191, moves: 168, redeals: 1, wins: 12 },
+      { rank: 2, id: 'dev-user', display_name: 'Я', avatar: null, role_prefix: null, seconds: 286, moves: 204, redeals: 4, wins: 3 },
+      { rank: 3, id: 'u3', display_name: 'Оля', avatar: null, role_prefix: null, seconds: 402, moves: 251, redeals: 7, wins: 5 },
+    ];
+    let me = { rank: 2, seconds: 286, moves: 204, redeals: 4, wins: 3 };
+
+    async function stubFetch(path, { body } = {}) {
+      if (path === '/api/solitaire/top') return { rows, me };
+      if (path === '/api/solitaire/score') {
+        // Рекорд здесь — МЕНЬШЕЕ время: это единственное, чем топ пасьянса
+        // отличается от топов тетриса и тройки, и в заглушке тоже.
+        const improved = body.seconds < me.seconds;
+        if (improved) me = { ...me, seconds: body.seconds, moves: body.moves, redeals: body.redeals, wins: me.wins + 1 };
+        const mine = rows.find(r => r.id === USER.id);
+        if (mine && improved) mine.seconds = body.seconds;
+        rows.sort((a, b) => a.seconds - b.seconds).forEach((r, i) => { r.rank = i + 1; });
+        console.log('dev: партия разложена', body, improved ? '— рекорд' : '');
+        return { ok: true, best: me.seconds, wins: me.wins, improved, rows, me };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    const realFetch = async (path, { method = 'GET', body } = {}) => {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+    const apiFetch = location.search.includes('api') ? realFetch : stubFetch;
+
+    document.getElementById('dev-open').onclick = () => openSolitaire({ apiFetch, user: USER });
+  </script>
+</body>
+</html>

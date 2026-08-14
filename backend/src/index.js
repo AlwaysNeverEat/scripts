@@ -15,6 +15,7 @@ import kontekstRouter from './routes/kontekst.js';
 import minesweeperRouter from './routes/minesweeper.js';
 import tetrisRouter from './routes/tetris.js';
 import troikaRouter from './routes/troika.js';
+import solitaireRouter from './routes/solitaire.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
@@ -89,6 +90,9 @@ app.use('/api/tetris', requireSession, tetrisRouter);
 // Тройка (матч-3 на время) — там же и по той же причине, что тетрис: партия в
 // браузере, серверу остаётся именной мини-топ (см. routes/troika.js).
 app.use('/api/troika', requireSession, troikaRouter);
+// Пасьянс — там же и по той же причине, только топ у него по времени
+// разложенной партии (см. routes/solitaire.js).
+app.use('/api/solitaire', requireSession, solitaireRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются
