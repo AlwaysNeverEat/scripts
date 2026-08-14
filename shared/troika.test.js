@@ -349,6 +349,27 @@ test('каскад заканчивается, и только тогда при
     assert.equal(findGroups(game).length, 0, 'троек на спокойном поле не остаётся');
 });
 
+test('шаг рассказывает, откуда упала каждая фишка', () => {
+    const game = blank();
+    // Тройка в столбце 3 (строки 5,6,7) — над ней в столбце всё съедет на три
+    // клетки вниз, а сверху досыплется три новые.
+    paint(game, [[3, 5], [3, 6]], 5);
+    paint(game, [[4, 7]], 5);
+    paint(game, [[3, 7]], 4);
+
+    assert.equal(applySwap(game, idx(3, 7), idx(4, 7)), 'match');
+    const step = resolveStep(game);
+    assert.equal(step.fall.length, CELLS);
+
+    // Всё, что было в столбце 3 выше тройки, приехало ровно на три строки.
+    for (let y = 3; y <= 7; y++) assert.equal(step.fall[idx(3, y)], 3, `строка ${y}`);
+    // Три досыпанные сверху «пролетели» столько же — они прилетели из-за края.
+    for (let y = 0; y <= 2; y++) assert.equal(step.fall[idx(3, y)], 3);
+    assert.deepEqual(step.spawned.sort((a, b) => a - b), [idx(3, 0), idx(3, 1), idx(3, 2)]);
+    // Соседние столбцы не двигались.
+    for (let y = 0; y < SIZE; y++) assert.equal(step.fall[idx(0, y)], 0);
+});
+
 test('тупик: перемешивание возвращает ход и не создаёт готовых троек', () => {
     const game = blank();
     // Диагональные полосы из трёх видов — настоящий тупик: любой обмен даёт

@@ -9,17 +9,17 @@
 // занимается тремя вещами: рисует поле, слушает клики с клавишами и один раз в
 // конце партии относит результат на сервер (backend/src/routes/troika.js).
 //
-// Как показывается каскад. Правила убирают фишки, обваливают поле и досыпают
-// новые ОДНИМ шагом (resolveStep), но показать это надо в два приёма: сначала
-// подсветить то, что исчезает, и лишь потом перерисовать поле. Поэтому окно
-// сначала вешает подсветку на клетки по индексам (в DOM ещё старая картинка),
-// через CLEAR_MS перерисовывает поле и через FALL_MS берётся за следующий шаг.
-// Без этой паузы каскад из пяти шагов выглядит одним мгновенным рывком — «что-то
-// мигнуло, очков стало больше».
+// Как показывается каскад. Правила считают шаг ЦЕЛИКОМ и сразу (resolveStep:
+// убрать, обвалить, досыпать), а окно разбирает его на четыре фазы и играет их
+// по очереди — выделение, уборка, очки, падение (playStep). Пока фазы идут, в
+// DOM висит СТАРАЯ картинка: она и нужна, чтобы показать, что именно исчезает.
+// Без этого шаг был бы одной мгновенной подменой поля — «что-то мигнуло, очков
+// стало больше», и понять, за что их дали, нельзя.
 //
-// Таймер во время каскада НЕ ОСТАНАВЛИВАЕТСЯ: время — главная валюта партии, и
-// пауза на анимацию превращала бы длинные цепочки в бесплатные. Зато часы,
-// собранные тем же каскадом, время и возвращают — так и задумано.
+// ТАЙМЕР НА ВРЕМЯ ФАЗ ОСТАНАВЛИВАЕТСЯ: игрок в этот момент не может сделать
+// ровно ничего, и брать с него секунды не за что. Иначе длинная цепочка — лучшее,
+// что бывает в этой игре — наказывала бы сильнее всего. Отсюда же следует, что
+// партия не может кончиться посреди анимации: ноль наступает между ходами.
 //
 // Партия переживает закрытие окна: state кладётся в модульную переменную, и
 // «тройка» + Enter возвращает к тому же полю — но НА ПАУЗЕ: таймер, который
@@ -46,10 +46,13 @@ import tilesSheet from './assets/troika-tiles.webp';
 
 const MODAL_ID = 'troika-modal';
 
-// Сколько показывается уборка и сколько — падение. Меньше — каскад сливается в
-// рывок, больше — партия на время начинает раздражать ожиданием.
-const CLEAR_MS = 150;
-const FALL_MS = 90;
+// Длительности фаз одного шага цепочки (см. playStep). Подобраны так, чтобы шаг
+// читался целиком примерно за секунду: меньше — фазы сливаются в рывок, больше —
+// партия начинает раздражать ожиданием.
+const PHASE_MARK = 260;    // вспыхнули те фишки, что засчитались
+const PHASE_CLEAR = 190;   // исчезли
+const PHASE_POP = 380;     // на их месте всплыли очки
+const PHASE_FALL = 260;    // сверху всё съехало вниз
 
 // Через сколько молчания показать подсказку. Пять секунд — это уже «сижу и ищу»,
 // а не «думаю»: за это время человек успевает просмотреть поле один раз.
@@ -122,6 +125,7 @@ export function openTroika(ctx) {
         busy: false,                             // идёт каскад, ход не принимается
         idleMs: 0,                               // сколько игрок не делает ходов
         hint: null,                              // подсвеченная пара [a, b]
+        countRaf: 0,                             // счётчик очков «доезжает» до нового
         // Партию, поднятую из отложенной, продолжают с паузы: см. шапку файла.
         paused: resumed,
         finished: false,
@@ -139,6 +143,7 @@ export function openTroika(ctx) {
 
     const close = () => {
         stopLoop(state);
+        cancelCount(state);
         clearTimers(state);
         document.removeEventListener('keydown', onKeyDown, true);
         document.removeEventListener('visibilitychange', onHide);
@@ -202,7 +207,6 @@ function shellHtml() {
 
                 <div class="tro-play">
                     <div class="tro-board" id="tro-board"></div>
-                    <div class="tro-gain" id="tro-gain"></div>
                     <div class="tro-overlay hidden" id="tro-overlay">
                         <div class="tro-overlay-card">
                             <div class="tro-over-title" id="tro-over-title"></div>
@@ -276,20 +280,25 @@ function frame(state, ts) {
     const dt = Math.min(ts - state.last, MAX_FRAME_MS);
     state.last = ts;
 
-    const ended = tickTime(state.game, dt);
-    renderTime(state);
-    // Простой считаем только когда ход ВОЗМОЖЕН: во время каскада игрок не
-    // бездельничает, он смотрит, что натворил.
-    if (!state.busy && !state.hint) {
-        state.idleMs += dt;
-        if (state.idleMs >= HINT_AFTER_MS) showHint(state);
+    // ТАЙМЕР СТОИТ, ПОКА ИДЁТ ЦЕПОЧКА. Пока показывается уборка, очки и падение,
+    // игрок не может сделать ровно ничего — брать с него за это секунды нечестно,
+    // а длинный каскад (он же лучший ход в игре) наказывался бы сильнее всего.
+    // Заодно из этого следует, что партия не может кончиться посреди анимации:
+    // ноль на таймере наступает только между ходами.
+    let ended = false;
+    if (!state.busy) {
+        ended = tickTime(state.game, dt);
+        renderTime(state);
+        // Простой считаем там же: во время каскада игрок не бездельничает, он
+        // смотрит, что натворил.
+        if (!state.hint) {
+            state.idleMs += dt;
+            if (state.idleMs >= HINT_AFTER_MS) showHint(state);
+        }
     }
     if (ended) {
         state.raf = 0;
-        // Каскад, начатый до нуля на таймере, доигрывается — и только потом
-        // итог: обрывать цепочку на середине значило бы отобрать уже
-        // заработанные очки.
-        if (!state.busy) finish(state);
+        finish(state);
         return;
     }
     state.raf = requestAnimationFrame(t => frame(state, t));
@@ -351,8 +360,8 @@ function clearHint(state) {
     hint.forEach(i => paintMarks(state, i));
 }
 
-// Каскад: шаг правил — подсветка — перерисовка — следующий шаг. Пока цепочка
-// идёт, ходы не принимаются (state.busy): поле в этот момент уже другое, и
+// Каскад показывается ФАЗАМИ, по одному шагу за раз. Пока цепочка идёт, ходы не
+// принимаются (state.busy) и таймер стоит: поле в этот момент уже другое, и
 // «успеть ткнуть» означало бы ткнуть не туда, куда смотришь.
 function runCascade(state) {
     state.busy = true;
@@ -363,15 +372,50 @@ function runCascade(state) {
             afterSettle(state);
             return;
         }
-        markCleared(state, step);
-        showGain(state, step);
-        later(state, () => {
-            renderBoard(state, step);
-            renderStats(state);
-            later(state, stepOnce, FALL_MS);
-        }, CLEAR_MS);
+        playStep(state, step, stepOnce);
     };
     stepOnce();
+}
+
+/**
+ * Один шаг цепочки — четыре фазы подряд, и порядок в них весь смысл:
+ *
+ *   1. ВЫДЕЛЕНИЕ — вспыхивают ровно те фишки, которые засчитались. Это главная
+ *      фаза: без неё игрок видит, что очков стало больше, но не видит, за что;
+ *   2. УБОРКА — они исчезают, на их месте остаются дырки;
+ *   3. ОЧКИ — на месте убранного всплывает «+540» (и «+3 с», если там были
+ *      часы), а счётчик в шапке доезжает до нового значения;
+ *   4. ПАДЕНИЕ — фишки сверху съезжают в дырки, новые прилетают из-за края.
+ *
+ * Раньше всё это было двумя мгновенными перерисовками, и цепочка из пяти шагов
+ * выглядела одним рывком: «что-то мигнуло, очков стало больше».
+ *
+ * Глубокие цепочки идут быстрее (stepSpeed): десять шагов по полной длительности
+ * — это десять секунд наблюдения, а игрок в этот момент уже понял, что происходит,
+ * и хочет продолжать.
+ */
+function playStep(state, step, next) {
+    const k = stepSpeed(step.cascade);
+    const phases = [
+        [() => markCleared(state, step), PHASE_MARK],
+        [() => clearCells(state, step), PHASE_CLEAR],
+        [() => popScore(state, step, k), PHASE_POP],
+        [() => dropBoard(state, step, k), PHASE_FALL],
+    ];
+    let i = 0;
+    const run = () => {
+        if (i >= phases.length) { next(); return; }
+        const [enter, ms] = phases[i++];
+        enter();
+        later(state, run, Math.round(ms * k));
+    };
+    run();
+}
+
+// Чем глубже цепочка, тем короче её показ — но не быстрее, чем вдвое: иначе
+// самый красивый момент партии превращается в мельтешение.
+function stepSpeed(cascade) {
+    return Math.max(0.5, 1 - (cascade - 1) * 0.12);
 }
 
 function afterSettle(state) {
@@ -506,7 +550,9 @@ function setPaused(state, on) {
 
 function restart(state) {
     stopLoop(state);
+    cancelCount(state);
     clearTimers(state);
+    state.modal.querySelectorAll('.tro-pop').forEach(n => n.remove());
     state.game = createGame();
     saved = null;
     state.busy = false;
@@ -592,12 +638,16 @@ function renderAll(state) {
 }
 
 /**
- * Перерисовать поле. step (если передан) — только что показанный шаг каскада:
- * тогда сдвинувшиеся фишки помечаются как упавшие, а выданные за фигуру
- * специальные — как появившиеся.
+ * Перерисовать поле. step (если передан) — шаг каскада, который сейчас
+ * показывается: тогда фишки ЕДУТ на свои места сверху (step.fall говорит, с
+ * какой высоты каждая), а выданные за фигуру специальные — появляются на месте.
+ *
+ * Падение рисуется сдвигом: клетка сразу ставится туда, где фишка окажется, но
+ * начинает движение на --fall строк выше. Двигать сами клетки по сетке нельзя —
+ * это перекладка всего поля на каждый кадр.
  *
  * Трогаем только изменившиеся клетки: шаг меняет десяток из шестидесяти
- * четырёх, а className и innerHTML — самые дорогие операции в этом окне.
+ * четырёх, а className — самая дорогая операция в этом окне.
  */
 function renderBoard(state, step = null) {
     const born = step ? new Set(step.created.map(c => c.cell)) : null;
@@ -606,12 +656,17 @@ function renderBoard(state, step = null) {
         const color = game.color[i];
         if (color < 0) continue;                 // пустых клеток снаружи не бывает
         const code = CODE_OF(color, game.special[i]);
+        const fall = step ? step.fall[i] : 0;
         // Клетка могла не измениться по виду, но всё равно получить подсветку
         // уборки — её надо снять, поэтому здесь не continue, а paintMarks.
-        if (drawn[i] === code && !(step && born.has(i))) { paintMarks(state, i); continue; }
+        if (drawn[i] === code && !fall && !(step && born.has(i))) { paintMarks(state, i); continue; }
         drawn[i] = code;
         let extra = '';
-        if (step) extra = born.has(i) ? ' is-born' : ' is-fall';
+        if (step && born.has(i)) extra = ' is-born';
+        else if (fall) {
+            extra = ' is-fall';
+            cells[i].style.setProperty('--fall', String(fall));
+        }
         cells[i].className = TILE[code] + extra + marks(state, i);
     }
 }
@@ -646,16 +701,139 @@ function setCursor(state, i) {
     paintMarks(state, i);
 }
 
-// Подсветка исчезающих фишек: вешается на клетки ДО перерисовки, пока в DOM ещё
-// старая картинка (см. шапку файла). Отдельно помечаются те, что сработали, —
-// у ракеты и бомбы должно быть видно, что рвануло именно тут.
+// ── Фазы шага цепочки ────────────────────────────────────────────────────────
+//
+// Все они работают ПО ИНДЕКСАМ клеток: правила уже посчитали шаг целиком, а в
+// DOM до последней фазы висит старая картинка — она и нужна, чтобы показать, что
+// именно исчезает.
+
+// 1. Выделение: вспыхивают те фишки, которые засчитались. Сработавшие
+// специальные помечаются отдельно — у ракеты и бомбы должно быть видно, что
+// рвануло именно тут, а не просто «полполя пропало».
 function markCleared(state, step) {
     const fired = new Set(step.fired.map(f => f.cell));
     for (const i of step.cells) {
         const node = state.cells[i];
         if (!node) continue;
+        node.classList.add('is-mark');
+        if (fired.has(i)) node.classList.add('is-fired');
+    }
+}
+
+// 2. Уборка: выделенные фишки уходят в точку, на их месте остаются дырки.
+function clearCells(state, step) {
+    const fired = new Set(step.fired.map(f => f.cell));
+    for (const i of step.cells) {
+        const node = state.cells[i];
+        if (!node) continue;
+        node.classList.remove('is-mark', 'is-fired');
         node.classList.add(fired.has(i) ? 'is-boom' : 'is-clear');
     }
+}
+
+// 3. Очки — НА МЕСТЕ убранного, а не где-то в углу: цифра должна отвечать на
+// вопрос «за что», а для этого ей надо всплыть там, куда игрок и смотрит.
+// Заодно счётчик в шапке доезжает до нового значения (countTo): цифра, которая
+// перескакивает, читается как чужая.
+function popScore(state, step, k) {
+    if (step.gained > 0) {
+        const mult = step.mult > 1
+            ? `<span class="tro-pop-mult">×${step.mult}${step.mult === MAX_CASCADE_MULT ? '!' : ''}</span>`
+            : '';
+        const time = step.timeGained > 0
+            ? `<span class="tro-pop-time">+${Math.round(step.timeGained / 1000)} с</span>`
+            : '';
+        const pop = document.createElement('div');
+        pop.className = 'tro-pop';
+        pop.innerHTML = `${mult}<span class="tro-pop-score">+${step.gained.toLocaleString('ru-RU')}</span>${time}`;
+        const at = centerOf(state, step.cells);
+        pop.style.left = `${at.x}px`;
+        pop.style.top = `${at.y}px`;
+        // Цифра живёт ровно свою фазу плюс падение: к следующему шагу от неё не
+        // должно остаться ничего, иначе на поле копится столбик чисел.
+        const life = Math.round((PHASE_POP + PHASE_FALL) * k);
+        pop.style.setProperty('--pop-ms', `${life}ms`);
+        state.modal.querySelector('.tro-play').appendChild(pop);
+        later(state, () => pop.remove(), life);
+        countTo(state, state.game.score, Math.round(PHASE_POP * k));
+    }
+    // «+N с» у таймера — там же, где секунды: часы это продолжение партии, и
+    // заметить их надо в том месте, которое от них зависит.
+    if (step.timeGained > 0) {
+        const gain = state.modal.querySelector('#tro-time-gain');
+        if (gain) {
+            gain.textContent = `+${Math.round(step.timeGained / 1000)} с`;
+            gain.classList.remove('is-show');
+            void gain.offsetWidth;
+            gain.classList.add('is-show');
+        }
+        renderTime(state);
+    }
+}
+
+// 4. Падение: поле перерисовывается уже новым, и всё, что съехало вниз,
+// приезжает сверху (см. renderBoard). На время падения поле обрезает вылезающее
+// за край — новые фишки прилетают из-за верхней рамки, а не из шапки окна.
+function dropBoard(state, step, k) {
+    const board = state.modal.querySelector('#tro-board');
+    const ms = Math.round(PHASE_FALL * k);
+    board.style.setProperty('--fall-ms', `${ms}ms`);
+    board.classList.add('is-falling');
+    renderBoard(state, step);
+    later(state, () => board.classList.remove('is-falling'), ms);
+}
+
+/** Середина набора клеток в координатах окна игры — куда всплыть цифре. */
+function centerOf(state, cells) {
+    const play = state.modal.querySelector('.tro-play').getBoundingClientRect();
+    const first = state.cells[0].getBoundingClientRect();
+    // Шаг сетки меряем по соседней клетке, а не берём из CSS: промежуток между
+    // клетками задан там, и держать его копией здесь — верный способ разъехаться.
+    const stepPx = state.cells[1].getBoundingClientRect().left - first.left;
+    let sx = 0;
+    let sy = 0;
+    for (const i of cells) {
+        sx += xOf(i);
+        sy += yOf(i);
+    }
+    const n = cells.length || 1;
+    // Цифру держим внутри поля: у тройки в верхнем ряду середина приходится на
+    // самый край, и всплывающая надпись уезжала бы на счётчики над полем.
+    const pad = 22;
+    const clamp = (v, max) => Math.min(Math.max(v, pad), Math.max(max - pad, pad));
+    return {
+        x: clamp(first.left - play.left + first.width / 2 + (sx / n) * stepPx, play.width),
+        y: clamp(first.top - play.top + first.height / 2 + (sy / n) * stepPx, play.height),
+    };
+}
+
+// Счётчик очков доезжает до нового значения за время фазы. Считаем по кадрам, а
+// не шагами по таймеру: на медленном шаге цифра иначе дёргается.
+function countTo(state, target, ms) {
+    cancelCount(state);
+    const from = state.stats.score < 0 ? target : state.stats.score;
+    if (from === target) { setStat(state, '#tro-score', target.toLocaleString('ru-RU')); return; }
+    const t0 = performance.now();
+    const box = state.modal.querySelector('#tro-score');
+    const tick = (ts) => {
+        if (openState !== state) return;
+        const p = Math.min((ts - t0) / ms, 1);
+        // Замедление к концу: так последняя цифра «доезжает», а не обрывается.
+        const value = Math.round(from + (target - from) * (1 - (1 - p) * (1 - p)));
+        state.stats.score = value;
+        if (box) box.textContent = value.toLocaleString('ru-RU');
+        if (p < 1) { state.countRaf = requestAnimationFrame(tick); return; }
+        state.countRaf = 0;
+        state.stats.score = target;
+        setStat(state, '#tro-score', target.toLocaleString('ru-RU'));
+    };
+    state.countRaf = requestAnimationFrame(tick);
+}
+
+function cancelCount(state) {
+    if (!state.countRaf) return;
+    cancelAnimationFrame(state.countRaf);
+    state.countRaf = 0;
 }
 
 function shake(state, i) {
@@ -669,8 +847,12 @@ function shake(state, i) {
 
 // ── Очки, время, надписи ─────────────────────────────────────────────────────
 
+// Итоговая отрисовка счётчиков: если очки сейчас «доезжают» (countTo), она их
+// обгоняет и ставит точное значение — иначе после конца партии в шапке осталось
+// бы промежуточное число.
 function renderStats(state) {
     const { game, stats } = state;
+    cancelCount(state);
     if (stats.score !== game.score) {
         stats.score = game.score;
         setStat(state, '#tro-score', game.score.toLocaleString('ru-RU'));
@@ -708,29 +890,6 @@ function renderTime(state) {
     const fill = state.modal.querySelector('#tro-time-fill');
     if (fill) fill.style.width = `${Math.max(pct, 0)}%`;
     state.modal.querySelector('.tro-time')?.classList.toggle('is-low', ms <= LOW_TIME_MS);
-}
-
-// Сколько дал шаг: множитель каскада показывается ровно тогда, когда он есть, —
-// именно он и есть та причина думать над ходом.
-function showGain(state, step) {
-    const box = state.modal.querySelector('#tro-gain');
-    if (box && step.gained > 0) {
-        const mult = step.mult > 1
-            ? `<span class="tro-gain-mult">×${step.mult}${step.mult === MAX_CASCADE_MULT ? '!' : ''}</span>`
-            : '';
-        box.innerHTML = `${mult}+${step.gained.toLocaleString('ru-RU')}`;
-        box.classList.remove('is-show');
-        void box.offsetWidth;
-        box.classList.add('is-show');
-    }
-    if (step.timeGained > 0) {
-        const gain = state.modal.querySelector('#tro-time-gain');
-        if (!gain) return;
-        gain.textContent = `+${Math.round(step.timeGained / 1000)} с`;
-        gain.classList.remove('is-show');
-        void gain.offsetWidth;
-        gain.classList.add('is-show');
-    }
 }
 
 function note(state, html) {

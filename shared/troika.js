@@ -602,22 +602,31 @@ export function resolveStep(game) {
         game.timeMs += timeGained;
     }
 
-    const spawned = collapse(game);
+    const { spawned, fall } = collapse(game);
     return {
-        cells: [...clear], created, fired, spawned,
+        cells: [...clear], created, fired, spawned, fall,
         tiles, clocks, gained, timeGained, cascade: game.cascade, mult,
     };
 }
 
 /**
- * Обвалить столбцы вниз и досыпать сверху новые фишки. Возвращает клетки,
- * которых на поле раньше не было, — окну для анимации появления.
+ * Обвалить столбцы вниз и досыпать сверху новые фишки.
+ *
+ * Возвращает { spawned, fall }: список клеток, которых на поле раньше не было, и
+ * массив «на сколько строк фишка приехала вниз» для КАЖДОЙ клетки. Второе нужно
+ * окну, чтобы показать падение: без него оно знает только, что картинка стала
+ * другой, и фишки просто подменяются на месте — рывком, из которого не понять,
+ * что вообще произошло.
+ *
+ * Досыпанные считаются приехавшими из-за верхнего края: сколько клеток в столбце
+ * досыпали, столько строк они и «пролетели».
  *
  * Проход по столбцу один: клетка-приёмник идёт своим шагом, клетка-источник
  * своим — как в уборке линий тетриса.
  */
 function collapse(game) {
     const spawned = [];
+    const fall = new Uint8Array(CELLS);
     const chance = clockChance(game.level);
     for (let x = 0; x < SIZE; x++) {
         let write = SIZE - 1;
@@ -630,17 +639,20 @@ function collapse(game) {
                 game.special[w] = game.special[i];
                 game.color[i] = -1;
                 game.special[i] = NONE;
+                fall[w] = write - y;
             }
             write--;
         }
+        const fresh = write + 1;          // столько клеток сверху досыпаем
         for (; write >= 0; write--) {
             const w = idx(x, write);
             game.color[w] = randColor(game);
             game.special[w] = game.rng() < chance ? CLOCK : NONE;
+            fall[w] = fresh;
             spawned.push(w);
         }
     }
-    return spawned;
+    return { spawned, fall };
 }
 
 // ── Тупик ────────────────────────────────────────────────────────────────────
