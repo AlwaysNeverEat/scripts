@@ -3926,8 +3926,304 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 
 
+/* ── Пасхалка «Тройка» (матч-3 на время) ──────────────────────────
+   Окно открывается только из поиска (набрать «тройка» и Enter).
+   Поле 8×8: размер клетки, как у тетриса, считается сразу от трёх
+   ограничений — потолок, ширина экрана и ОСТАТОК высоты после шапки,
+   счётчиков, легенды, мини-топа и подсказки, — поэтому поле целиком
+   видно и на 360px телефона, и на ноутбуке с короткой рамкой, без
+   прокрутки внутри окна. */
+.modal-win.tro-win { max-width: 520px; }
+.tro-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 9px; }
+
+.tro-win {
+  /* Три ограничения: потолок в 38px, ширина экрана и ОСТАТОК ВЫСОТЫ после всего
+     остального в окне (шапка, счётчики, легенда, мини-топ, подсказка, отступы и
+     рамка поля — вместе ровно те 400px, что вычтены; посчитано по факту, а не на
+     глаз). Выше 85vh модалка не бывает — см. .modal-win. */
+  --tro-cell: max(26px, min(38px, calc((100vw - 58px) / 8), calc((85vh - 400px) / 8)));
+  /* Шесть видов фишек. Цвета разнесены по кругу И по светлоте: сравнивать их
+     приходится по три раза в секунду, и соседние виды обязаны отличаться даже
+     в оттенках серого. Форма при этом всё равно своя у каждого (см. icons.js) —
+     цвет здесь помощник, а не единственный признак. */
+  --tro-ring: oklch(0.78 0.13 200);
+  --tro-square: oklch(0.62 0.16 260);
+  --tro-triangle: oklch(0.78 0.15 62);
+  --tro-hex: oklch(0.72 0.17 145);
+  --tro-star: oklch(0.66 0.17 305);
+  --tro-drop: oklch(0.64 0.19 25);
+}
+.k-ring { --c: var(--tro-ring); } .k-square { --c: var(--tro-square); }
+.k-triangle { --c: var(--tro-triangle); } .k-hex { --c: var(--tro-hex); }
+.k-star { --c: var(--tro-star); } .k-drop { --c: var(--tro-drop); }
+
+/* ── Счётчики и таймер ── */
+.tro-hud { display: flex; align-items: stretch; gap: 8px; }
+.tro-time {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; gap: 5px; justify-content: center;
+  padding: 5px 9px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+}
+.tro-time-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--sub); }
+.tro-time-label { display: inline-flex; align-items: center; gap: 4px; }
+.tro-time-row b {
+  font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+/* «+3 с» — единственная новость, которую в этой игре надо заметить обязательно:
+   часы и есть продолжение партии. Поэтому надпись живёт рядом с таймером, а не
+   там, где очки. */
+.tro-time-gain {
+  order: 3; min-width: 34px; text-align: right;
+  font-size: 11.5px; font-weight: 700; color: var(--green); opacity: 0;
+}
+.tro-time-gain.is-show { animation: tro-gain-in .9s ease-out; }
+.tro-time-bar { height: 5px; border-radius: 3px; background: var(--bg); overflow: hidden; }
+.tro-time-bar > i {
+  display: block; height: 100%; width: 100%;
+  background: var(--accent); border-radius: 3px;
+  /* Полоса едет плавно, но переход короткий: она обновляется по кадрам, и
+     длинный transition превратил бы её в «отстающую от цифр». */
+  transition: width .12s linear, background-color .2s ease;
+}
+.tro-time.is-low .tro-time-bar > i { background: var(--red); }
+.tro-time.is-low .tro-time-row b { color: var(--red); animation: tro-tick 1s steps(2) infinite; }
+@keyframes tro-tick { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .45; } }
+
+.tro-stat {
+  display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  min-width: 62px; padding: 4px 9px;
+  font-size: 10.5px; color: var(--sub);
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+}
+.tro-stat b { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
+/* Та же «подмигивающая» цифра, что у сапёра и тетриса (@keyframes ms-bump). */
+.tro-stat b.is-bump { display: inline-block; animation: ms-bump .28s ease-out; }
+
+/* ── Поле ── */
+/* Обёртка сжата ПО ПОЛЮ (width: fit-content), а не растянута на всю ширину
+   окна: от неё считаются и «+540», и затемнение на паузе, — а затемнение шире
+   поля выглядит сломанной вёрсткой. */
+.tro-play { position: relative; display: flex; justify-content: center; width: fit-content; margin: 0 auto; }
+.tro-board {
+  display: grid;
+  grid-template-columns: repeat(8, var(--tro-cell));
+  grid-auto-rows: var(--tro-cell);
+  gap: 3px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* Поле не тянется и не сжимается: клетки обязаны остаться квадратными. */
+  flex: none;
+  touch-action: none;          /* фишку тянут пальцем — страница при этом не едет */
+}
+
+.tro-cell {
+  position: relative;          /* значок вида специальной фишки — в углу клетки */
+  display: flex; align-items: center; justify-content: center;
+  width: var(--tro-cell); height: var(--tro-cell); padding: 0;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  border-radius: 9px;
+  cursor: pointer;
+  /* Форма фишки — SVG внутри, он и наследует var(--c). Заливка клетки нарочно
+     бледная: шесть насыщенных квадратов рядом рябят так, что фигуры на них
+     не различить. */
+  transition: transform .1s ease, box-shadow .14s ease, border-color .14s ease;
+}
+.tro-cell .icon { display: block; }
+.tro-glyph { display: flex; }
+/* Вид специальной фишки — маленьким значком в углу: крупно нарисована сама
+   фигура (ракета, бомба, призма, часы), но по какому виду она соберётся в
+   тройку, видеть надо тоже. */
+.tro-badge {
+  position: absolute; right: 2px; bottom: 1px;
+  opacity: .85; pointer-events: none;
+}
+.tro-cell.is-special {
+  background: color-mix(in srgb, var(--c) 34%, transparent);
+  border-color: color-mix(in srgb, var(--c) 62%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent);
+}
+/* Призма — самая сильная фигура, и она единственная светится: её ищут глазами
+   специально. */
+.tro-cell.is-prism { box-shadow: 0 0 10px -1px color-mix(in srgb, var(--c) 70%, transparent); }
+.tro-cell.is-clock { border-style: dashed; }
+
+.tro-cell.is-sel {
+  transform: scale(1.08);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+/* Курсор клавиатуры показывается только тогда, когда ею играют (см. troika.js):
+   мышью играющему человеку рамка «где-то там» только мешает. */
+.tro-cell.is-cursor { border-color: var(--text); border-style: dashed; }
+
+/* Уборка: фишка уходит в точку. Именно поэтому окно и рисует шаг каскада в два
+   приёма — иначе исчезновение не показать вовсе. */
+.tro-cell.is-clear { animation: tro-clear .15s ease-in forwards; }
+@keyframes tro-clear {
+  to { transform: scale(.25); opacity: 0; }
+}
+/* Сработавшая ракета/бомба/призма — вспышка: должно быть видно, что рвануло
+   именно тут, а не просто «полполя исчезло». */
+.tro-cell.is-boom { animation: tro-boom .15s ease-out forwards; }
+@keyframes tro-boom {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.35); background: var(--c); }
+  100% { transform: scale(.3); opacity: 0; }
+}
+.tro-cell.is-fall { animation: tro-fall .16s cubic-bezier(.3, .8, .4, 1); }
+@keyframes tro-fall {
+  from { transform: translateY(-40%); opacity: .35; }
+  to   { transform: none; opacity: 1; }
+}
+.tro-cell.is-born { animation: tro-born .3s cubic-bezier(.2, .8, .3, 1); }
+@keyframes tro-born {
+  from { transform: scale(.4) rotate(-12deg); }
+  60%  { transform: scale(1.14) rotate(2deg); }
+  to   { transform: none; }
+}
+/* Обмен не по правилам: короткий отказ клеткой понятнее любой надписи. */
+.tro-cell.is-nope { animation: tro-nope .26s ease-in-out; }
+@keyframes tro-nope {
+  0%, 100% { transform: none; }
+  25%      { transform: translateX(-3px); }
+  75%      { transform: translateX(3px); }
+}
+
+/* Сколько дал шаг — над полем, у самого края: цифра должна попасть в глаз, не
+   закрывая при этом фишки, по которым сейчас думают. */
+.tro-gain {
+  position: absolute; top: 4px; right: 8px;
+  display: flex; align-items: baseline; gap: 4px;
+  font-size: 15px; font-weight: 800; color: var(--accent);
+  text-shadow: 0 1px 6px var(--bg);
+  opacity: 0; pointer-events: none;
+}
+.tro-gain.is-show { animation: tro-gain-in .8s ease-out; }
+.tro-gain-mult { font-size: 12px; color: var(--gold); }
+@keyframes tro-gain-in {
+  0%   { opacity: 0; transform: translateY(6px); }
+  25%  { opacity: 1; transform: none; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* Пауза и конец партии закрывают ТОЛЬКО поле, а не всё окно: мини-топ под ним
+   в этот момент как раз и хочется прочитать. */
+.tro-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--overlay); backdrop-filter: blur(2px);
+  border-radius: 10px;
+}
+.tro-overlay-card {
+  text-align: center; padding: 14px 16px; max-width: 92%;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-1);
+}
+.tro-over-title { font-size: 15px; font-weight: 800; }
+.tro-over-sub { font-size: 12px; color: var(--sub); margin-top: 4px; }
+.tro-record { color: var(--accent); }
+.tro-over-actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+
+/* Строка новостей поля: пока сказать нечего, места не занимает — но высота
+   держится, иначе поле подпрыгивало бы на каждом перемешивании. */
+.tro-note {
+  min-height: 16px;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11.5px; color: var(--sub); opacity: 0;
+  transition: opacity .2s ease;
+}
+.tro-note.is-show { opacity: 1; }
+
+/* Легенда «штучек»: что даётся за четвёрку, угол и пятёрку. Держим её В ОКНЕ, а
+   не в подсказке где-то: без этих правил игра превращается в обычный матч-3, а
+   узнать их посреди партии на время негде. */
+.tro-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 12px;
+  font-size: 11px; color: var(--sub);
+}
+.tro-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.tro-legend .icon { color: var(--text); flex: none; }
+
+/* ── Мини-топ ── */
+.tro-top {
+  display: flex; flex-direction: column; gap: 2px;
+  padding-top: 8px; border-top: 1px solid var(--border);
+}
+.tro-top-head {
+  font-size: 10.5px; color: var(--sub); text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: 4px;
+}
+.tro-top-empty { font-size: 12px; color: var(--sub); }
+/* Список прокручивается САМ, а не тянет за собой всё окно. */
+.tro-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 116px; overflow-y: auto; }
+.tro-top-row {
+  display: grid; grid-template-columns: 20px 22px 1fr auto;
+  align-items: center; gap: 8px;
+  padding: 3px 6px; border-radius: 7px;
+  font-size: 12.5px;
+}
+.tro-top-row.is-me { background: var(--accent-dim); }
+.tro-top-row.is-first .tro-top-score { color: var(--gold); }
+.tro-top-rank { color: var(--sub); font-variant-numeric: tabular-nums; text-align: right; }
+.tro-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
+.tro-top-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tro-top-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tro-top-score { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tro-top-row.is-mine-extra { grid-template-columns: 20px 1fr auto; margin-top: 4px; }
+
+/* Подсказка по клавишам — как в тетрисе: в рамке значок самой клавиши. */
+.tro-hint {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px;
+  font-size: 11.5px; color: var(--sub);
+}
+.tro-key {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 5px;
+  font: inherit; font-size: 10.5px; color: var(--text);
+  background: var(--bg2); border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 5px;
+}
+.tro-key + .tro-key { margin-left: -2px; }
+/* На телефоне клавиш нет — там тянут фишку пальцем, и подсказка про курсор
+   только отнимает высоту у поля. */
+@media (pointer: coarse) { .tro-hint { display: none; } }
+
+@media (max-width: 460px) {
+  .tro-body { padding: 12px 10px 14px; }
+  .tro-hud { gap: 6px; }
+  .tro-stat { min-width: 54px; padding: 4px 7px; }
+}
+/* Потолок списка ниже там, где высоту делить не с кем (то же правило, что у
+   тетриса, и по той же причине — стоит ПОСЛЕ базового .tro-top-list). */
+@media (pointer: coarse) { .tro-top-list { max-height: 86px; } }
+
+/* Короткий экран (ноутбук с невысокой рамкой). Здесь мало сжать поле: даже на
+   минимальной клетке окно не влезает целиком, потому что «не поле» — счётчики,
+   легенда, мини-топ и подсказка — само по себе занимает больше трёхсот
+   пикселей. Поэтому ужимаем именно его: список до двух строк, отступы и
+   промежутки до минимума, — а поле остаётся играбельным. */
+@media (max-height: 700px) {
+  /* Всё «не поле» здесь ужато, поэтому и вычитаем меньше: 350px вместо 400. */
+  .tro-win { --tro-cell: max(22px, min(34px, calc((100vw - 58px) / 8), calc((85vh - 350px) / 8))); }
+  .tro-body { padding: 10px 12px 12px; gap: 6px; }
+  .tro-note { min-height: 0; }
+  .tro-top { padding-top: 6px; }
+  .tro-top-list { max-height: 46px; }
+  .tro-legend { gap: 2px 10px; }
+  .tro-hud { gap: 6px; }
+  .tro-time { padding: 4px 8px; }
+}
+
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
-   Три игры собраны из одинаковых кирпичей, и «оживление» у них общее.
+   Игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
    браузер пересчитывать раскладку) и ровно там, где что-то ПРОИЗОШЛО —
    ход, догадка, конец партии. Постоянно шевелящийся интерфейс мешает
@@ -3935,7 +4231,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.ms-win,
 .modal-win.wordle-win,
 .modal-win.kontekst-win,
-.modal-win.tet-win {
+.modal-win.tet-win,
+.modal-win.tro-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
 @keyframes game-in {
@@ -3999,8 +4296,24 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .ms-counter.is-bump b,
   .modal-win.tet-win,
   .tet-board.is-clear,
-  .tet-stat b.is-bump {
+  .tet-stat b.is-bump,
+  .modal-win.tro-win,
+  .tro-stat b.is-bump,
+  .tro-time.is-low .tro-time-row b,
+  .tro-cell.is-fall,
+  .tro-cell.is-born,
+  .tro-cell.is-nope,
+  .tro-gain.is-show,
+  .tro-time-gain.is-show {
     animation: none;
   }
+  /* Уборке фишек анимацию НЕ отключаем, а только укорачиваем: она не украшение,
+     а единственное, что показывает, какие именно фишки исчезли. Без неё поле
+     просто подменяется, и понять, за что дали очки, нельзя. */
+  .tro-cell.is-clear, .tro-cell.is-boom { animation-duration: .01s; }
+  /* «+540» и «+3 с» без движения всё равно должны быть видны — показываем их
+     статично, а не прячем. */
+  .tro-gain.is-show, .tro-time-gain.is-show { opacity: 1; }
   .wordle-key, .ms-cell, .ms-flagmode, .ms-odds-toggle, .kontekst-row { transition: none; }
+  .tro-cell, .tro-time-bar > i { transition: none; }
 }
