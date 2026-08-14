@@ -15,6 +15,12 @@
 // «999999 за минуту», а не от человека с открытой консолью — мини-топ пасхалки
 // такой цены и стоит.
 //
+// ЧТО СЧИТАЕТСЯ СОБРАННЫМ: связная область фишек одного вида, внутри которой
+// есть линия из трёх или квадрат 2×2. Область убирается целиком — вместе с
+// одиночками, прилипшими к ней по краям (см. findGroups). Награду при этом
+// считает форма, а не число фишек: прилипшие дают очки, но не превращают тройку
+// в четвёрку.
+//
 // РЕЖИМ: бесконечный, ограниченный временем. Таймер идёт вниз, часы на поле
 // добавляют секунды — то есть партия продолжается ровно столько, сколько игрок
 // успевает её «докупать». Отсюда и весь скилл: сама тройка почти ничего не
@@ -33,9 +39,11 @@
 export const SIZE = 8;
 export const CELLS = SIZE * SIZE;
 
-// Виды фишек. Имя — это класс в CSS и иконка на фронте: цветом фишки не
-// различаются НАМЕРЕННО (то есть различаются не только цветом) — у каждой своя
-// форма, иначе играть с нарушением цветовосприятия нельзя вовсе.
+// Виды фишек. Имя — это и класс в CSS, и ФОРМА нарисованной фишки: кольцо,
+// квадрат, треугольник, шестиугольник, звезда, капля (картинки — спрайт
+// frontend/src/assets/troika-tiles.webp, порядок строк в нём тот же, что здесь).
+// Форма у каждого вида своя намеренно: играть в матч-3, где фишки различаются
+// только цветом, с нарушением цветовосприятия нельзя вовсе.
 export const KINDS = ['ring', 'square', 'triangle', 'hex', 'star', 'drop'];
 export const KIND_COUNT = KINDS.length;
 
@@ -50,7 +58,11 @@ export const PRISM = 4;      // сносит все фишки своего ви
 export const CLOCK = 5;      // не взрывается, а добавляет время, когда её убрали
 
 // Классы для CSS — чтобы окно игры не держало свою копию этого соответствия.
+// Порядок констант выше — это ещё и порядок СТОЛБЦОВ в спрайте фишек, так что
+// менять их значения нельзя, не пересобрав картинку. Обычная фишка тоже
+// названа: на поле она такой же столбец спрайта, как остальные.
 export const SPECIAL_CLASS = {
+    [NONE]: 'plain',
     [ROCKET_H]: 'rocket-h',
     [ROCKET_V]: 'rocket-v',
     [BOMB]: 'bomb',
@@ -220,11 +232,12 @@ function shuffledKinds(game) {
 // ── Поиск троек ──────────────────────────────────────────────────────────────
 
 /**
- * Есть ли тройка, проходящая через клетку i.
+ * Собралось ли что-нибудь на клетке i: линия из трёх или квадрат 2×2.
  *
- * Считает длину линии одного вида в обе стороны от клетки — это дешевле, чем
- * искать все тройки на поле, а именно этот вопрос задаётся чаще всего: на
- * каждую проверку «можно ли так обменять», то есть по сотне раз за ход.
+ * Считает длину линии в обе стороны от клетки и проверяет четыре квадрата, в
+ * которые клетка может входить, — это дешевле, чем искать все фигуры на поле, а
+ * именно этот вопрос задаётся чаще всего: на каждую проверку «можно ли так
+ * обменять», то есть по сотне раз за ход.
  */
 export function hasMatchAt(game, i) {
     const c = game.color[i];
@@ -240,7 +253,22 @@ export function hasMatchAt(game, i) {
     n = 1;
     for (let k = y - 1; k >= 0 && game.color[idx(x, k)] === c; k--) n++;
     for (let k = y + 1; k < SIZE && game.color[idx(x, k)] === c; k++) n++;
-    return n >= 3;
+    if (n >= 3) return true;
+
+    // Квадрат: клетка может быть любым из его четырёх углов.
+    for (let dy = -1; dy <= 0; dy++) {
+        for (let dx = -1; dx <= 0; dx++) {
+            if (isSquare(game, x + dx, y + dy, c)) return true;
+        }
+    }
+    return false;
+}
+
+/** Квадрат 2×2 одного вида с левым верхним углом в (x, y). */
+function isSquare(game, x, y, c) {
+    if (c < 0 || x < 0 || y < 0 || x + 1 >= SIZE || y + 1 >= SIZE) return false;
+    return game.color[idx(x, y)] === c && game.color[idx(x + 1, y)] === c
+        && game.color[idx(x, y + 1)] === c && game.color[idx(x + 1, y + 1)] === c;
 }
 
 /** Все прогоны (линии одного вида длиной 3+) на поле. */
@@ -275,48 +303,86 @@ function scanRuns(game) {
     return runs;
 }
 
+/** Все квадраты 2×2 одного вида на поле. */
+function scanSquares(game) {
+    const squares = [];
+    for (let y = 0; y + 1 < SIZE; y++) {
+        for (let x = 0; x + 1 < SIZE; x++) {
+            const c = game.color[idx(x, y)];
+            if (!isSquare(game, x, y, c)) continue;
+            squares.push({ cells: [idx(x, y), idx(x + 1, y), idx(x, y + 1), idx(x + 1, y + 1)] });
+        }
+    }
+    return squares;
+}
+
 /**
- * Тройки, собранные в ГРУППЫ: пересекающиеся прогоны — одна фигура.
+ * Что собралось на поле — списком ГРУПП.
  *
- * Разница принципиальная: пять фишек углом — это не «тройка и тройка», а одна
- * фигура, за которую даётся бомба. Без склейки за тот же угол выдавалось бы две
- * награды, а очки считались бы дважды.
+ * Группа — это СВЯЗНАЯ ОБЛАСТЬ фишек одного вида, внутри которой есть хоть одна
+ * фигура: линия из трёх или квадрат 2×2. Убирается вся область целиком, вместе с
+ * «прилипшими» по краям одиночками, — потому что игрок видит на поле пятно
+ * одного вида, а не «вот эти три в счёт, а эта, четвёртая, сбоку — нет».
+ *
+ * Из этого же следует, что пять фишек углом — ОДНА фигура (за неё даётся одна
+ * бомба, а не две награды за две тройки): область-то связная. Раньше для этого
+ * приходилось склеивать пересекающиеся прогоны руками.
  */
 export function findGroups(game) {
     const runs = scanRuns(game);
-    const owner = new Map();     // клетка → номер группы
-    const groups = [];
+    const squares = scanSquares(game);
+    if (!runs.length && !squares.length) return [];
 
-    for (const run of runs) {
-        const hit = new Set();
-        for (const i of run.cells) {
-            const g = owner.get(i);
-            if (g !== undefined) hit.add(g);
+    // Клетки, с которых начинается разрастание: всё, что вошло хоть в одну
+    // фигуру. Без них областью считалось бы любое пятно одного вида, включая
+    // случайную пару соседей.
+    const seeds = [];
+    for (const r of runs) seeds.push(r.cells[0]);
+    for (const q of squares) seeds.push(q.cells[0]);
+
+    const groupOf = new Int8Array(CELLS).fill(-1);
+    const groups = [];
+    for (const seed of seeds) {
+        if (groupOf[seed] >= 0) continue;          // уже в разросшейся области
+        const color = game.color[seed];
+        const gi = groups.length;
+        const cells = new Set([seed]);
+        const queue = [seed];
+        groupOf[seed] = gi;
+        for (let head = 0; head < queue.length; head++) {
+            const i = queue[head];
+            const x = xOf(i);
+            const y = yOf(i);
+            // Соседи по стороне: по диагонали фишки в одну область не собираются
+            // — иначе «пятном» оказывалась бы половина поля.
+            const around = [
+                x > 0 ? i - 1 : -1,
+                x + 1 < SIZE ? i + 1 : -1,
+                y > 0 ? i - SIZE : -1,
+                y + 1 < SIZE ? i + SIZE : -1,
+            ];
+            for (const j of around) {
+                if (j < 0 || groupOf[j] >= 0 || game.color[j] !== color) continue;
+                groupOf[j] = gi;
+                cells.add(j);
+                queue.push(j);
+            }
         }
-        if (!hit.size) {
-            groups.push({ cells: new Set(run.cells), runs: [run] });
-            const gi = groups.length - 1;
-            for (const i of run.cells) owner.set(i, gi);
-            continue;
-        }
-        // Прогон касается уже известных групп — все они и он сливаются в одну.
-        const [into, ...rest] = [...hit];
-        const target = groups[into];
-        target.runs.push(run);
-        for (const i of run.cells) { target.cells.add(i); owner.set(i, into); }
-        for (const gi of rest) {
-            const g = groups[gi];
-            for (const i of g.cells) { target.cells.add(i); owner.set(i, into); }
-            target.runs.push(...g.runs);
-            g.cells.clear();
-            g.runs.length = 0;
-        }
+        groups.push({ cells, runs: [], squares: [] });
     }
-    return groups.filter(g => g.cells.size);
+
+    // Раскидываем фигуры по областям: по ним считается награда за группу.
+    for (const r of runs) groups[groupOf[r.cells[0]]].runs.push(r);
+    for (const q of squares) groups[groupOf[q.cells[0]]].squares.push(q);
+    return groups;
 }
 
 /**
  * Что даётся за группу и куда это положить.
+ *
+ * Награда считается по ФОРМЕ, а не по числу убранных фишек: «прилипшие» по краям
+ * одиночки дают очки, но не превращают тройку в четвёрку — иначе достаточно было
+ * бы копить пятна одного вида, и специальные сыпались бы сами.
  *
  * Специальная фигура появляется в клетке, которую игрок ТРОНУЛ, — иначе она
  * возникает где-то в середине фигуры, и понять, за что её дали, нельзя.
@@ -324,17 +390,32 @@ export function findGroups(game) {
 function rewardFor(game, group) {
     const hasH = group.runs.some(r => r.horiz);
     const hasV = group.runs.some(r => !r.horiz);
-    const longest = group.runs.reduce((a, b) => (b.len > a.len ? b : a));
+    const longest = group.runs.length
+        ? group.runs.reduce((a, b) => (b.len > a.len ? b : a))
+        : null;
 
     let special = NONE;
     if (hasH && hasV) special = BOMB;
-    else if (longest.len >= 5) special = PRISM;
-    else if (longest.len === 4) special = longest.horiz ? ROCKET_H : ROCKET_V;
+    else if (longest && longest.len >= 5) special = PRISM;
+    else if (longest && longest.len === 4) special = longest.horiz ? ROCKET_H : ROCKET_V;
+    // Квадрат 2×2 — это те же четыре фишки, что и четвёрка в линию, поэтому и
+    // награда та же. Направление ракеты берём у ХОДА: двигал по горизонтали —
+    // полетит по строке. У квадрата своего направления нет, а «случайно куда»
+    // игрок прочесть не может.
+    else if (group.squares.length) special = swapWasVertical(game) ? ROCKET_V : ROCKET_H;
     if (special === NONE) return null;
 
     const touched = (game.lastSwap || []).find(i => group.cells.has(i));
-    const cell = touched != null ? touched : longest.cells[Math.floor(longest.len / 2)];
-    return { cell, special, color: game.color[longest.cells[0]] };
+    const fallback = longest
+        ? longest.cells[Math.floor(longest.len / 2)]
+        : group.squares[0].cells[0];
+    const cell = touched != null ? touched : fallback;
+    return { cell, special, color: game.color[cell] };
+}
+
+function swapWasVertical(game) {
+    const swap = game.lastSwap;
+    return !!swap && Math.abs(swap[0] - swap[1]) === SIZE;
 }
 
 // ── Обмен ────────────────────────────────────────────────────────────────────
@@ -564,16 +645,28 @@ function collapse(game) {
 
 // ── Тупик ────────────────────────────────────────────────────────────────────
 
-/** Есть ли хоть один разрешённый обмен. */
-export function hasMove(game) {
+/**
+ * Первый разрешённый обмен на поле — или null, если ходов не осталось.
+ *
+ * Нужен дважды: проверить, не тупик ли (hasMove), и показать подсказку тому, кто
+ * ищет ход уже несколько секунд. Обход идёт слева направо сверху вниз, то есть
+ * ответ ОДИН И ТОТ ЖЕ на одном и том же поле: подсказка не должна прыгать
+ * с фишки на фишку, пока игрок на неё смотрит.
+ */
+export function findMove(game) {
     for (let y = 0; y < SIZE; y++) {
         for (let x = 0; x < SIZE; x++) {
             const i = idx(x, y);
-            if (x + 1 < SIZE && canSwap(game, i, i + 1)) return true;
-            if (y + 1 < SIZE && canSwap(game, i, i + SIZE)) return true;
+            if (x + 1 < SIZE && canSwap(game, i, i + 1)) return [i, i + 1];
+            if (y + 1 < SIZE && canSwap(game, i, i + SIZE)) return [i, i + SIZE];
         }
     }
-    return false;
+    return null;
+}
+
+/** Есть ли хоть один разрешённый обмен. */
+export function hasMove(game) {
+    return findMove(game) !== null;
 }
 
 /**
@@ -634,9 +727,11 @@ export function tickTime(game, dtMs) {
 // секунду».
 const MIN_MS_PER_MOVE = 120;
 // Сколько фишек может унести ОДИН ход в самом щедром случае: цепочка призм и
-// бомб убирает поле по нескольку раз, пока сыплются новые. Граница с большим
-// запасом — она отсекает бессмыслицу, а не считает «сколько бывает».
-const MAX_TILES_PER_MOVE = 250;
+// бомб убирает поле по нескольку раз, пока сыплются новые. Прогон двухсот партий
+// «жадным» игроком, который каждый раз выбирает самый жирный ход, дал максимум
+// 153 фишки за ход — граница вчетверо выше, потому что она отсекает бессмыслицу
+// («миллион фишек за два хода»), а не считает, сколько бывает на самом деле.
+const MAX_TILES_PER_MOVE = 400;
 // Партия длится ровно столько, сколько ей отсыпали часы (плюс округление и
 // последний кадр).
 const TIME_SLACK_MS = 5_000;

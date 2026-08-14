@@ -29,17 +29,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-    createGame, applySwap, resolveStep, hasMove, shuffle, tickTime,
+    createGame, applySwap, resolveStep, hasMove, findMove, shuffle, tickTime,
     areNeighbours, idx, xOf, yOf,
     SIZE, CELLS, KINDS, SPECIAL_CLASS,
-    NONE, ROCKET_H, ROCKET_V, BOMB, PRISM, CLOCK,
+    NONE, CLOCK,
     MAX_MS, LOW_TIME_MS, CLOCK_MS, MAX_CASCADE_MULT,
 } from '../../shared/troika.js';
+// Значки интерфейса остаются SVG: часы в шапке таймера, стрелки в подсказке по
+// клавишам и «перемешано» в строке новостей — это не фишки, а элементы окна, и
+// картинке из спрайта там делать нечего.
 import {
-    ringIcon, squareIcon, triangleIcon, hexIcon, starIcon, dropIcon,
-    rocketHIcon, rocketVIcon, prismIcon, clockIcon, shuffleIcon, mineIcon,
+    clockIcon, shuffleIcon,
     arrowLeftIcon, arrowRightIcon, arrowUpIcon, arrowDownIcon,
 } from './icons.js';
+import tilesSheet from './assets/troika-tiles.webp';
 
 const MODAL_ID = 'troika-modal';
 
@@ -48,41 +51,32 @@ const MODAL_ID = 'troika-modal';
 const CLEAR_MS = 150;
 const FALL_MS = 90;
 
+// Через сколько молчания показать подсказку. Пять секунд — это уже «сижу и ищу»,
+// а не «думаю»: за это время человек успевает просмотреть поле один раз.
+const HINT_AFTER_MS = 5_000;
+
 // Свайп: с какого смещения жест считается «потянул фишку», а не «ткнул». Меньше
 // десятка пикселей — и обычный тап пальцем становится случайным ходом.
 const SWIPE_PX = 12;
 
-// Значок вида фишки. Порядок — как в KINDS: индекс вида и есть индекс иконки.
-const KIND_ICON = [ringIcon, squareIcon, triangleIcon, hexIcon, starIcon, dropIcon];
-
-// Значок специальной фишки. Бомба — та же мина, что в сапёре: рисовать вторую
-// бомбу «почти как та» значило бы разъехаться с ней на первой же правке.
-const SPECIAL_ICON = {
-    [ROCKET_H]: rocketHIcon,
-    [ROCKET_V]: rocketVIcon,
-    [BOMB]: mineIcon,
-    [PRISM]: prismIcon,
-    [CLOCK]: clockIcon,
-};
-
-// Клетка кодируется одним числом (вид × 8 + специальная), и вся её разметка
-// посчитана заранее: 36 вариантов на всю игру. Собирать SVG строкой на каждую
-// клетку каждого шага — самая дорогая глупость, которую тут можно сделать: за
-// партию это десятки тысяч склеек.
+// Фишки нарисованы картинками и лежат ОДНИМ спрайтом 6×6 (assets/troika-tiles):
+// строка — вид фишки (порядок KINDS), столбец — состояние (порядок констант
+// NONE…CLOCK из правил). Тридцать шесть отдельных файлов дали бы тридцать шесть
+// запросов при открытии окна, и первые полсекунды поле стояло бы пустым.
+//
+// Из этого же спрайта берутся картинки в легенде — она обязана показывать ровно
+// те фишки, которые лежат на поле, а не «похожие значки».
+//
+// Клетка кодируется одним числом (вид × 8 + состояние), и класс на неё посчитан
+// заранее: 36 вариантов на всю игру. Собирать строку класса на каждую клетку
+// каждого шага незачем — за партию это десятки тысяч склеек.
 const CODE_OF = (color, special) => color * 8 + special;
 const TILE = (() => {
     const table = [];
     for (let color = 0; color < KINDS.length; color++) {
         for (let special = NONE; special <= CLOCK; special++) {
-            const cls = `tro-cell k-${KINDS[color]}`
-                + (special ? ` is-special is-${SPECIAL_CLASS[special]}` : '');
-            // У специальной фишки крупно рисуется ОНА, а вид уходит в уголок:
-            // знать надо и что это за фигура, и по какому виду она соберётся.
-            const html = special
-                ? `<span class="tro-glyph">${SPECIAL_ICON[special](22)}</span>`
-                  + `<span class="tro-badge">${KIND_ICON[color](12)}</span>`
-                : `<span class="tro-glyph">${KIND_ICON[color](22)}</span>`;
-            table[CODE_OF(color, special)] = { cls, html };
+            // Вид даёт строку спрайта и цвет подсветки, состояние — столбец.
+            table[CODE_OF(color, special)] = `tro-cell k-${KINDS[color]} s-${SPECIAL_CLASS[special]}`;
         }
     }
     return table;
@@ -99,6 +93,18 @@ export function openTroika(ctx) {
     modal.id = MODAL_ID;
     modal.className = 'modal';
     modal.innerHTML = shellHtml();
+    // Путь к спрайту знает сборщик (он его хэширует), а нужен он в CSS — поэтому
+    // кладём его переменной на само окно, а не прописываем в style.css.
+    const win = modal.querySelector('.tro-win');
+    win.style.setProperty('--tro-sheet', `url(${tilesSheet})`);
+    // Пока картинки нет, клетки красятся цветами своих видов: спрайт весит
+    // полторы сотни килобайт, и на плохой связи поле иначе стояло бы пустым.
+    // Если он не загрузится вовсе, класс так и останется — по цветам играть
+    // можно, по пустым квадратам нельзя.
+    win.classList.add('no-tiles');
+    const sheet = new Image();
+    sheet.onload = () => win.classList.remove('no-tiles');
+    sheet.src = tilesSheet;
     document.body.appendChild(modal);
     document.body.classList.add('modal-open');
 
@@ -114,6 +120,8 @@ export function openTroika(ctx) {
         keyboard: false,                         // курсор показываем, только когда им играют
         drag: null,                              // { from, x, y } — начатый жест
         busy: false,                             // идёт каскад, ход не принимается
+        idleMs: 0,                               // сколько игрок не делает ходов
+        hint: null,                              // подсвеченная пара [a, b]
         // Партию, поднятую из отложенной, продолжают с паузы: см. шапку файла.
         paused: resumed,
         finished: false,
@@ -217,12 +225,18 @@ function shellHtml() {
 
 // Что дают «штучки» — прямо в окне: искать это в голове посреди партии на время
 // невозможно, а без них игра превращается в обычный матч-3 без причины думать.
+//
+// Показываем НАСТОЯЩИЕ фишки из того же спрайта (каждую своего вида — заодно
+// видно, что специальная бывает любого): значок «вообще про ракету» пришлось бы
+// сопоставлять с тем, что лежит на поле, а это ровно та работа, которую легенда
+// и должна снимать.
 function legendHtml() {
-    const item = (icon, text) => `<span class="tro-legend-item">${icon}<span>${text}</span></span>`;
-    return item(rocketHIcon(16), 'четвёрка — ракета, сносит линию')
-        + item(mineIcon(16), 'угол — бомба, сносит 5×5')
-        + item(prismIcon(16), 'пятёрка — призма, сносит все свои')
-        + item(clockIcon(16), `часы — плюс ${CLOCK_MS / 1000} с к таймеру`);
+    const chip = (kind, state) => `<i class="tro-chip k-${kind} s-${state}"></i>`;
+    const item = (tile, text) => `<span class="tro-legend-item">${tile}<span>${text}</span></span>`;
+    return item(chip('square', 'rocket-h'), 'четвёрка или квадрат 2×2 — ракета, сносит линию')
+        + item(chip('drop', 'bomb'), 'угол — бомба, сносит 5×5')
+        + item(chip('star', 'prism'), 'пятёрка — призма, сносит все свои')
+        + item(chip('triangle', 'clock'), `часы — плюс ${CLOCK_MS / 1000} с к таймеру`);
 }
 
 // Легенда управления: в рамке — САМА КЛАВИША, рядом — что она делает (так же,
@@ -264,6 +278,12 @@ function frame(state, ts) {
 
     const ended = tickTime(state.game, dt);
     renderTime(state);
+    // Простой считаем только когда ход ВОЗМОЖЕН: во время каскада игрок не
+    // бездельничает, он смотрит, что натворил.
+    if (!state.busy && !state.hint) {
+        state.idleMs += dt;
+        if (state.idleMs >= HINT_AFTER_MS) showHint(state);
+    }
     if (ended) {
         state.raf = 0;
         // Каскад, начатый до нуля на таймере, доигрывается — и только потом
@@ -301,8 +321,34 @@ function tryMove(state, a, b) {
         return;
     }
     setSel(state, -1);
+    clearHint(state);
     renderBoard(state);
     runCascade(state);
+}
+
+// ── Подсказка ────────────────────────────────────────────────────────────────
+
+// Игрок несколько секунд не ходит — показываем ОДИН возможный обмен: обе фишки
+// пары начинают пульсировать. Это подсказка «вот здесь», а не «сделай так»:
+// ходов на поле обычно с десяток, и правила всегда возвращают один и тот же
+// (см. findMove), чтобы подсветка не прыгала, пока человек на неё смотрит.
+//
+// Подсказка ничего не стоит игроку и никак не мешает: очки за неё не снимаются
+// — партия и так идёт на время, и потерянные на поиск секунды это уже цена.
+function showHint(state) {
+    if (state.paused || state.game.over) return;
+    const move = findMove(state.game);
+    if (!move) return;              // тупик разберёт afterSettle
+    state.hint = move;
+    move.forEach(i => paintMarks(state, i));
+}
+
+function clearHint(state) {
+    state.idleMs = 0;
+    const hint = state.hint;
+    if (!hint) return;
+    state.hint = null;
+    hint.forEach(i => paintMarks(state, i));
 }
 
 // Каскад: шаг правил — подсветка — перерисовка — следующий шаг. Пока цепочка
@@ -336,6 +382,8 @@ function afterSettle(state) {
         renderBoard(state);
         note(state, `${shuffleIcon(14)} Ходов не осталось — поле перемешано`);
     }
+    // Каскад кончился — поле другое, и отсчёт «сижу и ищу» начинается заново.
+    clearHint(state);
     if (state.game.over) finish(state);
 }
 
@@ -465,6 +513,8 @@ function restart(state) {
     state.paused = false;
     state.finished = false;
     state.sel = -1;
+    state.hint = null;
+    state.idleMs = 0;
     state.drag = null;
     state.drawn.fill(-1);
     state.stats = { score: -1, level: -1 };
@@ -525,6 +575,9 @@ function markRecord(state) {
 
 function buildBoard(state) {
     const board = state.modal.querySelector('#tro-board');
+    // Внутри клетки ничего нет: фишка — это картинка со спрайта, то есть фон
+    // самой кнопки. Поэтому шаг каскада меняет только className, и innerHTML за
+    // партию не трогается ни разу.
     board.innerHTML = Array.from({ length: CELLS },
         (_, i) => `<button type="button" class="tro-cell" data-i="${i}" tabindex="-1"></button>`).join('');
     // Узлы клеток запоминаем один раз: искать их по data-i на каждый шаг каскада
@@ -557,11 +610,9 @@ function renderBoard(state, step = null) {
         // уборки — её надо снять, поэтому здесь не continue, а paintMarks.
         if (drawn[i] === code && !(step && born.has(i))) { paintMarks(state, i); continue; }
         drawn[i] = code;
-        const tile = TILE[code];
         let extra = '';
         if (step) extra = born.has(i) ? ' is-born' : ' is-fall';
-        cells[i].innerHTML = tile.html;
-        cells[i].className = tile.cls + extra + marks(state, i);
+        cells[i].className = TILE[code] + extra + marks(state, i);
     }
 }
 
@@ -569,12 +620,13 @@ function renderBoard(state, step = null) {
 // перерисовывать из-за них всё поле незачем.
 function marks(state, i) {
     return (state.sel === i ? ' is-sel' : '')
-        + (state.keyboard && state.cursor === i ? ' is-cursor' : '');
+        + (state.keyboard && state.cursor === i ? ' is-cursor' : '')
+        + (state.hint && (state.hint[0] === i || state.hint[1] === i) ? ' is-hint' : '');
 }
 
 function paintMarks(state, i) {
     const node = state.cells[i];
-    const want = TILE[state.drawn[i]].cls + marks(state, i);
+    const want = TILE[state.drawn[i]] + marks(state, i);
     if (node.className !== want) node.className = want;
 }
 
