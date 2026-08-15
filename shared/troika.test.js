@@ -168,13 +168,17 @@ test('к линии прилипают соседние фишки того же
 
     const step = resolveStep(game);
     assert.equal(step.tiles, 5);
-    assert.equal(step.gained, 5 * TILE_POINTS, 'прилипшие дают очки');
-    assert.equal(step.created.length, 0, 'но награду считает ФОРМА: это всё ещё тройка');
+    // Пять фишек — до бомбы (шесть) не хватило, но ракету пятно даёт: в счёт
+    // идут ВСЕ убранные фишки, а не только вставшие в линию.
+    assert.equal(step.created.length, 1);
+    assert.equal(step.created[0].special, ROCKET_H, 'линия в пятне лежит по строке — туда и полетит');
+    assert.equal(step.gained, 5 * TILE_POINTS + CREATE_BONUS[ROCKET_H]);
 });
 
-test('прилипшая фишка не превращает тройку в четвёрку', () => {
-    // Тройка в столбце плюс соседка сбоку — по клеткам это четыре фишки, но
-    // ракету за такое давать нельзя: иначе достаточно копить пятна одного вида.
+test('прилипшая фишка идёт в счёт: четыре фишки разом — ракета, как ни лежат', () => {
+    // Тройка в столбце плюс соседка сбоку — четыре фишки одного вида, убранные
+    // разом. В легенде написано «четвёрка», и с поля видно ровно четыре фишки:
+    // раньше за такое не давали ничего, потому что награду считала одна форма.
     const game = blank();
     paint(game, [[3, 2], [3, 3]], 5);
     paint(game, [[4, 4]], 5);
@@ -184,7 +188,70 @@ test('прилипшая фишка не превращает тройку в ч
     assert.equal(applySwap(game, idx(3, 4), idx(4, 4)), 'match');
     const step = resolveStep(game);
     assert.equal(step.tiles, 4);
-    assert.equal(step.created.length, 0);
+    assert.equal(step.created.length, 1);
+    // Ход был по ГОРИЗОНТАЛИ, а линия в пятне вертикальная: направление берётся
+    // у линии, чтобы на одну и ту же картинку ответ был один и тот же.
+    assert.equal(step.created[0].special, ROCKET_V);
+    assert.equal(step.gained, 4 * TILE_POINTS + CREATE_BONUS[ROCKET_V]);
+});
+
+test('пятно без второй линии: шесть фишек — бомба, восемь — призма', () => {
+    // Шесть: четвёрка по строке 4 (x=1..4) и две прилипшие снизу — под первой и
+    // под третьей. Столбцы при этом остаются по ДВЕ фишки, то есть это не «угол»
+    // и не квадрат: награду такому пятну даёт только размер.
+    const six = blank();
+    paint(six, [[1, 4], [2, 4], [4, 4]], 5);
+    paint(six, [[3, 3]], 5);              // её и подведём в разрыв
+    paint(six, [[1, 5], [3, 5]], 5);
+    assert.equal(findGroups(six).length, 0, 'до хода ничего не собрано');
+
+    assert.equal(applySwap(six, idx(3, 4), idx(3, 3)), 'match');
+    const groups = findGroups(six);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].cells.size, 6);
+    const sixStep = resolveStep(six);
+    assert.equal(sixStep.tiles, 6);
+    assert.equal(sixStep.created[0].special, BOMB,
+        'по форме это была бы ракета за четвёрку — берём то, что сильнее');
+
+    // Восемь: та же четвёрка, но прилипших четыре — и это уже призма.
+    const eight = blank();
+    paint(eight, [[1, 4], [2, 4], [4, 4]], 5);
+    paint(eight, [[3, 5]], 5);
+    paint(eight, [[0, 3], [1, 3], [3, 3]], 5);
+    paint(eight, [[2, 5]], 5);
+    assert.equal(findGroups(eight).length, 0, 'до хода ничего не собрано');
+
+    assert.equal(applySwap(eight, idx(3, 4), idx(3, 5)), 'match');
+    const eightStep = resolveStep(eight);
+    assert.equal(eightStep.tiles, 8);
+    assert.equal(eightStep.created[0].special, PRISM);
+});
+
+test('форма сильнее размера: пятёрка в ряд — призма, пересечение линий — бомба', () => {
+    // Пять фишек — по размеру это ракета, но пятёрка В РЯД остаётся призмой:
+    // её собирают специально, и она нарисована в легенде.
+    const line = blank();
+    paint(line, [[1, 5], [2, 5], [4, 5], [5, 5]], 5);
+    paint(line, [[3, 6]], 5);
+    paint(line, [[3, 5]], 4);
+    assert.equal(applySwap(line, idx(3, 5), idx(3, 6)), 'match');
+    const lineStep = resolveStep(line);
+    assert.equal(lineStep.tiles, 5);
+    assert.equal(lineStep.created[0].special, PRISM);
+
+    // Т-образная фигура из пяти: строка 2 (x=2..4) и столбец 3 (y=2..4). Пяти
+    // фишек на бомбу по размеру не хватает (нужно шесть), но линии пересекаются
+    // — и это бомба, как было всегда.
+    const tee = blank();
+    paint(tee, [[2, 2], [4, 2], [3, 3], [3, 4]], 5);
+    paint(tee, [[3, 1]], 5);              // подводим перекрестье сверху
+    assert.equal(findGroups(tee).length, 0, 'до хода ничего не собрано');
+
+    assert.equal(applySwap(tee, idx(3, 2), idx(3, 1)), 'match');
+    const teeStep = resolveStep(tee);
+    assert.equal(teeStep.tiles, 5);
+    assert.equal(teeStep.created[0].special, BOMB);
 });
 
 test('угол (тройка + тройка) — одна фигура и одна бомба, а не две награды', () => {

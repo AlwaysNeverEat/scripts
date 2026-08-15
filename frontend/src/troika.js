@@ -34,6 +34,7 @@ import {
     SIZE, CELLS, KINDS, SPECIAL_CLASS,
     NONE, CLOCK,
     MAX_MS, LOW_TIME_MS, CLOCK_MS, MAX_CASCADE_MULT,
+    ROCKET_TILES, BOMB_TILES, PRISM_TILES,
 } from '../../shared/troika.js';
 // Значки интерфейса остаются SVG: часы в шапке таймера, стрелки в подсказке по
 // клавишам и «перемешано» в строке новостей — это не фишки, а элементы окна, и
@@ -237,9 +238,13 @@ function shellHtml() {
 function legendHtml() {
     const chip = (kind, state) => `<i class="tro-chip k-${kind} s-${state}"></i>`;
     const item = (tile, text) => `<span class="tro-legend-item">${tile}<span>${text}</span></span>`;
-    return item(chip('square', 'rocket-h'), 'четвёрка или квадрат 2×2 — ракета, сносит линию')
-        + item(chip('drop', 'bomb'), 'угол — бомба, сносит 5×5')
-        + item(chip('star', 'prism'), 'пятёрка — призма, сносит все свои')
+    // Числа берём из правил, а не пишем словами: пороги там и подобраны, и
+    // легенда, разошедшаяся с игрой, хуже, чем её отсутствие. Формулировка — «N
+    // фишек разом», потому что считаются ВСЕ убранные фишки пятна, как бы они ни
+    // легли; отдельно названы только две фигуры, которые сильнее своего размера.
+    return item(chip('square', 'rocket-h'), `${ROCKET_TILES} фишки разом — ракета, сносит линию`)
+        + item(chip('drop', 'bomb'), `${BOMB_TILES} или пересечение линий — бомба, сносит 5×5`)
+        + item(chip('star', 'prism'), `${PRISM_TILES} или пятёрка в ряд — призма, сносит все свои`)
         + item(chip('triangle', 'clock'), `часы — плюс ${CLOCK_MS / 1000} с к таймеру`);
 }
 
