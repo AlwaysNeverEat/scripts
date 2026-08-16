@@ -34,7 +34,7 @@
 import {
     createGame, deserialize, shoot, stepFrame, cloneGame,
     canPlaceCue, legalTargets, remaining, ballById, aimCast, stateHash,
-    TABLE_W, TABLE_H, BALL_R, POCKET_R, POCKETS, HEAD_X,
+    TABLE_W, TABLE_H, BALL_R, POCKET_MOUTH, POCKETS, HEAD_X,
     CUE, DIR_SCALE, POS_SCALE, POWER_MIN, POWER_MAX,
     FOUL_TEXT, END_TEXT, GROUP_TEXT,
 } from '../../shared/pool.js';
@@ -59,7 +59,15 @@ const POLL_LOBBY_MS = 4500;
 
 // Пауза перед ударом бота: без неё он бьёт в тот же кадр, и партия выглядит как
 // «я ударил, и сразу мой ход опять».
-const BOT_THINK_MS = 700;
+const BOT_THINK_MS = 450;
+
+// ЧУЖОЙ УДАР ПОКАЗЫВАЕТСЯ ЦЕЛИКОМ, а не только разлётом шаров: сначала на столе
+// появляется кий и линия прицела соперника, потом он замахивается, и лишь затем
+// шары едут. Без этого соперник (хоть бот, хоть человек) выглядит как невидимая
+// сила, которая двигает шары: половина удовольствия от бильярда — увидеть, ЧТО
+// человек задумал, ещё до удара.
+const AIM_SHOW_MS = 520;
+const PULL_SHOW_MS = 380;
 
 // Цвета шаров — канон американки: у полосатых те же цвета, что у сплошных
 // на восемь меньше. Это единственное место, где вообще есть внешний вид шара.
@@ -110,6 +118,8 @@ export function openPool(ctx) {
         busy: false,
         // Позиция сервера, с которой надо сверить свою, когда шары встанут.
         expect: null,
+        // Чужой прицел, пока он показывается (бот или соперник).
+        replay: null,
     };
     openState = state;
 
@@ -418,6 +428,7 @@ function showTable(state) {
     state.pull = 0;
     state.dragging = false;
     state.place = null;
+    state.replay = null;
     resize(state);
     render(state);
     if (state.mode === 'pvp') startPolling(state);
@@ -432,6 +443,7 @@ function stopAll(state) {
     state.botTimer = 0;
     state.raf = 0;
     state.animating = false;
+    state.replay = null;
 }
 
 /** Мой ли сейчас ход (у бота «мой» — это ход человека). */
@@ -610,6 +622,46 @@ async function sendShot(state, shot) {
     }
 }
 
+/**
+ * Показать, как соперник целится, и только потом отдать ход дальше.
+ *
+ * Работает одинаково для бота и для человека: на вход тот же удар из четырёх
+ * чисел, что уезжает по сети. Партию НЕ ТРОГАЕТ — бьёт уже `done`, поэтому
+ * позиция всё это время остаётся ровно той, что была до удара.
+ */
+function showAim(state, shot, done) {
+    const len = Math.sqrt(shot.dx * shot.dx + shot.dy * shot.dy) || 1;
+    const place = shot.cx != null && shot.cy != null
+        ? { x: shot.cx / POS_SCALE, y: shot.cy / POS_SCALE }
+        : null;
+    const target = Math.max(0, Math.min(1, (shot.power - POWER_MIN) / (POWER_MAX - POWER_MIN)));
+
+    state.animating = true;
+    state.replay = {
+        dir: { x: shot.dx / len, y: shot.dy / len },
+        from: place || cuePos(state),
+        place,
+        pull: 0,
+    };
+
+    const started = performance.now();
+    const step = () => {
+        state.raf = 0;
+        if (openState !== state || state.screen !== 'table') return;
+        const t = performance.now() - started;
+        // Сначала просто стоим на прицеле — соперник «примеривается», — и только
+        // потом замахиваемся. Замах сразу читался бы как рывок.
+        state.replay.pull = t < AIM_SHOW_MS
+            ? 0
+            : Math.min(1, (t - AIM_SHOW_MS) / PULL_SHOW_MS) * target;
+        render(state);
+        if (t < AIM_SHOW_MS + PULL_SHOW_MS) { state.raf = requestAnimationFrame(step); return; }
+        state.replay = null;
+        done();
+    };
+    state.raf = requestAnimationFrame(step);
+}
+
 /** Прокрутить удар по кадрам, показывая движение. */
 function animate(state) {
     state.animating = true;
@@ -670,7 +722,9 @@ function maybeBotTurn(state) {
     state.botTimer = setTimeout(() => {
         if (openState !== state || state.screen !== 'table') return;
         const shot = pickShot(state.game, { level: state.botLevel });
-        if (!shoot(state.game, shot).ok) {
+        // Проверяем удар на КОПИИ: показ прицела идёт полторы секунды, и всё это
+        // время на столе должна стоять позиция до удара.
+        if (!shoot(cloneGame(state.game), shot).ok) {
             // Такого быть не должно (тест «бот всегда придумывает удар, который
             // принимает движок»), но партию из-за этого ронять нельзя.
             note(state, 'Бот развёл руками — ход ваш');
@@ -678,7 +732,10 @@ function maybeBotTurn(state) {
             render(state);
             return;
         }
-        animate(state);
+        showAim(state, shot, () => {
+            shoot(state.game, shot);
+            animate(state);
+        });
     }, BOT_THINK_MS);
 }
 
@@ -724,17 +781,20 @@ function afterSync(state, res) {
     // соперник увидел, КАК разъехались шары. Позицию сервера при этом не
     // выбрасываем: она станет эталоном для сверки, когда шары встанут.
     if (res.seq === state.seq + 1 && res.last_shot && state.game.phase === 'aim' && !state.animating) {
-        const before = cloneGame(state.game);
-        if (shoot(state.game, res.last_shot).ok) {
+        // Пробуем удар на КОПИИ: пока показывается прицел соперника, на столе
+        // должна стоять позиция до удара, а не после.
+        if (shoot(cloneGame(state.game), res.last_shot).ok) {
             state.seq = res.seq;
             state.place = null;
             state.expect = { hash: res.hash, state: res.state };
-            animate(state);
+            showAim(state, res.last_shot, () => {
+                shoot(state.game, res.last_shot);
+                animate(state);
+            });
             return;
         }
         // Удар не лёг на нашу позицию — значит, мы уже разошлись с сервером, и
         // показывать нечего: ниже возьмём готовую расстановку.
-        state.game = before;
     }
 
     // Ударов случилось несколько (вкладка спала, сеть молчала) или мы разошлись
@@ -853,36 +913,53 @@ function drawTable(g, state, scale, padX, padY) {
     }
 }
 
+// Луза рисуется по УСТЬЮ (вырезу в борте), а не по радиусу захвата: устье ровно
+// на радиус шара больше, поэтому шар пропадает в тот момент, когда целиком вошёл
+// в нарисованный круг. Рисовать по радиусу захвата — значит показывать лунку
+// вдвое больше её рабочей области, и шар будет исчезать, наполовину торча наружу.
 function drawPockets(g) {
     g.fillStyle = '#0b0b0d';
     for (const p of POCKETS) {
         g.beginPath();
-        g.arc(p.x, p.y, POCKET_R, 0, Math.PI * 2);
+        g.arc(p.x, p.y, POCKET_MOUTH, 0, Math.PI * 2);
         g.fill();
     }
 }
 
+/**
+ * Биток «в руке» — тот, что сейчас держат, а не тот, что лежит на столе.
+ *
+ * Держать его может и соперник: пока показывается его прицел, биток надо рисовать
+ * там, куда он его ставит, иначе кий будет целиться из пустого места.
+ */
+function heldCue(state) {
+    if (state.replay) return state.replay.place ? { at: state.replay.place, check: false } : null;
+    if (!state.game.ballInHand || !myTurn(state) || state.animating) return null;
+    const spot = state.place || state.aim;
+    return spot ? { at: spot, check: true } : null;
+}
+
 function drawBalls(g, state) {
+    const held = heldCue(state);
     for (const b of state.game.balls) {
         if (b.in) continue;
-        // Биток в руке рисуем там, где его держит указатель.
-        if (b.id === CUE && state.game.ballInHand && myTurn(state)) continue;
+        // Биток, который держат в руке, рисуется отдельно — на месте, где его
+        // держат, а не там, где он лежал.
+        if (b.id === CUE && held) continue;
         drawBall(g, b.x, b.y, b.id, 1);
     }
-    if (state.game.ballInHand && myTurn(state)) {
-        const spot = state.place || state.aim;
-        if (spot) {
-            const ok = canPlaceCue(state.game, spot.x, spot.y);
-            drawBall(g, spot.x, spot.y, CUE, ok ? 1 : 0.35);
-            if (!ok) {
-                g.strokeStyle = '#e05252';
-                g.lineWidth = 0.35;
-                g.beginPath();
-                g.arc(spot.x, spot.y, BALL_R * 1.35, 0, Math.PI * 2);
-                g.stroke();
-            }
-        }
-    }
+    if (!held) return;
+
+    // Своё место проверяем и показываем красным, если сюда нельзя. Чужое не
+    // проверяем: сервер его уже принял, и спорить с ним нам нечем.
+    const ok = !held.check || canPlaceCue(state.game, held.at.x, held.at.y);
+    drawBall(g, held.at.x, held.at.y, CUE, ok ? 1 : 0.35);
+    if (ok) return;
+    g.strokeStyle = '#e05252';
+    g.lineWidth = 0.35;
+    g.beginPath();
+    g.arc(held.at.x, held.at.y, BALL_R * 1.35, 0, Math.PI * 2);
+    g.stroke();
 }
 
 function drawBall(g, x, y, id, alpha) {
@@ -945,13 +1022,28 @@ function drawBall(g, x, y, id, alpha) {
  * Без неё в бильярд на экране играть невозможно — на настоящем столе человек
  * наклоняется и смотрит вдоль кия, а здесь взгляд сверху и такой возможности нет.
  */
-function drawAim(g, state) {
-    if (!myTurn(state) || state.animating) return;
-    if (state.game.ballInHand && !state.place) return;
+/**
+ * Чей прицел сейчас рисуем: мой (по указателю) или чужой (по присланному удару).
+ *
+ * Одна точка входа для обоих случаев — иначе кий соперника пришлось бы рисовать
+ * вторым, почти таким же куском кода, и они разъехались бы при первой правке.
+ */
+function aimView(state) {
+    if (state.replay) {
+        return { from: state.replay.from, dir: state.replay.dir, pull: state.replay.pull, seat: state.game.turn };
+    }
+    if (!myTurn(state) || state.animating) return null;
+    if (state.game.ballInHand && !state.place) return null;
     const dir = state.dragging ? state.dir : (state.aim && aimDir(state, state.aim));
-    if (!dir) return;
+    if (!dir) return null;
+    return { from: cuePos(state), dir, pull: state.pull, seat: state.seat };
+}
 
-    const cue = cuePos(state);
+function drawAim(g, state) {
+    const view = aimView(state);
+    if (!view) return;
+    const { from: cue, dir } = view;
+
     const hit = aimCast(state.game, cue.x, cue.y, dir.x, dir.y);
     if (!hit) return;
 
@@ -982,7 +1074,8 @@ function drawAim(g, state) {
         oy /= len;
         // Свой шар подсвечиваем зелёным, чужой и восьмёрку — красным: это самая
         // частая ошибка новичка, и одна цветная линия объясняет её без слов.
-        const targets = legalTargets(state.game, state.seat);
+        // Считаем от того, КТО целится: у соперника свои законные шары.
+        const targets = legalTargets(state.game, view.seat);
         g.strokeStyle = targets.includes(hit.id) ? 'rgba(150,255,170,0.85)' : 'rgba(255,140,120,0.85)';
         g.lineWidth = 0.3;
         g.beginPath();
@@ -995,13 +1088,11 @@ function drawAim(g, state) {
 
 /** Кий: рисуется только пока целятся, и отъезжает назад по мере оттяжки. */
 function drawCue(g, state) {
-    if (!myTurn(state) || state.animating) return;
-    if (state.game.ballInHand && !state.place) return;
-    const dir = state.dragging ? state.dir : (state.aim && aimDir(state, state.aim));
-    if (!dir) return;
+    const view = aimView(state);
+    if (!view) return;
+    const { from: cue, dir } = view;
 
-    const cue = cuePos(state);
-    const back = BALL_R * 1.4 + state.pull * TABLE_W * 0.16;
+    const back = BALL_R * 1.4 + view.pull * TABLE_W * 0.16;
     const x0 = cue.x - dir.x * back;
     const y0 = cue.y - dir.y * back;
     const x1 = x0 - dir.x * 46;
@@ -1024,12 +1115,12 @@ function drawCue(g, state) {
     g.stroke();
 
     // Полоска силы вдоль кия — точнее, чем догадываться по длине замаха.
-    if (state.pull > 0) {
-        g.strokeStyle = state.pull > 0.8 ? '#e0603c' : '#e8c15a';
+    if (view.pull > 0) {
+        g.strokeStyle = view.pull > 0.8 ? '#e0603c' : '#e8c15a';
         g.lineWidth = 1.4;
         g.beginPath();
         g.moveTo(x0 - dir.x * 3, y0 - dir.y * 3);
-        g.lineTo(x0 - dir.x * (3 + 30 * state.pull), y0 - dir.y * (3 + 30 * state.pull));
+        g.lineTo(x0 - dir.x * (3 + 30 * view.pull), y0 - dir.y * (3 + 30 * view.pull));
         g.stroke();
     }
     g.restore();

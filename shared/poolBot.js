@@ -31,8 +31,8 @@
 
 import {
     cloneGame, shoot, settle, legalTargets, canPlaceCue, aimCast, remaining, groupOf,
-    ballById, POCKETS, BALL_R, TABLE_W, TABLE_H, HEAD_X,
-    CUE, EIGHT, DIR_SCALE, POS_SCALE, POWER_MIN, POWER_MAX,
+    ballById, powerForDistance, POCKETS, BALL_R, TABLE_W, TABLE_H, HEAD_X,
+    CUE, EIGHT, DIR_SCALE, POS_SCALE, POWER_MAX,
 } from './pool.js';
 
 export const EASY = 'easy';
@@ -155,7 +155,7 @@ function generate(game, player) {
                     out.push({
                         shot: {
                             ...dirToShot(ax, ay),
-                            power: powerFor(need * k),
+                            power: powerForDistance(need * k),
                             ...(place ? { cx: Math.round(place.x * POS_SCALE), cy: Math.round(place.y * POS_SCALE) } : {}),
                         },
                         // Прямые и близкие удары стоит проверять первыми: если
@@ -328,19 +328,6 @@ function dirToShot(dx, dy) {
         dx: Math.round((dx / len) * DIR_SCALE),
         dy: Math.round((dy / len) * DIR_SCALE),
     };
-}
-
-/**
- * Сила, которой хватит проехать `inches` дюймов.
- *
- * Обратна тому, как сила превращается в скорость в shared/pool.js (энергия, а
- * не скорость), плюс запас на борта и трение. Точность тут не нужна: варианты
- * силы всё равно перебираются с шагом, а решает расчёт.
- */
-function powerFor(inches) {
-    const v = Math.sqrt(Math.max(0, inches) * 2 * 18);      // v² = 2·a·s, a — трение сукна
-    const t = Math.sqrt(Math.max(0, (v - 30) / 290));       // обратно к шкале ползунка
-    return Math.max(POWER_MIN, Math.min(POWER_MAX, Math.round(t * POWER_MAX)));
 }
 
 /** Дрожь руки: увести направление на случайный угол. */
