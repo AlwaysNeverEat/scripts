@@ -26,9 +26,14 @@
 // сверяется отпечаток позиции (stateHash), и при расхождении окно молча берёт
 // позицию с сервера. Молча играть дальше нельзя — двое видели бы разные столы.
 //
-// ГРАФИКА ВЕКТОРНАЯ И ВСЯ В КАНВЕ: сукно, борта, лузы, шары. Текстуры сюда лягут
-// позже — рисование собрано в одном месте (см. «Отрисовка»), а правила его не
-// касаются вовсе.
+// СУКНО, БОРТ И КИЙ — КАРТИНКИ, шары остаются вёрсткой (цветной круг с номером
+// читается на экране лучше фотографии шара размером в двадцать пикселей).
+// Лузы отдельной картинкой НЕ РИСУЮТСЯ: они нарисованы прямо в борте, поэтому
+// весь стол выравнивается одним действием — внутренний прямоугольник картинки
+// борта натягивается на игровое поле (см. RAIL_IMG и drawTable).
+//
+// Пока картинки едут, стол рисуется заливками и играть уже можно: ждать сукно
+// на сто килобайт ради первого удара человек не должен.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -39,11 +44,54 @@ import {
     FOUL_TEXT, END_TEXT, GROUP_TEXT,
 } from '../../shared/pool.js';
 import { pickShot, LEVELS, NORMAL } from '../../shared/poolBot.js';
+import clothUrl from './assets/pool-cloth.webp';
+import railUrl from './assets/pool-rail.webp';
+import cueUrl from './assets/pool-cue.webp';
 
 const MODAL_ID = 'pool-modal';
 
-// Поля вокруг сукна — борта. В единицах стола (дюймах), как и всё остальное.
-const RAIL = 5.2;
+// ── Раскладка картинки борта ─────────────────────────────────────────────────
+// Лузы НАРИСОВАНЫ В САМОМ БОРТЕ (это его часть, а не отдельная картинка),
+// поэтому всё положение стола считается от одного числа — где в этой картинке
+// её внутренний прямоугольник. На него натягивается игровое поле, и тогда
+// нарисованные лузы сами встают в шесть игровых точек.
+//
+// Числа замерены по альфа-каналу присланного листа, разбор — в
+// design/pool-table/README.md. Менять их можно только вместе с картинкой.
+const RAIL_IMG = { w: 791, h: 435, x: 60, y: 60, iw: 672, ih: 317 };
+
+// Сколько борта торчит за поле, в единицах стола. Считается из картинки, а не
+// задаётся руками: поменяется картинка — поменяется и отступ, и ничего не
+// разъедется.
+const UX = TABLE_W / RAIL_IMG.iw;
+const UY = TABLE_H / RAIL_IMG.ih;
+const RAIL_L = RAIL_IMG.x * UX;
+const RAIL_T = RAIL_IMG.y * UY;
+const RAIL_R = (RAIL_IMG.w - RAIL_IMG.x - RAIL_IMG.iw) * UX;
+const RAIL_B = (RAIL_IMG.h - RAIL_IMG.y - RAIL_IMG.ih) * UY;
+
+// Кий: длина в единицах стола, толщина — из пропорций картинки.
+const CUE_IMG = { w: 1006, h: 49 };
+const CUE_LEN = 40;
+
+// Текстуры грузятся один раз на всё окно и НЕ блокируют игру: пока их нет, стол
+// рисуется как раньше — заливками (см. drawTable). Это не запасной вариант «на
+// всякий случай», а рабочий: первая партия успевает начаться раньше, чем
+// догрузится сукно, и ждать её человек не должен.
+const TEX = {};
+let texLoading = false;
+function loadTextures() {
+    if (texLoading) return;
+    texLoading = true;
+    for (const [key, url] of [['cloth', clothUrl], ['rail', railUrl], ['cue', cueUrl]]) {
+        const img = new Image();
+        img.onload = () => {
+            TEX[key] = img;
+            if (openState && openState.screen === 'table') render(openState);
+        };
+        img.src = url;
+    }
+}
 
 // Насколько далеко от битка нужно оттянуть указатель для полной силы. В долях
 // длины стола, чтобы жест не зависел от размера окна.
@@ -144,6 +192,7 @@ export function openPool(ctx) {
     modal.querySelector('.modal-backdrop').onclick = close;
     modal.querySelector('#pool-close').onclick = close;
 
+    loadTextures();
     bindLobby(state);
     bindTable(state);
     showLobby(state);
@@ -845,7 +894,9 @@ function resize(state) {
     if (!canvas) return;
     const wrap = canvas.parentElement;
     const availW = wrap.clientWidth || 640;
-    const full = { w: TABLE_W + RAIL * 2, h: TABLE_H + RAIL * 2 };
+    // Борта по сторонам разной толщины (так нарисована картинка), поэтому
+    // размер холста считается из четырёх отступов, а не из одного.
+    const full = { w: TABLE_W + RAIL_L + RAIL_R, h: TABLE_H + RAIL_T + RAIL_B };
     // Стол вписываем по ширине, высота получается сама: пропорция у него жёсткая.
     const scale = availW / full.w;
     const cssW = availW;
@@ -857,7 +908,7 @@ function resize(state) {
     canvas.style.width = `${cssW}px`;
     canvas.style.height = `${cssH}px`;
 
-    state.view = { scale, padX: RAIL * scale, padY: RAIL * scale, dpr, cssW, cssH };
+    state.view = { scale, padX: RAIL_L * scale, padY: RAIL_T * scale, dpr, cssW, cssH };
 }
 
 function render(state) {
@@ -870,12 +921,13 @@ function render(state) {
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, canvas.width, canvas.height);
 
-    drawTable(g, state, scale, padX, padY);
-
+    // Всё, кроме сукна и борта, живёт в координатах СТОЛА (дюймах): так код
+    // отрисовки говорит на том же языке, что и правила, и ни одна из формул
+    // прицела не знает про пиксели.
     g.save();
     g.translate(padX, padY);
     g.scale(scale, scale);
-    drawPockets(g);
+    drawTable(g, state);
     drawAim(g, state);
     drawBalls(g, state);
     drawCue(g, state);
@@ -884,45 +936,63 @@ function render(state) {
     renderHud(state);
 }
 
-function drawTable(g, state, scale, padX, padY) {
-    const w = TABLE_W * scale;
-    const h = TABLE_H * scale;
-    // Борт.
-    g.fillStyle = '#5a3a22';
-    roundRect(g, 0, 0, w + padX * 2, h + padY * 2, RAIL * scale * 0.6);
-    g.fill();
-    // Сукно.
-    g.fillStyle = '#126b3f';
-    g.fillRect(padX, padY, w, h);
-    // Лёгкая подсветка от центра: ровная заливка выглядит как лист бумаги.
-    const grad = g.createRadialGradient(padX + w / 2, padY + h / 2, h * 0.1, padX + w / 2, padY + h / 2, w * 0.7);
-    grad.addColorStop(0, 'rgba(255,255,255,0.09)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.16)');
-    g.fillStyle = grad;
-    g.fillRect(padX, padY, w, h);
+/**
+ * Сукно и борт.
+ *
+ * ЛУЗЫ ОТДЕЛЬНО НЕ РИСУЮТСЯ: они нарисованы в самой картинке борта. Поэтому
+ * достаточно натянуть борт так, чтобы его внутренний прямоугольник совпал с
+ * игровым полем, — и все шесть луз сами встанут в свои игровые точки.
+ *
+ * Пока картинки не догрузились, стол рисуется заливками. Это не заглушка:
+ * первая партия успевает начаться раньше, чем приедет сукно на сто килобайт.
+ */
+function drawTable(g, state) {
+    if (TEX.cloth) {
+        // Сукно рисуется С ЗАПАСОМ за края поля и уходит ПОД борт. Ровно по краю
+        // класть нельзя: у внутренней кромки борта альфа сходит на нет не мгновенно,
+        // и по периметру остаётся тёмный шов в пару пикселей. На настоящем столе
+        // сукно тоже уходит под резину, так что это ещё и честно.
+        const over = 1.5;
+        g.drawImage(TEX.cloth, -over, -over, TABLE_W + over * 2, TABLE_H + over * 2);
+    } else {
+        g.fillStyle = '#126b3f';
+        g.fillRect(0, 0, TABLE_W, TABLE_H);
+        // Лёгкая подсветка от центра: ровная заливка выглядит как лист бумаги.
+        const grad = g.createRadialGradient(TABLE_W / 2, TABLE_H / 2, TABLE_H * 0.1,
+                                            TABLE_W / 2, TABLE_H / 2, TABLE_W * 0.7);
+        grad.addColorStop(0, 'rgba(255,255,255,0.09)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.16)');
+        g.fillStyle = grad;
+        g.fillRect(0, 0, TABLE_W, TABLE_H);
+    }
 
     // Линия дома — только пока из-за неё бьют: в остальное время это просто
-    // черта поперёк стола, которая ничего не значит.
+    // черта поперёк стола, которая ничего не значит. Поверх сукна, но под
+    // бортом, чтобы не лезла на дерево.
     if (!state.game.broke) {
         g.strokeStyle = 'rgba(255,255,255,0.22)';
-        g.lineWidth = Math.max(1, scale * 0.15);
+        g.lineWidth = 0.15;
         g.beginPath();
-        g.moveTo(padX + HEAD_X * scale, padY);
-        g.lineTo(padX + HEAD_X * scale, padY + h);
+        g.moveTo(HEAD_X, 0);
+        g.lineTo(HEAD_X, TABLE_H);
         g.stroke();
     }
-}
 
-// Луза рисуется по УСТЬЮ (вырезу в борте), а не по радиусу захвата: устье ровно
-// на радиус шара больше, поэтому шар пропадает в тот момент, когда целиком вошёл
-// в нарисованный круг. Рисовать по радиусу захвата — значит показывать лунку
-// вдвое больше её рабочей области, и шар будет исчезать, наполовину торча наружу.
-function drawPockets(g) {
-    g.fillStyle = '#0b0b0d';
-    for (const p of POCKETS) {
-        g.beginPath();
-        g.arc(p.x, p.y, POCKET_MOUTH, 0, Math.PI * 2);
-        g.fill();
+    if (TEX.rail) {
+        g.drawImage(TEX.rail, -RAIL_L, -RAIL_T, RAIL_IMG.w * UX, RAIL_IMG.h * UY);
+    } else {
+        // Без картинки борт рисуем рамкой, а лузы — кругами по устью: устье
+        // ровно на радиус шара больше захвата, поэтому шар пропадает, когда
+        // целиком вошёл в лузу, а не когда наполовину торчит наружу.
+        g.strokeStyle = '#5a3a22';
+        g.lineWidth = RAIL_L * 2;
+        g.strokeRect(-RAIL_L, -RAIL_T, TABLE_W + RAIL_L * 2, TABLE_H + RAIL_T * 2);
+        g.fillStyle = '#0b0b0d';
+        for (const p of POCKETS) {
+            g.beginPath();
+            g.arc(p.x, p.y, POCKET_MOUTH, 0, Math.PI * 2);
+            g.fill();
+        }
     }
 }
 
@@ -1095,32 +1165,43 @@ function drawCue(g, state) {
     const back = BALL_R * 1.4 + view.pull * TABLE_W * 0.16;
     const x0 = cue.x - dir.x * back;
     const y0 = cue.y - dir.y * back;
-    const x1 = x0 - dir.x * 46;
-    const y1 = y0 - dir.y * 46;
 
     g.save();
-    g.lineCap = 'round';
-    g.strokeStyle = '#c8a06a';
-    g.lineWidth = 0.85;
-    g.beginPath();
-    g.moveTo(x0, y0);
-    g.lineTo(x1, y1);
-    g.stroke();
-    // Наклейка на конце — заодно видно, куда кий смотрит.
-    g.strokeStyle = '#3f6ea8';
-    g.lineWidth = 0.85;
-    g.beginPath();
-    g.moveTo(x0, y0);
-    g.lineTo(x0 - dir.x * 1.6, y0 - dir.y * 1.6);
-    g.stroke();
-
-    // Полоска силы вдоль кия — точнее, чем догадываться по длине замаха.
-    if (view.pull > 0) {
-        g.strokeStyle = view.pull > 0.8 ? '#e0603c' : '#e8c15a';
-        g.lineWidth = 1.4;
+    if (TEX.cue) {
+        // Кий на картинке лежит наклейкой ВПРАВО, поэтому его правый край
+        // ставится в точку касания, а тело уходит влево — и всё это
+        // поворачивается по направлению удара.
+        const h = CUE_LEN * (CUE_IMG.h / CUE_IMG.w);
+        g.translate(x0, y0);
+        g.rotate(Math.atan2(dir.y, dir.x));
+        g.drawImage(TEX.cue, -CUE_LEN, -h / 2, CUE_LEN, h);
+        g.rotate(-Math.atan2(dir.y, dir.x));
+        g.translate(-x0, -y0);
+    } else {
+        g.lineCap = 'round';
+        g.strokeStyle = '#c8a06a';
+        g.lineWidth = 0.85;
         g.beginPath();
-        g.moveTo(x0 - dir.x * 3, y0 - dir.y * 3);
-        g.lineTo(x0 - dir.x * (3 + 30 * view.pull), y0 - dir.y * (3 + 30 * view.pull));
+        g.moveTo(x0, y0);
+        g.lineTo(x0 - dir.x * CUE_LEN, y0 - dir.y * CUE_LEN);
+        g.stroke();
+        g.strokeStyle = '#3f6ea8';
+        g.beginPath();
+        g.moveTo(x0, y0);
+        g.lineTo(x0 - dir.x * 1.6, y0 - dir.y * 1.6);
+        g.stroke();
+    }
+
+    // Полоска силы — ЗА торцом кия, а не поверх него: на картинке у кия свой
+    // рисунок, и цветная черта по нему читалась бы как часть кия.
+    if (view.pull > 0) {
+        const from = CUE_LEN + 1.5;
+        g.lineCap = 'round';
+        g.strokeStyle = view.pull > 0.8 ? '#e0603c' : '#e8c15a';
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(x0 - dir.x * from, y0 - dir.y * from);
+        g.lineTo(x0 - dir.x * (from + 22 * view.pull), y0 - dir.y * (from + 22 * view.pull));
         g.stroke();
     }
     g.restore();
