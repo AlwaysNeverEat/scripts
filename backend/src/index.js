@@ -16,6 +16,7 @@ import minesweeperRouter from './routes/minesweeper.js';
 import tetrisRouter from './routes/tetris.js';
 import troikaRouter from './routes/troika.js';
 import solitaireRouter from './routes/solitaire.js';
+import poolRouter from './routes/pool.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
@@ -93,6 +94,10 @@ app.use('/api/troika', requireSession, troikaRouter);
 // Пасьянс — там же и по той же причине, только топ у него по времени
 // разложенной партии (см. routes/solitaire.js).
 app.use('/api/solitaire', requireSession, solitaireRouter);
+// Бильярд — единственная пасхалка, где сервер ВЕДЁТ партию, а не принимает
+// результат: игра парная, и очко, приписанное себе, отнято у живого человека
+// (см. routes/pool.js). Сессия тут нужна вдвойне — партия именная с обеих сторон.
+app.use('/api/pool', requireSession, poolRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются

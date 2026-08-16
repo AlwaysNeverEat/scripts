@@ -4661,6 +4661,150 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .sol-body { gap: 6px; }
 }
 
+/* ── Пасхалка «Бильярд» (восьмёрка) ───────────────────────────────
+   Окно шире остальных игр: стол вдвое длиннее, чем выше, и ужимать
+   его до ширины пасьянса — значит сделать шары по восемь пикселей.
+   Всё, что не стол, поэтому прижато и по вертикали: и лобби, и HUD
+   считают высоту, которая иначе досталась бы сукну. */
+.modal-win.pool-win { width: min(980px, 96vw); max-width: 96vw; }
+.pool-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Лобби ── */
+.pool-lobby { display: flex; flex-direction: column; gap: 10px; }
+.pool-lobby-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 10px;
+}
+.pool-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--card-bg, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.pool-card h4 { margin: 0; font-size: 14px; }
+.pool-hint { margin: 0; font-size: 12px; opacity: .7; line-height: 1.35; }
+.pool-levels { display: flex; gap: 6px; flex-wrap: wrap; }
+.pool-level { flex: 1 1 0; min-width: 84px; }
+
+.pool-list { display: flex; flex-direction: column; gap: 6px; max-height: 168px; overflow-y: auto; }
+.pool-empty { font-size: 12px; opacity: .65; padding: 4px 0; }
+
+.pool-row, .pool-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pool-row { padding: 4px 0; }
+.pool-row-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+.pool-row-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pool-row-name, .pool-top-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.pool-row-btn { flex: 0 0 auto; padding: 3px 10px; font-size: 12px; }
+/* Метка «чей ход» — единственное, что в списке партий действительно нужно
+   заметить глазом, поэтому только она и подсвечена. */
+.pool-row-tag { flex: 0 0 auto; font-size: 11px; opacity: .65; }
+.pool-row-tag.is-turn { opacity: 1; color: var(--accent); font-weight: 600; }
+
+/* ── Таблица очков ── */
+.pool-top { display: flex; flex-direction: column; gap: 4px; }
+.pool-top-head { font-size: 12px; opacity: .7; }
+.pool-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 132px; overflow-y: auto; }
+.pool-top-row { padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+.pool-top-row.is-me { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.pool-top-row.is-first .pool-top-rank { font-weight: 700; color: var(--accent); }
+.pool-top-rank { width: 18px; flex: 0 0 auto; text-align: right; opacity: .7; font-size: 12px; }
+.pool-top-score { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+/* Поражения тише побед: они показаны, чтобы закрыть спор «да он просто
+   нафармил», а не чтобы с ними соревновались. */
+.pool-top-losses { opacity: .5; font-weight: 400; }
+
+/* ── Стол ── */
+.pool-table-screen { display: flex; flex-direction: column; gap: 8px; }
+.pool-hud { display: flex; align-items: center; gap: 10px; }
+.pool-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+}
+/* Чей сейчас ход — рамкой, а не цветом текста: за столом взгляд занят шарами,
+   и подпись под аватаркой в этот момент никто не читает. */
+.pool-player.is-turn { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pool-player:last-child { flex-direction: row-reverse; text-align: right; }
+.pool-player-text { min-width: 0; }
+.pool-player-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pool-player-group { font-size: 11px; opacity: .65; }
+.pool-vs { flex: 0 0 auto; opacity: .4; font-size: 12px; }
+
+.pool-canvas-wrap { position: relative; line-height: 0; }
+#pool-canvas {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  touch-action: none;      /* по сукну целятся пальцем — страница при этом не едет */
+  cursor: crosshair;
+  user-select: none;
+}
+
+.pool-bar { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.pool-note { flex: 1 1 auto; font-size: 12px; opacity: 0; transition: opacity .18s ease; min-width: 0; }
+.pool-note.is-show { opacity: .85; }
+
+/* ── Конец партии ── */
+.pool-over {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border-radius: 10px;
+}
+.pool-over-card {
+  text-align: center;
+  padding: 18px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.4;
+}
+.pool-over-title { font-size: 20px; font-weight: 700; }
+.pool-over-sub { font-size: 12px; opacity: .7; }
+
+/* Узкий экран: столбцы лобби в одну колонку, списки короче. Стол ужимать не
+   нужно — он и так тянется по ширине окна. */
+@media (max-width: 720px) {
+  .pool-lobby-cols { grid-template-columns: minmax(0, 1fr); }
+  .pool-list { max-height: 120px; }
+  .pool-top-list { max-height: 96px; }
+  .pool-vs { display: none; }
+}
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
    Игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
@@ -4673,7 +4817,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.kontekst-win,
 .modal-win.tet-win,
 .modal-win.tro-win,
-.modal-win.sol-win {
+.modal-win.sol-win,
+.modal-win.pool-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
 @keyframes game-in {
@@ -4746,9 +4891,13 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .tro-cell.is-nope,
   .tro-time-gain.is-show,
   .modal-win.sol-win,
-  .sol-card.is-nope {
+  .sol-card.is-nope,
+  .modal-win.pool-win {
     animation: none;
   }
+  /* У бильярда движение — это САМА ИГРА: катящиеся шары не украшение, и
+     выключать их нечем. Гасим только появление окна и переходы подсветки. */
+  .pool-note, .pool-player { transition: none; }
   /* Фазы шага цепочки НЕ выключаем, а укорачиваем. Выделение, уборка и падение —
      не украшение: это единственное, что показывает, какие фишки засчитались и
      откуда приехали новые. Без них поле просто подменяется, и понять, за что
