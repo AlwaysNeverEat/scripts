@@ -200,9 +200,13 @@ test('фол не назначает группу на открытом стол
     const game = table({ [CUE]: [MID, TABLE_H / 2], 3: [MID, 5], 11: [MID, TABLE_H - 5], [EIGHT]: [FAR, TABLE_H / 2] });
     const out = shoot(game, { dx: 0, dy: 0, power: 500 });
     assert.equal(out.ok, false);
-    // Настоящий промах: бьём в сторону пустого борта.
-    const miss = table({ [CUE]: [MID, TABLE_H / 2], 3: [10, 5], 11: [10, TABLE_H - 5], [EIGHT]: [10, TABLE_H / 2] });
-    const res = shoot(miss, { dx: DIR_SCALE, dy: 0, power: 200 });
+    // Настоящий промах. Биток пускаем вдоль стола по своей линии, а все шары
+    // ставим на ДРУГОЙ высоте: удар вдоль оси меняет только знак скорости на
+    // бортах, поэтому биток так и будет ходить туда-сюда по своей линии и не
+    // встретит никого, сколько бы он ни катился. Расчёт на «не доедет» тут не
+    // годится — стол живой, шар отражается и возвращается.
+    const miss = table({ [CUE]: [MID, 5], 3: [20, TABLE_H - 5], 11: [40, TABLE_H - 5], [EIGHT]: [60, TABLE_H - 5] });
+    const res = shoot(miss, { dx: DIR_SCALE, dy: 0, power: 300 });
     assert.equal(res.ok, true);
     const out2 = settle(miss);
     assert.equal(out2.foul, true);
@@ -211,11 +215,11 @@ test('фол не назначает группу на открытом стол
 });
 
 test('биток в лузу — фол, даже если свой шар упал', () => {
-    // Биток вплотную за прицельным, у самой лузы, и бьём со всей силы: после
+    // Биток за прицельным, тот — у самой лузы, и бьём со всей силы: после
     // прямого попадания биток сохраняет несколько процентов скорости (шары не
     // абсолютно упругие) и на таком расстоянии доезжает до лузы следом.
     const game = table(
-        { [CUE]: [MID, 6.5], 3: [MID, 4], [EIGHT]: [FAR, TABLE_H - 8], 11: [FAR, 8] },
+        { [CUE]: [MID, 7], 3: [MID, 3.4], [EIGHT]: [FAR, TABLE_H - 8], 11: [FAR, 8] },
         { groups: [SOLIDS, STRIPES] },
     );
     const res = straightShot(game, 1000, UP);
@@ -272,7 +276,7 @@ test('восьмёрка забита, но биток следом — пора
     // Та же расстановка, что и в тесте про скретч со своим шаром, только у лузы
     // стоит восьмёрка: забить её и уронить биток — проигрыш, а не победа.
     const game = table(
-        { [CUE]: [MID, 6.5], [EIGHT]: [MID, 4], 11: [FAR, TABLE_H - 8] },
+        { [CUE]: [MID, 7], [EIGHT]: [MID, 3.4], 11: [FAR, TABLE_H - 8] },
         { groups: [SOLIDS, STRIPES] },
     );
     assert.equal(remaining(game, SOLIDS), 0, 'своё разобрано — бить по восьмёрке законно');
@@ -314,7 +318,14 @@ test('восьмёрка на разбое — переигровка, а не �
     assert.equal(game.balls.filter(b => !b.in).length, 16, 'пирамида собрана целиком');
 });
 
-test('толкнул на полдюйма — фол «до борта никто не дошёл»', () => {
+test('«толкнуть и отдать ход» невозможно даже слабейшим ударом', () => {
+    // Правило «после касания кто-то обязан дойти до борта» существует ровно
+    // против этого: иначе можно двинуть шар на полдюйма и сидеть.
+    //
+    // На нынешней шкале силы фол no_rail недостижим — самый слабый удар всё
+    // равно доводит шар до борта (см. SPEED_MIN в pool.js), и тест проверяет
+    // именно ЭТО, а не сам фол: если однажды нижний край шкалы опустят, тест
+    // покраснеет и напомнит, что правило снова начало работать.
     const game = table(
         { [CUE]: [20, TABLE_H / 2], 3: [23, TABLE_H / 2], [EIGHT]: [FAR, TABLE_H - 8], 11: [FAR, 8] },
         { groups: [SOLIDS, STRIPES] },
@@ -322,9 +333,9 @@ test('толкнул на полдюйма — фол «до борта никт
     const out = shoot(game, { dx: DIR_SCALE, dy: 0, power: POWER_MIN });
     assert.equal(out.ok, true);
     const res = settle(game);
-    assert.equal(res.foul, true);
-    assert.equal(res.reason, 'no_rail');
-    assert.equal(game.ballInHand, true);
+    assert.equal(res.foul, false, `слабейший удар не должен быть фолом: ${res.reason}`);
+    assert.equal(res.continues, false, 'не забил — ход переходит');
+    assert.equal(game.ballInHand, false, 'фола не было — руки не дают');
 });
 
 test('не забил — ход переходит', () => {
