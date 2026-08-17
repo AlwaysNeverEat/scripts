@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { nextPoint, dailyRand } from './panoramas.js';
+import { nextPoint, lookup, dailyRand } from './panoramas.js';
 
 const realFetch = globalThis.fetch;
 process.env.MAPILLARY_TOKEN = 'MLY|test|token';
@@ -45,14 +45,30 @@ test('из найденного берётся сферический снимо
     assert.ok(calls[0].includes('is_pano'));
 });
 
-test('если сферических нет нигде — вторым проходом берётся плоский', async () => {
+test('если сферических нет нигде — берётся отложенный про запас плоский', async () => {
     // Лучше кадр в одну сторону, чем «не удалось подобрать точку».
     const calls = stub([img('flat-1', false)]);
     const point = await nextPoint();
     assert.equal(point.pano, 'flat-1');
     assert.equal(point.is_pano, false);
-    // Первый проход отработал вхолостую целиком, второй нашёл с первой попытки.
-    assert.equal(calls.length, 11);
+    // Плоский нашёлся сразу, но поиск сферического ещё немного продолжался —
+    // и оборвался, не перебирая всё до конца.
+    assert.ok(calls.length > 1 && calls.length < 14, `запросов вышло ${calls.length}`);
+});
+
+test('квадрат поиска не выходит за предел Mapillary ни на какой широте', async () => {
+    // Слишком большой bbox Mapillary не урезает, а отказывает всему запросу:
+    // «Bounding box area is too large. Maximum allowed area is 0.010 square
+    // degrees». На широте Тромсё градус долготы вдвое короче, и наивный
+    // квадрат вылезает за предел именно там.
+    const calls = stub([img('pano-1', true)]);
+    for (const lat of [0, 30, 48.86, 55.75, 69.65, -54.8]) {
+        calls.length = 0;
+        await lookup({ lat, lng: 10 });
+        const [w, s, e, n] = new URL(calls[0]).searchParams.get('bbox').split(',').map(Number);
+        const area = (e - w) * (n - s);
+        assert.ok(area <= 0.01, `на широте ${lat} площадь ${area}`);
+    }
 });
 
 test('если снимков нет вовсе — возвращается null, а не мусор', async () => {
