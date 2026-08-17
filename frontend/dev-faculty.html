@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<!-- Дев-песочница распределяющей шляпы: окно теста и карточка факультета без
+     входа и без базы.
+     Открыть: npx vite → /dev-faculty.html
+
+     Настоящие вопросы живут на сервере и приходят БЕЗ весов (см.
+     backend/src/faculty/quiz.js) — здесь они выдуманные, по одному на каждый
+     тип: выбор из четырёх, развилка, расстановка и шкала согласия. Проверять на
+     этой странице нужно вёрстку и поведение окна (сохранение по одному ответу,
+     «Назад», продолжение с места остановки, ответ шляпы), а не подсчёт: за
+     подсчёт отвечает backend/src/faculty/quiz.test.js.
+
+     Кнопка «Забыть ответы» имитирует новый аккаунт: на проде такой кнопки нет
+     и быть не может — тест проходится один раз.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: факультет</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Распределение — песочница</h2>
+    <p class="page-sub">Окно теста, карточка факультета и подложка профиля под цвета дома.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть тест</button>
+    <button class="btn btn-sec" id="dev-reset">Забыть ответы</button>
+    <select class="btn btn-sec" id="dev-house">
+      <option value="gryffindor">Гриффиндор</option>
+      <option value="slytherin">Слизерин</option>
+      <option value="ravenclaw">Когтевран</option>
+      <option value="hufflepuff">Пуффендуй</option>
+    </select>
+    <button class="btn btn-sec" id="dev-card">Показать карточку дома</button>
+  </div>
+  <div class="page-body profile-page" id="dev-out" style="max-width:760px"></div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { openFacultyTest, facultyCardHtml, facultySectionHtml } from './src/faculty.js';
+    import { FACULTIES, facultyById } from '../shared/faculties.js';
+
+    initTheme();
+
+    const SECTIONS = [
+      { id: 'life',       title: 'Как оно бывает', hint: 'Отвечай как есть, а не как правильнее звучит.' },
+      { id: 'forks',      title: 'Развилки',       hint: 'Оба варианта нормальные. Выбери тот, который ближе.' },
+      { id: 'priorities', title: 'По важности',    hint: 'Расставь по порядку — от самого важного к наименее важному.' },
+      { id: 'self',       title: 'Про себя',       hint: 'Насколько это про тебя.' },
+    ];
+    const QUESTIONS = [
+      { id: 'a1', section: 'life', type: 'choice', text: 'Ты нашёл на улице кошелёк: деньги, карты, чьи-то документы.', options: [
+        { id: 'return', text: 'Найду хозяина сам, даже если придётся ехать через полгорода' },
+        { id: 'police', text: 'Отнесу в полицию и забуду' },
+        { id: 'social', text: 'Выложу в сеть — так найдётся быстрее' },
+        { id: 'drop',   text: 'Кину документы в почтовый ящик, и на этом всё' },
+      ] },
+      { id: 'b1', section: 'forks', type: 'pair', text: 'Что ближе?', options: [
+        { id: 'regret', text: 'Лучше жалеть о сделанном' },
+        { id: 'safe',   text: 'Лучше не рисковать зря' },
+      ] },
+      { id: 'c1', section: 'priorities', type: 'order', text: 'Что тебе важнее в друге?', items: [
+        { id: 'honest', text: 'Честность' },
+        { id: 'fun',    text: 'С ним интересно' },
+        { id: 'solid',  text: 'На него можно положиться' },
+        { id: 'strong', text: 'Он добивается своего' },
+      ] },
+      { id: 'd1', section: 'self', type: 'scale', text: 'Я говорю, что думаю, даже когда это неудобно',
+        labels: ['Совсем не про меня', 'Скорее нет', 'Как когда', 'Скорее да', 'Точно про меня'] },
+    ];
+
+    // Черновик держим в памяти страницы — как на проде его держит база: ответ
+    // сохраняется по одному, и закрытое окно открывается на том же вопросе.
+    let answers = {};
+
+    async function stubFetch(path, { body } = {}) {
+      if (path === '/api/faculty/state') {
+        const answered = Object.keys(answers).length;
+        return { status: answered ? 'in_progress' : 'new', sections: SECTIONS, questions: QUESTIONS,
+                 answers: { ...answers }, answered, total: QUESTIONS.length };
+      }
+      if (path === '/api/faculty/answer') {
+        answers[body.id] = body.value;
+        console.log('dev: ответ сохранён', body);
+        return { ok: true, answered: Object.keys(answers).length, total: QUESTIONS.length };
+      }
+      if (path === '/api/faculty/finish') {
+        // На проде факультет считает сервер по ответам; здесь просто берём
+        // выбранный в селекте — тест вёрстки, а не подсчёта.
+        return { faculty: facultyById(document.getElementById('dev-house').value), fresh: true };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    const out = document.getElementById('dev-out');
+
+    document.getElementById('dev-open').onclick = async () => {
+      const state = await stubFetch('/api/faculty/state', {});
+      openFacultyTest({ apiFetch: stubFetch, state, onFinished: (f) => showCard(f) });
+    };
+    document.getElementById('dev-reset').onclick = () => {
+      answers = {};
+      out.innerHTML = facultySectionHtml({ status: 'new', total: QUESTIONS.length, answered: 0 });
+    };
+    document.getElementById('dev-card').onclick = () => showCard(facultyById(document.getElementById('dev-house').value));
+
+    function showCard(faculty) {
+      out.innerHTML = `
+        <section class="profile-hero faculty-tint faculty-${faculty.id}">
+          <div class="profile-avatar-wrap profile-avatar-static"><div class="profile-avatar"><span class="profile-avatar-default"></span></div></div>
+          <div class="profile-name profile-name-static">
+            <span class="role-prefix role-prefix-green" title="модератор">mod</span>
+            <span class="faculty-prefix faculty-${faculty.id}">${faculty.prefix}</span> Дежурный
+          </div>
+          <div class="profile-stats">
+            <div class="profile-stat"><b>12</b><span>Добавлено машин</span></div>
+            <div class="profile-stat"><b>34</b><span>Отредактировано машин</span></div>
+          </div>
+        </section>
+        <section class="profile-sec profile-sec-faculty">
+          <div class="profile-sec-head"><h3 class="profile-sec-title">Факультет</h3><span class="profile-sec-meta">закреплён навсегда</span></div>
+          <div class="profile-sec-body">${facultyCardHtml(faculty, { own: true })}</div>
+        </section>`;
+    }
+
+    // Все четыре дома сразу — чтобы цвета и гербы сравнивались рядом.
+    console.log('dev: факультеты', FACULTIES.map(f => f.id).join(', '));
+    showCard(FACULTIES[0]);
+  </script>
+</body>
+</html>

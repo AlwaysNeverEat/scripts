@@ -10,15 +10,12 @@ import { openAssignCarsModal } from './assignCars.js';
 import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
+import { namePrefixHtml } from './namePrefix.js';
+import { facultyCardHtml } from './faculty.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
@@ -72,10 +69,17 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
         <div class="profile-page">
             ${profileHeroHtml({
                 avatarInner: avatarHtml,
-                nameInner: `${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}`,
+                nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
                 added: user.stats.added ?? 0,
                 edited: user.stats.edited ?? 0,
+                faculty: user.faculty,
             })}
+
+            ${user.faculty ? profileSectionHtml({
+                title: 'Факультет',
+                meta: 'закреплён навсегда',
+                body: facultyCardHtml(user.faculty),
+            }) : ''}
 
             ${profileSectionHtml({
                 title: 'Достижения',

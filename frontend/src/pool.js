@@ -47,6 +47,7 @@ import { pickShot, LEVELS, NORMAL } from '../../shared/poolBot.js';
 import clothUrl from './assets/pool-cloth.webp';
 import railUrl from './assets/pool-rail.webp';
 import cueUrl from './assets/pool-cue.webp';
+import { namePrefixHtml } from './namePrefix.js';
 
 const MODAL_ID = 'pool-modal';
 
@@ -373,7 +374,7 @@ function renderTop(state, top) {
             <div class="pool-row-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="pool-top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
+            <div class="pool-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
             <span class="pool-top-score">${row.wins}<span class="pool-top-losses"> / ${row.losses}</span></span>
         </div>`).join('');
 
@@ -1254,11 +1255,6 @@ function roundRect(g, x, y, w, h, r) {
     g.arcTo(x, y + h, x, y, r);
     g.arcTo(x, y, x + w, y, r);
     g.closePath();
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 function esc(s) {

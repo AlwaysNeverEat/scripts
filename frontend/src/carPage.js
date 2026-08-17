@@ -14,6 +14,7 @@ import { activeFlags } from '../../shared/serviceFlags.js';
 import { crmQuirksFor, SEVERITY_LABELS } from '../../shared/crmQuirks.js';
 import { fuelLabel } from '../../shared/fuel.js';
 import { SOURCE_SITES, SOURCE_LABELS } from '../../shared/sourceLinks.js';
+import { namePrefixHtml } from './namePrefix.js';
 
 // К какому агрегату относится особенность из CRM — подпись перед текстом,
 // чтобы «полную не делаем» не путали с правилом для механики.
@@ -203,7 +204,7 @@ function openAssignModal(record, ctx) {
         listBox.innerHTML = users.map(u => `
             <button class="assign-user" data-assign-id="${esc(u.id)}" data-assign-name="${esc(u.display_name)}">
                 <span class="assign-user-avatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt=""/>` : ''}</span>
-                <span class="assign-user-name">${rolePrefixHtml(u.role_prefix)}${esc(u.display_name)}</span>
+                <span class="assign-user-name">${namePrefixHtml(u)}${esc(u.display_name)}</span>
             </button>
         `).join('');
         listBox.querySelectorAll('[data-assign-id]').forEach(btn => {
@@ -355,14 +356,9 @@ async function renderEvents(carId, ctx) {
     draw();
 }
 
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
-}
-
 function userChipHtml(u) {
     if (!u) return '<b>неизвестный пользователь</b>';
-    return `<span class="event-user" data-user-link="${esc(u.id)}" role="button" tabindex="0" title="Открыть профиль коллеги">${rolePrefixHtml(u.role_prefix)}<b>${esc(u.display_name)}</b></span>`;
+    return `<span class="event-user" data-user-link="${esc(u.id)}" role="button" tabindex="0" title="Открыть профиль коллеги">${namePrefixHtml(u)}<b>${esc(u.display_name)}</b></span>`;
 }
 
 function renderEventCard(ev, i) {

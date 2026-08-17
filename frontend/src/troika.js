@@ -44,6 +44,7 @@ import {
     arrowLeftIcon, arrowRightIcon, arrowUpIcon, arrowDownIcon,
 } from './icons.js';
 import tilesSheet from './assets/troika-tiles.webp';
+import { namePrefixHtml } from './namePrefix.js';
 
 const MODAL_ID = 'troika-modal';
 
@@ -1015,7 +1016,7 @@ function renderTop(state) {
             <div class="tro-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="tro-top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
+            <div class="tro-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
             <span class="tro-top-score">${Number(row.score).toLocaleString('ru-RU')}</span>
         </div>`).join('');
 
@@ -1034,11 +1035,6 @@ function renderTop(state) {
     // Своя строка — ВНЕ прокручиваемого списка: её человек должен видеть сразу,
     // а не искать, домотав до конца.
     box.innerHTML = `<div class="tro-top-head">Мини-топ</div><div class="tro-top-list">${list}</div>${mine}`;
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 function esc(s) {

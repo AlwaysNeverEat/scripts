@@ -19,15 +19,12 @@ import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
+import { facultySectionHtml, openFacultyTest } from './faculty.js';
+import { namePrefixHtml } from './namePrefix.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 // Есть аватар — спрашиваем, что делать; нет — сразу открываем file picker.
@@ -73,11 +70,15 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
     let stats = { added: 0, edited: 0 };
     let achievements = [];
     let activity = null;
+    // Распределение грузим отдельным catch: без него профиль показать можно,
+    // а вот терять из-за него статистику и медали — нельзя.
+    let faculty = null;
     try {
-        [stats, achievements, activity] = await Promise.all([
+        [stats, achievements, activity, faculty] = await Promise.all([
             apiFetch('/api/profile/stats'),
             apiFetch('/api/profile/achievements'),
             apiFetch('/api/profile/activity'),
+            apiFetch('/api/faculty/state').catch(() => null),
         ]);
     } catch { /* покажем то, что есть, без статистики */ }
 
@@ -95,16 +96,24 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             <div class="profile-page">
                 ${profileHeroHtml({
                     avatarInner: avatarHtml,
-                    nameInner: `${rolePrefixHtml(user.role_prefix)}${esc(user.display_name)}`,
+                    nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
                     added: stats.added ?? 0,
                     edited: stats.edited ?? 0,
                     editable: true,
+                    faculty: user.faculty,
                 })}
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
                 <!-- Ошибки аватарки, ника и выхода — одним местом сразу под
                      обложкой: панелей стало много, и сообщение у нижней кнопки
                      после клика по аватарке осталось бы за экраном. -->
                 <div id="profile-error" class="edit-error hidden"></div>
+
+                ${profileSectionHtml({
+                    title: 'Факультет',
+                    meta: faculty?.status === 'done' ? 'закреплён навсегда' : 'распределяющая шляпа',
+                    cls: 'profile-sec-faculty',
+                    body: facultySectionHtml(faculty),
+                })}
 
                 ${profileSectionHtml({
                     title: 'Достижения',
@@ -232,6 +241,42 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
                 if (e.key === 'Escape') { e.preventDefault(); render(); }
             };
+        };
+
+        const startBtn = document.getElementById('btn-faculty-start');
+        if (startBtn) startBtn.onclick = async () => {
+            startBtn.disabled = true;
+            let state;
+            try {
+                // Состояние перечитываем перед открытием, а не берём то, что
+                // пришло при загрузке страницы: человек мог отвечать с телефона,
+                // и начинать надо с его настоящего места, а не с устаревшего.
+                state = await apiFetch('/api/faculty/state');
+            } catch (err) {
+                startBtn.disabled = false;
+                showErr(`Не удалось открыть распределение: ${err.message}`);
+                return;
+            }
+            startBtn.disabled = false;
+            if (state.status === 'done') { faculty = state; render(); return; }
+            openFacultyTest({
+                apiFetch,
+                state,
+                onFinished: async () => {
+                    // Факультет закреплён: перечитываем и себя тоже — от него
+                    // зависят плашка у ника и подложка профиля.
+                    try {
+                        const [me, fresh] = await Promise.all([
+                            apiFetch('/api/auth/me'),
+                            apiFetch('/api/faculty/state'),
+                        ]);
+                        user = me.user;
+                        faculty = fresh;
+                        onUserChanged(user);
+                    } catch { /* покажем хотя бы карточку из ответа finish */ }
+                    render();
+                },
+            });
         };
 
         const selfAssignBtn = document.getElementById('btn-self-assign-cars');

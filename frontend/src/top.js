@@ -18,15 +18,11 @@ import { icons } from './records/icons.js';
 // Склонение «запись/записи/записей» общее с лентой активности в профиле —
 // цифры там и тут считаются по одному источнику (record_credits).
 import { recordsWord } from '../../shared/activityHeatmap.js';
+import { namePrefixHtml, facultyClass } from './namePrefix.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 function avatarHtml(row) {
@@ -84,7 +80,7 @@ function previousHtml(previous) {
     const names = winners.map((w, i) => `
         <div class="top-prev-user" data-prev-idx="${i}" title="Открыть профиль">
             <div class="top-avatar">${avatarHtml(w)}</div>
-            <div class="top-prev-name">${rolePrefixHtml(w.role_prefix)}${esc(w.display_name)}</div>
+            <div class="top-prev-name">${namePrefixHtml(w)}${esc(w.display_name)}</div>
             <span class="top-prev-count">${w.records}&nbsp;${recordsWord(w.records)}</span>
         </div>`).join('');
     return `
@@ -105,11 +101,14 @@ function render(body, data) {
         ? rows.map((row, i) => {
             const gold = row.rank === 1;
             const t = gold ? ' gold-text' : '';
+            // Подложка строки — цвета факультета, но ТОЛЬКО не у первого места:
+            // золото ни с чем не делится (правило .top-row.faculty-tint в
+            // style.css отключено на .top-row-gold, класс тут не мешает).
             return `
-            <div class="top-row ${gold ? 'top-row-gold' : ''}" data-top-idx="${i}" title="Открыть профиль">
+            <div class="top-row ${gold ? 'top-row-gold' : ''}${facultyClass(row.faculty, 'faculty-tint')}" data-top-idx="${i}" title="Открыть профиль">
                 <span class="top-rank${t}">${row.rank}</span>
                 <div class="top-avatar">${avatarHtml(row)}</div>
-                <div class="top-name">${rolePrefixHtml(row.role_prefix)}<span class="${t.trim()}">${esc(row.display_name)}</span></div>
+                <div class="top-name">${namePrefixHtml(row)}<span class="${t.trim()}">${esc(row.display_name)}</span></div>
                 ${countHtml(row, gold)}
             </div>`;
         }).join('')

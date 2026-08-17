@@ -5,6 +5,7 @@
 // один раз за партию — это вся нагрузка, которую пасхалка создаёт.
 
 import { query } from '../db/client.js';
+import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
 
 // Сколько строк показываем в окне игры. Больше десяти в модалку не влезает, а
 // свою строку игрок увидит отдельно, даже если он двадцать пятый.
@@ -14,11 +15,12 @@ export const TOP_LIMIT = 10;
 // тетриса: человек должен узнавать коллег одинаково везде.
 const TOP_QUERY = `
   SELECT u.id, u.display_name, u.avatar,
-         rl.prefix_label, rl.color, rl.tooltip,
+         rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS},
          t.score, t.level, t.clocks, t.best_cascade, t.games, t.played_at
     FROM troika_scores t
     JOIN users u ON u.id = t.user_id
     LEFT JOIN role_labels rl ON rl.role = u.role
+    ${FACULTY_JOIN}
    ORDER BY t.score DESC, t.played_at
    LIMIT $1`;
 
@@ -30,6 +32,7 @@ function presentRow(row) {
         role_prefix: row.prefix_label
             ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
             : null,
+        faculty: facultyBadge(row.faculty),
         score: row.score,
         level: row.level,
         clocks: row.clocks,

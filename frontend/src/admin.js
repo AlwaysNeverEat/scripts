@@ -13,14 +13,11 @@
 // живёт 30 минут» объясняет, что делать, а «что-то пошло не так» — нет.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { namePrefixHtml } from './namePrefix.js';
+
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 export function isModerator(user) {
@@ -89,7 +86,7 @@ function userRowHtml(row, idx, viewer) {
     return `
         <div class="admin-row">
             <div class="admin-main">
-                <div class="admin-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}${
+                <div class="admin-name">${namePrefixHtml(row)}${esc(row.display_name)}${
                     row.banned ? '<span class="admin-banned">заблокирован</span>' : ''
                 }</div>
                 <div class="admin-sub">@${esc(row.login)} · ${esc(row.role)} · с ${esc(dateLabel(row.created_at))}</div>

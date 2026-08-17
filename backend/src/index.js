@@ -17,6 +17,7 @@ import tetrisRouter from './routes/tetris.js';
 import troikaRouter from './routes/troika.js';
 import solitaireRouter from './routes/solitaire.js';
 import poolRouter from './routes/pool.js';
+import facultyRouter from './routes/faculty.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
@@ -79,6 +80,9 @@ app.use('/api/users', requireSession, usersRouter);
 // роутера: без личности проверять роль нечем.
 app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm', requireSession, crmRouter);
+// Распределяющая шляпа: тест на факультет. Строго именной — и прогресс, и
+// результат привязаны к аккаунту, а пройти его можно один раз (routes/faculty.js).
+app.use('/api/faculty', requireSession, facultyRouter);
 // Пасхалки «Вордле» и «Контекстно» — слово дня считается от id аккаунта, без
 // сессии его и загадать не для кого (см. routes/wordle.js, routes/kontekst.js).
 app.use('/api/wordle', requireSession, wordleRouter);

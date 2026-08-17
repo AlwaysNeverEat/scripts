@@ -39,6 +39,7 @@ import {
 import {
     arrowLeftIcon, arrowRightIcon, arrowUpIcon, arrowDownIcon, rotateIcon, hardDropIcon,
 } from './icons.js';
+import { namePrefixHtml } from './namePrefix.js';
 
 const MODAL_ID = 'tetris-modal';
 const VISIBLE_CELLS = COLS * ROWS;
@@ -596,7 +597,7 @@ function renderTop(state) {
             <div class="tet-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="tet-top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
+            <div class="tet-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
             <span class="tet-top-score">${Number(row.score).toLocaleString('ru-RU')}</span>
         </div>`).join('');
 
@@ -615,11 +616,6 @@ function renderTop(state) {
     // Своя строка — ВНЕ прокручиваемого списка: её человек должен видеть сразу,
     // а не искать, домотав до конца.
     box.innerHTML = `<div class="tet-top-head">Мини-топ</div><div class="tet-top-list">${list}</div>${mine}`;
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 function esc(s) {
