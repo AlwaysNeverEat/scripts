@@ -9,7 +9,7 @@
 import { query } from '../db/client.js';
 import { facultyById } from '../../../shared/faculties.js';
 import {
-    QUESTIONS, QUESTION_COUNT, normalizeAnswer, facultyFromAnswers,
+    QUESTIONS, QUESTION_COUNT, QUIZ_VERSION, normalizeAnswer, facultyFromAnswers,
 } from './quiz.js';
 
 // ── Присоединение факультета к выдаче пользователей ──────────────────────────
@@ -62,9 +62,27 @@ export async function loadResult(userId) {
 
 // ── Черновик ─────────────────────────────────────────────────────────────────
 
+/**
+ * Черновик ответов. Если он заполнялся по ДРУГОЙ версии опросника — выбрасываем
+ * и начинаем заново.
+ *
+ * Звучит жёстко, но альтернатива хуже. Опросник уже один раз переписывали
+ * целиком, и часть id вопросов при этом осталась прежней: недопройденный
+ * черновик подставил бы старые ответы под новые вопросы, и человек получил бы
+ * факультет по тому, чего не выбирал. Потерять полтеста неприятно, получить
+ * молча неверный результат — хуже, а он навсегда.
+ */
 export async function loadProgress(userId) {
-    const r = await query('SELECT answers FROM faculty_progress WHERE user_id = $1', [userId]);
-    return r.rows.length ? (r.rows[0].answers || {}) : {};
+    const r = await query(
+        'SELECT answers, quiz_version FROM faculty_progress WHERE user_id = $1',
+        [userId],
+    );
+    if (!r.rows.length) return {};
+    if (r.rows[0].quiz_version !== QUIZ_VERSION) {
+        await query('DELETE FROM faculty_progress WHERE user_id = $1', [userId]);
+        return {};
+    }
+    return r.rows[0].answers || {};
 }
 
 /**
@@ -80,13 +98,14 @@ export async function saveAnswer(userId, questionId, rawValue) {
     const value = normalizeAnswer(questionId, rawValue);
     if (value === null) return null;
     const r = await query(
-        `INSERT INTO faculty_progress (user_id, answers)
-              VALUES ($1, jsonb_build_object($2::text, $3::jsonb))
+        `INSERT INTO faculty_progress (user_id, answers, quiz_version)
+              VALUES ($1, jsonb_build_object($2::text, $3::jsonb), $4)
          ON CONFLICT (user_id) DO UPDATE
                 SET answers = faculty_progress.answers || excluded.answers,
+                    quiz_version = excluded.quiz_version,
                     updated_at = now()
           RETURNING answers`,
-        [userId, questionId, JSON.stringify(value)],
+        [userId, questionId, JSON.stringify(value), QUIZ_VERSION],
     );
     return r.rows[0].answers || {};
 }
