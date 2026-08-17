@@ -13,11 +13,20 @@
 // shared/geoPoints.js подобраны под РЕАЛЬНОЕ покрытие, а не по карте мира, и
 // точка, рядом с которой ничего не нашлось, просто пропускается.
 //
+// КВАДРАТ ПОИСКА МАЛЕНЬКИЙ, И ЭТО НЕ НАШ ВЫБОР: Mapillary отказывает запросу,
+// у которого bbox больше 0.010 квадратного градуса («Bounding box area is too
+// large»), — это примерно 11 на 11 километров у экватора и меньше к полюсам.
+// Поэтому размер квадрата считается, а потом ЗАЖИМАЕТСЯ под этот предел
+// (см. bbox): пропорции сохраняются, площадь ужимается. Разброс опорных точек
+// (JITTER_KM) подобран под этот же предел — иначе запрос улетал бы в поле в
+// десяти километрах от единственной снятой улицы.
+//
 // СНАЧАЛА ИЩЕМ СФЕРИЧЕСКИЕ (is_pano). Вокруг такого снимка можно оглядеться —
 // а «посмотреть по сторонам» и есть игра. Плоских кадров у Mapillary в разы
 // больше, но по одному кадру, снятому вперёд по ходу движения, угадывать почти
-// нечего. Поэтому плоские берутся ВТОРЫМ проходом: лучше кадр в одну сторону,
-// чем «не удалось подобрать точку».
+// нечего. Поэтому найденный плоский снимок запоминается ПРО ЗАПАС и отдаётся,
+// только если сферических не нашлось нигде: лучше кадр в одну сторону, чем
+// «не удалось подобрать точку».
 //
 // Фильтруем по полю в ответе, а не параметром запроса: набор фильтров у
 // Mapillary со временем меняется, а поле is_pano есть всегда, и лишний
@@ -33,17 +42,28 @@ import { pickPoint } from '../../../shared/geoPoints.js';
 
 const API_URL = 'https://graph.mapillary.com/images';
 
-// Полсторона квадрата поиска вокруг опорной точки, км. Больше, чем было бы
-// нужно Google: покрытие рваное, и по маленькому квадрату половина точек
-// уходила бы впустую.
-const SEARCH_KM = 20;
+// Полсторона квадрата поиска вокруг опорной точки, км. Больше просить нельзя:
+// Mapillary считает площадь в квадратных градусах и отказывает начиная с 0.010
+// (у экватора это 11 на 11 км, дальше от него — меньше).
+const SEARCH_KM = 6;
+
+// Предел площади bbox, кв. градусы. Держим с запасом от объявленных 0.010:
+// граница проверяется на их стороне, и упереться в неё ровно — значит время от
+// времени ловить отказ на округлении.
+const MAX_BBOX_DEG2 = 0.009;
 
 // Сколько снимков просим за раз. Из них берём случайный — иначе на одной и той
 // же опорной точке всем доставался бы один и тот же кадр.
 const LIMIT = 100;
 
-// Сколько опорных точек пробуем в каждом проходе.
-const TRIES = 10;
+// Сколько опорных точек пробуем. Квадрат маленький, покрытие рваное — с одной
+// попытки везёт далеко не всегда.
+const TRIES = 14;
+
+// После скольких попыток довольствуемся плоским снимком, если он уже найден.
+// Искать сферический до последнего — это четырнадцать запросов подряд перед
+// каждым раундом там, где их попросту нет.
+const PANO_PATIENCE = 8;
 
 const TIMEOUT_MS = 8000;
 
@@ -53,11 +73,22 @@ export const token = () => process.env.MAPILLARY_TOKEN || '';
 export const hasToken = () => !!token();
 
 function bbox({ lat, lng }, km = SEARCH_KM) {
-    const dLat = km / KM_PER_DEG;
+    let dLat = km / KM_PER_DEG;
     // Ближе к полюсам градус долготы короче — без косинуса квадрат в Тромсё
-    // получился бы вчетверо шире, чем в Найроби.
+    // получился бы вчетверо уже, чем в Найроби. Зато В ГРАДУСАХ он выходит
+    // шире, а Mapillary меряет площадь именно в них — отсюда зажим ниже.
     const cos = Math.max(0.05, Math.cos((lat * Math.PI) / 180));
-    const dLng = km / (KM_PER_DEG * cos);
+    let dLng = km / (KM_PER_DEG * cos);
+
+    // Слишком большой квадрат Mapillary не считает «многовато» — он отказывает
+    // всему запросу. Ужимаем обе стороны одним множителем: квадрат остаётся
+    // квадратом на местности, просто становится меньше.
+    const area = 4 * dLat * dLng;
+    if (area > MAX_BBOX_DEG2) {
+        const k = Math.sqrt(MAX_BBOX_DEG2 / area);
+        dLat *= k;
+        dLng *= k;
+    }
     return [lng - dLng, lat - dLat, lng + dLng, lat + dLat]
         .map(v => v.toFixed(6)).join(',');
 }
@@ -105,17 +136,22 @@ function toPoint(img, label) {
  * он ни перезагрузил страницу до первого ответа.
  */
 export async function nextPoint(rand = Math.random) {
-    // Проход первый — только сферические снимки, второй — любые.
-    for (const panoOnly of [true, false]) {
-        for (let i = 0; i < TRIES; i++) {
-            const candidate = pickPoint(rand);
-            const images = await lookup(candidate);
-            const pool = panoOnly ? images.filter(img => img.is_pano) : images;
-            if (!pool.length) continue;
-            return toPoint(pool[Math.floor(rand() * pool.length) % pool.length], candidate.label);
-        }
+    const pick = (list) => list[Math.floor(rand() * list.length) % list.length];
+    let fallback = null;   // первый попавшийся плоский снимок — про запас
+
+    for (let i = 0; i < TRIES; i++) {
+        // Плоский уже есть, а сферический всё не находится — хватит искать.
+        if (fallback && i >= PANO_PATIENCE) break;
+
+        const candidate = pickPoint(rand);
+        const images = await lookup(candidate);
+        if (!images.length) continue;
+
+        const panos = images.filter(img => img.is_pano);
+        if (panos.length) return toPoint(pick(panos), candidate.label);
+        if (!fallback) fallback = { img: pick(images), label: candidate.label };
     }
-    return null;
+    return fallback ? toPoint(fallback.img, fallback.label) : null;
 }
 
 /**
