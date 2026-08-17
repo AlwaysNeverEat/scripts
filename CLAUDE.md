@@ -303,6 +303,7 @@ DOM до последней фазы висит старая картинка �
 | Хранение, джойн факультета к спискам | `backend/src/faculty/store.js` |
 | API | `backend/src/routes/faculty.js` |
 | Окно теста и карточка | `frontend/src/faculty.js`, песочница `frontend/dev-faculty.html` |
+| Гербы домов (картинки) | `design/faculty-crests/README.md` → `assets/faculty-*.png` |
 | Плашки перед ником (роль + факультет) | `frontend/src/namePrefix.js` — ОДНО место на весь сайт |
 
 Устройство теста и почему оно такое — в шапке `quiz.js`, коротко:

@@ -17,25 +17,35 @@
 // настройку профиля, которую крутят, пока не выпадет любимая.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import crestGryffindor from './assets/faculty-gryffindor.png';
+import crestSlytherin from './assets/faculty-slytherin.png';
+import crestRavenclaw from './assets/faculty-ravenclaw.png';
+import crestHufflepuff from './assets/faculty-hufflepuff.png';
+
 const MODAL_ID = 'faculty-modal';
+
+// Гербы — картинки, по одной на дом. Лежат квадратами 224×224 с прозрачным
+// полем (исходники и пересборка — design/faculty-crests/README.md), поэтому в
+// вёрстке у всех четырёх один и тот же размер и заголовок карточки не прыгает
+// вбок при смене факультета.
+const CRESTS = {
+    gryffindor: crestGryffindor,
+    slytherin: crestSlytherin,
+    ravenclaw: crestRavenclaw,
+    hufflepuff: crestHufflepuff,
+};
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Герб дома — вёрсткой, без картинок: четыре SVG-щита весят меньше одной
-// иконки, а цвета берут из класса факультета (см. style.css), поэтому в тёмной
-// и светлой теме герб не приходится рисовать дважды.
+// Неизвестный дом (переименовали id в коде, а у человека записан старый) — без
+// герба, но с карточкой: текст важнее картинки, и ломаться из-за неё нечему.
 function crestHtml(faculty) {
-    return `
-        <span class="faculty-crest faculty-${esc(faculty.id)}" aria-hidden="true">
-            <svg viewBox="0 0 40 46" width="40" height="46">
-                <path class="faculty-crest-shield" d="M2 3h36v22c0 10-8 16-18 20C10 41 2 35 2 25V3z"/>
-                <path class="faculty-crest-band" d="M2 16h36v6H2z"/>
-                <text class="faculty-crest-letter" x="20" y="15" text-anchor="middle">${esc(faculty.name[0])}</text>
-            </svg>
-        </span>`;
+    const src = CRESTS[faculty.id];
+    if (!src) return '';
+    return `<img class="faculty-crest" src="${esc(src)}" alt="" width="224" height="224"/>`;
 }
 
 /** Карточка факультета — то, что человек видит в профиле после распределения. */
