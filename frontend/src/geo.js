@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Пасхалка «Гео» — угадай место по панораме. Окно игры: меню, раунд, лобби.
+// Пасхалка «Гео» — угадай место по снимку улицы. Окно: меню, раунд, лобби.
 //
 // Открывается ТОЛЬКО из меню игр (games.js), а оно — из поиска на главной:
 // набрать «игры» и нажать Enter.
@@ -7,17 +7,17 @@
 // ЧЕМ ЭТО ОКНО ОТЛИЧАЕТСЯ ОТ ОСТАЛЬНЫХ ИГР. У тетриса, тройки и пасьянса
 // правила лежат в shared/ и партия считается здесь; тут не так — СЧИТАЕТ ВСЁ
 // СЕРВЕР, и не из-за парной дуэли, а потому что правильный ответ (координата)
-// обязан лежать там, куда браузер не дотянется. Этот файл получает id панорамы,
-// показывает её, ловит клик по карте и отправляет точку. Расстояние и очки
+// обязан лежать там, куда браузер не дотянется. Этот файл получает id снимка,
+// показывает его, ловит клик по карте и отправляет точку. Расстояние и очки
 // приезжают в ответе.
 //
 // ТРИ РЕЖИМА В ОДНОМ ОКНЕ (дейли, соло, дуэль) и три экрана: меню, раунд и
 // лобби дуэлей. Отдельными окнами их делать нельзя — окна пасхалок снимают с
 // <body> класс modal-open, когда закрываются, и два окна подрались бы за него.
 //
-// Гугловский скрипт грузится по клику на режим, а не при открытии окна: это
-// чужие сотни килобайт, и человеку, зашедшему посмотреть таблицу, они не нужны.
-// Вся работа с ним — в geoStreet.js, здесь про Google нет ни строчки.
+// Просмотрщик снимков и карта грузятся по клику на режим, а не при открытии
+// окна: это чужой мегабайт с лишним, и человеку, зашедшему посмотреть таблицу,
+// он не нужен. Вся работа с ними — в geoStreet.js, здесь их API не видно.
 //
 // ДУЭЛЬ ЖИВЁТ ОПРОСОМ раз в полторы секунды, как и бильярд: ходят одновременно,
 // но раунд длится две минуты, и задержки в секунду там не видно. Веб-сокеты
@@ -56,11 +56,11 @@ export function openGeo(ctx) {
     const state = {
         modal, ctx,
         cfg: null,
-        maps: null, pano: null, panoMode: null, gmap: null,
+        libs: null, pano: null, panoMode: null, gmap: null,
         screen: 'menu',
         mode: null,          // daily | solo | duel
         guess: null,         // куда ткнули в этом раунде
-        shownPano: null,     // какая панорама сейчас на экране
+        shownPano: null,     // какой снимок сейчас на экране
         daily: null,
         run: null,
         duel: null,
@@ -176,11 +176,11 @@ async function boot(state) {
     if (!state.cfg.ok) {
         const note = $(state, '#geo-note');
         note.classList.remove('hidden');
-        // Ключа нет — честно говорим об этом вместо белого прямоугольника на
-        // месте панорамы. Таблицы при этом работают: посмотреть чужие
-        // результаты можно и без ключа.
-        note.textContent = 'Панорамы не настроены: серверу нужен ключ Google Maps '
-            + '(GOOGLE_MAPS_KEY в deploy/.env). Играть пока нельзя, таблицы ниже — работают.';
+        // Токена нет — честно говорим об этом вместо чёрного прямоугольника на
+        // месте снимка. Таблицы при этом работают: посмотреть чужие результаты
+        // можно и без токена.
+        note.textContent = 'Снимки улиц не настроены: серверу нужен токен Mapillary '
+            + '(MAPILLARY_TOKEN в deploy/.env). Играть пока нельзя, таблицы ниже — работают.';
         state.modal.querySelectorAll('[data-mode]').forEach(b => { b.disabled = true; });
     }
     loadTops(state);
@@ -233,9 +233,9 @@ async function startMode(state, mode) {
  */
 async function ensureViewer(state, mode) {
     const { loadMaps, createPanorama, createGuessMap } = await import('./geoStreet.js');
-    if (!state.maps) state.maps = await loadMaps(state.cfg.key);
+    if (!state.libs) state.libs = await loadMaps();
     if (!state.gmap) {
-        state.gmap = createGuessMap(state.maps, $(state, '#geo-map'), (point) => {
+        state.gmap = createGuessMap(state.libs, $(state, '#geo-map'), (point) => {
             state.guess = point;
             const btn = $(state, '#geo-guess');
             btn.disabled = false;
@@ -245,7 +245,7 @@ async function ensureViewer(state, mode) {
     if (!state.pano || state.panoMode !== mode) {
         state.pano?.destroy();
         $(state, '#geo-pano').innerHTML = '';
-        state.pano = createPanorama(state.maps, $(state, '#geo-pano'), mode);
+        state.pano = createPanorama(state.libs, $(state, '#geo-pano'), mode, state.cfg.token);
         state.panoMode = mode;
         state.shownPano = null;
     }
@@ -261,23 +261,28 @@ function showRound(state, pano) {
     btn.disabled = true;
     btn.textContent = 'Ткните в карту';
     state.gmap.reset();
+    // Оба холста только что сменили размер (карта уехала обратно в угол,
+    // снимок развернулся на весь экран) — без этого оба остаются растянутыми
+    // по старым размерам.
+    state.gmap.resize();
+    state.pano.resize();
     if (pano && pano !== state.shownPano) {
         state.pano.show(pano);
         state.shownPano = pano;
     }
 }
 
-/** Переключить экран на показ итога: карта во всю ширину, панорама уходит. */
+/** Переключить экран на показ итога: карта во всю ширину, снимок уходит. */
 function showResult(state, target, guesses, html) {
     $(state, '#geo-stage').classList.add('is-result');
     const box = $(state, '#geo-result');
     box.classList.remove('hidden');
     box.innerHTML = html;
-    // Карта только что была маленькой в углу — после смены размера гугловской
-    // карте нужно сказать, что холст другой, иначе половина её остаётся серой.
-    // Порядок важен: сначала новый размер, потом подгонка по меткам, иначе она
-    // считается по старому холсту и итог уезжает за край.
-    state.maps.event.trigger(state.gmap.map, 'resize');
+    // Карта только что была маленькой в углу — ей нужно сказать, что холст
+    // другой, иначе половина остаётся серой. Порядок важен: сначала новый
+    // размер, потом подгонка по меткам, иначе она считается по старому холсту
+    // и итог уезжает за край.
+    state.gmap.resize();
     state.gmap.showResult(target, guesses.filter(Boolean));
 }
 
@@ -518,7 +523,7 @@ function renderDuel(state, duel) {
     if (duel.status === 'done' || st.phase === 'over') return renderDuelOver(state, duel);
 
     if (st.phase === 'play') {
-        // Новый раунд: панорама меняется, карта чистится. Если мы уже ответили,
+        // Новый раунд: снимок меняется, карта чистится. Если мы уже ответили,
         // экран остаётся тем же, но кнопка гаснет — ждём соперника.
         if (st.pano && st.pano !== state.shownPano) showRound(state, st.pano);
         const btn = $(state, '#geo-guess');
@@ -729,8 +734,8 @@ function rowHtml(player, tag, action) {
 // ── Мелочи ───────────────────────────────────────────────────────────────────
 
 const REFUSALS = {
-    no_key: 'Панорамы не настроены — серверу нужен ключ Google Maps.',
-    no_point: 'Не удалось подобрать точку с панорамой. Попробуйте ещё раз.',
+    no_key: 'Снимки улиц не настроены — серверу нужен токен Mapillary.',
+    no_point: 'Не удалось подобрать место со снимками. Попробуйте ещё раз.',
     no_round: 'Раунд не выдан — откройте режим заново.',
     already: 'Сегодня вы уже отвечали.',
     already_waiting: 'Ваш вызов уже висит в лобби.',

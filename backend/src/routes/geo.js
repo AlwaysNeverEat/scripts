@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Пасхалка «Гео» — угадать место по панораме. Три режима: дейли, соло, дуэль.
+// Пасхалка «Гео» — угадать место по снимку улицы. Режимы: дейли, соло, дуэль.
 //
 // Открывается только из меню игр, а оно — с поиска на главной («игры» +
 // Enter); в остальном интерфейсе на неё ничего не ведёт.
 //
 // Здесь, в отличие от тетриса с тройкой, сервер ведёт ВСЁ и во всех режимах:
 // правильный ответ — это координата, и она же секрет (почему так — в шапке
-// shared/geo.js). Браузер получает id панорамы и присылает точку на карте,
+// shared/geo.js). Браузер получает id снимка и присылает точку на карте,
 // расстояние и очки считаются тут.
 //
 // Отказ по правилам («уже отвечал сегодня», «вызов увели») — это 200 и
@@ -20,7 +20,7 @@ import {
     DUEL_ROUND_SECONDS, DUEL_REVEAL_SECONDS, DUEL_WIN_PTS, isGuess,
 } from '../../../shared/geo.js';
 import { COUNTRIES } from '../../../shared/geoPoints.js';
-import { browserKey, hasKey } from '../geo/panoramas.js';
+import { token, hasToken } from '../geo/panoramas.js';
 import * as daily from '../geo/daily.js';
 import * as solo from '../geo/solo.js';
 import * as duels from '../geo/duels.js';
@@ -43,15 +43,16 @@ function readGuess(body) {
 }
 
 // ── GET /api/geo/config ──────────────────────────────────────────────────────
-// Ключ для гугловского скрипта и числа правил, чтобы окно не хранило их копию.
+// Токен для просмотрщика снимков и числа правил, чтобы окно не хранило их копию.
 //
-// Ключ приезжает ЗАПРОСОМ, а не запекается в сборку сайта: пересобирать
-// статику ради смены ключа — лишний повод сломать прод, а сам ключ и так уедет
-// в браузер (он и должен быть ограничен по домену в консоли Google).
+// Токен приезжает ЗАПРОСОМ, а не запекается в сборку сайта: пересобирать
+// статику ради его смены — лишний повод сломать прод. Публичности он не боится:
+// клиентский токен Mapillary на то и клиентский, снимки в браузере без него не
+// показать.
 router.get('/config', (req, res) => {
     res.json({
-        ok: hasKey(),
-        key: browserKey(),
+        ok: hasToken(),
+        token: token(),
         max_score: MAX_SCORE,
         solo_rounds: SOLO_ROUNDS,
         countries: COUNTRIES,
@@ -69,7 +70,7 @@ router.get('/config', (req, res) => {
 
 // GET /api/geo/daily → { round, rows, me } | { ok: false, reason: 'no_point' }
 router.get('/daily', async (req, res) => {
-    if (!hasKey()) return deny(res, 'no_key');
+    if (!hasToken()) return deny(res, 'no_key');
     try {
         const [round, board] = await Promise.all([daily.today(req.user.id), dailyLeaderboard(req.user.id)]);
         if (!round) return deny(res, 'no_point');
@@ -104,7 +105,7 @@ router.get('/solo', async (req, res) => {
 
 // POST /api/geo/solo/start → { ok, run }
 router.post('/solo/start', async (req, res) => {
-    if (!hasKey()) return deny(res, 'no_key');
+    if (!hasToken()) return deny(res, 'no_key');
     try {
         const run = await solo.start(req.user.id);
         if (!run) return deny(res, 'no_point');
@@ -152,14 +153,14 @@ router.get('/duel/top', async (req, res) => {
 
 // POST /api/geo/duel/challenge { mode } → { ok, id }
 router.post('/duel/challenge', async (req, res) => {
-    if (!hasKey()) return deny(res, 'no_key');
+    if (!hasToken()) return deny(res, 'no_key');
     try {
         res.json(await duels.createChallenge(req.user.id, String(req.body?.mode || 'move')));
     } catch (err) { fail(res, 'POST /api/geo/duel/challenge', err); }
 });
 
 router.post('/duel/:id/join', async (req, res) => {
-    if (!hasKey()) return deny(res, 'no_key');
+    if (!hasToken()) return deny(res, 'no_key');
     try {
         res.json(await duels.joinChallenge(req.params.id, req.user.id));
     } catch (err) { fail(res, 'POST /api/geo/duel/join', err); }
