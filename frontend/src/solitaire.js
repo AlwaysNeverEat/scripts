@@ -42,6 +42,7 @@ import {
 } from '../../shared/solitaire.js';
 import deckSheet from './assets/cards-8bit.png';
 import cardBack from './assets/card-back.png';
+import { namePrefixHtml } from './namePrefix.js';
 
 const MODAL_ID = 'solitaire-modal';
 
@@ -655,7 +656,7 @@ function renderTop(state) {
             <div class="sol-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="sol-top-name">${rolePrefixHtml(row.role_prefix)}${esc(row.display_name)}</div>
+            <div class="sol-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
             <span class="sol-top-score">${mmss(Number(row.seconds))}</span>
         </div>`).join('');
 
@@ -673,11 +674,6 @@ function renderTop(state) {
 
     box.innerHTML = `<div class="sol-top-head">Мини-топ — за сколько разложено</div>`
         + `<div class="sol-top-list">${list}</div>${mine}`;
-}
-
-function rolePrefixHtml(rolePrefix) {
-    if (!rolePrefix) return '';
-    return `<span class="role-prefix role-prefix-${esc(rolePrefix.color)}" title="${esc(rolePrefix.tooltip || '')}">${esc(rolePrefix.label)}</span> `;
 }
 
 function esc(s) {

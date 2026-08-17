@@ -4916,3 +4916,205 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .games-tile { transition: none; }
   .tro-cell, .tro-time-bar > i { transition: none; }
 }
+
+/* ── Факультеты ───────────────────────────────────────────────────
+   Цвета домов — канон (алый с золотом, зелёный с серебром, синий с бронзой,
+   жёлтый с чёрным), но живут они ТОЛЬКО в этих четырёх классах: три
+   переменные на дом, и дальше все правила пользуются ими. Поэтому плашка,
+   подложка профиля, строка топа и герб перекрашиваются в одном месте, а новый
+   факультет — это строка в shared/faculties.js плюс один класс здесь.
+
+   --house      — сам цвет дома: подложки, рамки, заливка герба;
+   --house-ink  — цвет текста поверх фона ТЕМЫ (а не поверх заливки дома),
+                  поэтому в светлой теме он тёмный, а в тёмной светлый;
+   --house-metal — второй канонический цвет (золото/серебро/бронза/чёрный):
+                  только на гербе, где под ним всегда заливка дома.       */
+.faculty-gryffindor { --house: #a0231f; --house-ink: #e8b04b; --house-metal: #d3a625; }
+.faculty-slytherin  { --house: #14663f; --house-ink: #6fd39b; --house-metal: #c8d0d6; }
+.faculty-ravenclaw  { --house: #1b2a63; --house-ink: #86aaff; --house-metal: #b3812f; }
+.faculty-hufflepuff { --house: #c99a1e; --house-ink: #f0c33c; --house-metal: #2a241f; }
+
+:root[data-theme="light"] .faculty-gryffindor { --house: #7f0909; --house-ink: #8e1c14; --house-metal: #a9821c; }
+:root[data-theme="light"] .faculty-slytherin  { --house: #14532d; --house-ink: #14653b; --house-metal: #6b7780; }
+:root[data-theme="light"] .faculty-ravenclaw  { --house: #0e1a40; --house-ink: #23367e; --house-metal: #7a5a20; }
+:root[data-theme="light"] .faculty-hufflepuff { --house: #9c7a12; --house-ink: #7a5b06; --house-metal: #2a241f; }
+
+/* Плашка перед ником — рядом с ролью и той же формы (см. .role-prefix):
+   две разные по геометрии плашки в одной строке читались бы как сбой вёрстки. */
+.faculty-prefix {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 5px;
+  padding: 1px 6px;
+  margin-right: 4px;
+  cursor: help;
+  vertical-align: 1px;
+  background: color-mix(in oklab, var(--house) 22%, transparent);
+  border: 1px solid color-mix(in oklab, var(--house) 55%, transparent);
+  color: var(--house-ink);
+}
+/* На золотой плашке первого места цветная плашка дома не читается — там она
+   такая же приглушённая, как и роль-префикс (см. .top-row-gold .role-prefix). */
+.top-row-gold .faculty-prefix {
+  background: rgba(0, 0, 0, .08);
+  border: 1px solid var(--gold-hair);
+  color: var(--gold-ink);
+}
+.event-user .faculty-prefix { margin-right: 0; }
+
+/* «Подложка» под цвет дома: обложка профиля и строка топа. Красим ФОН, а не
+   текст и не рамку целиком — имя и цифры должны читаться одинаково у всех. */
+.profile-hero.faculty-tint {
+  background-image: linear-gradient(180deg, color-mix(in oklab, var(--house) 30%, transparent) 0%, transparent 62%);
+  border-color: color-mix(in oklab, var(--house) 40%, var(--border));
+}
+/* Первое место в топе — всегда золото, факультет туда не лезет: у строки
+   остаётся класс дома (плашка у ника из него берёт цвета), но подложка не
+   рисуется. :not() вместо порядка правил — чтобы это не сломалось от
+   перестановки блоков в файле. */
+.top-row.faculty-tint:not(.top-row-gold) {
+  background-image: linear-gradient(90deg, color-mix(in oklab, var(--house) 20%, transparent) 0%, transparent 58%);
+}
+
+/* ── Карточка факультета в профиле ──────────────────────────────── */
+.faculty-card {
+  border: 1px solid color-mix(in oklab, var(--house) 45%, var(--border));
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  background: linear-gradient(160deg, color-mix(in oklab, var(--house) 18%, transparent) 0%, transparent 55%);
+}
+.faculty-card-head { display: flex; align-items: center; gap: 12px; }
+.faculty-card-title { min-width: 0; }
+.faculty-name { font-size: 20px; font-weight: 800; color: var(--house-ink); line-height: 1.15; }
+.faculty-tagline { font-size: 12.5px; color: var(--sub); margin-top: 2px; }
+
+/* Герб — картинка (design/faculty-crests/). Все четыре лежат в одинаковом
+   квадрате с прозрачным полем, поэтому размер задаётся один на всех и
+   заголовок карточки не прыгает вбок при смене факультета. */
+.faculty-crest { flex: none; width: 58px; height: 58px; object-fit: contain; }
+/* В ответе шляпы герб крупнее: это единственный экран, ради которого человек
+   полчаса отвечал, и разглядывать там нужно именно его. */
+.faculty-reveal .faculty-crest { width: 104px; height: 104px; }
+
+.faculty-qualities { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 10px; }
+.faculty-quality {
+  font-size: 11.5px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px;
+  background: color-mix(in oklab, var(--house) 20%, transparent);
+  border: 1px solid color-mix(in oklab, var(--house) 40%, transparent);
+  color: var(--house-ink);
+}
+.faculty-about { font-size: 13.5px; line-height: 1.5; color: var(--text); }
+.faculty-strengths { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.faculty-strengths li { position: relative; padding-left: 16px; font-size: 13px; color: var(--text); }
+.faculty-strengths li::before {
+  content: ''; position: absolute; left: 3px; top: 8px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--house-ink);
+}
+.faculty-watch {
+  margin-top: 11px; padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.45; color: var(--sub);
+}
+.faculty-watch b { color: var(--text); }
+.faculty-card-foot { margin-top: 10px; font-size: 11.5px; color: var(--sub); }
+.faculty-card-note { margin-top: 6px; font-size: 11.5px; color: var(--sub); opacity: .85; }
+
+/* Приглашение пройти тест (пока факультета нет) */
+.faculty-invite-text { font-size: 13.5px; line-height: 1.5; color: var(--text); }
+.faculty-invite-warn { margin-top: 8px; font-size: 13px; color: var(--sub); }
+.faculty-invite-warn b { color: var(--accent); }
+.faculty-start { margin-top: 12px; }
+.faculty-invite-hint { margin-top: 8px; font-size: 11.5px; color: var(--sub); }
+.profile-sec-faculty .profile-sec-title { color: var(--accent); }
+
+/* ── Окно теста ─────────────────────────────────────────────────── */
+.faculty-win { max-width: 560px; }
+.faculty-progress { margin-bottom: 12px; }
+.faculty-progress-bar { height: 6px; border-radius: 3px; background: var(--bg2); overflow: hidden; }
+.faculty-progress-bar > span { display: block; height: 100%; background: var(--accent); transition: width .25s ease; }
+.faculty-progress-text { margin-top: 5px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--sub); }
+.faculty-hint { font-size: 12px; color: var(--sub); line-height: 1.45; }
+.faculty-q { margin: 10px 0 12px; font-size: 16px; font-weight: 700; line-height: 1.35; }
+
+.faculty-options, .faculty-scale, .faculty-order { display: flex; flex-direction: column; gap: 8px; }
+.faculty-option, .faculty-scale-btn, .faculty-order-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.faculty-option:hover:not(:disabled),
+.faculty-scale-btn:hover:not(:disabled),
+.faculty-order-item:hover:not(:disabled) { border-color: var(--accent); }
+.faculty-option.picked, .faculty-scale-btn.picked, .faculty-order-item.picked {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.faculty-option:disabled, .faculty-scale-btn:disabled, .faculty-order-item:disabled { opacity: .6; cursor: default; }
+
+/* Развилка из двух — двумя крупными плитками рядом: выбор из двух не должен
+   выглядеть как список из четырёх, где два варианта потерялись. */
+.faculty-options-pair { flex-direction: row; gap: 10px; }
+.faculty-options-pair .faculty-option { justify-content: center; text-align: center; min-height: 92px; font-size: 14px; }
+
+.faculty-scale-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border-strong); }
+.faculty-scale-btn.picked .faculty-scale-dot { background: var(--accent); border-color: var(--accent); }
+
+.faculty-order-num {
+  flex: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+  background: var(--bg3);
+  color: var(--sub);
+}
+.faculty-order-item.picked .faculty-order-num { background: var(--accent); color: var(--accent-fg); }
+.faculty-order-reset { align-self: flex-start; margin-top: 2px; }
+.faculty-order-hint { font-size: 11.5px; color: var(--sub); }
+
+.faculty-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.faculty-saved { font-size: 11px; color: var(--sub); text-align: center; flex: 1; }
+.faculty-error { margin-top: 10px; font-size: 12.5px; color: var(--red); }
+
+/* Ответ шляпы. Пауза с «думает…» — не украшение: без неё факультет появляется
+   в тот же миг, что и нажатие, и выглядит заранее заготовленным. */
+.faculty-reveal { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.faculty-reveal .faculty-card { width: 100%; }
+.faculty-thinking {
+  padding: 40px 0;
+  font-size: 15px; font-weight: 700; color: var(--sub);
+  animation: faculty-think 1.1s ease-in-out infinite;
+}
+@keyframes faculty-think {
+  0%, 100% { opacity: .45; }
+  50%      { opacity: 1; }
+}
+
+@media (max-width: 460px) {
+  /* На узком экране две плитки развилки встают одна под другой: текст в них
+     длиннее кнопки, и в две колонки он превращается в лесенку из двух букв. */
+  .faculty-options-pair { flex-direction: column; }
+  .faculty-options-pair .faculty-option { min-height: 0; }
+  .faculty-q { font-size: 15px; }
+  .faculty-name { font-size: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faculty-thinking { animation: none; opacity: 1; }
+  .faculty-progress-bar > span { transition: none; }
+}

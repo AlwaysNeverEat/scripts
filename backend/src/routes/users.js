@@ -4,6 +4,7 @@ import { requireRole } from '../auth/middleware.js';
 import { clearSessionCache } from '../auth/sessions.js';
 import { listUserAchievements, syncAchievementsSafe } from '../achievements/achievements.js';
 import { loadActivity } from '../records/activity.js';
+import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge, facultyCard } from '../faculty/store.js';
 
 const router = Router();
 
@@ -40,9 +41,10 @@ router.get('/', requireRole('mod', 'admin'), async (req, res) => {
     const r = await query(
       `SELECT u.id, u.display_name, u.login, u.role, u.avatar,
               u.banned_at, u.created_at,
-              rl.prefix_label, rl.color, rl.tooltip
+              rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}
          FROM users u
          LEFT JOIN role_labels rl ON rl.role = u.role
+         ${FACULTY_JOIN}
         ${where}
         ORDER BY u.display_name
         LIMIT $${params.length}`,
@@ -59,6 +61,7 @@ router.get('/', requireRole('mod', 'admin'), async (req, res) => {
       role_prefix: row.prefix_label
         ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
         : null,
+      faculty: facultyBadge(row.faculty),
     })));
   } catch (err) {
     console.error('GET /api/users', err);
@@ -75,9 +78,10 @@ router.get('/:id/public', async (req, res) => {
   try {
     const userR = await query(
       `SELECT u.id, u.display_name, u.avatar, u.role, u.banned_at,
-              rl.prefix_label, rl.color, rl.tooltip
+              rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}
          FROM users u
          LEFT JOIN role_labels rl ON rl.role = u.role
+         ${FACULTY_JOIN}
         WHERE u.id = $1`,
       [req.params.id],
     );
@@ -114,6 +118,9 @@ router.get('/:id/public', async (req, res) => {
       role_prefix: row.prefix_label
         ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
         : null,
+      // В чужом профиле показывается вся карточка факультета, а не только
+      // плашка: это единственное место, где её вообще видно у другого человека.
+      faculty: facultyCard(row.faculty),
       stats,
       achievements,
     });

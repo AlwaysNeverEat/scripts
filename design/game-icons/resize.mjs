@@ -1,8 +1,12 @@
-// Одноразовый ресайзер PNG: 430×430 → 256×256, без внешних зависимостей.
+// Ресайзер PNG без внешних зависимостей: изначально — иконки меню игр
+// (430×430 → 256×256), потом к нему пришли за гербами факультетов
+// (design/faculty-crests/prepare.mjs), поэтому чтение, запись и усреднение
+// вынесены в экспорты. Скрипт по-прежнему запускается и руками — команда в
+// README рядом, поведение то же.
 import zlib from 'node:zlib';
 import fs from 'node:fs';
 
-function readPng(buf) {
+export function readPng(buf) {
     let i = 8, idat = [], ihdr = null;
     while (i < buf.length) {
         const len = buf.readUInt32BE(i);
@@ -40,13 +44,16 @@ function readPng(buf) {
 
 // Усреднение по площади на предумноженной альфе — иначе по краю иконки
 // проступает ореол из прозрачных, но цветных пикселей.
-function resize(src, size) {
+//
+// Стороны задаются по отдельности: иконки игр квадратные, а гербы факультетов
+// нет, и втискивать герб в квадрат растяжением нельзя — лев поедет вширь.
+export function resizeTo(src, dw, dh) {
     const { w, h, px } = src;
-    const out = Buffer.alloc(size * size * 4);
-    const sx = w / size, sy = h / size;
-    for (let y = 0; y < size; y++) {
+    const out = Buffer.alloc(dw * dh * 4);
+    const sx = w / dw, sy = h / dh;
+    for (let y = 0; y < dh; y++) {
         const y0 = y * sy, y1 = (y + 1) * sy;
-        for (let x = 0; x < size; x++) {
+        for (let x = 0; x < dw; x++) {
             const x0 = x * sx, x1 = (x + 1) * sx;
             let r = 0, g = 0, b = 0, a = 0, wsum = 0;
             for (let j = Math.floor(y0); j < Math.ceil(y1); j++) {
@@ -58,7 +65,7 @@ function resize(src, size) {
                     a += px[k + 3] * wt; wsum += wt;
                 }
             }
-            const o = (y * size + x) * 4;
+            const o = (y * dw + x) * 4;
             const alpha = a / wsum;
             const un = alpha > 0 ? wsum / (a / 255) : 0;
             out[o] = Math.round(Math.min(255, r * un / wsum * 1));
@@ -67,10 +74,12 @@ function resize(src, size) {
             out[o + 3] = Math.round(alpha);
         }
     }
-    return { w: size, h: size, px: out };
+    return { w: dw, h: dh, px: out };
 }
 
-function writePng({ w, h, px }) {
+export const resize = (src, size) => resizeTo(src, size, size);
+
+export function writePng({ w, h, px }) {
     const bpp = 4, stride = w * bpp;
     const raw = Buffer.alloc(h * (stride + 1));
     const cand = [Buffer.alloc(stride), Buffer.alloc(stride), Buffer.alloc(stride), Buffer.alloc(stride), Buffer.alloc(stride)];
@@ -115,7 +124,11 @@ function writePng({ w, h, px }) {
     ]);
 }
 
+// Запуск руками: node resize.mjs <вход.png> <выход.png> <размер>. При импорте
+// (гербы факультетов берут отсюда readPng/writePng/resizeTo) ничего не делаем.
 const [, , inPath, outPath, sizeArg] = process.argv;
-const png = writePng(resize(readPng(fs.readFileSync(inPath)), Number(sizeArg)));
-fs.writeFileSync(outPath, png);
-console.log(outPath, png.length);
+if (inPath && outPath && sizeArg) {
+    const png = writePng(resize(readPng(fs.readFileSync(inPath)), Number(sizeArg)));
+    fs.writeFileSync(outPath, png);
+    console.log(outPath, png.length);
+}

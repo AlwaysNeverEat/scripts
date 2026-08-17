@@ -3,6 +3,7 @@ import pool, { query } from '../db/client.js';
 import { normalize, expandQuery, buildNameFields } from '../../../shared/translit.js';
 import { requireRole } from '../auth/middleware.js';
 import { syncAchievementsSafe } from '../achievements/achievements.js';
+import { facultyBadge } from '../faculty/store.js';
 
 const router = Router();
 
@@ -1020,12 +1021,15 @@ router.get('/:id/events', async (req, res) => {
               tu.id AS target_id, tu.display_name AS target_display_name,
               tu.avatar AS target_avatar,
               trl.prefix_label AS target_prefix_label, trl.color AS target_color,
-              trl.tooltip AS target_tooltip
+              trl.tooltip AS target_tooltip,
+              fr.faculty, tfr.faculty AS target_faculty
          FROM car_events ce
          LEFT JOIN users u ON u.id = ce.user_id
          LEFT JOIN role_labels rl ON rl.role = u.role
+         LEFT JOIN faculty_results fr ON fr.user_id = u.id
          LEFT JOIN users tu ON tu.id = ce.target_user_id
          LEFT JOIN role_labels trl ON trl.role = tu.role
+         LEFT JOIN faculty_results tfr ON tfr.user_id = tu.id
         WHERE ce.car_id = $1
         ORDER BY ce.created_at ASC`,
       [req.params.id],
@@ -1044,6 +1048,7 @@ router.get('/:id/events', async (req, res) => {
         role_prefix: row.prefix_label
           ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
           : null,
+        faculty: facultyBadge(row.faculty),
       } : null,
       // Кому засчитали машину (только у type='reassigned').
       target_user: row.target_id ? {
@@ -1053,6 +1058,7 @@ router.get('/:id/events', async (req, res) => {
         role_prefix: row.target_prefix_label
           ? { label: row.target_prefix_label, color: row.target_color, tooltip: row.target_tooltip }
           : null,
+        faculty: facultyBadge(row.target_faculty),
       } : null,
     })));
   } catch (err) {

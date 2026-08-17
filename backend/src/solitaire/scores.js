@@ -9,6 +9,7 @@
 // «строго больше».
 
 import { query } from '../db/client.js';
+import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
 
 // Сколько строк показываем в окне игры. Больше десяти в модалку не влезает, а
 // свою строку игрок увидит отдельно, даже если он двадцать пятый.
@@ -18,11 +19,12 @@ export const TOP_LIMIT = 10;
 // тетриса и тройки: человек должен узнавать коллег одинаково везде.
 const TOP_QUERY = `
   SELECT u.id, u.display_name, u.avatar,
-         rl.prefix_label, rl.color, rl.tooltip,
+         rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS},
          s.seconds, s.moves, s.redeals, s.wins, s.played_at
     FROM solitaire_scores s
     JOIN users u ON u.id = s.user_id
     LEFT JOIN role_labels rl ON rl.role = u.role
+    ${FACULTY_JOIN}
    ORDER BY s.seconds, s.played_at
    LIMIT $1`;
 
@@ -34,6 +36,7 @@ function presentRow(row) {
         role_prefix: row.prefix_label
             ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
             : null,
+        faculty: facultyBadge(row.faculty),
         seconds: row.seconds,
         moves: row.moves,
         redeals: row.redeals,

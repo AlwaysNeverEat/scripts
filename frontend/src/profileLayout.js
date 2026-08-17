@@ -14,6 +14,8 @@
 // выглядеть одинаково, иначе они разъезжаются при первой же правке.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { facultyClass } from './namePrefix.js';
+
 // «1 машина / 2 машины / 5 машин» — [одна, две, пять].
 export function plural(n, forms) {
     const mod10 = Math.abs(n) % 10;
@@ -26,7 +28,13 @@ export function plural(n, forms) {
 // Обложка профиля: аватар, ник и две цифры.
 // editable — свой профиль: аватар и ник кликабельные, поэтому у них id,
 // подсказки и карандаш. В чужом профиле кликать нечего, и намёка быть не должно.
-export function profileHeroHtml({ avatarInner, nameInner, added = 0, edited = 0, editable = false }) {
+//
+// faculty — плашка факультета (id/name/prefix). От неё красится ПОДЛОЖКА
+// обложки: цвета дома берутся из класса faculty-<id> (см. style.css), поэтому
+// здесь нет ни одного цвета и новый факультет не требует правки этого файла.
+// Красим фон, а не рамку и не текст: профиль должен читаться как «свой дом» с
+// одного взгляда, но имя и цифры важнее цвета и перекрашиваться не должны.
+export function profileHeroHtml({ avatarInner, nameInner, added = 0, edited = 0, editable = false, faculty = null }) {
     const avatar = `<div class="profile-avatar">${avatarInner}</div>`;
     const avatarBlock = editable
         ? `<div class="profile-avatar-wrap" id="profile-avatar-wrap" title="Кликните, чтобы сменить аватар">
@@ -38,7 +46,7 @@ export function profileHeroHtml({ avatarInner, nameInner, added = 0, edited = 0,
         : `<div class="profile-name profile-name-static">${nameInner}</div>`;
 
     return `
-        <section class="profile-hero">
+        <section class="profile-hero${facultyClass(faculty, 'faculty-tint')}">
             ${avatarBlock}
             ${nameBlock}
             <div class="profile-stats">
