@@ -69,6 +69,25 @@ test('вопросов достаточно, id уникальны, блоки �
     }
 });
 
+test('весов-полутонов нет: вариант либо про шкалу, либо нет', () => {
+    // Это тест на конкретную поломку. В первой версии половина вариантов
+    // несла «наполнители» ±1 в довесок к основным ±2 — чаще всего минус по уму
+    // и амбициям, потому что так было проще уравнять сумму вопроса. Человек
+    // выбирал вариант по его смыслу, а вместе с ним получал минус по шкале, о
+    // которой в варианте не было ни слова: у первых четверых прошедших ум
+    // оказался от 0 до −65, и трое из четырёх уехали в один дом. Теперь вес
+    // либо есть, либо нет.
+    for (const q of QUESTIONS) {
+        const list = q.type === 'scale' ? [q] : (q.type === 'order' ? q.items : q.options);
+        for (const item of list) {
+            for (const axis of AXIS_IDS) {
+                assert.ok([-1, 0, 1].includes(item.w[axis]),
+                    `вопрос ${q.id}: вес ${item.w[axis]} по шкале ${axis} — полутонов не держим`);
+            }
+        }
+    }
+});
+
 test('каждый вопрос с вариантами уравновешен: сам набор никуда не тянет', () => {
     for (const q of QUESTIONS) {
         if (q.type !== 'choice' && q.type !== 'pair') continue;
@@ -206,7 +225,7 @@ test('характер по ответам восстанавливается', 
     // тест меряет не то, что написано в шапке quiz.js.
     const next = rnd(31337);
     const dot = (w, ch) => AXIS_IDS.reduce((s, a) => s + w[a] * ch[a], 0);
-    const noisy = (w, ch) => dot(w, ch) / 40 + (next() - 0.5);
+    const noisy = (w, ch) => dot(w, ch) / 45 + (next() - 0.5);
 
     let hit = 0;
     const N = 1500;
@@ -215,7 +234,7 @@ test('характер по ответам восстанавливается', 
         const answers = {};
         for (const q of QUESTIONS) {
             if (q.type === 'scale') {
-                const v = dot(q.w, character) / 60 + (next() - 0.5);
+                const v = dot(q.w, character) / 45 + (next() - 0.5);
                 answers[q.id] = Math.max(0, Math.min(4, Math.round(v * 2 + 2)));
             } else if (q.type === 'order') {
                 answers[q.id] = q.items
@@ -232,6 +251,72 @@ test('характер по ответам восстанавливается', 
     }
     const accuracy = hit / N;
     assert.ok(accuracy > 0.75, `тест угадывает характер только в ${(accuracy * 100).toFixed(1)}% случаев`);
+});
+
+test('перекос населения не сгоняет всех в один дом', () => {
+    // Второй тест на ту же поломку, но с другой стороны. Живые люди отвечают
+    // не как генератор случайных чисел: по какой-нибудь шкале у целой конторы
+    // может быть общий сдвиг — скромничают, или никто не считает себя умным.
+    // Тест не даёт такому сдвигу решать за человека: даже когда население
+    // смещено на полшкалы, ни один факультет не должен забирать больше
+    // сорока пяти процентов.
+    const dot = (weights, ch) => AXIS_IDS.reduce((s, a) => s + weights[a] * ch[a], 0);
+
+    for (const axis of AXIS_IDS) {
+        for (const shift of [-40, 40]) {
+            const next = rnd(999 + shift);
+            const counts = Object.fromEntries(FACULTY_IDS.map(id => [id, 0]));
+            const N = 800;
+            for (let i = 0; i < N; i++) {
+                const character = Object.fromEntries(
+                    AXIS_IDS.map(a => [a, (next() * 2 - 1) * 100 + (a === axis ? shift : 0)]));
+                const answers = {};
+                for (const q of QUESTIONS) {
+                    if (q.type === 'scale') {
+                        const v = dot(q.w, character) / 45 + (next() - 0.5);
+                        answers[q.id] = Math.max(0, Math.min(4, Math.round(v * 2 + 2)));
+                    } else if (q.type === 'order') {
+                        answers[q.id] = q.items
+                            .map(item => ({ id: item.id, s: dot(item.w, character) / 45 + (next() - 0.5) }))
+                            .sort((a, b) => b.s - a.s).map(x => x.id);
+                    } else {
+                        answers[q.id] = q.options
+                            .map(o => ({ id: o.id, s: dot(o.w, character) / 45 + (next() - 0.5) }))
+                            .sort((a, b) => b.s - a.s)[0].id;
+                    }
+                }
+                counts[facultyFromAnswers(answers).faculty]++;
+            }
+            for (const id of FACULTY_IDS) {
+                const share = counts[id] / N;
+                assert.ok(share < 0.45,
+                    `при сдвиге ${axis} на ${shift} факультет ${id} забирает ${(share * 100).toFixed(0)}% людей`);
+            }
+        }
+    }
+});
+
+test('шкалы не слиплись друг с другом', () => {
+    // Если бы две шкалы двигались всегда парой (в первой версии «амбиции» и
+    // «верность» шли под −0.84), четыре измерения схлопнулись бы в два, а
+    // четыре факультета — в два противоположных угла.
+    const next = rnd(4242);
+    const cols = Object.fromEntries(AXIS_IDS.map(a => [a, []]));
+    for (let i = 0; i < 2000; i++) {
+        const scores = scoreAnswers(randomAnswers(next));
+        for (const a of AXIS_IDS) cols[a].push(scores[a]);
+    }
+    const mean = a => cols[a].reduce((s, v) => s + v, 0) / cols[a].length;
+    const dev = (a, m) => Math.sqrt(cols[a].reduce((s, v) => s + (v - m) ** 2, 0) / cols[a].length);
+    for (let i = 0; i < AXIS_IDS.length; i++) {
+        for (let j = i + 1; j < AXIS_IDS.length; j++) {
+            const [x, y] = [AXIS_IDS[i], AXIS_IDS[j]];
+            const [mx, my] = [mean(x), mean(y)];
+            const cov = cols[x].reduce((s, v, k) => s + (v - mx) * (cols[y][k] - my), 0) / cols[x].length;
+            const r = cov / (dev(x, mx) * dev(y, my));
+            assert.ok(Math.abs(r) < 0.3, `шкалы ${x} и ${y} слиплись: ${r.toFixed(2)}`);
+        }
+    }
 });
 
 test('результат воспроизводим: те же ответы — тот же факультет', () => {
