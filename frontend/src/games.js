@@ -43,6 +43,8 @@ const GAMES = [
     { name: 'Пасьянс',    blank: ['♠', '♥', '♦', '♣'], open: () => import('./solitaire.js').then(m => m.openSolitaire) },
     // Иконки тоже пока нет — на плитке номера шаров восьмёрки.
     { name: 'Бильярд',    blank: ['8', '●', '◍'], open: () => import('./pool.js').then(m => m.openPool) },
+    // И тут нет — на плитке стороны света.
+    { name: 'Гео',        blank: ['N', 'E', 'S', 'W'], open: () => import('./geo.js').then(m => m.openGeo) },
 ];
 
 let openModal = null;   // одно окно за раз
