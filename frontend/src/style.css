@@ -3995,7 +3995,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    счётчиков, легенды, мини-топа и подсказки, — поэтому поле целиком
    видно и на 360px телефона, и на ноутбуке с короткой рамкой, без
    прокрутки внутри окна. */
-.modal-win.tro-win { max-width: 520px; }
+.modal-win.tro-win { max-width: 600px; }
 .tro-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 9px; }
 
 .tro-win {
@@ -4003,7 +4003,13 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
      остального в окне (шапка, счётчики, легенда, мини-топ, подсказка, отступы и
      рамка поля — вместе ровно те 400px, что вычтены; посчитано по факту, а не на
      глаз). Выше 85vh модалка не бывает — см. .modal-win. */
-  --tro-cell: max(26px, min(44px, calc((100vw - 58px) / 8), calc((85vh - 400px) / 8)));
+  --tro-cell: max(26px, min(44px, calc((100vw - 58px) / 8),
+                            calc((85vh - 400px - var(--tro-quest-h)) / 8)));
+  /* Сколько высоты занимает панель задания. Она стоит СБОКУ от поля везде, где
+     хватает ширины, и высоты тогда не стоит вовсе (0 — см. медиазапрос ниже); на
+     узком экране она переезжает НАД полем, и вот там её надо вычесть из высоты,
+     иначе поле уедет за нижний край окна. */
+  --tro-quest-h: 59px;   /* полоса 50px плюс её отступ от поля */
   /* Промежуток между клетками. Живёт переменной, потому что из него же считается
      высота, с которой падают фишки (@keyframes tro-fall). */
   --tro-gap: 3px;
@@ -4077,10 +4083,18 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .tro-stat b.is-bump { display: inline-block; animation: ms-bump .28s ease-out; }
 
 /* ── Поле ── */
-/* Обёртка сжата ПО ПОЛЮ (width: fit-content), а не растянута на всю ширину
-   окна: от неё считаются и «+540», и затемнение на паузе, — а затемнение шире
-   поля выглядит сломанной вёрсткой. */
-.tro-play { position: relative; display: flex; justify-content: center; width: fit-content; margin: 0 auto; }
+/* Игровая строка: поле и панель задания рядом. Сжата по содержимому
+   (width: fit-content), а не растянута на всю ширину окна.
+   На узком экране (ниже 620px) панель переезжает НАД полем: сбоку от поля
+   8×8 там остаётся полсотни пикселей, в которые не влезает ни одно условие. */
+.tro-play {
+  display: flex; align-items: flex-start; justify-content: center; gap: 9px;
+  flex-direction: column-reverse;
+  width: fit-content; margin: 0 auto;
+}
+/* Обёртка ПОЛЯ: от неё считаются и «+540», и затемнение на паузе, и надпись о
+   задании, — а затемнение шире поля выглядит сломанной вёрсткой. */
+.tro-field { position: relative; display: flex; width: fit-content; }
 .tro-board {
   display: grid;
   grid-template-columns: repeat(8, var(--tro-cell));
@@ -4252,8 +4266,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   75%      { transform: translateX(3px); }
 }
 
-/* Пауза и конец партии закрывают ТОЛЬКО поле, а не всё окно: мини-топ под ним
-   в этот момент как раз и хочется прочитать. */
+/* Пауза и конец партии закрывают ТОЛЬКО поле (.tro-field), а не всё окно:
+   мини-топ под ним и панель задания сбоку в этот момент как раз и хочется
+   прочитать. */
 .tro-overlay {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
@@ -4296,6 +4311,184 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .tro-legend .icon { color: var(--text); flex: none; }
 /* Подсказка в легенде — настоящая фишка со спрайта (см. legendHtml), поэтому
    ей нужен только размер, заданный выше в .tro-chip. */
+
+/* ── Панель мини-задания ──────────────────────────────────────────
+   Что просят, сколько ОСТАЛОСЬ, сколько на это секунд и что дадут.
+   Устройство и почему крупным числом стоит именно остаток — в разделе
+   «Панель мини-задания» в troika.js.
+
+   Раскладок у панели две, и это не украшательство: сбоку от поля (там
+   она карточкой в столбец) и НАД полем на узком экране (там она
+   полосой в строку). Базовая — узкая: поле 8×8 на телефоне занимает
+   всю ширину, и рядом с ним не остаётся места ни под одно условие. */
+.tro-quest {
+  position: relative;
+  width: 100%; height: 50px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 9px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+  /* Полоса срока нарисована по нижнему краю панели (см. ниже) — она из неё не
+     должна вылезать на скруглениях. */
+  overflow: hidden;
+}
+/* Идёт задание — панель светится рамкой: её появление надо заметить, не глядя
+   на неё. */
+.tro-quest.is-on { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* На узком экране заголовок «Задание» съел бы треть полосы, а панель и так
+   единственное, что стоит над полем. */
+.tro-quest-head {
+  display: none;
+  align-items: center; gap: 4px;
+  font-size: 10.5px; color: var(--sub);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+
+/* Полоса: слева условие и остаток, справа секунды и награда. */
+.tro-quest-body {
+  flex: 1 1 auto; min-width: 0;
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center;
+}
+.tro-quest-goal {
+  grid-column: 1; min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 600; color: var(--text);
+  /* Узел пересоздаётся на каждое новое задание — значит, и анимация играет
+     заново. Отдельного класса «панель обновилась» для этого не нужно. */
+  animation: tro-quest-in .45s cubic-bezier(.2, .8, .3, 1) both;
+}
+@keyframes tro-quest-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+.tro-quest-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Картинка условия — фишка из того же спрайта, что и поле. У задания «любые
+   фишки» их три, и лежат они стопкой: три фишки в ряд заняли бы полстроки. */
+.tro-quest-icon { display: inline-flex; flex: none; }
+.tro-quest-icon .tro-chip + .tro-chip { margin-left: -10px; }
+.tro-quest-icon .icon { color: var(--accent); }
+
+.tro-quest-progress {
+  grid-column: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.tro-quest-count { display: flex; align-items: baseline; gap: 4px; flex: none; }
+/* Остаток — самое крупное на панели: это единственное число, за которым игрок
+   следит («ещё три»), и читаться оно должно боковым зрением. */
+.tro-quest-left {
+  font-size: 17px; font-weight: 800; line-height: 1;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.tro-quest-of { font-size: 10.5px; color: var(--sub); }
+.tro-quest-bar { flex: 1 1 40px; height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; }
+.tro-quest-bar > i {
+  display: block; height: 100%; width: 0;
+  background: var(--accent); border-radius: 3px;
+  transition: width .25s cubic-bezier(.2, .8, .3, 1);
+}
+
+.tro-quest-foot {
+  grid-column: 2; grid-row: 1 / span 2;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  font-size: 11px; color: var(--sub); white-space: nowrap;
+}
+.tro-quest-secs { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.tro-quest-prize { color: var(--green); font-weight: 700; }
+/* Срок — полоса по нижнему краю панели, а не ещё одна строка: место наверху
+   стоит дороже, а «сколько осталось времени» и так читается длиной. */
+.tro-quest-time {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: var(--bg);
+}
+.tro-quest-time > i { display: block; height: 100%; width: 100%; background: var(--sub); opacity: .7; }
+/* Последние секунды: панель горит, как и таймер партии на тех же остатках. */
+.tro-quest.is-low { border-color: color-mix(in srgb, var(--red) 55%, transparent); }
+.tro-quest.is-low .tro-quest-time > i { background: var(--red); opacity: 1; }
+.tro-quest.is-low .tro-quest-secs { color: var(--red); }
+
+/* Задания нет — панель не исчезает и не пустеет: дырка сбоку от поля читается
+   как поломка, а исчезающая панель дёргала бы вёрстку каждые полминуты. */
+.tro-quest-idle {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--sub);
+}
+.tro-quest-idle-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--sub); animation: tro-quest-wait 1.6s ease-in-out infinite;
+}
+@keyframes tro-quest-wait {
+  0%, 100% { opacity: .25; transform: scale(.75); }
+  50%      { opacity: .75; transform: scale(1); }
+}
+
+/* ×2 из награды: живёт своей строкой с обратным отсчётом — он единственное, что
+   продолжает действовать, когда задание уже кончилось. Золотой, как и цифра
+   очков под ним: множитель — это про очки. */
+.tro-bonus {
+  flex: none;
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 8px;
+  font-size: 10.5px; color: var(--gold); white-space: nowrap;
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent);
+  animation: tro-bonus 1.2s ease-in-out infinite;
+}
+.tro-bonus b { font-size: 13px; font-weight: 800; }
+@keyframes tro-bonus { 0%, 100% { opacity: 1; } 50% { opacity: .62; } }
+.tro-stat.is-bonus { border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.tro-stat.is-bonus b { color: var(--gold); }
+
+/* Надпись поперёк поля: новое задание и выполненное. Событие крупнее любого
+   каскада, поэтому и объявляется не цифрой на месте фишек, а надписью — но
+   короткой и не ловящей кликов: под ней продолжают играть. */
+.tro-flash {
+  position: absolute; left: 50%; top: 16%; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 7px 14px; border-radius: 12px;
+  /* Ширину держим в границах поля: на телефоне «Задание выполнено · +9 000
+     очков» одной строкой вылезло бы за края доски. */
+  max-width: 92%;
+  font-size: 11px; color: var(--sub); text-align: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+  animation: tro-flash 1.6s ease-out both;
+}
+.tro-flash b { font-size: 14px; font-weight: 800; color: var(--text); }
+.tro-flash.is-done { border-color: color-mix(in srgb, var(--green) 55%, transparent); }
+.tro-flash.is-done b { color: var(--green); }
+@keyframes tro-flash {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(.92); }
+  12%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  72%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -12px) scale(.98); }
+}
+
+/* Хватает ширины — панель встаёт СБОКУ от поля и разворачивается в карточку:
+   высоты она тогда не занимает вовсе (--tro-quest-h: 0), и поле от неё не
+   мельчает. 620px — это поле на минимальной клетке плюс сама панель. */
+@media (min-width: 620px) {
+  .tro-win { --tro-quest-h: 0px; }
+  .tro-play { flex-direction: row; }
+  .tro-quest {
+    width: 152px; height: auto; flex: none;
+    flex-direction: column; align-items: stretch; gap: 7px;
+    padding: 8px 9px 11px;
+  }
+  .tro-quest-head { display: flex; }
+  .tro-quest-body { display: flex; flex-direction: column; gap: 7px; }
+  .tro-quest-goal { line-height: 1.25; white-space: normal; }
+  /* Сбоку места хватает — условие переносится на вторую строку целиком, а не
+     обрезается многоточием: «Собрать «шту…» не задание. */
+  .tro-quest-title { overflow: visible; white-space: normal; }
+  .tro-quest-progress { flex-direction: column; align-items: stretch; gap: 6px; }
+  .tro-quest-left { font-size: 24px; }
+  .tro-quest-bar { flex: none; }
+  .tro-quest-foot { flex-direction: row; align-items: center; justify-content: space-between; }
+  .tro-quest-idle { min-height: 44px; }
+  .tro-bonus { justify-content: center; }
+}
 
 /* ── Мини-топ ── */
 .tro-top {
@@ -4356,8 +4549,15 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    пикселей. Поэтому ужимаем именно его: список до двух строк, отступы и
    промежутки до минимума, — а поле остаётся играбельным. */
 @media (max-height: 700px) {
-  /* Всё «не поле» здесь ужато, поэтому и вычитаем меньше: 350px вместо 400. */
-  .tro-win { --tro-cell: max(22px, min(34px, calc((100vw - 58px) / 8), calc((85vh - 350px) / 8))); }
+  /* Всё «не поле» здесь ужато, поэтому и вычитаем меньше: 350px вместо 400.
+     Панель задания по-прежнему считается отдельно: над полем она стоит только
+     на узком экране, и там её высота из остатка уже вычтена. */
+  .tro-win {
+    --tro-cell: max(22px, min(34px, calc((100vw - 58px) / 8),
+                              calc((85vh - 350px - var(--tro-quest-h)) / 8)));
+  }
+  .tro-quest { height: 44px; padding: 5px 8px; }
+  .tro-quest-left { font-size: 15px; }
   .tro-body { padding: 10px 12px 12px; gap: 6px; }
   .tro-note { min-height: 0; }
   .tro-top { padding-top: 6px; }
