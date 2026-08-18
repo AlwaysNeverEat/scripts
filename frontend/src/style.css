@@ -5252,6 +5252,48 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .dur-note.is-show { opacity: .85; }
 .dur-note.is-flash { color: var(--accent); opacity: 1; }
 
+/* ── Показ хода ── */
+/* Слой, по которому летают карты: лежит поверх стола, кликов не ловит, поэтому
+   играть во время показа он не мешает (запрещает это durak.js, а не он). */
+.dur-fly {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+}
+.dur-flying {
+  position: absolute; left: 0; top: 0;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+  will-change: transform;
+}
+/* Карта, которая сейчас летит, на своём месте не показывается — но место за
+   собой держит: иначе рука и стол дёргались бы на каждый прилёт. */
+.dur-card.is-hidden { visibility: hidden; }
+
+/* Крупная надпись поверх стола — «Бито», «Беру», «Перевод».
+   Нужна ровно там, где по картам не видно, ЧТО решил игрок: «беру» ничего не
+   двигает, а «бито» двигает всё сразу. */
+.dur-shout {
+  position: absolute; left: 0; right: 0; top: 38%;
+  z-index: 5;
+  pointer-events: none;
+  text-align: center;
+  font-size: clamp(28px, 7vw, 54px);
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--text);
+  text-shadow: 0 2px 18px var(--bg), 0 0 30px var(--bg);
+  opacity: 0;
+}
+.dur-shout.is-on { animation: dur-shout .95s ease-out both; }
+@keyframes dur-shout {
+  0%   { opacity: 0; transform: scale(.8); }
+  18%  { opacity: 1; transform: scale(1.06); }
+  30%  { transform: scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+
 /* ── Конец партии ── */
 .dur-over {
   position: absolute; inset: 0;
@@ -5374,10 +5416,12 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .dur-card.is-nope {
     animation: none;
   }
-  /* В дураке движение — только подсветка и подъём карты под курсором: гасим и
-     то, и другое, играть это не мешает. */
+  /* В дураке движение — это ещё и показ хода (карты летят на стол, в отбой и по
+     рукам). Его durak.js выключает сам, увидев эту же настройку, — здесь
+     остаётся погасить подсветку, подъём карты под курсором и надпись. */
   .dur-note, .dur-hand-card { transition: none; }
   .dur-hand-card:hover { transform: none; }
+  .dur-shout.is-on { animation-duration: .5s; }
   /* У бильярда движение — это САМА ИГРА: катящиеся шары не украшение, и
      выключать их нечем. Гасим только появление окна и переходы подсветки. */
   .pool-note, .pool-player { transition: none; }
