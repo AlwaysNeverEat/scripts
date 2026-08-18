@@ -41,8 +41,10 @@ NAME="${NAME:-$(basename "$SCRIPT" .js)}"
 [ -f "$REPO/backend/scripts/import/$SCRIPT" ] || { echo "Нет такого скрипта: $SCRIPT" >&2; exit 1; }
 [ -f "$ENV_FILE" ] || { echo "Нет $ENV_FILE" >&2; exit 1; }
 
-# shellcheck disable=SC1090
-set -a; . "$ENV_FILE"; set +a
+# .env читается построчно, а не выполняется оболочкой (почему — в _env.sh).
+# shellcheck disable=SC1091
+. "$HERE/_env.sh"
+load_env "$ENV_FILE"
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан в deploy/.env}"
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true

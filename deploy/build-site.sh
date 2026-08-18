@@ -22,8 +22,10 @@ ENV_FILE="$HERE/.env"
 WWW="${WWW_DIR:-/var/www/k-spot}"
 
 [ -f "$ENV_FILE" ] || { echo "Нет $ENV_FILE" >&2; exit 1; }
-# shellcheck disable=SC1090
-set -a; . "$ENV_FILE"; set +a
+# .env читается построчно, а не выполняется оболочкой (почему — в _env.sh).
+# shellcheck disable=SC1091
+. "$HERE/_env.sh"
+load_env "$ENV_FILE"
 : "${API_KEY:?API_KEY не задан в deploy/.env}"
 
 echo "==> Сборка (памяти на машине немного, может занять пару минут)"
