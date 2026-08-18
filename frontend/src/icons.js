@@ -102,3 +102,20 @@ export const shuffleIcon = (size = 18) => svg(size, `
     <path d="M4 17h4.2l7.6-10H20"/>
     <polyline points="17,4.5 20,7 17,9.5"/>
     <polyline points="17,14.5 20,17 17,19.5"/>`);
+
+// Мини-задание в тройке (значок в шапке панели): мишень.
+export const targetIcon = (size = 16) => svg(size, `
+    <circle cx="12" cy="12" r="8"/>
+    <circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/>`);
+
+// Задание «довести цепочку до ×N»: молния. Каскад — это единственное в игре,
+// что происходит само и быстро, и молния читается именно так.
+export const boltIcon = (size = 16) => svg(size, `
+    <path d="M13.5 2.5 5.5 13h5l-.9 8.5L18.5 11h-5z" fill="currentColor" stroke-width="1.2"/>`);
+
+// Задание «набрать N очков»: вспышка. Не звезда — звезда здесь уже занята
+// видом фишки, и на панели они стояли бы рядом.
+export const sparkIcon = (size = 16) => svg(size, `
+    <path d="M12 3v6M12 15v6M3 12h6M15 12h6"/>
+    <path d="M12 8.5 13.2 11 15.5 12l-2.3 1-1.2 2.5L10.8 13 8.5 12l2.3-1z"
+          fill="currentColor" stroke="none"/>`);

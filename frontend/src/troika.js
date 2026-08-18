@@ -21,6 +21,13 @@
 // что бывает в этой игре — наказывала бы сильнее всего. Отсюда же следует, что
 // партия не может кончиться посреди анимации: ноль наступает между ходами.
 //
+// СБОКУ ОТ ПОЛЯ живёт панель мини-задания: что просят, сколько ещё осталось
+// (число убывает на глазах — в этом весь смысл), сколько секунд на это дано и
+// что за это дадут. Фишку нужного вида панель показывает КАРТИНКОЙ из того же
+// спрайта, что и поле: «разбить 14 звёзд» словами читается дольше, чем игрок
+// готов отвлекаться посреди партии на время. На узком экране панель переезжает
+// НАД полем (см. style.css) — сбоку от неё там просто нет места.
+//
 // Партия переживает закрытие окна: state кладётся в модульную переменную, и
 // «Тройка» из меню возвращает к тому же полю — но НА ПАУЗЕ: таймер, который
 // тикал бы в закрытом окне, просто съел бы партию, пока человек ищет машину.
@@ -30,17 +37,19 @@
 
 import {
     createGame, applySwap, resolveStep, hasMove, findMove, shuffle, tickTime,
-    areNeighbours, idx, xOf, yOf,
+    tickQuests, areNeighbours, idx, xOf, yOf,
     SIZE, CELLS, KINDS, SPECIAL_CLASS,
     NONE, CLOCK,
     MAX_MS, LOW_TIME_MS, CLOCK_MS, MAX_CASCADE_MULT,
     ROCKET_TILES, BOMB_TILES, PRISM_TILES,
+    QUEST_KIND, QUEST_TILES, QUEST_CLOCKS, QUEST_CASCADE, QUEST_SPECIALS, QUEST_SCORE,
+    REWARD_POINTS, REWARD_MULT, REWARD_TIME, BONUS_MULT,
 } from '../../shared/troika.js';
 // Значки интерфейса остаются SVG: часы в шапке таймера, стрелки в подсказке по
 // клавишам и «перемешано» в строке новостей — это не фишки, а элементы окна, и
 // картинке из спрайта там делать нечего.
 import {
-    clockIcon, shuffleIcon,
+    clockIcon, shuffleIcon, targetIcon, boltIcon, sparkIcon,
     arrowLeftIcon, arrowRightIcon, arrowUpIcon, arrowDownIcon,
 } from './icons.js';
 import tilesSheet from './assets/troika-tiles.webp';
@@ -136,6 +145,14 @@ export function openTroika(ctx) {
         timers: [],
         stats: { score: -1, level: -1 },
         timeShown: -1,
+        // Панель задания перерисовывается ЦЕЛИКОМ только на смене задания
+        // (questShown — то самое задание, что сейчас в DOM), а числа в ней
+        // обновляются, когда изменились: панель живёт рядом с полем и трогать её
+        // на каждом кадре незачем.
+        questShown: undefined,
+        questRefs: null,
+        questNums: '',
+        bonusShown: '',
         top: null,
         topFailed: false,
         sending: false,
@@ -203,22 +220,29 @@ function shellHtml() {
                         </div>
                         <div class="tro-time-bar"><i id="tro-time-fill"></i></div>
                     </div>
-                    <div class="tro-stat"><span>Очки</span><b id="tro-score">0</b></div>
+                    <div class="tro-stat" id="tro-score-box"><span>Очки</span><b id="tro-score">0</b></div>
                     <div class="tro-stat"><span>Уровень</span><b id="tro-level">1</b></div>
                 </div>
 
                 <div class="tro-play">
-                    <div class="tro-board" id="tro-board"></div>
-                    <div class="tro-overlay hidden" id="tro-overlay">
-                        <div class="tro-overlay-card">
-                            <div class="tro-over-title" id="tro-over-title"></div>
-                            <div class="tro-over-sub" id="tro-over-sub"></div>
-                            <div class="tro-over-actions">
-                                <button type="button" class="btn btn-pri" id="tro-restart">Заново</button>
-                                <button type="button" class="btn btn-sec hidden" id="tro-resume">Продолжить</button>
+                    <div class="tro-field" id="tro-field">
+                        <div class="tro-board" id="tro-board"></div>
+                        <div class="tro-overlay hidden" id="tro-overlay">
+                            <div class="tro-overlay-card">
+                                <div class="tro-over-title" id="tro-over-title"></div>
+                                <div class="tro-over-sub" id="tro-over-sub"></div>
+                                <div class="tro-over-actions">
+                                    <button type="button" class="btn btn-pri" id="tro-restart">Заново</button>
+                                    <button type="button" class="btn btn-sec hidden" id="tro-resume">Продолжить</button>
+                                </div>
                             </div>
                         </div>
                     </div>
+                    <aside class="tro-quest" id="tro-quest">
+                        <div class="tro-quest-head">${targetIcon(12)} Задание</div>
+                        <div class="tro-quest-body" id="tro-quest-body"></div>
+                        <div class="tro-bonus hidden" id="tro-bonus"></div>
+                    </aside>
                 </div>
 
                 <div class="tro-note" id="tro-note"></div>
@@ -295,6 +319,12 @@ function frame(state, ts) {
     if (!state.busy) {
         ended = tickTime(state.game, dt);
         renderTime(state);
+        // Задания и множитель идут тем же временем, что и партия: пока
+        // показывается цепочка, игрок не может ни выполнить задание, ни
+        // потратить ×2, и отнимать у него эти секунды не за что.
+        const quests = tickQuests(state.game, dt);
+        if (quests.started) questStarted(state, quests.started);
+        if (quests.failed) questFailed(state, quests.failed);
         // Простой считаем там же: во время каскада игрок не бездельничает, он
         // смотрит, что натворил.
         if (!state.hint) {
@@ -302,6 +332,9 @@ function frame(state, ts) {
             if (state.idleMs >= HINT_AFTER_MS) showHint(state);
         }
     }
+    // Панель перерисовываем и во время цепочки: именно тогда «осталось 14»
+    // превращается в «осталось 11», и ради этого числа задание и показывается.
+    renderQuest(state);
     if (ended) {
         state.raf = 0;
         finish(state);
@@ -585,7 +618,7 @@ function restart(state) {
     stopLoop(state);
     cancelCount(state);
     clearTimers(state);
-    state.modal.querySelectorAll('.tro-pop').forEach(n => n.remove());
+    state.modal.querySelectorAll('.tro-pop, .tro-flash').forEach(n => n.remove());
     state.game = createGame();
     saved = null;
     state.busy = false;
@@ -598,6 +631,9 @@ function restart(state) {
     state.drawn.fill(-1);
     state.stats = { score: -1, level: -1 };
     state.timeShown = -1;
+    state.questShown = undefined;
+    state.questNums = '';
+    state.bonusShown = '';
     note(state, '');
     renderAll(state);
     renderOverlay(state);
@@ -668,6 +704,7 @@ function renderAll(state) {
     renderBoard(state);
     renderStats(state);
     renderTime(state);
+    renderQuest(state);
 }
 
 /**
@@ -801,9 +838,17 @@ function popScore(state, step, k) {
         // должно остаться ничего, иначе на поле копится столбик чисел.
         const life = Math.round((PHASE_POP + PHASE_FALL) * k);
         pop.style.setProperty('--pop-ms', `${life}ms`);
-        state.modal.querySelector('.tro-play').appendChild(pop);
+        state.modal.querySelector('#tro-field').appendChild(pop);
         later(state, () => pop.remove(), life);
         countTo(state, state.game.score, Math.round(PHASE_POP * k));
+    }
+    // Выполненное задание — событие крупнее любого каскада: и объявляется оно
+    // не цифрой на месте фишек, а надписью поперёк поля. Награда названа прямо
+    // в ней: «выполнено» без «а что дали» игрок дочитает уже на панели, где к
+    // этому времени висит следующее задание.
+    if (step.questDone) {
+        flashQuest(state, 'is-done',
+            `Задание выполнено<b>${rewardLabel(step.questDone.reward)}</b>`);
     }
     // «+N с» у таймера — там же, где секунды: часы это продолжение партии, и
     // заметить их надо в том месте, которое от них зависит.
@@ -831,9 +876,11 @@ function dropBoard(state, step, k) {
     later(state, () => board.classList.remove('is-falling'), ms);
 }
 
-/** Середина набора клеток в координатах окна игры — куда всплыть цифре. */
+/** Середина набора клеток в координатах ПОЛЯ — куда всплыть цифре. */
 function centerOf(state, cells) {
-    const play = state.modal.querySelector('.tro-play').getBoundingClientRect();
+    // Считаем от поля, а не от всей игровой строки: сбоку от него живёт панель
+    // задания, и от неё цифру пришлось бы отсчитывать назад.
+    const play = state.modal.querySelector('#tro-field').getBoundingClientRect();
     const first = state.cells[0].getBoundingClientRect();
     // Шаг сетки меряем по соседней клетке, а не берём из CSS: промежуток между
     // клетками задан там, и держать его копией здесь — верный способ разъехаться.
@@ -959,7 +1006,7 @@ function renderOverlay(state) {
     state.modal.querySelector('#tro-over-sub').textContent = game.over
         ? `${game.score.toLocaleString('ru-RU')} ${pointsWord(game.score)}, `
           + `уровень ${game.level}, лучшая цепочка ×${Math.max(game.bestCascade, 1)}, `
-          + `часов: ${game.clocks}`
+          + `часов: ${game.clocks}, заданий: ${game.quests}`
         : 'P или «Продолжить»';
 }
 
@@ -974,6 +1021,217 @@ function plural(n, one, few, many) {
 }
 
 function pointsWord(n) { return plural(n, 'очко', 'очка', 'очков'); }
+
+// ── Панель мини-задания ──────────────────────────────────────────────────────
+//
+// Что просят, сколько ОСТАЛОСЬ, сколько на это секунд и что дадут — четыре
+// строки сбоку от поля (на узком экране — над полем, см. style.css).
+//
+// Главное число на панели — ОСТАТОК, а не сделанное: «осталось 11» отвечает на
+// вопрос «успею ли», а «сделано 5 из 16» заставляет вычитать в уме посреди
+// партии на время. Полоса под ним показывает уже сделанное — вместе они и дают
+// картинку «сколько прошёл, сколько осталось».
+//
+// Фишку панель показывает КАРТИНКОЙ из спрайта поля (тот же .tro-chip, что в
+// легенде): задание «разбить звёзды» должно читаться взглядом, не чтением, —
+// иначе за время, потраченное на его разбор, кончится оно само.
+
+// Названия видов — только здесь: правилам они не нужны (там вид это число), а
+// на панели «разбить kind 4» не читается никак. Винительный падеж, потому что
+// подставляется в «Разбить …».
+const KIND_NAME = {
+    ring: 'кольца', square: 'квадраты', triangle: 'треугольники',
+    hex: 'соты', star: 'звёзды', drop: 'капли',
+};
+
+// Сколько остаётся на панели «горящей». Шесть секунд — примерно один ход с
+// цепочкой: столько ещё имеет смысл торопиться.
+const QUEST_LOW_MS = 6_000;
+
+const chip = (kind, special = 'plain') => `<i class="tro-chip k-${kind} s-${special}"></i>`;
+const fmt = n => Math.round(n).toLocaleString('ru-RU');
+
+// Пока задания нет, панель не исчезает и не пустеет: пустое место сбоку от поля
+// читалось бы как «здесь что-то сломалось», а исчезающая панель дёргала бы
+// вёрстку каждые полминуты.
+const QUEST_IDLE_HTML = `
+    <div class="tro-quest-idle">
+        <span class="tro-quest-idle-dot"></span>
+        Следующее задание скоро
+    </div>`;
+
+/**
+ * Как показать задание: картинка, строка условия, крупное число и подпись
+ * под ним.
+ *
+ * big — то, что меняется на глазах (остаток), sub — от чего считается. У
+ * цепочки остатка нет: «довести до ×5» это одно длинное падение, а не пять
+ * штук, поэтому крупным стоит цель, а внизу — как далеко зашли сейчас.
+ */
+function questView(quest) {
+    const left = Math.max(quest.need - quest.have, 0);
+    const of = `из ${fmt(quest.need)}`;
+    switch (quest.type) {
+        case QUEST_KIND:
+            return {
+                icon: chip(KINDS[quest.kind]),
+                title: `Разбить ${KIND_NAME[KINDS[quest.kind]]}`,
+                goal: fmt(quest.need), big: fmt(left), sub: of,
+            };
+        case QUEST_TILES:
+            return {
+                // Три разные фишки внахлёст — «любые», без слов.
+                icon: chip('ring') + chip('hex') + chip('drop'),
+                title: 'Разбить любые фишки',
+                goal: fmt(quest.need), big: fmt(left), sub: of,
+            };
+        case QUEST_CLOCKS:
+            return {
+                icon: chip('triangle', 'clock'),
+                title: 'Собрать часы',
+                goal: fmt(quest.need), big: fmt(left), sub: of,
+            };
+        case QUEST_SPECIALS:
+            return {
+                icon: chip('drop', 'bomb'),
+                title: 'Собрать «штучки»',
+                goal: fmt(quest.need), big: fmt(left), sub: of,
+            };
+        case QUEST_CASCADE:
+            return {
+                icon: boltIcon(18),
+                title: 'Довести цепочку',
+                goal: `×${quest.need}`, big: `×${quest.need}`,
+                sub: `сейчас ×${Math.max(quest.have, 1)}`,
+            };
+        default:
+            return {
+                icon: sparkIcon(18),
+                title: 'Набрать очки',
+                goal: fmt(quest.need), big: fmt(left), sub: of,
+            };
+    }
+}
+
+/** Награда одной строкой — и на панели, и в объявлении о выполнении. */
+function rewardLabel(reward) {
+    if (reward.type === REWARD_POINTS) return `+${fmt(reward.points)} ${pointsWord(reward.points)}`;
+    if (reward.type === REWARD_MULT) return `×${reward.mult} на ${Math.round(reward.ms / 1000)} с`;
+    return `+${Math.round(reward.ms / 1000)} с к таймеру`;
+}
+
+function questCardHtml(quest) {
+    const view = questView(quest);
+    return `
+        <div class="tro-quest-goal">
+            <span class="tro-quest-icon">${view.icon}</span>
+            <span class="tro-quest-title">${view.title}</span>
+        </div>
+        <div class="tro-quest-progress">
+            <div class="tro-quest-count">
+                <b class="tro-quest-left">${view.big}</b>
+                <span class="tro-quest-of">${view.sub}</span>
+            </div>
+            <div class="tro-quest-bar"><i></i></div>
+        </div>
+        <div class="tro-quest-foot">
+            <span class="tro-quest-secs">${clockIcon(12)}<b>${Math.ceil(quest.leftMs / 1000)}</b></span>
+            <span class="tro-quest-prize">${rewardLabel(quest.reward)}</span>
+        </div>
+        <div class="tro-quest-time"><i></i></div>`;
+}
+
+/**
+ * Перерисовать панель. Разметка собирается заново только на смене задания,
+ * числа — когда изменились: панель обновляется каждый кадр, и писать в style
+ * ради одного пикселя полосы незачем (то же правило, что у таймера).
+ */
+function renderQuest(state) {
+    const quest = state.game.over ? null : state.game.quest;
+    const box = state.modal.querySelector('#tro-quest');
+    if (!box) return;
+    if (state.questShown !== quest) {
+        state.questShown = quest;
+        const body = state.modal.querySelector('#tro-quest-body');
+        body.innerHTML = quest ? questCardHtml(quest) : QUEST_IDLE_HTML;
+        state.questRefs = quest ? {
+            left: body.querySelector('.tro-quest-left'),
+            of: body.querySelector('.tro-quest-of'),
+            fill: body.querySelector('.tro-quest-bar > i'),
+            secs: body.querySelector('.tro-quest-secs > b'),
+            time: body.querySelector('.tro-quest-time > i'),
+        } : null;
+        state.questNums = '';
+        box.classList.toggle('is-on', !!quest);
+        if (!quest) box.classList.remove('is-low');
+    }
+    renderBonus(state);
+    if (!quest) return;
+
+    const view = questView(quest);
+    const secs = Math.max(Math.ceil(quest.leftMs / 1000), 0);
+    const done = Math.round(Math.min(quest.have / quest.need, 1) * 100);
+    const left = Math.max(Math.round((quest.leftMs / quest.totalMs) * 100), 0);
+    const key = `${view.big}|${view.sub}|${secs}|${done}|${left}`;
+    if (state.questNums === key) return;
+    state.questNums = key;
+
+    const refs = state.questRefs;
+    refs.left.textContent = view.big;
+    refs.of.textContent = view.sub;
+    refs.fill.style.width = `${done}%`;
+    refs.secs.textContent = String(secs);
+    refs.time.style.width = `${left}%`;
+    // Последние секунды панель подсвечивает — как таймер партии: задание, о
+    // котором вспомнили за две секунды до конца, уже не задание.
+    box.classList.toggle('is-low', quest.leftMs <= QUEST_LOW_MS);
+}
+
+
+// ×2 — единственное, что действует ПОСЛЕ задания, поэтому и показывается
+// отдельной строкой с обратным отсчётом, а не значком у награды. Заодно
+// подсвечивается счётчик очков: множитель влияет именно на него.
+function renderBonus(state) {
+    const ms = state.game.over ? 0 : state.game.bonusMs;
+    const key = ms > 0 ? String(Math.ceil(ms / 1000)) : '';
+    if (state.bonusShown === key) return;
+    state.bonusShown = key;
+    const box = state.modal.querySelector('#tro-bonus');
+    if (box) {
+        box.classList.toggle('hidden', !key);
+        if (key) box.innerHTML = `<b>×${BONUS_MULT}</b> ещё ${key} с`;
+    }
+    state.modal.querySelector('#tro-score-box')?.classList.toggle('is-bonus', !!key);
+}
+
+// Новое задание: панель вспыхивает, а в строке новостей появляется, что именно
+// просят. Вспышки мало — она короткая, и её пропускают, глядя на поле; одной
+// строки мало — её не заметят вовсе.
+function questStarted(state, quest) {
+    const view = questView(quest);
+    flashQuest(state, 'is-new', `Новое задание<b>${view.title} · ${view.goal}</b>`);
+    note(state, `${targetIcon(13)} Задание: ${view.title.toLowerCase()} — ${view.goal}`);
+}
+
+// Провал: короткая строка и всё. Ругаться не за что — задание не выполнено чаще
+// всего потому, что поле не дало нужных фишек, а поле игрок не выбирает.
+function questFailed(state, quest) {
+    note(state, `${targetIcon(13)} Задание не успели: ${questView(quest).title.toLowerCase()}`);
+}
+
+// Надпись поперёк поля: новое задание и выполненное. Живёт полторы секунды и
+// кликов не ловит — под ней продолжают играть.
+function flashQuest(state, cls, html) {
+    const field = state.modal.querySelector('#tro-field');
+    if (!field) return;
+    // Две надписи разом сложились бы в кашу: предыдущую убираем.
+    field.querySelectorAll('.tro-flash').forEach(n => n.remove());
+    const box = document.createElement('div');
+    box.className = `tro-flash ${cls}`;
+    box.innerHTML = html;
+    field.appendChild(box);
+    later(state, () => box.remove(), 1_600);
+}
 
 // ── Мини-топ ─────────────────────────────────────────────────────────────────
 

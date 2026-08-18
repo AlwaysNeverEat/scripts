@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import {
     createGame, applySwap, swapKind, canSwap, resolveStep, findGroups, hasMatchAt,
     hasMove, findMove, shuffle, tickTime, levelFor, clockChance, maxPlausibleScore, isPlausibleRun,
+    tickQuests, makeQuest, questPoints, bonusMult, maxQuests,
     idx, areNeighbours,
     SIZE, CELLS, KIND_COUNT, NONE, ROCKET_H, ROCKET_V, BOMB, PRISM, CLOCK,
     START_MS, MAX_MS, CLOCK_MS, TILE_POINTS, CLOCK_POINTS, MAX_CASCADE_MULT, CREATE_BONUS,
+    QUEST_KIND, QUEST_TILES, QUEST_CLOCKS, QUEST_CASCADE, QUEST_SPECIALS, QUEST_SCORE,
+    REWARD_POINTS, REWARD_MULT, REWARD_TIME,
+    QUEST_FIRST_MS, QUEST_GAP_MIN_MS, QUEST_GAP_MAX_MS, QUEST_POINTS_MAX, QUEST_TIME_MS,
+    BONUS_MULT, BONUS_MS, BONUS_MAX_MS,
 } from './troika.js';
 
 // Партии с зерном повторяемы — иначе половина тестов была бы «как повезёт».
@@ -538,6 +543,219 @@ test('findMove: находит ход, молчит в тупике и отве�
     assert.equal(hasMove(dead), false);
 });
 
+// ── Мини-задания ─────────────────────────────────────────────────────────────
+
+// Задание руками: генератор проверяется отдельно, а поведение — на понятном
+// условии, а не на том, что выпало из зерна.
+function quest(over = {}) {
+    return {
+        type: QUEST_TILES, kind: -1, need: 3, have: 0,
+        totalMs: 30_000, leftMs: 30_000,
+        reward: { type: REWARD_POINTS, points: 3_000 },
+        ...over,
+    };
+}
+
+// Тройка на заготовке: три фишки вида 5 уходят разом (тот же ход, что и в
+// тесте про тройку выше).
+function triple(game) {
+    paint(game, [[0, 0], [1, 0]], 5);
+    paint(game, [[2, 1]], 5);
+    paint(game, [[2, 0]], 4);
+    assert.equal(applySwap(game, idx(2, 0), idx(2, 1)), 'match');
+    return resolveStep(game);
+}
+
+test('задание приходит не сразу и живёт своим таймером', () => {
+    const game = g(3);
+    assert.equal(game.quest, null);
+    assert.equal(tickQuests(game, QUEST_FIRST_MS - 1).started, null, 'первые секунды заданий нет');
+    const { started } = tickQuests(game, 1);
+    assert.ok(started, 'после паузы задание появляется');
+    assert.equal(game.quest, started);
+    assert.ok(started.need > 0 && started.leftMs === started.totalMs);
+
+    // Пока задание идёт, второе не приходит — иначе их набралось бы столько,
+    // сколько кадров.
+    assert.equal(tickQuests(game, 1_000).started, null);
+    assert.equal(game.quest.leftMs, started.totalMs - 1_000);
+});
+
+test('провал задания ничего не отнимает, следующее приходит через паузу', () => {
+    const game = g(4);
+    game.quest = quest();
+    game.score = 500;
+    game.timeMs = 40_000;
+
+    const out = tickQuests(game, 30_000);
+    assert.ok(out.failed, 'срок вышел — задание провалено');
+    assert.equal(game.quest, null);
+    assert.equal(game.quests, 0, 'провал не идёт в счёт выполненных');
+    assert.equal(game.score, 500, 'за провал очки не снимаются');
+    assert.equal(game.timeMs, 40_000, 'и время тоже');
+    assert.ok(game.nextQuestMs >= QUEST_GAP_MIN_MS && game.nextQuestMs <= QUEST_GAP_MAX_MS);
+});
+
+test('задание на вид фишки считает только свой вид', () => {
+    const other = blank();
+    other.quest = quest({ type: QUEST_KIND, kind: 4, need: 3 });
+    triple(other);
+    assert.equal(other.quest.have, 0, 'убрали вид 5, а просили 4');
+
+    const mine = blank();
+    mine.quest = quest({ type: QUEST_KIND, kind: 5, need: 3 });
+    const step = triple(mine);
+    assert.ok(step.questDone, 'три фишки своего вида — задание выполнено');
+    assert.equal(mine.quest, null);
+    assert.equal(mine.quests, 1);
+});
+
+test('награда очками: даётся разом и не попадает под собственный ×2', () => {
+    const game = blank();
+    game.quest = quest({ reward: { type: REWARD_POINTS, points: 5_000 } });
+    game.bonusMs = BONUS_MS;                     // ×2 уже действует
+    const step = triple(game);
+
+    assert.equal(step.bonus, BONUS_MULT);
+    assert.equal(step.gained, 3 * TILE_POINTS * BONUS_MULT, 'фишки удвоились');
+    assert.equal(step.questDone.points, 5_000);
+    assert.equal(game.score, 3 * TILE_POINTS * BONUS_MULT + 5_000, 'награда — ровно своим номиналом');
+});
+
+test('награда ×2: удваивает следующие шаги и кончается сама', () => {
+    const game = blank();
+    game.quest = quest({ reward: { type: REWARD_MULT, mult: BONUS_MULT, ms: BONUS_MS } });
+    const first = triple(game);
+    // Награда выдана ПОСЛЕ очков этого шага: множитель не задним числом.
+    assert.equal(first.bonus, 1);
+    assert.equal(game.bonusMs, BONUS_MS);
+    assert.equal(bonusMult(game), BONUS_MULT);
+
+    const next = blank();
+    next.bonusMs = BONUS_MS;
+    assert.equal(triple(next).gained, 3 * TILE_POINTS * BONUS_MULT);
+
+    // Две награды подряд складываются, но упираются в потолок.
+    const capped = blank();
+    capped.bonusMs = BONUS_MAX_MS;
+    capped.quest = quest({ reward: { type: REWARD_MULT, mult: BONUS_MULT, ms: BONUS_MS } });
+    triple(capped);
+    assert.equal(capped.bonusMs, BONUS_MAX_MS);
+
+    game.bonusMs = 1_000;
+    const out = tickQuests(game, 1_000);
+    assert.equal(out.bonusEnded, true);
+    assert.equal(bonusMult(game), 1);
+});
+
+test('награда временем: идёт в банк и не обходит его потолок', () => {
+    const game = blank();
+    game.timeMs = 40_000;
+    game.quest = quest({ reward: { type: REWARD_TIME, ms: QUEST_TIME_MS } });
+    const step = triple(game);
+    assert.equal(game.timeMs, 40_000 + QUEST_TIME_MS);
+    assert.equal(step.timeGained, QUEST_TIME_MS, 'окну — общая прибавка за шаг');
+
+    const full = blank();
+    full.timeMs = MAX_MS;
+    full.quest = quest({ reward: { type: REWARD_TIME, ms: QUEST_TIME_MS } });
+    full.quest.need = 3;
+    triple(full);
+    assert.equal(full.timeMs, MAX_MS);
+});
+
+test('задание на цепочку считает РЕКОРД, а не сумму шагов', () => {
+    const game = blank();
+    game.quest = quest({ type: QUEST_CASCADE, need: 3 });
+    triple(game);
+    assert.equal(game.quest.have, 1, 'одна тройка — цепочка ×1');
+    // Ещё две таких же тройки подряд задание не выполняют: нужна одна длинная.
+    const again = blank();
+    again.quest = game.quest;
+    triple(again);
+    assert.equal(again.quest.have, 1);
+    assert.equal(again.quests, 0);
+});
+
+test('задание на «штучки» считает выданные фигуры', () => {
+    const game = blank();
+    game.quest = quest({ type: QUEST_SPECIALS, need: 1 });
+    paint(game, [[1, 3], [2, 3], [3, 3]], 5);
+    paint(game, [[4, 4]], 5);
+    paint(game, [[4, 3]], 4);
+    applySwap(game, idx(4, 3), idx(4, 4));
+    const step = resolveStep(game);
+    assert.equal(step.created.length, 1);
+    assert.ok(step.questDone, 'ракета — это одна «штучка»');
+});
+
+test('задание на очки считает то, что реально дали за шаги', () => {
+    const game = blank();
+    game.quest = quest({ type: QUEST_SCORE, need: 3 * TILE_POINTS });
+    const step = triple(game);
+    assert.ok(step.questDone);
+    assert.equal(game.score, 3 * TILE_POINTS + 3_000);
+});
+
+test('после конца партии задания стоят', () => {
+    const game = g(5);
+    game.over = true;
+    game.nextQuestMs = 1;
+    assert.equal(tickQuests(game, 10_000).started, null);
+    assert.equal(game.quest, null);
+
+    // Ход сделан, а время кончилось, пока доигрывалась цепочка: очки за шаг
+    // начисляются, а задание уже не засчитывается.
+    const done = blank();
+    done.quest = quest({ need: 3 });
+    paint(done, [[0, 0], [1, 0]], 5);
+    paint(done, [[2, 1]], 5);
+    paint(done, [[2, 0]], 4);
+    assert.equal(applySwap(done, idx(2, 0), idx(2, 1)), 'match');
+    done.over = true;
+    assert.equal(resolveStep(done).questDone, null);
+    assert.equal(done.quests, 0, 'выполнить задание после нуля на таймере нельзя');
+});
+
+test('генератор: все виды заданий и все награды достижимы, условия конечны', () => {
+    const types = new Set();
+    const rewards = new Set();
+    for (let seed = 1; seed <= 300; seed++) {
+        const game = g(seed);
+        for (let n = 0; n < 6; n++) {
+            const q = makeQuest(game);
+            types.add(q.type);
+            rewards.add(q.reward.type);
+            assert.ok(q.need > 0 && Number.isInteger(q.need));
+            assert.ok(q.totalMs >= 20_000 && q.totalMs <= 60_000, 'срок задания — десятки секунд');
+            assert.equal(q.have, 0);
+            if (q.type === QUEST_KIND) assert.ok(q.kind >= 0 && q.kind < KIND_COUNT);
+            else assert.equal(q.kind, -1);
+        }
+    }
+    assert.deepEqual(
+        [...types].sort(),
+        [QUEST_CASCADE, QUEST_CLOCKS, QUEST_KIND, QUEST_SCORE, QUEST_SPECIALS, QUEST_TILES].sort(),
+    );
+    assert.deepEqual([...rewards].sort(), [REWARD_MULT, REWARD_POINTS, REWARD_TIME].sort());
+});
+
+test('очки за задание растут с уровнем, но упираются в потолок', () => {
+    assert.ok(questPoints(2) > questPoints(1));
+    assert.equal(questPoints(0), questPoints(1), 'уровня ниже первого не бывает');
+    assert.equal(questPoints(1_000), QUEST_POINTS_MAX);
+});
+
+test('задание на часы: три часов подряд — выполнено', () => {
+    const game = blank();
+    game.quest = quest({ type: QUEST_CLOCKS, need: 1 });
+    game.special[idx(0, 0)] = CLOCK;
+    const step = triple(game);
+    assert.equal(step.clocks, 1);
+    assert.ok(step.questDone);
+    assert.equal(game.quests, 1);
+});
+
 // ── Проверка результата на сервере ───────────────────────────────────────────
 
 const run = (over = {}) => ({ score: 1_000, tiles: 200, moves: 40, clocks: 12, seconds: 90, ...over });
@@ -564,12 +782,25 @@ test('isPlausibleRun: мусор и невозможные партии отсе
 });
 
 test('maxPlausibleScore: щедрая, но конечная граница', () => {
+    // Граница считает поле по самому щедрому сценарию, удваивает его (×2 из
+    // награды за задание мог действовать всю партию) и добавляет очки за сами
+    // задания — столько, сколько их вообще могло прийти за эти секунды.
+    const board = 10 * (TILE_POINTS * MAX_CASCADE_MULT + CLOCK_POINTS) + CREATE_BONUS[PRISM];
+    assert.equal(maxPlausibleScore(10, 1, 0), board * BONUS_MULT + QUEST_POINTS_MAX);
     assert.equal(
-        maxPlausibleScore(10, 1),
-        10 * (TILE_POINTS * MAX_CASCADE_MULT + CLOCK_POINTS) + CREATE_BONUS[PRISM],
+        maxPlausibleScore(10, 1, 90),
+        board * BONUS_MULT + maxQuests(90) * QUEST_POINTS_MAX,
     );
-    assert.equal(maxPlausibleScore(0, 0), 0);
-    assert.equal(maxPlausibleScore(-5, -5), 0);
+    // Без фишек и ходов остаются только задания — их за нулевую партию одно.
+    assert.equal(maxPlausibleScore(0, 0, 0), QUEST_POINTS_MAX);
+    assert.equal(maxPlausibleScore(-5, -5, -5), QUEST_POINTS_MAX);
+});
+
+test('maxQuests: заданий не больше, чем помещается пауз между ними', () => {
+    assert.equal(maxQuests(0), 1);
+    assert.equal(maxQuests(QUEST_GAP_MIN_MS / 1000 - 1), 1);
+    assert.equal(maxQuests(QUEST_GAP_MIN_MS / 1000), 2);
+    assert.equal(maxQuests(300), Math.floor(300_000 / QUEST_GAP_MIN_MS) + 1);
 });
 
 test('очки честной партии до границы не дотягивают', () => {
@@ -588,7 +819,7 @@ test('очки честной партии до границы не дотяги
         while (resolveStep(game));
     }
     assert.ok(game.score > 0);
-    assert.ok(game.score <= maxPlausibleScore(game.tiles, game.moves));
+    assert.ok(game.score <= maxPlausibleScore(game.tiles, game.moves, 90));
     assert.deepEqual(
         isPlausibleRun({
             score: game.score,

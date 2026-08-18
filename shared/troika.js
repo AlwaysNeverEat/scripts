@@ -31,6 +31,11 @@
 // «бесконечный режим» означал бы «сиди пока не надоест», а мини-топ сравнивал
 // бы терпение, а не игру.
 //
+// ПОВЕРХ ВСЕГО ЭТОГО идут МИНИ-ЗАДАНИЯ: в случайный момент приходит короткое
+// условие со своим таймером («разбить 14 звёзд», «довести цепочку до ×5»), а за
+// него дают очки, ×2 на время или секунды в банк. Зачем они нужны и почему за
+// провал ничего не отнимают — в разделе «Мини-задания» ниже.
+//
 // Состояние партии — обычный объект с мутацией: ходов за партию сотни, каскад
 // перебирает поле по нескольку раз за ход, и плодить копии поля незачем. Поле
 // хранится ДВУМЯ плоскими массивами (цвет и специальная фигура), а не массивом
@@ -135,6 +140,228 @@ export function clockChance(level) {
     return Math.max(CLOCK_CHANCE_FLOOR, CLOCK_CHANCE_START - (level - 1) * CLOCK_CHANCE_STEP);
 }
 
+// ── Мини-задания ─────────────────────────────────────────────────────────────
+//
+// Время от времени поверх партии появляется короткое задание: «разбей 14
+// звёзд», «собери трое часов», «доведи цепочку до ×5» — и на него даётся
+// СВОЙ таймер, десятки секунд. Успел — награда: разом много очков, двойной
+// множитель на следующие двадцать секунд или секунды в банк времени.
+//
+// Зачем оно вообще нужно. Матч-3 на время — это игра с одной-единственной
+// мыслью: «где ход побольше». Задание на полминуты подменяет цель — теперь
+// нужны ИМЕННО звёзды или ИМЕННО длинная цепочка, — и ход, который сам по себе
+// хуже, вдруг становится правильным. Это единственное место в игре, где выбор
+// хода зависит не только от того, что лежит на поле.
+//
+// Провал не отнимает НИЧЕГО: задание просто исчезает, и через паузу приходит
+// следующее. Штраф за провал наказывал бы за то, что поле не дало нужных фишек,
+// — а поле игрок не выбирает, в отличие от хода.
+//
+// Момент появления и условие — случайные, но из того же генератора с зерном,
+// что и фишки (game.rng): партию с заданиями надо уметь повторить в тестах.
+//
+// Своего таймера в правилах нет: задания крутит tickQuests, а зовёт его окно
+// в том же кадре, что и tickTime, — то есть НЕ во время каскада. Секунды на
+// задание не текут, пока игрок смотрит на цепочку и ничего не может сделать.
+
+// Виды заданий. Строки, а не числа: их видно в отладке и в тестах, а
+// сэкономленных байт здесь никто не считает.
+export const QUEST_KIND = 'kind';          // разбить N фишек ОДНОГО вида
+export const QUEST_TILES = 'tiles';        // разбить N любых фишек
+export const QUEST_CLOCKS = 'clocks';      // собрать N часов
+export const QUEST_CASCADE = 'cascade';    // довести цепочку до ×N
+export const QUEST_SPECIALS = 'specials';  // получить N «штучек»
+export const QUEST_SCORE = 'score';        // набрать N очков
+
+// Награды.
+export const REWARD_POINTS = 'points';     // очки разом
+export const REWARD_MULT = 'mult';         // ×2 на всё, что дают, на время
+export const REWARD_TIME = 'time';         // секунды в банк
+
+// Первое задание приходит не сразу: первые секунды партии человек ищет, где у
+// поля вообще ходы, и условие в этот момент он просто не прочитает.
+export const QUEST_FIRST_MS = 10_000;
+// Пауза между заданиями. Нижняя граница — она же и есть предел «как часто
+// бывает задание», по ней сервер считает потолок наград (см. maxQuests).
+export const QUEST_GAP_MIN_MS = 14_000;
+export const QUEST_GAP_MAX_MS = 26_000;
+
+// ×2 действует на ВСЁ, что даёт шаг: и на фишки с каскадом, и на бонус за
+// созданную «штучку». Двадцать секунд — это три-четыре хода: успеть подготовить
+// под множитель длинную цепочку можно, а «включил и забыл» не выйдет.
+export const BONUS_MULT = 2;
+export const BONUS_MS = 20_000;
+// Два множителя подряд не складываются бесконечно: потолок — две награды.
+export const BONUS_MAX_MS = 40_000;
+
+export const QUEST_TIME_MS = 10_000;
+// Очки за задание растут с уровнем: к пятому уровню каскад сам приносит тысячи,
+// и фиксированные три тысячи читались бы как «спасибо, не надо». Потолок нужен
+// серверу — по нему считается граница правдоподобного счёта.
+export const QUEST_POINTS_BASE = 3_000;
+export const QUEST_POINTS_STEP = 600;
+export const QUEST_POINTS_MAX = 9_000;
+
+export function questPoints(level) {
+    const value = QUEST_POINTS_BASE + (Math.max(level, 1) - 1) * QUEST_POINTS_STEP;
+    return Math.min(value, QUEST_POINTS_MAX);
+}
+
+// Условия. need — сколько нужно (случайно из отрезка), ms — сколько на это
+// даётся, grow — насколько условие тяжелеет с уровнем.
+//
+// Числа снимались с прогонов, а не придумывались: за тридцать секунд средний
+// игрок делает около десятка ходов, а это ~60 убранных фишек, из них одного
+// вида — полтора десятка. Отсюда и «14 звёзд» вместо круглых пятидесяти:
+// задание должно быть на грани, а не за ней.
+//
+// С уровнем тяжелеют только те два условия, которые сами собой дорожают:
+// очки (их к пятому уровню дают втрое больше за тот же ход) и число фишек.
+// «Собери трое часов» с уровнем, наоборот, становится ТРУДНЕЕ само — часы
+// сыплются реже (clockChance), — и трогать его не надо.
+const QUEST_SPECS = [
+    { type: QUEST_KIND, need: [10, 16], ms: [30_000, 42_000], grow: 0 },
+    { type: QUEST_TILES, need: [40, 60], ms: [30_000, 42_000], grow: 0.12 },
+    { type: QUEST_CLOCKS, need: [2, 4], ms: [30_000, 42_000], grow: 0 },
+    { type: QUEST_CASCADE, need: [4, 6], ms: [26_000, 36_000], grow: 0 },
+    { type: QUEST_SPECIALS, need: [2, 4], ms: [30_000, 42_000], grow: 0 },
+    { type: QUEST_SCORE, need: [1_200, 2_400], ms: [26_000, 36_000], grow: 0.3 },
+];
+
+// Очки выпадают вдвое чаще прочего: это единственная награда, которая понятна
+// сама по себе, без знания, что вообще происходит.
+const REWARD_ROLL = [REWARD_POINTS, REWARD_POINTS, REWARD_MULT, REWARD_TIME];
+
+/** Случайное целое из отрезка [from, to] — на зерне партии. */
+function pick(game, from, to) {
+    return from + Math.floor(game.rng() * (to - from + 1));
+}
+
+function makeReward(game, level) {
+    const type = REWARD_ROLL[Math.floor(game.rng() * REWARD_ROLL.length)];
+    if (type === REWARD_POINTS) return { type, points: questPoints(level) };
+    if (type === REWARD_MULT) return { type, mult: BONUS_MULT, ms: BONUS_MS };
+    return { type, ms: QUEST_TIME_MS };
+}
+
+/** Новое задание: условие, срок и награда. */
+export function makeQuest(game) {
+    const spec = QUEST_SPECS[Math.floor(game.rng() * QUEST_SPECS.length)];
+    const level = Math.max(game.level, 1);
+    let need = pick(game, spec.need[0], spec.need[1]);
+    if (spec.grow) need = Math.round(need * (1 + (level - 1) * spec.grow));
+    // Срок берём целыми секундами: он же и показывается секундами, а «осталось
+    // 12.4 с» на полосе никому не нужно.
+    const totalMs = pick(game, spec.ms[0] / 1000, spec.ms[1] / 1000) * 1000;
+    return {
+        type: spec.type,
+        // Вид фишки нужен только заданию «разбить N одного вида»; у остальных
+        // −1, чтобы окну не приходилось гадать, рисовать ли картинку.
+        kind: spec.type === QUEST_KIND ? Math.floor(game.rng() * KIND_COUNT) : -1,
+        need,
+        have: 0,
+        totalMs,
+        leftMs: totalMs,
+        reward: makeReward(game, level),
+    };
+}
+
+function scheduleQuest(game) {
+    game.quest = null;
+    game.nextQuestMs = pick(game, QUEST_GAP_MIN_MS / 1000, QUEST_GAP_MAX_MS / 1000) * 1000;
+}
+
+/**
+ * Прокрутить задания и множитель на dtMs. Возвращает, что случилось:
+ * { started, failed, bonusEnded } — окну этого хватает, чтобы сказать об этом
+ * игроку; само оно за временем не следит.
+ *
+ * Зовётся ТАМ ЖЕ, где tickTime (и по той же причине не зовётся во время
+ * каскада): пока идёт цепочка, игрок не может ни выполнить задание, ни
+ * потратить множитель.
+ */
+export function tickQuests(game, dtMs) {
+    const out = { started: null, failed: null, bonusEnded: false };
+    if (game.over || dtMs <= 0) return out;
+
+    if (game.bonusMs > 0) {
+        game.bonusMs -= dtMs;
+        if (game.bonusMs <= 0) {
+            game.bonusMs = 0;
+            out.bonusEnded = true;
+        }
+    }
+
+    if (game.quest) {
+        game.quest.leftMs -= dtMs;
+        if (game.quest.leftMs > 0) return out;
+        out.failed = game.quest;
+        scheduleQuest(game);
+        return out;
+    }
+
+    game.nextQuestMs -= dtMs;
+    if (game.nextQuestMs > 0) return out;
+    game.quest = makeQuest(game);
+    out.started = game.quest;
+    return out;
+}
+
+/** Множитель наград, действующий прямо сейчас: 1 или BONUS_MULT. */
+export function bonusMult(game) {
+    return game.bonusMs > 0 ? BONUS_MULT : 1;
+}
+
+/**
+ * Задание выполнено: выдать награду и завести паузу до следующего.
+ *
+ * Очки от награды в множитель ×2 НЕ попадают. Множитель — это про то, как
+ * играешь (каскад, «штучки»), а награда за задание уже посчитана по уровню;
+ * умножать её ещё раз значило бы платить дважды за одно и то же.
+ */
+function finishQuest(game) {
+    const quest = game.quest;
+    const reward = quest.reward;
+    let points = 0;
+    let timeGained = 0;
+    if (reward.type === REWARD_POINTS) {
+        points = reward.points;
+        game.score += points;
+        game.level = levelFor(game.score);
+    } else if (reward.type === REWARD_MULT) {
+        game.bonusMs = Math.min(game.bonusMs + reward.ms, BONUS_MAX_MS);
+    } else {
+        // Потолок банка времени тот же, что у часов: награда его не обходит.
+        timeGained = Math.max(0, Math.min(reward.ms, MAX_MS - game.timeMs));
+        game.timeMs += timeGained;
+    }
+    game.quests++;
+    scheduleQuest(game);
+    return { quest, reward, points, timeGained };
+}
+
+/**
+ * Засчитать заданию то, что дал шаг цепочки. Возвращает описание выполненного
+ * задания или null.
+ *
+ * Считается ровно то, что игрок видит убранным на поле, — поэтому зовётся
+ * из resolveStep, а не из хода: фишки уносит каскад, а не обмен.
+ */
+function creditQuest(game, { tiles, kindTiles, clocks, specials, gained }) {
+    const quest = game.quest;
+    if (!quest || game.over) return null;
+    if (quest.type === QUEST_KIND) quest.have += kindTiles;
+    else if (quest.type === QUEST_TILES) quest.have += tiles;
+    else if (quest.type === QUEST_CLOCKS) quest.have += clocks;
+    else if (quest.type === QUEST_SPECIALS) quest.have += specials;
+    else if (quest.type === QUEST_SCORE) quest.have += gained;
+    // Цепочка — не сумма, а РЕКОРД: «доведи до ×5» это один каскад глубиной
+    // пять, а не пять коротких.
+    else if (quest.type === QUEST_CASCADE) quest.have = Math.max(quest.have, game.cascade);
+    if (quest.have < quest.need) return null;
+    return finishQuest(game);
+}
+
 // Бомба: квадрат 5×5 без четырёх углов. Ромб был бы слабее ракеты (а бомба
 // даётся за более сложную фигуру), полный квадрат — сильнее призмы; «без углов»
 // попадает между ними и хорошо читается на поле.
@@ -191,6 +418,10 @@ export function createGame({ seed } = {}) {
         clocks: 0,         // собранных часов
         bestCascade: 0,    // самая длинная цепочка за партию — в итог партии
         shuffles: 0,       // сколько раз поле пришлось перемешать
+        quests: 0,         // выполненных мини-заданий
+        quest: null,       // задание, идущее прямо сейчас
+        nextQuestMs: QUEST_FIRST_MS,   // через сколько придёт следующее
+        bonusMs: 0,        // сколько ещё действует ×2 из награды
         timeMs: START_MS,
         elapsedMs: 0,      // сколько партия реально шла (пауза не считается)
         over: false,
@@ -611,8 +842,13 @@ export function resolveStep(game) {
     const { clear, fired } = expand(game, seeds);
 
     let clocks = 0;
+    // Фишки вида, который просит задание, считаем здесь же: после уборки цвета
+    // клетки уже нет, а обходить поле второй раз ради одного счётчика незачем.
+    const wantKind = game.quest && game.quest.type === QUEST_KIND ? game.quest.kind : -1;
+    let kindTiles = 0;
     for (const i of clear) {
         if (game.special[i] === CLOCK) clocks++;
+        if (game.color[i] === wantKind) kindTiles++;
         game.color[i] = -1;
         game.special[i] = NONE;
     }
@@ -627,6 +863,11 @@ export function resolveStep(game) {
 
     let gained = tiles * TILE_POINTS * mult + clocks * CLOCK_POINTS;
     for (const c of created) gained += CREATE_BONUS[c.special] || 0;
+    // ×2 из награды за задание действует на ВЕСЬ шаг, а не на одни фишки: иначе
+    // под множитель невыгодно было бы делать то самое, ради чего его и берут, —
+    // длинную цепочку с «штучками» на конце.
+    const bonus = bonusMult(game);
+    gained *= bonus;
     game.score += gained;
     game.tiles += tiles;
     game.clocks += clocks;
@@ -642,6 +883,12 @@ export function resolveStep(game) {
         game.timeMs += timeGained;
     }
 
+    // Задание засчитывается ПОСЛЕ очков и времени: наградные очки не должны
+    // попасть под множитель шага, а наградные секунды — упереться в потолок
+    // банка раньше, чем в него уйдут собранные часы.
+    const questDone = creditQuest(game, { tiles, kindTiles, clocks, specials: created.length, gained });
+    if (questDone) timeGained += questDone.timeGained;
+
     const { spawned, fall, movedTo } = collapse(game);
     // Выданная за фигуру специальная могла тут же уехать вниз — если под ней
     // убрали клетки. Окну она нужна там, где ВСТАЛА: иначе «рождение» покажется
@@ -652,6 +899,9 @@ export function resolveStep(game) {
     return {
         cells: [...clear], created, fired, spawned, fall,
         tiles, clocks, gained, timeGained, cascade: game.cascade, mult,
+        // Окну — чтобы показать множитель на всплывающих очках и объявить о
+        // выполненном задании. Правила про то, как это рисуется, не знают.
+        bonus, questDone,
     };
 }
 
@@ -799,16 +1049,31 @@ const MAX_TILES_PER_MOVE = 400;
 const TIME_SLACK_MS = 5_000;
 
 /**
- * Верхняя граница счёта для партии из tiles фишек и moves ходов.
+ * Сколько заданий МОЖЕТ поместиться в партию длиной seconds.
+ *
+ * Задания не идут внахлёст, и следующее приходит не раньше чем через
+ * QUEST_GAP_MIN_MS даже после мгновенно выполненного, — то есть их число
+ * однозначно ограничено длиной партии. Отсюда и берутся потолки наград: иначе
+ * «задание дало десять тысяч» пришлось бы принимать на слово сколько угодно раз.
+ * Плюс одно — то, что игрок уже держал в момент, когда время вышло.
+ */
+export function maxQuests(seconds) {
+    return Math.floor(Math.max(seconds, 0) * 1000 / QUEST_GAP_MIN_MS) + 1;
+}
+
+/**
+ * Верхняя граница счёта для партии из tiles фишек, moves ходов и seconds секунд.
  *
  * Считаем по самому щедрому сценарию: каждая фишка убрана на предельном
- * множителе каскада и каждая была часами, а каждый ход дал призму. Настоящая
- * игра до этой границы не доходит никогда — она и не должна: это проверка на
- * бессмыслицу, а не подсчёт «сколько можно было выжать».
+ * множителе каскада и каждая была часами, каждый ход дал призму, всё это время
+ * действовал ×2 из награды за задание, а каждое задание дало очками по потолку.
+ * Настоящая игра до этой границы не доходит никогда — она и не должна: это
+ * проверка на бессмыслицу, а не подсчёт «сколько можно было выжать».
  */
-export function maxPlausibleScore(tiles, moves) {
-    return Math.max(tiles, 0) * (TILE_POINTS * MAX_CASCADE_MULT + CLOCK_POINTS)
+export function maxPlausibleScore(tiles, moves, seconds = 0) {
+    const board = Math.max(tiles, 0) * (TILE_POINTS * MAX_CASCADE_MULT + CLOCK_POINTS)
         + Math.max(moves, 0) * CREATE_BONUS[PRISM];
+    return board * BONUS_MULT + maxQuests(seconds) * QUEST_POINTS_MAX;
 }
 
 /**
@@ -819,8 +1084,11 @@ export function maxPlausibleScore(tiles, moves) {
  * { ok: false, reason } — reason нужен логу сервера, игроку он не показывается.
  *
  * Главная проверка здесь своя, тетрису такой не досталось: длина партии
- * ОДНОЗНАЧНО ограничена собранными часами. Минута на старте плюс три секунды за
- * часы — больше партия идти не может, сколько бы очков ни присылали.
+ * ОДНОЗНАЧНО ограничена собранными часами. Минута на старте, три секунды за
+ * часы и десять за задание — больше партия идти не может, сколько бы очков ни
+ * присылали. Секунды за задания растут медленнее самой партии (десять секунд
+ * награды на четырнадцать секунд паузы между заданиями), поэтому проверка
+ * остаётся конечной.
  */
 export function isPlausibleRun({ score, tiles, moves, clocks, seconds }) {
     const s = Number(score);
@@ -835,8 +1103,9 @@ export function isPlausibleRun({ score, tiles, moves, clocks, seconds }) {
     if (m > 100_000) return { ok: false, reason: 'too_many_moves' };
     if (c > t) return { ok: false, reason: 'clocks_vs_tiles' };
     if (t > m * MAX_TILES_PER_MOVE) return { ok: false, reason: 'tiles_vs_moves' };
-    if (sec * 1000 > START_MS + c * CLOCK_MS + TIME_SLACK_MS) return { ok: false, reason: 'too_long' };
+    const maxMs = START_MS + c * CLOCK_MS + maxQuests(sec) * QUEST_TIME_MS + TIME_SLACK_MS;
+    if (sec * 1000 > maxMs) return { ok: false, reason: 'too_long' };
     if (sec * 1000 < m * MIN_MS_PER_MOVE) return { ok: false, reason: 'too_fast' };
-    if (s > maxPlausibleScore(t, m)) return { ok: false, reason: 'score_too_high' };
+    if (s > maxPlausibleScore(t, m, sec)) return { ok: false, reason: 'score_too_high' };
     return { ok: true };
 }
