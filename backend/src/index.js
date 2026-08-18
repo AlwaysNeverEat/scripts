@@ -17,6 +17,7 @@ import tetrisRouter from './routes/tetris.js';
 import troikaRouter from './routes/troika.js';
 import solitaireRouter from './routes/solitaire.js';
 import poolRouter from './routes/pool.js';
+import durakRouter from './routes/durak.js';
 import facultyRouter from './routes/faculty.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
@@ -102,6 +103,9 @@ app.use('/api/solitaire', requireSession, solitaireRouter);
 // результат: игра парная, и очко, приписанное себе, отнято у живого человека
 // (см. routes/pool.js). Сессия тут нужна вдвойне — партия именная с обеих сторон.
 app.use('/api/pool', requireSession, poolRouter);
+// Дурак — как бильярд, партию ведёт сервер, но по другой причине: в карты играют
+// ЗАКРЫТЫМИ, и клиенту уезжает не позиция, а его вид на неё (см. routes/durak.js).
+app.use('/api/durak', requireSession, durakRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются
