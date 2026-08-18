@@ -17,7 +17,6 @@ import tetrisRouter from './routes/tetris.js';
 import troikaRouter from './routes/troika.js';
 import solitaireRouter from './routes/solitaire.js';
 import poolRouter from './routes/pool.js';
-import geoRouter from './routes/geo.js';
 import facultyRouter from './routes/faculty.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
@@ -103,10 +102,6 @@ app.use('/api/solitaire', requireSession, solitaireRouter);
 // результат: игра парная, и очко, приписанное себе, отнято у живого человека
 // (см. routes/pool.js). Сессия тут нужна вдвойне — партия именная с обеих сторон.
 app.use('/api/pool', requireSession, poolRouter);
-// Гео — сервер ведёт все три режима, и не только из-за парной дуэли: правильный
-// ответ здесь координата, то есть секрет, и отдать его браузеру — значит убить
-// игру (см. routes/geo.js).
-app.use('/api/geo', requireSession, geoRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются
