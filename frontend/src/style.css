@@ -5005,6 +5005,282 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .pool-vs { display: none; }
 }
 
+/* ══ Пасхалка «Дурак» ═══════════════════════════════════════════════════════
+   Три экрана в одном окне: лобби (с кем играть), стол и итог партии. Разметка
+   близка к бильярдной (лобби, списки, мини-топ) — намеренно: две парные игры,
+   которые выглядят по-разному без причины, выглядят как две разные программы.
+
+   Карты берутся из того же листа, что и в пасьянсе (assets/cards-8bit.png), и
+   позиция в нём считается теми же --col/--row. Классы всё-таки свои: у пасьянса
+   карта лежит в стопке со сдвигом и ездит за курсором, здесь — стоит в веере и
+   нажимается, и общий класс пришлось бы переопределять в обе стороны. */
+.modal-win.dur-win { width: min(980px, 96vw); max-width: 96vw; }
+.dur-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+.dur-win {
+  /* Ширина карты. Потолок 84px — картинка 71px, увеличенная в 1.18 раза: выше
+     номинал читаемее не становится, а рука из шести карт перестаёт помещаться
+     рядом со столом. Нижняя граница — 34px: меньше не читается номинал. */
+  --dur-cw: max(34px, min(84px, calc((100vw - 120px) / 8)));
+  --dur-ch: calc(var(--dur-cw) * 1.338);
+  --dur-round: calc(var(--dur-cw) * 0.1);
+  /* Лицо карты — как в пасьянсе: у картинок нарисован только верхний слой на
+     прозрачном фоне, подложку рисует CSS, и она НЕ меняется с темой (карты
+     белые в жизни). */
+  --dur-face: oklch(0.97 0.012 85);
+  --dur-face-line: oklch(0.66 0.02 85);
+}
+
+/* ── Карта ── */
+.dur-card {
+  position: relative;
+  width: var(--dur-cw); height: var(--dur-ch);
+  flex: 0 0 auto;
+  border-radius: var(--dur-round);
+  background: var(--dur-face);
+  border: 1px solid var(--dur-face-line);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .28);
+}
+.dur-card > i {
+  position: absolute; inset: 0;
+  background-image: var(--dur-sheet);
+  /* Лист 13×4: одна клетка = размер карты, поэтому позиция считается простыми
+     процентами и не зависит от того, какого размера сейчас карта. */
+  background-size: 1300% 400%;
+  background-position: calc(var(--col, 0) * 100% / 12) calc(var(--row, 0) * 100% / 3);
+  background-repeat: no-repeat;
+  /* Колода восьмибитная: без этого сглаживание превращает цифры в кашу. */
+  image-rendering: pixelated;
+  border-radius: inherit;
+}
+/* Рубашка — отдельная картинка с нарисованной рамкой и прозрачными углами,
+   поэтому подложку и рамку под ней гасим: иначе из-под рубашки торчали бы
+   белые уголки лицевой стороны. */
+.dur-card.is-down {
+  background: var(--dur-back) center / 100% 100% no-repeat;
+  background-origin: border-box;
+  border-color: transparent;
+  image-rendering: pixelated;
+}
+.dur-card.is-mini { width: calc(var(--dur-cw) * 0.5); height: calc(var(--dur-ch) * 0.5); }
+
+/* ── Лобби ── */
+.dur-lobby { display: flex; flex-direction: column; gap: 10px; }
+.dur-lobby-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dur-card-box {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg2);
+  min-width: 0;
+}
+.dur-card-box h4 { margin: 0; font-size: 14px; }
+.dur-hint { margin: 0; font-size: 11.5px; opacity: .65; line-height: 1.35; }
+.dur-opt { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.dur-opt > span { opacity: .7; flex: 0 0 auto; min-width: 52px; }
+.dur-picks { display: flex; gap: 4px; flex-wrap: wrap; }
+/* Выбор числа мест и правил — не выпадающий список: вариантов по три-четыре, и
+   нажать один раз быстрее, чем открыть, найти и выбрать. */
+.dur-pick {
+  padding: 3px 10px;
+  font: inherit; font-size: 12px;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border); border-radius: 7px;
+  cursor: pointer;
+}
+.dur-pick.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.dur-levels { display: flex; gap: 6px; flex-wrap: wrap; }
+.dur-levels .btn { flex: 1 1 auto; padding: 4px 10px; font-size: 12.5px; }
+
+.dur-list { display: flex; flex-direction: column; gap: 2px; max-height: 148px; overflow-y: auto; }
+.dur-empty { font-size: 12px; opacity: .6; padding: 4px 0; }
+.dur-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: 8px;
+}
+.dur-row.is-mine { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.dur-row-main { flex: 1 1 auto; min-width: 0; }
+.dur-row-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dur-row-sub { font-size: 11px; opacity: .6; }
+.dur-row-tag.is-turn { opacity: 1; color: var(--accent); font-weight: 600; }
+.dur-row-btn { flex: 0 0 auto; padding: 3px 10px; font-size: 12px; }
+
+.dur-top { display: flex; flex-direction: column; gap: 4px; }
+.dur-top-head { font-size: 12px; opacity: .7; }
+.dur-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 132px; overflow-y: auto; }
+.dur-top-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 6px; border-radius: 6px; font-size: 13px;
+}
+.dur-top-row.is-me { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.dur-top-row.is-first .dur-top-rank { font-weight: 700; color: var(--accent); }
+.dur-top-rank { width: 18px; flex: 0 0 auto; text-align: right; opacity: .7; font-size: 12px; }
+.dur-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; }
+.dur-top-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dur-top-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dur-top-score { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.dur-top-losses { opacity: .5; font-weight: 400; }
+.dur-top-row.is-mine-extra { margin-top: 4px; }
+
+/* ── Стол ── */
+.dur-table-screen { position: relative; display: flex; flex-direction: column; gap: 10px; }
+
+/* Соседи по столу. Веер рубашек показывает, СКОЛЬКО у человека карт, — в дураке
+   это половина всей доступной информации о сопернике, и число рядом с ним нужно
+   ровно потому, что веер выше шести карт больше не растёт. */
+.dur-seats { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.dur-seat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid transparent; border-radius: 10px;
+  min-width: 96px;
+}
+/* Чей сейчас ход — рамкой, как в бильярде: подпись в этот момент никто не
+   читает, взгляд на столе. */
+.dur-seat.is-acting { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.dur-seat.is-out { opacity: .45; }
+.dur-seat-fan { position: relative; display: flex; height: calc(var(--dur-ch) * 0.44); align-items: center; }
+.dur-seat-fan .dur-card {
+  width: calc(var(--dur-cw) * 0.34); height: calc(var(--dur-ch) * 0.34);
+  margin-left: calc(var(--dur-cw) * -0.22);
+}
+.dur-seat-fan .dur-card:first-child { margin-left: 0; }
+.dur-seat-count {
+  margin-left: 6px; font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dur-seat-name { font-size: 12.5px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dur-seat-role { font-size: 10.5px; opacity: .6; }
+
+.dur-mid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center; gap: 10px;
+  min-height: calc(var(--dur-ch) * 1.35);
+  padding: 10px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg2);
+}
+
+/* Колода: козырь лежит под ней поперёк и ТОРЧИТ НАРУЖУ — ровно как на столе.
+   Видно его должно быть настолько, чтобы читался номинал: «какой козырь уйдёт
+   последним» — это половина расчёта концовки, и прятать его под рубашку нельзя.
+   Отсюда ширина стопки почти в две карты: повёрнутая карта занимает по
+   горизонтали свою ВЫСОТУ, и в полторы ширины она не помещалась. */
+.dur-stock { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dur-stock-pile { position: relative; width: calc(var(--dur-cw) * 1.95); height: var(--dur-ch); }
+.dur-stock-pile .dur-card { position: absolute; top: 0; }
+.dur-stock-down { left: calc(var(--dur-cw) * 0.78); transform: rotate(90deg) scale(.92); }
+.dur-stock-back { left: 0; }
+.dur-stock-count {
+  position: absolute; left: 2px; bottom: 2px;
+  padding: 0 4px; border-radius: 6px;
+  font-size: 10px; font-weight: 700;
+  background: var(--card); border: 1px solid var(--border);
+}
+.dur-stock-label, .dur-stock-empty { font-size: 11px; opacity: .7; display: flex; gap: 4px; align-items: center; }
+.dur-stock-empty { flex-direction: column; }
+.dur-trump-sign { font-size: 15px; }
+
+/* Пары «атака — защита»: отбившая карта ложится поверх со сдвигом, как на
+   настоящем столе, — так видно и что било, и что побили. */
+.dur-field { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+.dur-field-empty { font-size: 12px; opacity: .55; width: 100%; text-align: center; }
+.dur-pair {
+  position: relative;
+  width: calc(var(--dur-cw) * 1.24); height: calc(var(--dur-ch) * 1.18);
+}
+.dur-pair .dur-card { position: absolute; }
+.dur-pair-a { left: 0; top: 0; }
+.dur-pair-d { left: calc(var(--dur-cw) * 0.24); top: calc(var(--dur-ch) * 0.18); transform: rotate(6deg); }
+/* Какую именно карту сейчас отбивают: в подкидном их на столе бывает шесть, и
+   без метки защитник целится наугад. */
+.dur-pair.is-target .dur-pair-a { box-shadow: 0 0 0 2px var(--accent); }
+
+/* «Вышло» — отбой. Панель нужна не для красоты: сильный бот считает вышедшие
+   карты, и прятать от человека то, что видит бот, было бы нечестно. */
+.dur-out { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; position: relative; }
+.dur-out-btn {
+  padding: 3px 8px; font: inherit; font-size: 11px;
+  color: var(--text); background: var(--card);
+  border: 1px solid var(--border); border-radius: 7px; cursor: pointer;
+  white-space: nowrap;
+}
+.dur-out-btn.is-on { border-color: var(--accent); }
+.dur-out-list {
+  position: absolute; right: 0; top: 100%; z-index: 3;
+  display: flex; flex-wrap: wrap; gap: 3px;
+  width: min(320px, 60vw); max-height: 168px; overflow-y: auto;
+  margin-top: 4px; padding: 6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+}
+
+/* Рука. Карты слегка налезают друг на друга: шесть штук в ряд при крупной карте
+   иначе не помещаются на телефоне. Своя карта поднимается под курсором — это
+   единственная подсказка «сюда можно нажать», которая не занимает места. */
+.dur-hand { display: flex; justify-content: center; padding-top: 6px; min-height: var(--dur-ch); }
+.dur-hand-card {
+  margin-left: calc(var(--dur-cw) * -0.18);
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.dur-hand-card:first-child { margin-left: 0; }
+.dur-hand-card:hover { transform: translateY(-8px); box-shadow: 0 6px 16px rgba(0, 0, 0, .45); z-index: 2; }
+/* Ход можно сделать этой картой. Тусклая рамка у остальных лучше, чем полное
+   их погашение: человек должен видеть свои карты всегда, даже когда ходить не
+   ими. */
+.dur-hand-card.is-playable { box-shadow: 0 0 0 2px var(--accent), 0 1px 2px rgba(0, 0, 0, .28); }
+.dur-hand-card.is-transfer { box-shadow: 0 0 0 2px var(--gold), 0 1px 2px rgba(0, 0, 0, .28); }
+.dur-hand.is-idle .dur-hand-card { cursor: default; }
+.dur-hand.is-idle .dur-hand-card:hover { transform: none; box-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
+/* Отказ: этой картой так не ходят. Короткое «нет» самой картой понятнее любой
+   надписи под столом. */
+.dur-card.is-nope { animation: dur-nope .3s ease; z-index: 5; }
+@keyframes dur-nope {
+  0%, 100% { transform: none; }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+
+.dur-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 28px; }
+.dur-bar-gap { flex: 1 1 auto; }
+.dur-bar .btn { padding: 4px 12px; font-size: 12.5px; }
+.dur-act.is-on { border-color: var(--gold); }
+.dur-note { font-size: 12px; opacity: 0; transition: opacity .18s ease; min-height: 16px; text-align: center; }
+.dur-note.is-show { opacity: .85; }
+.dur-note.is-flash { color: var(--accent); opacity: 1; }
+
+/* ── Конец партии ── */
+.dur-over {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border-radius: 10px;
+}
+.dur-over-card {
+  text-align: center;
+  padding: 18px 24px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg);
+  display: flex; flex-direction: column; gap: 8px;
+  line-height: 1.4;
+}
+.dur-over-title { font-size: 20px; font-weight: 700; }
+.dur-over-sub { font-size: 12px; opacity: .7; }
+
+/* Узкий экран: столбцы лобби в одну колонку, колода и отбой уезжают под стол —
+   в три колонки на телефоне не помещается ничего, кроме самих карт. */
+@media (max-width: 720px) {
+  .dur-lobby-cols { grid-template-columns: minmax(0, 1fr); }
+  .dur-list { max-height: 120px; }
+  .dur-top-list { max-height: 96px; }
+  .dur-mid { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .dur-out { align-items: center; }
+  .dur-out-list { right: auto; }
+}
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
    Игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
@@ -5018,7 +5294,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.tet-win,
 .modal-win.tro-win,
 .modal-win.sol-win,
-.modal-win.pool-win {
+.modal-win.pool-win,
+.modal-win.dur-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
 @keyframes game-in {
@@ -5092,9 +5369,15 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .tro-time-gain.is-show,
   .modal-win.sol-win,
   .sol-card.is-nope,
-  .modal-win.pool-win {
+  .modal-win.pool-win,
+  .modal-win.dur-win,
+  .dur-card.is-nope {
     animation: none;
   }
+  /* В дураке движение — только подсветка и подъём карты под курсором: гасим и
+     то, и другое, играть это не мешает. */
+  .dur-note, .dur-hand-card { transition: none; }
+  .dur-hand-card:hover { transform: none; }
   /* У бильярда движение — это САМА ИГРА: катящиеся шары не украшение, и
      выключать их нечем. Гасим только появление окна и переходы подсветки. */
   .pool-note, .pool-player { transition: none; }
