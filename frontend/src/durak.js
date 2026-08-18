@@ -107,6 +107,13 @@ export function openDurak(ctx) {
         showDiscard: false,
         flash: '',              // короткое сообщение об отказе, поверх подсказки
         flashTimer: 0,
+        // Показ хода. hiding — карты, которые ещё летят и потому спрятаны на
+        // своих местах; dealt — сколько карт уже долетело до каждого соседа
+        // (веер растёт по мере раздачи); anim — идёт показ, ходить нельзя.
+        hiding: null,
+        dealt: null,
+        anim: false,
+        shoutTimer: 0,
         busy: false,
         lobby: null,
         pollTimer: 0,
@@ -211,6 +218,11 @@ function shellHtml() {
                         <button type="button" class="btn btn-sec" id="dur-resign">Сдаться</button>
                         <button type="button" class="btn btn-sec" id="dur-back">В лобби</button>
                     </div>
+                    <!-- Слой, по которому летают карты, и крупная надпись
+                         («Бито», «Беру»). Оба поверх стола и оба сквозные для
+                         кликов: они только показывают, а не мешают играть. -->
+                    <div class="dur-fly" id="dur-fly"></div>
+                    <div class="dur-shout" id="dur-shout"></div>
                     <div class="dur-over hidden" id="dur-over">
                         <div class="dur-over-card">
                             <div class="dur-over-title" id="dur-over-title"></div>
@@ -460,9 +472,10 @@ function startBotGame(state, level) {
         state.players.push({ id: null, name: state.botSeats > 2 ? `${botName} ${i}` : botName, avatar: null });
     }
     state.meta = null;
-    syncFromGame(state);
+    state.view = viewFor(state.game, state.seat);
+    beforeDeal(state);
     showTable(state);
-    scheduleBots(state);
+    dealIntro(state).then(() => { if (openState === state) scheduleBots(state); });
 }
 
 /** Сесть за партию, которая живёт на сервере. */
@@ -474,8 +487,18 @@ async function resumeGame(state, id) {
         state.game = null;
         state.gameId = id;
         state.seat = res.seat;
+        state.meta = res;
+        state.players = res.players || state.players;
+        state.seq = res.seq;
+        state.view = res.view;
+        // Партия только началась — показываем раздачу. Садясь за начатую,
+        // раздавать нечего: карты давно на руках.
+        const fresh = res.seq === 0 && res.status === 'live';
+        if (fresh) beforeDeal(state);
         showTable(state);
-        applyServer(state, res);
+        if (fresh) await dealIntro(state);
+        if (openState !== state) return;
+        if (res.status === 'done') { showOver(state); return; }
         startPolling(state);
     } catch {
         flash(state, 'Не удалось открыть партию — попробуйте ещё раз');
@@ -499,13 +522,12 @@ function stopAll(state) {
     clearInterval(state.pollTimer);
     clearTimeout(state.botTimer);
     clearTimeout(state.flashTimer);
+    clearTimeout(state.shoutTimer);
     state.pollTimer = 0;
     state.botTimer = 0;
-}
-
-/** Пересчитать вид из своей же позиции — только в партии с ботом. */
-function syncFromGame(state) {
-    state.view = viewFor(state.game, state.seat);
+    state.anim = false;
+    state.hiding = null;
+    state.dealt = null;
 }
 
 // ── Ходы ─────────────────────────────────────────────────────────────────────
@@ -540,7 +562,7 @@ function bindTable(state) {
  */
 function onCardClick(state, card, node) {
     const view = state.view;
-    if (!view || view.phase !== 'play' || view.toMove !== view.seat || state.busy) return;
+    if (!view || view.phase !== 'play' || view.toMove !== view.seat || state.busy || state.anim) return;
 
     const canBeat = defendCards(view).includes(card);
     const canMove = transferCards(view).includes(card);
@@ -563,7 +585,7 @@ function onCardClick(state, card, node) {
  * не можем, потому что не знаем ни колоды, ни чужих рук.
  */
 async function send(state, move) {
-    if (state.busy) return;
+    if (state.busy || state.anim) return;
     const view = state.view;
     if (!view || view.toMove !== view.seat) return;
     state.transferMode = false;
@@ -571,9 +593,9 @@ async function send(state, move) {
     if (state.mode === 'bot') {
         const done = applyMove(state.game, state.seat, move);
         if (!done.ok) return;
-        syncFromGame(state);
+        await applyView(state, viewFor(state.game, state.seat));
+        if (openState !== state) return;
         if (state.game.phase === 'over') { showOver(state); return; }
-        render(state);
         scheduleBots(state);
         return;
     }
@@ -617,7 +639,7 @@ function scheduleBots(state) {
 
     // Подкидывание тем же ботом — продолжение одного действия, поэтому короче.
     const again = state.game.table.length > 0;
-    state.botTimer = setTimeout(() => {
+    state.botTimer = setTimeout(async () => {
         if (openState !== state || state.screen !== 'table') return;
         const view = viewFor(state.game, seat);
         const move = pickMove(view, { level: state.botLevel });
@@ -628,13 +650,13 @@ function scheduleBots(state) {
             state.game.phase = 'over';
             state.game.loser = -1;
             state.game.reason = 'draw';
-            syncFromGame(state);
+            state.view = viewFor(state.game, state.seat);
             showOver(state);
             return;
         }
-        syncFromGame(state);
+        await applyView(state, viewFor(state.game, state.seat));
+        if (openState !== state || state.screen !== 'table') return;
         if (state.game.phase === 'over') { showOver(state); return; }
-        render(state);
         scheduleBots(state);
     }, again ? BOT_THROW_MS : BOT_THINK_MS);
 }
@@ -644,7 +666,7 @@ function scheduleBots(state) {
 function startPolling(state) {
     clearInterval(state.pollTimer);
     state.pollTimer = setInterval(() => {
-        if (openState !== state || state.screen !== 'table' || state.busy) return;
+        if (openState !== state || state.screen !== 'table' || state.busy || state.anim) return;
         if (state.view?.phase === 'over') return;
         // Наш ход — сервер нам ничего нового не расскажет.
         if (state.view && state.view.toMove === state.view.seat) return;
@@ -663,16 +685,19 @@ async function refresh(state, force) {
 }
 
 /** Принять то, что рассказал сервер. */
-function applyServer(state, res) {
+async function applyServer(state, res) {
     if (!res) return;
     state.meta = res;
     state.players = res.players || state.players;
     state.seq = res.seq;
     if (res.seat != null && res.seat >= 0) state.seat = res.seat;
-    // Ответ без вида — это «ничего не изменилось» (см. GET /game/:id).
-    if (res.view) state.view = res.view;
-    if (res.status === 'done' || state.view?.phase === 'over') { showOver(state); return; }
-    render(state);
+    // Ответ без вида — это «ничего не изменилось» (см. GET /game/:id): показывать
+    // нечего, но кнопки и подсказка могли поменяться (например, партию стало
+    // можно забрать).
+    if (!res.view) { render(state); return; }
+    await applyView(state, res.view);
+    if (openState !== state) return;
+    if (res.status === 'done' || state.view?.phase === 'over') showOver(state);
 }
 
 async function resignNow(state) {
@@ -697,6 +722,381 @@ async function claimNow(state) {
         else flash(state, 'Забрать пока нельзя — соперник ещё в игре');
     } catch {
         flash(state, 'Сервер не ответил — попробуйте ещё раз');
+    }
+}
+
+// ── Показ хода ───────────────────────────────────────────────────────────────
+// ПОЧЕМУ ЭТО ВООБЩЕ ЕСТЬ. Без анимации стол просто подменяется: карта исчезает
+// из руки и в тот же кадр оказывается на столе, розыгрыш пропадает целиком, а
+// после добора у всех молча становится по шесть карт. Что произошло — понять
+// нельзя, особенно за столом на четверых, где ходят трое чужих.
+//
+// Показ считается ИЗ РАЗНИЦЫ ДВУХ ВИДОВ, а не из «что за ход мы сделали». Иначе
+// пришлось бы держать два разных показа: в партии с ботом ход известен, а с
+// людьми с сервера приезжает ПОЗИЦИЯ, и рассказа о ней там нет. Разница видов
+// есть в обоих случаях и означает ровно одно и то же.
+//
+// Если разницу объяснить не получилось (вкладка спала, и сервер ушёл на
+// несколько ходов вперёд), показ пропускается — стол просто перерисовывается.
+// Показывать три чужих хода подряд всё равно некому: человек смотрел не сюда.
+
+const PLAY_MS = 260;      // карта из руки на стол
+const SWEEP_MS = 320;     // стол в отбой или в руки взявшему
+const DEAL_MS = 240;      // карта из колоды в руку
+const DEAL_GAP = 45;      // задержка между картами раздачи
+const SHOUT_MS = 950;     // сколько висит крупная надпись
+
+/** Показывать ли движение вообще (в системе может стоять «поменьше анимации»). */
+const animated = () => !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+/** Карта ещё летит — на своём месте её пока не видно. */
+const hidden = (state, card) => (state.hiding?.has(card) ? ' is-hidden' : '');
+
+/**
+ * Принять новый вид и показать переход к нему.
+ *
+ * Всё, что меняет стол, идёт через эту функцию — и ход человека, и ход бота, и
+ * ответ сервера. Пока идёт показ, ходить нельзя (state.anim): иначе второй ход
+ * лёг бы поверх недосмотренного первого.
+ */
+async function applyView(state, next) {
+    const prev = state.view;
+    state.view = next;
+    const steps = prev && animated() ? diffViews(prev, next) : null;
+    if (!steps || !steps.length) { render(state); return; }
+
+    state.anim = true;
+    try {
+        await playSteps(state, prev, next, steps);
+    } catch {
+        // Окно закрыли посреди показа или браузер прервал анимацию — не беда,
+        // ниже всё равно рисуется итоговая позиция.
+    } finally {
+        state.anim = false;
+        state.hiding = null;
+        state.dealt = null;
+        if (openState === state) render(state);
+    }
+}
+
+/**
+ * Чем один вид отличается от другого — в шагах показа.
+ *
+ * null означает «объяснить не получилось»: рисуем без показа.
+ */
+function diffViews(prev, next) {
+    if (prev.seat !== next.seat) return null;
+    const onTable = table => table.flatMap(p => (p.d == null ? [p.a] : [p.a, p.d]));
+
+    // Кто ходил: у него убыло карт. Ход всегда один, поэтому и место одно.
+    const dropped = [];
+    for (let seat = 0; seat < prev.seats; seat++) {
+        if (next.counts[seat] < prev.counts[seat]) dropped.push(seat);
+    }
+    const mover = dropped.length === 1 ? dropped[0] : prev.attacker;
+
+    // ── Розыгрыш закрылся: стол уехал в отбой или тому, кто взял
+    if (prev.table.length && !next.table.length) {
+        const beaten = next.discard.length > prev.discard.length;
+        const gone = onTable(prev.table);
+        // Карта, которой отбились последней, могла не успеть показаться: движок
+        // закрывает розыгрыш тем же ходом, если подкинуть больше некому.
+        // Показываем её отдельно — сначала ложится, потом всё уезжает.
+        const late = beaten
+            ? next.discard.slice(prev.discard.length).filter(card => !gone.includes(card))
+            : [];
+        const steps = [{
+            kind: 'sweep',
+            cards: gone,
+            late,
+            lateFrom: prev.defender,
+            to: beaten ? 'discard' : prev.defender,
+            text: beaten ? 'Бито' : null,
+        }];
+        const deal = dealStep(prev, next, beaten ? null : prev.defender, gone.length + late.length);
+        if (deal) steps.push(deal);
+        return steps;
+    }
+
+    // ── Карты легли на стол
+    const played = playedCards(prev, next, mover);
+    if (played === null) return null;
+    if (played.length) {
+        const steps = played.map(item => ({ kind: 'play', ...item }));
+        // Перевод видно по тому, что атакующим стал бывший защитник.
+        if (next.attacker !== prev.attacker && next.attacker === prev.defender) {
+            steps.push({ kind: 'shout', text: 'Перевод' });
+        }
+        return steps;
+    }
+
+    // ── «Беру»: карты не двигались, но сказать об этом надо. Кто именно берёт,
+    //    подставляется при показе — имена живут в окне, а не в виде.
+    if (!prev.taking && next.taking) return [{ kind: 'shout', who: next.defender }];
+    return [];
+}
+
+/** Какие карты легли на стол и в какие места. null — стол переставили не так. */
+function playedCards(prev, next, mover) {
+    if (next.table.length < prev.table.length) return null;
+    const out = [];
+    for (let i = 0; i < next.table.length; i++) {
+        const was = prev.table[i];
+        const now = next.table[i];
+        if (!was) {
+            out.push({ card: now.a, seat: mover, i, role: 'a' });
+            if (now.d != null) out.push({ card: now.d, seat: prev.defender, i, role: 'd' });
+            continue;
+        }
+        if (was.a !== now.a) return null;
+        if (was.d == null && now.d != null) out.push({ card: now.d, seat: prev.defender, i, role: 'd' });
+    }
+    return out;
+}
+
+/**
+ * Добор: сколько карт кому пришло из колоды.
+ *
+ * Считается вычитанием по размерам рук, а взявшему ещё и за вычетом стола —
+ * его прибавка это стол ПЛЮС добор. Если сходится не всё (вкладка спала и ходов
+ * прошло несколько), раздачу не показываем вовсе: лучше никак, чем неправду.
+ */
+function dealStep(prev, next, taker, takenCount) {
+    const drew = prev.deckLeft - next.deckLeft;
+    if (drew <= 0) return null;
+
+    const drawn = [];
+    for (let seat = 0; seat < prev.seats; seat++) {
+        let n = next.counts[seat] - prev.counts[seat];
+        if (seat === taker) n -= takenCount;
+        if (n < 0) return null;
+        drawn.push(n);
+    }
+    if (drawn.reduce((a, b) => a + b, 0) !== drew) return null;
+
+    // Свои карты знаем поимённо — их и прячем до прилёта. Взятое со стола сюда
+    // не относится: оно приехало не из колоды.
+    const fromTable = new Set(prev.table.flatMap(p => (p.d == null ? [p.a] : [p.a, p.d])));
+    const mine = next.hand.filter(card => !prev.hand.includes(card) && !fromTable.has(card));
+    return {
+        kind: 'deal',
+        drawn,
+        // Добирает первым тот, кто заходил (так же и в правилах).
+        first: prev.attacker,
+        mine: mine.length === drawn[next.seat] ? mine : [],
+    };
+}
+
+/** Проиграть шаги показа по порядку. */
+async function playSteps(state, prev, next, steps) {
+    const size = cardSize(state);
+    const sweep = steps.find(s => s.kind === 'sweep');
+    const plays = steps.filter(s => s.kind === 'play');
+    const deal = steps.find(s => s.kind === 'deal');
+    const said = steps.find(s => s.kind === 'shout');
+    const text = (said && (said.text || takeText(state, said.who))) || sweep?.text;
+
+    // ── 1. Мерим по СТАРОМУ виду: он ещё на экране
+    const from = new Map();
+    for (const step of plays) from.set(step.card, spotIn(state, handRect(state, prev, step.seat), size));
+
+    const spots = new Map();
+    let lateSpot = null;
+    if (sweep) {
+        for (const card of sweep.cards) {
+            const at = rectOf(state, state.modal.querySelector(`#dur-field .dur-card[data-card="${card}"]`));
+            if (at) spots.set(card, { x: at.x, y: at.y });
+        }
+        if (sweep.late.length) {
+            // Опоздавшая карта ложится туда же, куда легла бы защита последней
+            // пары, — со сдвигом, как все побитые.
+            const last = rectOf(state, state.modal.querySelector('#dur-field .dur-pair:last-child .dur-pair-a'));
+            for (const card of sweep.late) {
+                spots.set(card, last ? { x: last.x + size.w * 0.24, y: last.y + size.h * 0.18 } : null);
+            }
+            lateSpot = spotIn(state, handRect(state, prev, sweep.lateFrom), size);
+        }
+    }
+
+    // ── 2. Рисуем новый вид, спрятав всё, что должно прилететь
+    state.hiding = new Set([...plays.map(s => s.card), ...(deal?.mine || [])]);
+    state.dealt = deal ? prev.counts.slice() : null;
+    render(state);
+    if (text) shout(state, text);
+
+    // ── 3. Показываем
+    if (plays.length) {
+        await Promise.all(plays.map(step => {
+            const target = rectOf(state, state.modal.querySelector(
+                `#dur-field .dur-pair[data-i="${step.i}"] .dur-pair-${step.role}`));
+            const el = flyingCard(state, { value: step.card, at: from.get(step.card) });
+            return glide(el, target, { ms: PLAY_MS }).then(() => el.remove());
+        }));
+        state.hiding = null;
+        renderField(state);
+    }
+
+    if (sweep) {
+        const flyers = [];
+        // Опоздавшая карта сначала ложится на стол — иначе она мелькнёт уже
+        // улетающей, и будет непонятно, чем же отбились.
+        for (const value of sweep.late) {
+            if (!lateSpot || !spots.get(value)) continue;
+            const el = flyingCard(state, { value, at: lateSpot });
+            flyers.push(el);
+            await glide(el, spots.get(value), { ms: PLAY_MS });
+        }
+        for (const value of sweep.cards) {
+            const at = spots.get(value);
+            if (at) flyers.push(flyingCard(state, { value, at }));
+        }
+
+        const to = sweep.to === 'discard'
+            ? spotIn(state, rectOf(state, state.modal.querySelector('.dur-out-btn')), size)
+            : spotIn(state, handRect(state, next, sweep.to), size);
+        await Promise.all(flyers.map((el, i) =>
+            glide(el, to, { ms: SWEEP_MS, delay: i * 25, fade: true, rot: 8 })
+                .then(() => el.remove())));
+        renderOut(state);
+    }
+
+    if (deal) await dealCards(state, deal, size);
+}
+
+/** Раздача и добор: карты по одной уезжают из колоды по рукам. */
+async function dealCards(state, deal, size) {
+    const view = state.view;
+    const deck = spotIn(state, rectOf(state, state.modal.querySelector('.dur-stock-back')
+        || state.modal.querySelector('#dur-stock')), size);
+    if (!deck) return;
+
+    // По одной карте по кругу, начиная с того, кто добирает первым, — как
+    // сдают на самом деле, а не «шесть штук одному, потом шесть другому».
+    const order = [];
+    const left = deal.drawn.slice();
+    const mine = (deal.mine || []).slice();
+    let guard = 0;
+    while (left.some(n => n > 0) && guard++ < 40) {
+        for (let k = 0; k < view.seats; k++) {
+            const seat = (deal.first + k) % view.seats;
+            if (left[seat] > 0) { left[seat]--; order.push(seat); }
+        }
+    }
+
+    let mineIdx = 0;
+    await Promise.all(order.map((seat, i) => {
+        const value = seat === view.seat && mine[mineIdx] != null ? mine[mineIdx++] : null;
+        const target = value != null
+            ? rectOf(state, state.modal.querySelector(`#dur-hand .dur-card[data-card="${value}"]`))
+            : spotIn(state, handRect(state, view, seat), size);
+        const el = flyingCard(state, { at: deck, faceDown: true });
+        return glide(el, target, { ms: DEAL_MS, delay: i * DEAL_GAP }).then(() => {
+            el.remove();
+            if (openState !== state) return;
+            if (value != null) { state.hiding?.delete(value); renderHand(state); }
+            if (state.dealt) { state.dealt[seat]++; renderSeats(state); }
+        });
+    }));
+}
+
+// ── Мелочи показа ────────────────────────────────────────────────────────────
+
+/** «Беру» про себя и «Вася берёт» про соседа: за столом на четверых важно, кто. */
+const takeText = (state, seat) => (seat === state.view.seat
+    ? 'Беру'
+    : `${state.players[seat]?.name || 'Соперник'} берёт`);
+
+/** Крупная надпись поверх стола: «Бито», «Беру», «Перевод». */
+function shout(state, text) {
+    const box = state.modal?.querySelector('#dur-shout');
+    if (!box || !text) return;
+    box.textContent = text;
+    // Снять и вернуть класс — иначе вторая подряд надпись не проигрывается.
+    box.classList.remove('is-on');
+    void box.offsetWidth;
+    box.classList.add('is-on');
+    clearTimeout(state.shoutTimer);
+    state.shoutTimer = setTimeout(() => box.classList.remove('is-on'), SHOUT_MS);
+}
+
+/** Летящая карта. Живёт на своём слое и кликов не ловит. */
+function flyingCard(state, { value, at, faceDown = false }) {
+    const layer = state.modal.querySelector('#dur-fly');
+    const el = document.createElement('div');
+    el.className = `dur-card dur-flying${faceDown ? ' is-down' : ''}`;
+    if (!faceDown && value != null) {
+        el.innerHTML = `<i style="--col:${spriteCol(value)}; --row:${spriteRow(value)}"></i>`;
+    }
+    el.dataset.x = at?.x ?? 0;
+    el.dataset.y = at?.y ?? 0;
+    el.style.transform = `translate(${el.dataset.x}px, ${el.dataset.y}px)`;
+    layer?.appendChild(el);
+    return el;
+}
+
+/** Двинуть летящую карту. Обещание разрешается, когда она долетела. */
+function glide(el, to, { ms, delay = 0, fade = false, rot = 0 } = {}) {
+    const from = { x: Number(el.dataset.x), y: Number(el.dataset.y) };
+    if (!to) { el.remove(); return Promise.resolve(); }
+    el.dataset.x = to.x;
+    el.dataset.y = to.y;
+    const anim = el.animate([
+        { transform: `translate(${from.x}px, ${from.y}px) rotate(0deg)`, opacity: 1 },
+        { transform: `translate(${to.x}px, ${to.y}px) rotate(${rot}deg)`, opacity: fade ? 0 : 1 },
+    ], { duration: ms, delay, easing: 'cubic-bezier(.22,.7,.28,1)', fill: 'forwards' });
+    return anim.finished.catch(() => {});
+}
+
+/** Размер карты — берём с любой нарисованной, чтобы не считать его дважды. */
+function cardSize(state) {
+    const any = state.modal.querySelector('.dur-card');
+    const w = any?.offsetWidth || 60;
+    return { w, h: any?.offsetHeight || Math.round(w * 1.338) };
+}
+
+/** Положение узла в координатах стола (на нём же лежит слой показа). */
+function rectOf(state, el) {
+    const host = state.modal?.querySelector('#dur-table-screen');
+    if (!el || !host) return null;
+    const a = el.getBoundingClientRect();
+    const b = host.getBoundingClientRect();
+    if (!a.width && !a.height) return null;
+    return { x: a.left - b.left, y: a.top - b.top, w: a.width, h: a.height };
+}
+
+/** Куда положить карту, чтобы её середина совпала с серединой области. */
+function spotIn(state, rect, size) {
+    return rect ? { x: rect.x + (rect.w - size.w) / 2, y: rect.y + (rect.h - size.h) / 2 } : null;
+}
+
+/** Откуда и куда летят карты игрока: своя рука внизу, чужие — веером сверху. */
+function handRect(state, view, seat) {
+    if (seat === view.seat) return rectOf(state, state.modal.querySelector('#dur-hand'));
+    return rectOf(state, state.modal.querySelector(`.dur-seat[data-seat="${seat}"] .dur-seat-fan`));
+}
+
+/** Спрятать руки перед раздачей: карты появятся, когда долетят. */
+function beforeDeal(state) {
+    if (!animated() || !state.view) return;
+    state.hiding = new Set(state.view.hand);
+    state.dealt = state.view.counts.map(() => 0);
+}
+
+/** Показать раздачу в начале партии. */
+async function dealIntro(state) {
+    if (!state.hiding || !state.view) { render(state); return; }
+    state.anim = true;
+    try {
+        await dealCards(state, {
+            drawn: state.view.counts.slice(),
+            mine: state.view.hand.slice(),
+            first: state.view.attacker,
+        }, cardSize(state));
+    } catch { /* см. applyView */ } finally {
+        state.anim = false;
+        state.hiding = null;
+        state.dealt = null;
+        if (openState === state) render(state);
     }
 }
 
@@ -786,11 +1186,14 @@ function renderSeats(state) {
             : seat === view.attacker ? 'заходит'
             : count ? 'подкидывает' : 'вышел';
         const acts = view.toMove === seat;
-        const fan = Array.from({ length: Math.min(count, 6) },
+        // Пока идёт раздача, веер показывает столько карт, сколько уже долетело:
+        // иначе карты летят к рукам, которые и без них уже полные.
+        const shown = state.dealt ? Math.min(count, state.dealt[seat]) : count;
+        const fan = Array.from({ length: Math.min(shown, 6) },
             (_, i) => `<div class="dur-card is-down" style="--i:${i}"></div>`).join('');
         html.push(`
-            <div class="dur-seat${acts ? ' is-acting' : ''}${count ? '' : ' is-out'}">
-                <div class="dur-seat-fan">${fan}<span class="dur-seat-count">${count}</span></div>
+            <div class="dur-seat${acts ? ' is-acting' : ''}${count ? '' : ' is-out'}" data-seat="${seat}">
+                <div class="dur-seat-fan">${fan}<span class="dur-seat-count">${shown}</span></div>
                 <div class="dur-seat-name">${esc(player?.name || 'Игрок')}</div>
                 <div class="dur-seat-role">${role}</div>
             </div>`);
@@ -829,9 +1232,9 @@ function renderField(state) {
     }
     const target = defenceTarget(view);
     box.innerHTML = view.table.map((pair, i) => `
-        <div class="dur-pair${i === target && view.seat === view.defender && !view.taking ? ' is-target' : ''}">
-            ${cardHtml(pair.a, 'dur-pair-a')}
-            ${pair.d != null ? cardHtml(pair.d, 'dur-pair-d') : ''}
+        <div class="dur-pair${i === target && view.seat === view.defender && !view.taking ? ' is-target' : ''}" data-i="${i}">
+            ${cardHtml(pair.a, `dur-pair-a${hidden(state, pair.a)}`)}
+            ${pair.d != null ? cardHtml(pair.d, `dur-pair-d${hidden(state, pair.d)}`) : ''}
         </div>`).join('');
 }
 
@@ -857,7 +1260,7 @@ function renderOut(state) {
 function renderHand(state) {
     const view = state.view;
     const box = state.modal.querySelector('#dur-hand');
-    const mine = view.toMove === view.seat && !state.busy;
+    const mine = view.toMove === view.seat && !state.busy && !state.anim;
     const attacks = mine ? attackCards(view) : [];
     const covers = mine ? defendCards(view) : [];
     const moves = mine ? transferCards(view) : [];
@@ -868,6 +1271,7 @@ function renderHand(state) {
             'dur-hand-card',
             playable ? 'is-playable' : '',
             state.transferMode && moves.includes(card) ? 'is-transfer' : '',
+            hidden(state, card).trim(),
         ].join(' ');
         return cardHtml(card, cls, `style="--i:${i}"`);
     }).join('');
@@ -881,7 +1285,7 @@ function renderBar(state) {
         btn.classList.toggle('hidden', !on);
         if (text) btn.textContent = text;
     };
-    const mine = view.toMove === view.seat && view.phase === 'play' && !state.busy;
+    const mine = view.toMove === view.seat && view.phase === 'play' && !state.busy && !state.anim;
     show('#dur-take', mine && canTake(view));
     // «Бито» и «Хватит» — одна кнопка: смысл у неё один (закончить розыгрыш), а
     // слово разное, потому что в одном случае карты уедут в отбой, а в другом
