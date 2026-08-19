@@ -473,7 +473,7 @@ function startBattle(run, kind) {
         played: 0,      // карт разыграно В ЭТОМ ХОДУ (условие «первая карта»)
         spent: 0,       // энергии потрачено в этом ходу (мутация «разгон»)
         double: 0,      // сколько ближайших карт сработают дважды («Зеркало»)
-        keepBlock: false,
+        wardEach: 0,    // столько брони прирастает в начале каждого хода («Запас»)
         echo: {},       // uid → сколько раз карта уже вернулась в руку за бой
         surge: {},      // uid → сколько раз карта сыграна бесплатно за бой
         log: [],
@@ -487,7 +487,16 @@ function heroTurn(run) {
     const b = run.battle;
     b.turn++;
     run.stats.turns++;
-    if (!b.keepBlock) b.hero.block = 0;
+    // БРОНЯ НЕ СГОРАЕТ и копится от хода к ходу — как в карточных играх с
+    // героем, а не как в рогаликах с одноразовым блоком. Разница принципиальная:
+    // блок, сгорающий в конце хода, наказывает за «переставил лишнего», а броня
+    // превращает защиту во вложение — поставленное сегодня работает и завтра.
+    //
+    // Из-за этого числа защиты В КОНТЕНТЕ намеренно маленькие: броня за энергию
+    // обязана быть заметно меньше урона врага за ход, иначе выгодно закрыться
+    // наглухо и не бить вовсе — бой перестанет кончаться, а забег превратится в
+    // соревнование по терпению (тот же довод, что про часы в тройке).
+    if (b.wardEach) addBlock(b, b.hero, b.wardEach);
     b.hero.energy = b.hero.maxEnergy;
     b.played = 0;
     b.spent = 0;
@@ -597,9 +606,9 @@ function applyCard(run, card, def) {
     // Мутации-добавки. Они не эффекты карты, а надстройка над ней, поэтому
     // считаются после и не зависят от условий самой карты.
     const mu = card.mut || {};
-    if (mu.venom && def.kind === ATTACK) addStatus(b.enemy, POISON, mutPower('venom', mu.venom));
-    if (mu.leech) healUnit(b.hero, mutPower('leech', mu.leech));
-    if (mu.ward) b.hero.block += mutPower('ward', mu.ward);
+    if (mu.venom && def.kind === ATTACK) addStatus(b, b.enemy, POISON, mutPower('venom', mu.venom));
+    if (mu.leech) healUnit(b, b.hero, mutPower('leech', mu.leech));
+    if (mu.ward) addBlock(b, b.hero, mutPower('ward', mu.ward));
     if (mu.insight) drawCards(run, mutPower('insight', mu.insight));
 }
 
@@ -616,10 +625,10 @@ function applyEffect(run, card, e) {
             break;
         }
         case BLOCK:
-            b.hero.block += Math.round(scaleValue(e.v, lvl) * numMult(b, card, false));
+            addBlock(b, b.hero, Math.round(scaleValue(e.v, lvl) * numMult(b, card, false)));
             break;
         case HEAL:
-            healUnit(b.hero, Math.round(scaleValue(e.v, lvl) * numMult(b, card, false)));
+            healUnit(b, b.hero, Math.round(scaleValue(e.v, lvl) * numMult(b, card, false)));
             break;
         case DRAW:
             // Добор, энергия и удвоение уровнем НЕ масштабируются: уровень — это
@@ -632,7 +641,7 @@ function applyEffect(run, card, e) {
             break;
         case STATUS: {
             const target = e.to === 'self' ? b.hero : b.enemy;
-            addStatus(target, e.s, scaleValue(e.v, lvl));
+            addStatus(b, target, e.s, scaleValue(e.v, lvl));
             break;
         }
         case UPGRADE: {
@@ -655,17 +664,61 @@ function applyEffect(run, card, e) {
             break;
         }
         case RULE:
-            if (e.r === 'keepBlock') b.keepBlock = true;
+            // Единственное правило, которое карта включает на весь бой: броня
+            // сама нарастает в начале каждого хода. Отдельной ветки под каждую
+            // такую карту в движке быть не должно — только именованные правила.
+            if (e.r === 'ward') b.wardEach = (b.wardEach | 0) + (e.v || 0);
             break;
     }
 }
 
-function addStatus(unit, s, v) {
-    unit.st[s] = (unit.st[s] | 0) + v;
+// ── Журнал боя ───────────────────────────────────────────────────────────────
+// Правила считают ход ЦЕЛИКОМ и мгновенно, а окно показывает его по шагам:
+// карта прилетела на стол, у врага отлетели цифры урона, полоса здоровья
+// поехала вниз, потом ответил враг. Чтобы показать это, окну мало итогового
+// состояния — ему нужно, ЧТО ИМЕННО происходило и в каком порядке.
+//
+// Отсюда журнал: каждое событие несёт не только своё число, но и здоровье с
+// блоком ПОСЛЕ себя. Окно проигрывает журнал по одному событию, ставя полосы в
+// эти значения, — и ему не нужно ни повторять правила, ни угадывать порядок
+// (сравните с дураком, где показ хода вычисляется разницей двух видов: там
+// позиция приезжает с сервера без рассказа о том, что случилось, а здесь
+// правила и окно в одном браузере, и рассказать честнее и проще).
+//
+// Журнал ОГРАНИЧЕН по длине: если окно закрыли посреди боя и никто его не
+// разбирал, он не должен расти вместе с сохранённым забегом.
+const LOG_LIMIT = 400;
+
+function side(b, unit) { return unit === b.hero ? 'hero' : 'enemy'; }
+
+function note(b, ev) {
+    if (b && b.log && b.log.length < LOG_LIMIT) b.log.push(ev);
 }
 
-function healUnit(unit, n) {
+/** Забрать накопленные события и очистить журнал. Зовёт окно после действия. */
+export function takeLog(run) {
+    const b = run.battle;
+    if (!b || !b.log?.length) return [];
+    const out = b.log;
+    b.log = [];
+    return out;
+}
+
+function addStatus(b, unit, s, v) {
+    unit.st[s] = (unit.st[s] | 0) + v;
+    note(b, { t: 'status', who: side(b, unit), s, v, left: unit.st[s] });
+}
+
+function healUnit(b, unit, n) {
+    const before = unit.hp;
     unit.hp = Math.min(unit.maxHp, unit.hp + Math.max(0, n));
+    if (unit.hp !== before) note(b, { t: 'heal', who: side(b, unit), v: unit.hp - before, hp: unit.hp });
+}
+
+function addBlock(b, unit, n) {
+    if (n <= 0) return;
+    unit.block += n;
+    note(b, { t: 'block', who: side(b, unit), v: n, block: unit.block });
 }
 
 /**
@@ -674,7 +727,7 @@ function healUnit(unit, n) {
  *
  * attack=false у яда и шипов — они не атака, силу и ослабление не считают.
  */
-function strike(from, to, amount, attack) {
+function strike(b, from, to, amount, attack, src) {
     let dmg = amount;
     if (attack) {
         dmg += from.st[STR] | 0;
@@ -686,15 +739,16 @@ function strike(from, to, amount, attack) {
     to.block -= blocked;
     const real = dmg - blocked;
     to.hp = Math.max(0, to.hp - real);
+    note(b, { t: 'hit', who: side(b, to), src, dmg, real, blocked, hp: to.hp, block: to.block });
     return real;
 }
 
 function heroHit(run, n) {
     const b = run.battle;
-    const real = strike(b.hero, b.enemy, n, true);
+    const real = strike(b, b.hero, b.enemy, n, true, 'card');
     run.stats.damage += real;
     const thorns = b.enemy.st[THORNS] | 0;
-    if (thorns > 0) strike(b.enemy, b.hero, thorns, false);
+    if (thorns > 0) strike(b, b.enemy, b.hero, thorns, false, 'thorns');
     checkEnd(run);
 }
 
@@ -708,16 +762,16 @@ export function endTurn(run) {
     b.discard.push(...b.hand);
     b.hand = [];
 
-    tickEnd(b.hero);
+    tickEnd(b, b.hero);
     checkEnd(run);
     if (b.over) return { ok: true };
 
     enemyAct(run);
     if (b.over) return { ok: true };
 
-    tickEnd(b.enemy);
+    tickEnd(b, b.enemy);
     const regen = modNum(b.enemy, 'regen');
-    if (regen) healUnit(b.enemy, Math.max(1, Math.round(b.enemy.maxHp * regen)));
+    if (regen) healUnit(b, b.enemy, Math.max(1, Math.round(b.enemy.maxHp * regen)));
     checkEnd(run);
     if (b.over) return { ok: true };
 
@@ -725,25 +779,30 @@ export function endTurn(run) {
     return { ok: true };
 }
 
-function tickEnd(unit) {
+function tickEnd(b, unit) {
     const st = unit.st;
     const p = st[POISON] | 0;
     // Яд бьёт МИМО блока: иначе колода на яде проигрывала бы любому щитоносцу, а
     // весь смысл яда — в том, что он идёт другой дорогой.
-    if (p > 0) { unit.hp = Math.max(0, unit.hp - p); st[POISON] = p - 1; }
+    if (p > 0) {
+        unit.hp = Math.max(0, unit.hp - p);
+        st[POISON] = p - 1;
+        note(b, { t: 'poison', who: side(b, unit), v: p, hp: unit.hp });
+    }
     const r = st[REGEN] | 0;
-    if (r > 0) { healUnit(unit, r); st[REGEN] = r - 1; }
+    if (r > 0) { healUnit(b, unit, r); st[REGEN] = r - 1; }
     for (const s of [WEAK, VULN]) if ((st[s] | 0) > 0) st[s]--;
     for (const k of Object.keys(st)) if (!st[k]) delete st[k];
 }
 
 function enemyAct(run) {
     const b = run.battle, e = b.enemy;
-    // Блок врага держится ровно один ход игрока и сгорает к его собственному
-    // ходу — так же, как у игрока.
-    e.block = 0;
-    const shield = modNum(e, 'block');
-    if (shield) e.block += shield;
+    // Броня врага, как и у игрока, не сгорает: правило одно на обоих, иначе
+    // «почему у него держится, а у меня нет» пришлось бы объяснять в интерфейсе.
+    // «Ход врага» — отдельная отметка в журнале: окно по ней делает паузу и
+    // показывает, что дальше действует уже не игрок.
+    note(b, { t: 'turn', who: 'enemy' });
+    addBlock(b, e, modNum(e, 'block'));
 
     const base = (e.boss ? BOSSES : ENEMIES).find(x => x.id === e.id);
     const acts = base.intents[e.intent].acts;
@@ -762,19 +821,19 @@ function doActs(run, acts) {
         if (b.over || b.hero.hp <= 0) return;
         if (a.t === I_ATTACK) {
             for (let i = 0; i < (a.times || 1); i++) {
-                const real = strike(e, b.hero, Math.max(1, Math.round(a.v * e.dmg)), true);
-                if (leech) healUnit(e, Math.round(real * leech));
-                if (poison) addStatus(b.hero, POISON, poison);
-                if (weak) addStatus(b.hero, WEAK, weak);
+                const real = strike(b, e, b.hero, Math.max(1, Math.round(a.v * e.dmg)), true, 'enemy');
+                if (leech) healUnit(b, e, Math.round(real * leech));
+                if (poison) addStatus(b, b.hero, POISON, poison);
+                if (weak) addStatus(b, b.hero, WEAK, weak);
                 const thorns = b.hero.st[THORNS] | 0;
-                if (thorns > 0) strike(b.hero, e, thorns, false);
+                if (thorns > 0) strike(b, b.hero, e, thorns, false, 'thorns');
                 checkEnd(run);
                 if (b.over || b.hero.hp <= 0) return;
             }
         } else if (a.t === I_BLOCK) {
-            e.block += Math.max(1, Math.round(a.v * e.dmg));
+            addBlock(b, e, Math.max(1, Math.round(a.v * e.dmg)));
         } else if (a.t === I_STATUS) {
-            addStatus(a.to === 'self' ? e : b.hero, a.s, a.v);
+            addStatus(b, a.to === 'self' ? e : b.hero, a.s, a.v);
         }
     }
     checkEnd(run);
@@ -783,8 +842,8 @@ function doActs(run, acts) {
 function checkEnd(run) {
     const b = run.battle;
     if (!b || b.over) return;
-    if (b.enemy.hp <= 0) { b.over = 'win'; winBattle(run); }
-    else if (b.hero.hp <= 0) { b.over = 'lose'; run.hp = 0; endRun(run); }
+    if (b.enemy.hp <= 0) { note(b, { t: 'over', result: 'win' }); b.over = 'win'; winBattle(run); }
+    else if (b.hero.hp <= 0) { note(b, { t: 'over', result: 'lose' }); b.over = 'lose'; run.hp = 0; endRun(run); }
 }
 
 function winBattle(run) {
@@ -1007,7 +1066,7 @@ function effectText(card, e) {
         case UPGRADE: return 'Улучшает случайную карту в руке на уровень — навсегда.';
         case DOUBLE:  return 'Следующая карта в этом ходу сработает дважды.';
         case AMPLIFY: return 'Удваивает яд, который уже висит на враге.';
-        case RULE:    return e.r === 'keepBlock' ? 'До конца боя блок больше не сгорает.' : '';
+        case RULE:    return e.r === 'ward' ? `В начале каждого хода даёт ${e.v} брони.` : '';
         default:      return '';
     }
 }
@@ -1032,6 +1091,21 @@ export function mutationList(card) {
     });
 }
 
+/**
+ * «Главное число» карты — то, что стоит в шаре на нарисованной карточке: урон у
+ * атаки, блок у защиты, у остальных ничего. Считает его движок, а не окно: это
+ * число карты, а не оформление, и браться оно обязано оттуда же, откуда
+ * описание, — иначе на картинке и в тексте окажутся разные цифры.
+ *
+ * Берётся первый БЕЗУСЛОВНЫЙ эффект: у «Засады» на шаре стоит её базовый урон, а
+ * прибавка «если это первая карта в ходу» — в описании, ей на шаре не место.
+ */
+function mainNumber(card) {
+    const def = CARD_BY_ID[card.id];
+    const e = def.effects.find(x => !x.when && (x.t === DAMAGE || x.t === BLOCK));
+    return e ? { t: e.t === DAMAGE ? 'dmg' : 'block', v: scaleValue(e.v, card.lvl) } : null;
+}
+
 /** Всё, что окну нужно про карту: числа уже посчитаны. */
 export function cardView(run, card) {
     const def = CARD_BY_ID[card.id];
@@ -1045,6 +1119,7 @@ export function cardView(run, card) {
         baseCost: def.cost,
         lvl: card.lvl,
         text: cardText(card),
+        power: mainNumber(card),
         muts: mutationList(card),
     };
 }

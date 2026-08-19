@@ -27,6 +27,8 @@
 
 // ── Статусы ──────────────────────────────────────────────────────────────────
 // Набор намеренно маленький: шесть штук, каждый со своим понятным правилом.
+// Броня статусом НЕ считается: она копится числом рядом со здоровьем и живёт в
+// самом бойце (см. heroTurn в roguelike.js).
 // Больше — и в бою придётся читать справку вместо того, чтобы играть.
 export const POISON = 'poison';   // в конце своего хода: урон в размере стопки, потом −1
 export const WEAK   = 'weak';     // наносимый урон ×0.75, −1 в конце своего хода
@@ -124,14 +126,14 @@ export const CONDITIONS = {
 export const CARDS = [
     // ── Обычные ──
     { id: 'strike',   name: 'Удар',        kind: ATTACK, rarity: COMMON, cost: 1, effects: [{ t: DAMAGE, v: 7 }] },
-    { id: 'guard',    name: 'Защита',      kind: SKILL,  rarity: COMMON, cost: 1, effects: [{ t: BLOCK, v: 7 }] },
+    { id: 'guard',    name: 'Защита',      kind: SKILL,  rarity: COMMON, cost: 1, effects: [{ t: BLOCK, v: 4 }] },
     { id: 'jab',      name: 'Тычок',       kind: ATTACK, rarity: COMMON, cost: 0, effects: [{ t: DAMAGE, v: 4 }] },
-    { id: 'brace',    name: 'Упор',        kind: SKILL,  rarity: COMMON, cost: 0, effects: [{ t: BLOCK, v: 5 }] },
+    { id: 'brace',    name: 'Упор',        kind: SKILL,  rarity: COMMON, cost: 0, effects: [{ t: BLOCK, v: 2 }] },
     { id: 'cleave',   name: 'Размах',      kind: ATTACK, rarity: COMMON, cost: 2, effects: [{ t: DAMAGE, v: 13 }] },
-    { id: 'bulwark',  name: 'Заслон',      kind: SKILL,  rarity: COMMON, cost: 2, effects: [{ t: BLOCK, v: 14 }] },
+    { id: 'bulwark',  name: 'Заслон',      kind: SKILL,  rarity: COMMON, cost: 2, effects: [{ t: BLOCK, v: 9 }] },
     { id: 'flurry',   name: 'Череда',      kind: ATTACK, rarity: COMMON, cost: 1, effects: [{ t: DAMAGE, v: 4, times: 2 }] },
     { id: 'venomtip', name: 'Яд на клинке', kind: ATTACK, rarity: COMMON, cost: 1, effects: [{ t: DAMAGE, v: 3 }, { t: STATUS, s: POISON, v: 3, to: 'enemy' }] },
-    { id: 'footwork', name: 'Перекат',     kind: SKILL,  rarity: COMMON, cost: 1, effects: [{ t: BLOCK, v: 4 }, { t: DRAW, v: 1 }] },
+    { id: 'footwork', name: 'Перекат',     kind: SKILL,  rarity: COMMON, cost: 1, effects: [{ t: BLOCK, v: 3 }, { t: DRAW, v: 1 }] },
     { id: 'focus',    name: 'Сосредоточение', kind: SKILL, rarity: COMMON, cost: 1, effects: [{ t: DRAW, v: 2 }] },
     { id: 'hex',      name: 'Порча',       kind: SKILL,  rarity: COMMON, cost: 1, effects: [{ t: STATUS, s: VULN, v: 2, to: 'enemy' }] },
     { id: 'shout',    name: 'Окрик',       kind: SKILL,  rarity: COMMON, cost: 1, effects: [{ t: STATUS, s: WEAK, v: 2, to: 'enemy' }] },
@@ -168,7 +170,7 @@ export const CARDS = [
     { id: 'plague',     name: 'Мор',       kind: SKILL, rarity: EPIC, cost: 2,
       effects: [{ t: STATUS, s: POISON, v: 4, to: 'enemy' }, { t: AMPLIFY, v: 1 }] },
     { id: 'vault',      name: 'Запас',     kind: POWER, rarity: EPIC, cost: 2, exhaust: true,
-      effects: [{ t: RULE, r: 'keepBlock' }, { t: BLOCK, v: 5 }] },
+      effects: [{ t: RULE, r: 'ward', v: 3 }, { t: BLOCK, v: 4 }] },
 ];
 
 export const CARD_BY_ID = Object.fromEntries(CARDS.map(c => [c.id, c]));
@@ -205,7 +207,7 @@ export const ENEMIES = [
             { acts: [{ t: I_ATTACK, v: 7 }] },
             { acts: [{ t: I_ATTACK, v: 4, times: 2 }] },
             { acts: [{ t: I_ATTACK, v: 3 }, { t: I_STATUS, s: POISON, v: 3, to: 'hero' }] },
-            { acts: [{ t: I_BLOCK, v: 8 }] },
+            { acts: [{ t: I_BLOCK, v: 5 }] },
         ],
     },
     {
@@ -220,8 +222,8 @@ export const ENEMIES = [
         id: 'golem', name: 'Голем', hp: 56,
         intents: [
             { acts: [{ t: I_ATTACK, v: 12 }] },
-            { acts: [{ t: I_BLOCK, v: 10 }] },
-            { acts: [{ t: I_ATTACK, v: 6 }, { t: I_BLOCK, v: 6 }] },
+            { acts: [{ t: I_BLOCK, v: 6 }] },
+            { acts: [{ t: I_ATTACK, v: 6 }, { t: I_BLOCK, v: 4 }] },
         ],
     },
     {
@@ -237,7 +239,7 @@ export const ENEMIES = [
         intents: [
             { acts: [{ t: I_ATTACK, v: 6 }] },
             { acts: [{ t: I_ATTACK, v: 8 }] },
-            { acts: [{ t: I_STATUS, s: STR, v: 2, to: 'self' }, { t: I_BLOCK, v: 4 }] },
+            { acts: [{ t: I_STATUS, s: STR, v: 2, to: 'self' }, { t: I_BLOCK, v: 3 }] },
         ],
     },
 ];
@@ -254,7 +256,7 @@ export const BOSSES = [
             // Замах: сначала он копит силу и закрывается, потом бьёт очень
             // больно. Это ЕДИНСТВЕННАЯ уникальная механика в игре, и она
             // держится на том же, на чём всё остальное, — на видимом намерении.
-            { acts: [{ t: I_BLOCK, v: 12 }, { t: I_STATUS, s: STR, v: 2, to: 'self' }] },
+            { acts: [{ t: I_BLOCK, v: 7 }, { t: I_STATUS, s: STR, v: 2, to: 'self' }] },
             { acts: [{ t: I_ATTACK, v: 16 }] },
             { acts: [{ t: I_ATTACK, v: 7, times: 2 }] },
             { acts: [{ t: I_STATUS, s: WEAK, v: 2, to: 'hero' }, { t: I_ATTACK, v: 8 }] },
@@ -265,7 +267,7 @@ export const BOSSES = [
         intents: [
             { acts: [{ t: I_ATTACK, v: 5, times: 3 }] },
             { acts: [{ t: I_STATUS, s: POISON, v: 4, to: 'hero' }, { t: I_ATTACK, v: 5 }] },
-            { acts: [{ t: I_STATUS, s: REGEN, v: 6, to: 'self' }, { t: I_BLOCK, v: 8 }] },
+            { acts: [{ t: I_STATUS, s: REGEN, v: 6, to: 'self' }, { t: I_BLOCK, v: 5 }] },
             { acts: [{ t: I_ATTACK, v: 13 }] },
         ],
     },
@@ -290,7 +292,7 @@ export const MUTATORS = [
     { id: 'thorns',  name: 'Шипы',          hint: 'ранит того, кто его бьёт',         thorns: 3 },
     { id: 'swift',   name: 'Ускоренный',    hint: 'каждый третий ход действует дважды', every: 3 },
     { id: 'venom',   name: 'Ядовитый',      hint: 'его атаки отравляют',              poison: 2 },
-    { id: 'shield',  name: 'Щитоносец',     hint: 'закрывается в начале своего хода', block: 6 },
+    { id: 'shield',  name: 'Щитоносец',     hint: 'наращивает броню каждый свой ход', block: 4 },
     { id: 'vampire', name: 'Вампиризм',     hint: 'лечится от нанесённого урона',     leech: 0.5 },
     { id: 'curse',   name: 'Сглаз',         hint: 'его атаки ослабляют',              weak: 1 },
 ];

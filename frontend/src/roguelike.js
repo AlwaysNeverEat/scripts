@@ -35,13 +35,22 @@
 import {
     startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent,
     removeCard, useStone, useShard, giveUp, cardOf, cardView, intentView, enemyView,
-    runResult, addTime, mutationList,
+    runResult, addTime, mutationList, takeLog, costOf,
     MAP_ROWS, SKIP_HEAL, HAND_SIZE,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
     NODE_INFO, NODE_BOSS, NODE_ELITE, STATUS_INFO, MUTATOR_BY_ID, EVENTS,
     I_ATTACK, I_BLOCK, I_STATUS,
 } from '../../shared/roguelike.js';
 import { namePrefixHtml } from './namePrefix.js';
+
+// Арт карты — ЭТО ФАЙЛ С ЕЁ ИМЕНЕМ: положили frontend/src/assets/roguelike/strike.png —
+// и «Удар» стал нарисованным, ничего не правя в коде. Никакой таблицы
+// «карта → картинка» нет и не будет: имя файла и есть id карты из
+// shared/roguelikeContent.js. Карты без файла рисуются вёрсткой.
+const CARD_ART = Object.fromEntries(
+    Object.entries(import.meta.glob('./assets/roguelike/*.{png,webp,jpg}', { eager: true, import: 'default' }))
+        .map(([path, url]) => [path.split('/').pop().replace(/\.\w+$/, ''), url]),
+);
 
 const MODAL_ID = 'roguelike-modal';
 // Забег хранится под id аккаунта: за одним компьютером сидят по очереди, и
@@ -66,6 +75,11 @@ export function openRoguelike(ctx) {
         modal,
         run: loadRun(ctx) || startRun(),
         deck: null,      // открытая колода: { mode: 'view' | 'stone' | 'shard' | 'remove' }
+        board: [],       // карты, выложенные на стол в этот ход (uid)
+        busy: false,     // идёт показ хода — ввод не принимается
+        phase: null,     // 'enemy' — ходит враг, руки на столе нет
+        shown: null,     // полосы во время показа: своя копия, её двигает журнал
+        deal: false,     // новую руку рисуем с раздачей
         top: null,
         topFailed: false,
         sending: false,
@@ -183,19 +197,25 @@ function onClick(state, e) {
     const el = e.target.closest('[data-act]');
     if (!el) return;
     const act = el.dataset.act;
+    // Пока показывается ход, окно не принимает ничего: правила уже посчитали
+    // всё вперёд, и второй клик посреди показа сыграл бы карту в позиции,
+    // которой игрок ещё не видит.
+    if (state.busy) return;
     const i = Number(el.dataset.i);
     const uid = Number(el.dataset.uid);
     const run = state.run;
     state.note = '';
 
     switch (act) {
-        case 'node': enterNode(run, i); break;
-        case 'card': {
-            const res = playCard(run, i);
-            if (!res.ok && res.reason === 'energy') shake(state, el);
+        // Бой — единственные два действия с показом: они асинхронные и
+        // доводят окно до нужного состояния сами.
+        case 'card': doPlay(state, i); return;
+        case 'end': doEnd(state); return;
+        case 'node':
+            state.board = [];
+            enterNode(run, i);
+            state.deal = true;
             break;
-        }
-        case 'end': endTurn(run); break;
         case 'reward': {
             const r = run.reward;
             const got = [];
@@ -220,6 +240,15 @@ function onClick(state, e) {
         default: return;
     }
 
+    afterAction(state);
+    state.deal = false;
+}
+
+// Общий хвост любого действия: незакрытый выбор, конец забега, сохранение и
+// перерисовка. Раньше это был хвост onClick, но бой ходит теми же путями из
+// своих асинхронных функций, и второй копии этих четырёх строк быть не должно.
+function afterAction(state) {
+    const run = state.run;
     if (run.pending?.t === 'remove') state.deck = { mode: 'remove' };
     if (run.over) finish(state);
     store(state);
@@ -259,21 +288,16 @@ function handleKey(state, e, close) {
 
     // Цифры — карты в руке, пробел и Enter — передать ход. Мышью играть можно
     // и так, а вот про клавиши догадаться нельзя — они подписаны под рукой.
+    if (state.busy) return;
     if (e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const i = Number(e.key) - 1;
-        if (i < run.battle.hand.length) {
-            const res = playCard(run, i);
-            if (res.ok || res.reason === 'energy') { store(state); render(state); }
-        }
+        if (i < run.battle.hand.length) doPlay(state, i);
         return;
     }
     if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
-        endTurn(run);
-        if (run.over) finish(state);
-        store(state);
-        render(state);
+        doEnd(state);
     }
 }
 
@@ -290,6 +314,10 @@ function confirmGiveUp(state) {
 function restart(state) {
     state.run = startRun();
     state.deck = null;
+    state.board = [];
+    state.busy = false;
+    state.phase = null;
+    state.shown = null;
     state.sent = false;
     state.note = '';
     startTick(state);
@@ -310,8 +338,12 @@ function render(state) {
 
     const view = state.modal.querySelector('#rg-view');
     if (state.deck) { view.innerHTML = deckHtml(state); return; }
-    switch (run.screen) {
-        case SCREEN_BATTLE: view.innerHTML = battleHtml(state); break;
+    // Пока идёт показ хода, окно ОСТАЁТСЯ на бою, даже если правила уже увели
+    // экран к награде: цифры и полосы обязаны доиграть на том столе, где
+    // начались, иначе последний удар игрок просто не увидит.
+    const screen = state.busy && run.battle ? SCREEN_BATTLE : run.screen;
+    switch (screen) {
+        case SCREEN_BATTLE: view.innerHTML = battleHtml(state); layoutHand(state); break;
         case SCREEN_REWARD: view.innerHTML = rewardHtml(state); break;
         case SCREEN_EVENT:  view.innerHTML = eventHtml(state); break;
         case SCREEN_OVER:   view.innerHTML = overHtml(state); break;
@@ -336,14 +368,13 @@ function scrollMap(state) {
 
 function hudHtml(state) {
     const run = state.run;
-    const pct = Math.max(0, Math.round(run.hp / run.maxHp * 100));
     const low = run.hp * 3 < run.maxHp ? ' is-low' : '';
+    // В бою здоровье показывает СТОЛ, и показывает честно — по ходу боя. В шапке
+    // же лежит здоровье забега, которое правила обновляют только по окончании
+    // боя: два числа рядом, одно из них устаревшее, — это хуже, чем одно.
+    const inBattle = run.screen === SCREEN_BATTLE || (state.busy && run.battle);
     return `
-        <div class="rg-hp${low}">
-            <span class="rg-hp-sign">♥</span>
-            <span class="rg-bar"><u style="width:${pct}%"></u></span>
-            <b>${run.hp}/${run.maxHp}</b>
-        </div>
+        ${inBattle ? '' : `<div class="rg-vitals${low}">${vitalsHtml(run.hp, run.maxHp, 0)}</div>`}
         <div class="rg-chip" title="Пройдено циклов: карта генерируется заново, враги сильнее">
             Цикл <b>${run.loop}</b>
         </div>
@@ -418,66 +449,127 @@ function mapHtml(state) {
         ${topHtml(state)}`;
 }
 
-// ── Бой ──────────────────────────────────────────────────────────────────────
+// ── Бой: стол ────────────────────────────────────────────────────────────────
+// Стол устроен как в карточных играх, из которых эта пасхалка и растёт: враг
+// сверху со своим намерением, посередине — то, что уже выложено в этот ход,
+// внизу рука ВЕЕРОМ. Карты в веере наезжают друг на друга тем сильнее, чем их
+// больше: рука из девяти карт, разложенная в ряд, либо не влезает в окно, либо
+// делает карточки нечитаемыми.
+//
+// ПОЧЕМУ КАРТА СРАБАТЫВАЕТ СРАЗУ, А НЕ ПРИ ПЕРЕДАЧЕ ХОДА. Соблазн «выложить
+// несколько карт, нажать ход и посмотреть, как они applyются по очереди» есть, но
+// он ломает половину колоды: «Сосредоточение» тянет карты, которые нужны в ЭТОМ
+// ходу, «Адреналин» даёт энергию на следующую карту, «Ответ» смотрит, есть ли у
+// тебя блок ПРЯМО СЕЙЧАС. Отложенный розыгрыш превращает их в мусор, а ход — в
+// ставку вслепую. Поэтому карта применяется сразу, а «по очереди и с показом»
+// сделан сам показ: карта улетает из руки на стол, над врагом отлетают цифры,
+// полоса здоровья едет вниз — и только потом можно кликать дальше.
+//
+// Как это устроено: правила считают ход целиком и мгновенно, но пишут КАЖДЫЙ
+// шаг в журнал (takeLog из shared/roguelike.js). Окно проигрывает журнал по
+// событию, а полосы рисует не из состояния движка, а из state.shown — своей
+// копии, которую журнал и двигает. Иначе полоса прыгала бы в конечное значение
+// раньше, чем игрок увидит, из-за чего оно такое.
 
 function battleHtml(state) {
     const run = state.run;
     const b = run.battle;
     const e = enemyView(run);
     const intent = intentView(run);
+    const s = shownOf(state);
     const hero = b.hero;
 
-    const hand = b.hand.map((uid, i) => {
+    // Выложенные в этот ход карты. Их держит окно, а не правила: для правил
+    // карта уже в сбросе, а на столе она лежит, чтобы игрок видел свой ход.
+    const board = state.board
+        .map(uid => cardOf(run, uid))
+        .filter(Boolean)
+        .map(card => cardHtml(cardView(run, card), { small: true }))
+        .join('');
+
+    // Пока ходит враг, руки нет вовсе: она ушла в сброс вместе со столом, а
+    // новая приедет после его хода — с раздачей, которую видно.
+    const hand = state.phase === 'enemy' ? '' : b.hand.map((uid, i) => {
         const view = cardView(run, cardOf(run, uid));
-        return cardHtml(view, { i, act: 'card', dim: view.cost > hero.energy, key: i + 1 });
+        return cardHtml(view, { i, act: 'card', dim: view.cost > hero.energy, key: i + 1, deal: state.deal });
     }).join('');
 
+    const heroLow = s.heroHp * 3 < hero.maxHp ? ' is-low' : '';
     return `
-        <div class="rg-battle">
-            <div class="rg-enemy">
-                <div class="rg-enemy-top">
-                    <div class="rg-enemy-name">
-                        ${esc(e.name)}
-                        ${e.kind === NODE_BOSS ? '<span class="rg-tag is-boss">босс</span>'
-                          : e.kind === NODE_ELITE ? '<span class="rg-tag is-elite">элита</span>' : ''}
-                    </div>
-                    <div class="rg-mods">${e.mods.map(m =>
-                        `<i class="rg-mod" title="${esc(m.name)}: ${esc(m.hint)}">${esc(m.name)}</i>`).join('')}</div>
+        <div class="rg-table${state.phase === 'enemy' ? ' is-enemy-turn' : ''}">
+            <div class="rg-foe" id="rg-foe">
+                <div class="rg-foe-head">
+                    <span class="rg-foe-name">${esc(e.name)}</span>
+                    ${e.kind === NODE_BOSS ? '<span class="rg-tag is-boss">босс</span>'
+                      : e.kind === NODE_ELITE ? '<span class="rg-tag is-elite">элита</span>' : ''}
+                    <span class="rg-mods">${e.mods.map(m =>
+                        `<i class="rg-mod" title="${esc(m.name)}: ${esc(m.hint)}">${esc(m.name)}</i>`).join('')}</span>
                 </div>
-                <div class="rg-enemy-body">
-                    <div class="rg-art rg-enemy-art e-${e.id}" aria-hidden="true"><span>${esc(e.name[0])}</span></div>
-                    <div class="rg-enemy-stats">
-                        <div class="rg-hp is-enemy">
-                            <span class="rg-hp-sign">♥</span>
-                            <span class="rg-bar"><u style="width:${Math.round(e.hp / e.maxHp * 100)}%"></u></span>
-                            <b>${e.hp}/${e.maxHp}</b>
-                        </div>
-                        ${blockHtml(e.block)}
-                        ${statusesHtml(e.st)}
+                <div class="rg-foe-figure">
+                    <div class="rg-art rg-foe-art e-${e.id}" id="rg-foe-art" aria-hidden="true">
+                        <span>${esc(e.name[0])}</span>
                     </div>
+                    <div class="rg-pops" id="rg-foe-pops"></div>
                 </div>
-                <div class="rg-intent">${intentHtml(intent)}</div>
+                <div class="rg-vitals" id="rg-foe-vitals">${vitalsHtml(s.enemyHp, e.maxHp, s.enemyBlock)}</div>
+                <div class="rg-badges" id="rg-foe-badges">${statusesHtml(e.st)}</div>
+                <div class="rg-intent">${state.phase === 'enemy'
+                    ? '<span class="rg-intent-act is-now">Ходит…</span>'
+                    // Пока враг ходит, показывать его СЛЕДУЮЩЕЕ намерение нельзя:
+                    // правила уже прокрутили ход вперёд, и подпись говорила бы не
+                    // про тот удар, который сейчас летит в игрока.
+                    : intentHtml(intent)}</div>
             </div>
 
-            <div class="rg-hero">
+            <div class="rg-board" id="rg-board">
+                ${board || '<span class="rg-board-hint">Сыгранные карты ложатся сюда</span>'}
+            </div>
+
+            <div class="rg-me" id="rg-me">
+                <div class="rg-me-side">
+                    <div class="rg-vitals${heroLow}" id="rg-me-vitals">${vitalsHtml(s.heroHp, hero.maxHp, s.heroBlock)}</div>
+                    <div class="rg-badges" id="rg-me-badges">
+                        ${statusesHtml(hero.st)}
+                        ${b.wardEach ? `<i class="rg-status s-str" title="«Запас»: в начале каждого хода броня растёт">запас ${b.wardEach}</i>` : ''}
+                    </div>
+                </div>
                 <div class="rg-energy" title="Энергия: сколько ещё можно разыграть в этот ход">
                     <b>${hero.energy}</b><span>/${hero.maxEnergy}</span>
                 </div>
-                <div class="rg-hero-stats">
-                    ${blockHtml(hero.block)}
-                    ${statusesHtml(hero.st)}
-                    ${b.keepBlock ? '<i class="rg-status" title="Блок больше не сгорает в конце хода">запас</i>' : ''}
-                </div>
-                <button type="button" class="btn btn-pri rg-end" data-act="end">Ход ▸</button>
+                <button type="button" class="btn btn-pri rg-end" data-act="end"
+                        ${state.busy ? 'disabled' : ''}>Ход ▸</button>
+                <div class="rg-pops" id="rg-me-pops"></div>
             </div>
 
-            <div class="rg-hand">${hand || '<div class="rg-hand-empty">Рука пуста — передавайте ход.</div>'}</div>
+            <div class="rg-hand" id="rg-hand">${hand}</div>
 
             <div class="rg-battle-foot">
                 <span class="rg-piles">Колода <b>${b.draw.length}</b> · Сброс <b>${b.discard.length}</b>${b.exhaust.length ? ` · Изгнано <b>${b.exhaust.length}</b>` : ''}</span>
                 <span class="rg-hint">Клавиши <kbd>1</kbd>…<kbd>${HAND_SIZE}</kbd> — карта, <kbd>пробел</kbd> — ход</span>
             </div>
         </div>`;
+}
+
+/**
+ * Здоровье и броня — ЧИСЛАМИ, а не полосами.
+ *
+ * Полоса отвечает на вопрос «много или мало», а в этой игре весь расчёт хода
+ * идёт в целых числах: «бьёт 12, у меня 7 брони и 9 здоровья» — тут нужно
+ * ТОЧНОЕ значение, и глазами по полоске его не снять. Ровно поэтому в карточных
+ * играх над героем стоит цифра, а не индикатор.
+ *
+ * Броня показывается отдельным числом и только когда она есть: ноль брони —
+ * это не состояние, о котором нужно сообщать.
+ */
+function vitalsHtml(hp, maxHp, armor) {
+    return `<span class="rg-vital is-hp" title="Здоровье">
+                <i>♥</i><b>${hp}</b><u>/${maxHp}</u>
+            </span>`
+        + (armor > 0
+            ? `<span class="rg-vital is-armor" title="Броня: снимается раньше здоровья и НЕ сгорает в конце хода — остаток переходит на следующий ход">
+                   <i>◈</i><b>${armor}</b>
+               </span>`
+            : '');
 }
 
 function intentHtml(intent) {
@@ -497,14 +589,8 @@ function intentHtml(intent) {
         return `<span class="rg-intent-act is-st" title="${esc(info.name)}: ${esc(info.hint)}">
                     ${esc(info.name)} <b>${a.v}</b>${a.to === 'self' ? ' себе' : ''}</span>`;
     }).join('');
-    // «Ходит дважды» — отдельной плашкой, а не удвоенными числами: в намерении
-    // нельзя врать числами, иначе весь расчёт блока идёт насмарку.
     return `<span class="rg-intent-label">Намерение:</span>${acts}` +
         (intent.twice ? '<span class="rg-intent-act is-twice" title="Ускоренный: в этот ход он сходит дважды">дважды</span>' : '');
-}
-
-function blockHtml(v) {
-    return v > 0 ? `<span class="rg-block" title="Блок: снимается раньше здоровья и сгорает в конце хода">◈ ${v}</span>` : '';
 }
 
 function statusesHtml(st) {
@@ -514,30 +600,302 @@ function statusesHtml(st) {
     }).join('');
 }
 
-// ── Карточка ─────────────────────────────────────────────────────────────────
-// Одна вёрстка на всю игру: и рука в бою, и лут, и колода. Зоны карточки —
-// стоимость в углу, имя, картинка, описание, уровень и мутации — расписаны в
-// design/roguelike-cards/README.md: там же сказано, что и куда рисовать, когда
-// появятся текстуры. Пока картинки нет, .rg-card-art рисует букву вёрсткой —
-// пустое место читалось бы как «карта сломалась».
+// ── Показ хода ───────────────────────────────────────────────────────────────
 
-function cardHtml(view, { i, act, dim = false, key = 0, extra = '' } = {}) {
-    const cost = view.cost !== view.baseCost
-        ? `<span class="rg-card-cost is-free" title="Мутация «Разгон»: сейчас бесплатно">${view.cost}</span>`
-        : `<span class="rg-card-cost">${view.cost}</span>`;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Системная настройка «меньше движения» выключает полёты карт и укорачивает
+// паузы. Именно укорачивает, а не убирает: показ здесь — не украшение, а
+// единственный способ понять, что произошло за ход врага.
+function calm() {
+    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
+
+// Сколько держать событие на экране. Удар — самое важное, ему больше всех;
+// «ход врага» — пауза перед его действиями.
+const EVENT_MS = { hit: 340, poison: 360, heal: 300, block: 240, status: 240, turn: 420, over: 420 };
+
+/** Полосы и числа берутся отсюда: во время показа они отстают от правил. */
+function shownOf(state) {
+    const b = state.run.battle;
+    return state.shown || {
+        heroHp: b.hero.hp, heroBlock: b.hero.block,
+        enemyHp: b.enemy.hp, enemyBlock: b.enemy.block,
+    };
+}
+
+function snapshot(state) {
+    const b = state.run.battle;
+    state.shown = {
+        heroHp: b.hero.hp, heroBlock: b.hero.block,
+        enemyHp: b.enemy.hp, enemyBlock: b.enemy.block,
+    };
+}
+
+async function playLog(state) {
+    const events = takeLog(state.run);
+    for (const ev of events) {
+        if (openState !== state) return;      // окно закрыли посреди показа
+        applyEvent(state, ev);
+        await sleep(calm() ? 60 : (EVENT_MS[ev.t] ?? 180));
+    }
+}
+
+function applyEvent(state, ev) {
+    const s = state.shown;
+    if (!s) return;
+    const who = ev.who;
+    switch (ev.t) {
+        case 'hit':
+            if (who === 'enemy') { s.enemyHp = ev.hp; s.enemyBlock = ev.block; }
+            else { s.heroHp = ev.hp; s.heroBlock = ev.block; }
+            if (ev.src === 'enemy') lunge(state);
+            // Полностью съеденный блоком удар — это не «−0», а событие: игрок
+            // ради него и ставил блок.
+            pop(state, who, ev.real ? `−${ev.real}` : 'блок', ev.real ? 'is-dmg' : 'is-blocked');
+            if (ev.real) hurt(state, who);
+            break;
+        case 'poison':
+            if (who === 'enemy') s.enemyHp = ev.hp; else s.heroHp = ev.hp;
+            pop(state, who, `−${ev.v} яд`, 'is-poison');
+            break;
+        case 'heal':
+            if (who === 'enemy') s.enemyHp = ev.hp; else s.heroHp = ev.hp;
+            pop(state, who, `+${ev.v}`, 'is-heal');
+            break;
+        case 'block':
+            if (who === 'enemy') s.enemyBlock = ev.block; else s.heroBlock = ev.block;
+            pop(state, who, `◈ +${ev.v}`, 'is-block');
+            break;
+        case 'status':
+            pop(state, who, `${STATUS_INFO[ev.s].name} ${ev.v}`, 'is-status');
+            break;
+        case 'turn':
+            // Отметка «дальше ходит враг»: без неё его удары выглядят
+            // продолжением хода игрока.
+            flag(state, 'Ход врага');
+            break;
+        case 'over':
+            flag(state, ev.result === 'win' ? 'Победа' : 'Поражение');
+            break;
+    }
+    paintBattle(state);
+}
+
+/** Полосы и плашки — точечно: перерисовывать окно на каждое событие незачем. */
+function paintBattle(state) {
+    const b = state.run.battle;
+    if (!b) return;
+    const s = shownOf(state);
+    const set = (sel, fn) => { const el = state.modal.querySelector(sel); if (el) fn(el); };
+    set('#rg-foe-vitals', el => { el.innerHTML = vitalsHtml(s.enemyHp, b.enemy.maxHp, s.enemyBlock); });
+    set('#rg-me-vitals', el => {
+        el.innerHTML = vitalsHtml(s.heroHp, b.hero.maxHp, s.heroBlock);
+        el.classList.toggle('is-low', s.heroHp * 3 < b.hero.maxHp);
+    });
+    set('#rg-foe-badges', el => { el.innerHTML = statusesHtml(b.enemy.st); });
+    set('#rg-me-badges', el => { el.innerHTML = statusesHtml(b.hero.st); });
+}
+
+/** Улетающее число над бойцом. */
+function pop(state, who, text, cls) {
+    const box = state.modal.querySelector(who === 'enemy' ? '#rg-foe-pops' : '#rg-me-pops');
+    if (!box) return;
+    const el = document.createElement('span');
+    el.className = `rg-pop ${cls}`;
+    el.textContent = text;
+    // Разброс по горизонтали, чтобы два удара подряд не легли друг на друга.
+    el.style.setProperty('--dx', `${(box.children.length % 3 - 1) * 26}px`);
+    box.appendChild(el);
+    setTimeout(() => el.remove(), 900);
+}
+
+function hurt(state, who) {
+    const el = state.modal.querySelector(who === 'enemy' ? '#rg-foe-art' : '#rg-me');
+    if (!el || calm()) return;
+    el.classList.remove('is-hurt');
+    void el.offsetWidth;
+    el.classList.add('is-hurt');
+}
+
+function lunge(state) {
+    const el = state.modal.querySelector('#rg-foe-art');
+    if (!el || calm()) return;
+    el.classList.remove('is-lunge');
+    void el.offsetWidth;
+    el.classList.add('is-lunge');
+}
+
+function flag(state, text) {
+    const el = state.modal.querySelector('#rg-view');
+    if (!el) return;
+    const flagEl = document.createElement('div');
+    flagEl.className = 'rg-flag';
+    flagEl.textContent = text;
+    el.appendChild(flagEl);
+    setTimeout(() => flagEl.remove(), 900);
+}
+
+// ── Действия в бою ───────────────────────────────────────────────────────────
+
+/** Разыграть карту: сначала полёт на стол, потом правила, потом показ. */
+async function doPlay(state, i) {
+    const run = state.run;
+    const b = run.battle;
+    if (state.busy || !b || b.over) return;
+    const uid = b.hand[i];
+    const card = uid === undefined ? null : cardOf(run, uid);
+    if (!card) return;
+
+    const el = state.modal.querySelector(`#rg-hand .rg-card[data-i="${i}"]`);
+    if (costOf(run, card) > b.hero.energy) { shake(state, el); return; }
+
+    state.busy = true;
+    state.note = '';
+    snapshot(state);
+    await flyToBoard(state, el);
+    state.board.push(uid);
+    playCard(run, i);
+    render(state);              // рука уже без карты, карта лежит на столе
+    await playLog(state);
+    state.shown = null;
+    state.busy = false;
+    afterAction(state);
+}
+
+/** Передать ход: стол уезжает в сброс, потом ходит враг, потом новая раздача. */
+async function doEnd(state) {
+    const run = state.run;
+    const b = run.battle;
+    if (state.busy || !b || b.over) return;
+
+    state.busy = true;
+    state.note = '';
+    snapshot(state);
+    await sweepTable(state);
+    state.board = [];
+    state.phase = 'enemy';
+    endTurn(run);
+    render(state);              // стол пуст, руки ещё нет, полосы «до хода»
+    await playLog(state);
+    state.phase = null;
+    state.shown = null;
+    state.busy = false;
+    state.deal = true;          // новая рука приезжает с раздачей
+    afterAction(state);
+    state.deal = false;
+}
+
+async function flyToBoard(state, el) {
+    const board = state.modal.querySelector('#rg-board');
+    if (!el || !board || calm()) return;
+    const from = el.getBoundingClientRect();
+    const to = board.getBoundingClientRect();
+    const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+    const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+    el.style.zIndex = '300';
+    el.style.transition = 'transform .26s cubic-bezier(.2, .8, .3, 1)';
+    el.style.transform = `translate(${dx}px, ${dy}px) rotate(0deg) scale(.74)`;
+    await sleep(240);
+}
+
+async function sweepTable(state) {
+    const nodes = state.modal.querySelectorAll('#rg-board .rg-card, #rg-hand .rg-card');
+    if (!nodes.length || calm()) return;
+    // Стол и остаток руки уезжают в сторону сброса — карта, которую не сыграли,
+    // потеряна, и это должно быть видно.
+    nodes.forEach((el, i) => {
+        el.style.transition = `transform .3s ease-in ${i * 28}ms, opacity .3s ease-in ${i * 28}ms`;
+        el.style.transform = 'translate(30vw, 24vh) scale(.5) rotate(14deg)';
+        el.style.opacity = '0';
+    });
+    await sleep(300 + nodes.length * 28);
+}
+
+// ── Веер ─────────────────────────────────────────────────────────────────────
+// Раскладку считает JS, а не CSS: шаг между картами зависит и от их числа, и от
+// ширины окна, а такого calc в CSS не написать. Карточки лежат внахлёст, самая
+// правая сверху; наведённая поднимается и разворачивается — тогда её видно
+// целиком, не разбирая веер.
+
+function layoutHand(state) {
+    const box = state.modal.querySelector('#rg-hand');
+    if (!box) return;
+    const cards = [...box.querySelectorAll('.rg-card')];
+    const n = cards.length;
+    if (!n) return;
+    const cardW = cards[0].offsetWidth || 120;
+    const room = box.clientWidth - cardW - 8;
+    // Чем больше карт, тем сильнее нахлёст: шаг ужимается до того, что влезает.
+    const step = n > 1 ? Math.min(cardW * 0.86, Math.max(cardW * 0.24, room / (n - 1))) : 0;
+    // Общий разворот веера растёт с числом карт, но не бесконечно: за 26° карта
+    // с краю встаёт слишком косо, и текст на ней уже не читается.
+    const spread = Math.min(5.5 * (n - 1), 26);
+    cards.forEach((el, i) => {
+        const t = n === 1 ? 0 : i / (n - 1) - 0.5;       // −0.5 … 0.5
+        el.style.setProperty('--i', String(i));
+        el.style.setProperty('--x', `${(i - (n - 1) / 2) * step}px`);
+        el.style.setProperty('--y', `${n > 2 ? t * t * 26 : 0}px`);
+        el.style.setProperty('--a', `${spread * t}deg`);
+        el.style.zIndex = String(10 + i);
+    });
+}
+
+// ── Карточка ─────────────────────────────────────────────────────────────────
+// Одна вёрстка на всю игру: и рука в бою, и стол, и лут, и колода.
+//
+// Карточка бывает ДВУХ ВИДОВ, и это главное, что тут надо знать. Если для карты
+// положена текстура (frontend/src/assets/roguelike/<id>.png), рисуется она, а
+// поверх ложатся числа и описание. Если нет — карточка рисуется вёрсткой, как
+// раньше. Колода дорисовывается не за один вечер, и игра не должна ждать
+// последней картинки: смешанная рука выглядит переходным состоянием, а не
+// поломкой.
+//
+// ЧИСЛА И ОПИСАНИЕ НА ТЕКСТУРЕ НЕ РИСУЮТСЯ НИКОГДА. Они меняются от уровня
+// карты и от мутаций («Удар» 4 уровня с ×4 — это не «наносит 7 урона»), и
+// напечатанные на картинке соврали бы в первый же апгрейд. Что где лежит —
+// design/roguelike-cards/README.md.
+
+function cardHtml(view, { i, act, dim = false, key = 0, small = false, deal = false } = {}) {
+    const art = CARD_ART[view.id];
+    const cls = [
+        'rg-card', `k-${view.kind}`, `r-${view.rarity}`,
+        art ? 'is-art' : '',
+        dim ? 'is-dim' : '',
+        small ? 'is-small' : '',
+        deal ? 'is-deal' : '',
+    ].filter(Boolean).join(' ');
+    const attrs = `${act ? `data-act="${act}"` : ''} data-i="${i ?? ''}" data-uid="${view.uid}"`;
+    const free = view.cost !== view.baseCost ? ' is-free' : '';
+    const freeTitle = free ? ' title="Мутация «Разгон»: сейчас бесплатно"' : '';
+    const lvl = view.lvl > 1
+        ? `<span class="rg-card-lvl" title="Уровень: числа карты выросли">ур. ${view.lvl}</span>` : '';
     const muts = view.muts.map(m =>
         `<i title="${esc(m.name)}: ${esc(m.text)}">${m.mult ? '×' : '+'}${m.power} ${esc(m.name)}</i>`).join('');
+    const mutsHtml = muts ? `<span class="rg-card-muts">${muts}</span>` : '';
+    const keyHtml = key ? `<span class="rg-card-key">${key}</span>` : '';
+
+    if (art) {
+        // Числа кладутся в те самые пустые поля рамки: самоцвет стоимости слева
+        // сверху, шар с главным числом слева снизу, свиток описания посередине.
+        // Координаты — в CSS процентами от карточки, а не тут.
+        return `
+            <button type="button" class="${cls}" ${attrs} style="background-image:url(${art})">
+                <span class="rg-card-cost${free}"${freeTitle}>${view.cost}</span>
+                ${view.power ? `<span class="rg-card-power is-${view.power.t}">${view.power.v}</span>` : ''}
+                <span class="rg-card-desc">${esc(view.text)}</span>
+                ${lvl}${mutsHtml}${keyHtml}
+            </button>`;
+    }
+
     return `
-        <button type="button" class="rg-card k-${view.kind} r-${view.rarity}${dim ? ' is-dim' : ''}"
-                ${act ? `data-act="${act}"` : ''} data-i="${i}" data-uid="${view.uid}">
-            ${cost}
-            ${view.lvl > 1 ? `<span class="rg-card-lvl" title="Уровень: числа карты выросли">ур. ${view.lvl}</span>` : ''}
+        <button type="button" class="${cls}" ${attrs}>
+            <span class="rg-card-cost${free}"${freeTitle}>${view.cost}</span>
+            ${lvl}
             <span class="rg-card-name">${esc(view.name)}</span>
             <span class="rg-art rg-card-art c-${view.id}" aria-hidden="true"><span>${esc(view.name[0])}</span></span>
             <span class="rg-card-text">${esc(view.text)}</span>
-            ${muts ? `<span class="rg-card-muts">${muts}</span>` : ''}
-            ${key ? `<span class="rg-card-key">${key}</span>` : ''}
-            ${extra}
+            ${mutsHtml}${keyHtml}
         </button>`;
 }
 
