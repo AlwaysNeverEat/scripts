@@ -45,6 +45,9 @@ const GAMES = [
     { name: 'Бильярд',    blank: ['8', '●', '◍'], open: () => import('./pool.js').then(m => m.openPool) },
     // И тут иконки нет — на плитке козырь с шестёркой.
     { name: 'Дурак',      blank: ['6', '♦', 'К'], open: () => import('./durak.js').then(m => m.openDurak) },
+    // Иконки нет и здесь — на плитке то, из чего забег состоит: карта, меч и
+    // осколок мутации.
+    { name: 'Рогалик',    blank: ['⚔', '◆', '✦'], open: () => import('./roguelike.js').then(m => m.openRoguelike) },
 ];
 
 let openModal = null;   // одно окно за раз

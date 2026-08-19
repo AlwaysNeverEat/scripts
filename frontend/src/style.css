@@ -5323,6 +5323,346 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .dur-out-list { right: auto; }
 }
 
+/* ── Пасхалка «Рогалик» (карточный забег) ─────────────────────────
+   Окно открывается только из меню игр («игры» + Enter в поиске).
+   Пять экранов (карта, бой, награда, событие, итог) живут в одном
+   контейнере .rg-view и перерисовываются целиком — игра пошаговая,
+   между перерисовками проходит клик человека, а не кадр.
+
+   Вся игровая графика тут — ВЁРСТКА: карточки, значки узлов и враги
+   нарисованы рамками, цветом и буквой. Места под настоящие картинки
+   размечены заранее (.rg-art) и ждут текстур — что именно рисовать и
+   каких размеров, расписано в design/roguelike-cards/README.md. */
+.modal-win.rg-win { max-width: 860px; }
+.rg-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+.rg-win {
+  /* Размер карточки — ОДИН на всю игру: рука в бою, лут и колода рисуются
+     одной и той же вёрсткой, и разъехаться они не могут. Ширина ужимается на
+     узком экране, но не ниже 96px: на карточке должно помещаться описание в
+     три строки, иначе играть по ней нельзя. */
+  --rg-card-w: clamp(96px, 13.5vw, 132px);
+  --rg-card-h: calc(var(--rg-card-w) * 1.42);
+  --rg-common: var(--sub);
+  --rg-rare: var(--blue);
+  --rg-epic: var(--violet);
+}
+
+/* ── Шапка забега ── */
+.rg-hud { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rg-hp {
+  flex: 1 1 180px; min-width: 140px;
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 9px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 9px;
+}
+.rg-hp-sign { color: var(--red); font-size: 13px; }
+.rg-hp b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.rg-hp.is-low b, .rg-hp.is-low .rg-hp-sign { color: var(--red); }
+.rg-bar {
+  flex: 1 1 auto; height: 8px; min-width: 40px;
+  background: var(--bg3); border-radius: 999px; overflow: hidden;
+}
+.rg-bar > u { display: block; height: 100%; background: var(--green); }
+.rg-hp.is-low .rg-bar > u { background: var(--red); }
+.rg-hp.is-enemy .rg-bar > u { background: var(--red); }
+
+.rg-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 9px; font-size: 12px; color: var(--sub);
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+}
+.rg-chip b { color: var(--text); font-variant-numeric: tabular-nums; }
+.rg-chip.is-btn { cursor: pointer; }
+.rg-chip.is-btn:hover { border-color: var(--border-strong); }
+/* Камень и осколок подсвечены не для красоты: это единственные два ресурса
+   забега, и пропустить «у меня есть чем прокачаться» нельзя. */
+.rg-chip.is-stone { color: var(--accent); border-color: var(--accent-dim); }
+.rg-chip.is-shard { color: var(--violet); border-color: var(--violet-dim); }
+
+.rg-note {
+  display: none; font-size: 12px; color: var(--accent);
+  padding: 4px 2px;
+}
+.rg-note.is-show { display: block; }
+
+.rg-view { min-height: 320px; display: flex; flex-direction: column; gap: 10px; }
+.rg-screen-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 14px; font-weight: 700;
+}
+.rg-hint { font-size: 11.5px; color: var(--sub); }
+.rg-hint kbd, .rg-battle-foot kbd {
+  padding: 1px 5px; border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg2); font-size: 11px;
+}
+
+/* ── Карта узлов ──
+   Снизу вверх: старт внизу, босс наверху — так карту читают в этом жанре.
+   Дороги нарисованы настоящими линиями поверх сетки: без них ряды значков
+   не читаются как выбор пути. */
+.rg-map {
+  padding: 8px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 12px;
+  max-height: min(46vh, 420px); overflow-y: auto;
+}
+/* Обёртка нужна ради дорог: проценты в SVG считаются от высоты РОДИТЕЛЯ, и в
+   самом прокручиваемом контейнере линии легли бы по видимой части карты, а не
+   по всей её длине. */
+.rg-map-inner { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.rg-map-links {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
+}
+.rg-link { stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 3 4; }
+/* Дороги, по которым можно пойти прямо сейчас, — сплошные и цветные: выбор
+   должен быть виден без вчитывания. */
+.rg-link.is-hot { stroke: var(--accent); stroke-width: 2; stroke-dasharray: none; }
+
+.rg-map-row { position: relative; display: flex; justify-content: space-around; gap: 8px; }
+.rg-node {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  width: 74px; padding: 5px 4px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+  color: var(--sub); font-size: 10.5px; cursor: default;
+}
+.rg-node-sign { font-size: 15px; line-height: 1; }
+.rg-node[disabled] { opacity: .5; }
+.rg-node.is-past { opacity: .35; }
+.rg-node.is-here { border-color: var(--accent); color: var(--text); }
+.rg-node.is-open {
+  cursor: pointer; color: var(--text);
+  border-color: var(--accent); background: var(--accent-dim);
+}
+.rg-node.is-open:hover { filter: var(--hover-bright); }
+.rg-node.n-elite .rg-node-sign, .rg-node.n-boss .rg-node-sign { color: var(--red); }
+.rg-node.n-chest .rg-node-sign { color: var(--accent); }
+.rg-node.n-rest .rg-node-sign { color: var(--green); }
+.rg-map-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rg-giveup { font-size: 11px; padding: 4px 8px; }
+
+/* ── Бой ── */
+.rg-battle { display: flex; flex-direction: column; gap: 10px; }
+.rg-enemy {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 9px 11px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 12px;
+}
+.rg-enemy-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rg-enemy-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.rg-tag {
+  padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.rg-tag.is-elite { background: var(--red-dim); color: var(--red); }
+.rg-tag.is-boss { background: var(--violet-dim); color: var(--violet); }
+.rg-mods { display: flex; gap: 5px; flex-wrap: wrap; margin-left: auto; }
+/* Модификаторы врага подписаны СЛОВОМ, а не значком: их девять, они
+   комбинируются по двое, и угадывать «что значит эта иконка» посреди боя
+   невозможно. Подробность — в подсказке при наведении. */
+.rg-mod {
+  padding: 2px 7px; font-size: 10.5px; font-style: normal;
+  background: var(--red-dim); color: var(--red);
+  border-radius: 999px; cursor: help;
+}
+.rg-enemy-body { display: flex; align-items: center; gap: 10px; }
+.rg-enemy-stats { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; }
+.rg-enemy-stats .rg-hp { flex: 0 0 auto; }
+
+/* Место под картинку. Пока текстур нет, здесь буква в рамке — пустой
+   прямоугольник читался бы как «картинка не загрузилась». Когда картинки
+   появятся, меняется ровно этот класс (см. design/roguelike-cards/README.md). */
+.rg-art {
+  display: grid; place-items: center;
+  background: var(--bg2); border: 1px dashed var(--border); border-radius: 8px;
+  color: var(--sub); font-weight: 700;
+  /* overflow здесь на будущее: картинка ляжет фоном «по размеру» и без него
+     вылезла бы за скругление (см. design/roguelike-cards/README.md). */
+  overflow: hidden;
+  background-size: cover; background-position: center;
+}
+.rg-enemy-art { width: 72px; height: 72px; flex: 0 0 auto; font-size: 26px; }
+.rg-card-art { width: 100%; height: 40%; font-size: 15px; }
+
+.rg-intent {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  padding-top: 6px; border-top: 1px dashed var(--border);
+  font-size: 12px;
+}
+.rg-intent-label { color: var(--sub); font-size: 11.5px; }
+.rg-intent-act {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 8px; cursor: help;
+  background: var(--bg2); border: 1px solid var(--border);
+}
+.rg-intent-act.is-atk { color: var(--red); border-color: var(--red-dim); }
+.rg-intent-act.is-blk { color: var(--blue); border-color: var(--blue-dim); }
+.rg-intent-act.is-twice { color: var(--accent); border-color: var(--accent-dim); }
+.rg-intent-act i { font-style: normal; color: var(--sub); }
+
+.rg-hero {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 11px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 12px;
+}
+.rg-energy {
+  display: inline-flex; align-items: baseline; gap: 1px;
+  padding: 3px 10px; border-radius: 999px;
+  background: var(--accent-dim); color: var(--accent);
+  font-size: 16px; font-weight: 800;
+}
+.rg-energy span { font-size: 11px; opacity: .8; }
+.rg-hero-stats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rg-end { margin-left: auto; }
+
+.rg-block {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 999px; cursor: help;
+  background: var(--blue-dim); color: var(--blue); font-size: 12px; font-weight: 700;
+}
+.rg-status {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 999px; cursor: help;
+  background: var(--bg2); border: 1px solid var(--border);
+  font-style: normal; font-size: 11.5px;
+}
+.rg-status.s-poison { color: var(--green); border-color: var(--green-dim); }
+.rg-status.s-weak, .rg-status.s-vuln { color: var(--violet); border-color: var(--violet-dim); }
+.rg-status.s-str, .rg-status.s-thorns { color: var(--accent); border-color: var(--accent-dim); }
+.rg-status.s-regen { color: var(--green); border-color: var(--green-dim); }
+
+.rg-hand {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  min-height: var(--rg-card-h);
+}
+.rg-hand-empty { align-self: center; font-size: 12px; color: var(--sub); }
+.rg-battle-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.rg-piles { font-size: 11.5px; color: var(--sub); }
+.rg-piles b { color: var(--text); }
+
+/* ── Карточка ──
+   Зоны разложены сверху вниз: угол стоимости, угол уровня, имя, картинка,
+   описание, мутации. Порядок и размеры — контракт с художником: под них
+   и рисуются текстуры (design/roguelike-cards/README.md). */
+.rg-card {
+  position: relative;
+  width: var(--rg-card-w); height: var(--rg-card-h);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 20px 7px 7px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); text-align: center; cursor: pointer;
+  transition: transform .1s ease, border-color .16s ease, box-shadow .16s ease;
+}
+.rg-card:hover { transform: translateY(-4px); border-color: var(--border-strong); }
+.rg-card.is-dim { opacity: .45; }
+.rg-card.is-dim:hover { transform: none; }
+/* Вид карты — цвет рамки слева: атака красная, умение синее, сила
+   фиолетовая. Читается боковым зрением, а рука обновляется каждый ход. */
+.rg-card.k-attack { border-left: 3px solid var(--red); }
+.rg-card.k-skill  { border-left: 3px solid var(--blue); }
+.rg-card.k-power  { border-left: 3px solid var(--violet); }
+/* Редкость — свечение рамки: обычные не светятся вовсе, иначе подсветка
+   перестаёт что-либо значить. */
+.rg-card.r-rare { box-shadow: 0 0 0 1px var(--rg-rare) inset; }
+.rg-card.r-epic { box-shadow: 0 0 0 1px var(--rg-epic) inset, 0 0 12px var(--violet-dim); }
+
+.rg-card-cost {
+  position: absolute; top: 4px; left: 4px;
+  width: 20px; height: 20px; display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-fg);
+  border-radius: 50%; font-size: 12px; font-weight: 800;
+}
+.rg-card-cost.is-free { background: var(--green); }
+.rg-card-lvl {
+  position: absolute; top: 5px; right: 5px;
+  padding: 1px 5px; border-radius: 999px;
+  background: var(--accent-dim); color: var(--accent);
+  font-size: 9.5px; font-weight: 700;
+}
+.rg-card-name { font-size: 11.5px; font-weight: 700; line-height: 1.1; }
+.rg-card-text { font-size: 10px; line-height: 1.25; color: var(--sub); overflow: hidden; }
+.rg-card-muts {
+  margin-top: auto; display: flex; flex-wrap: wrap; gap: 3px; justify-content: center;
+}
+.rg-card-muts i {
+  padding: 1px 5px; border-radius: 999px; font-style: normal; font-size: 9px;
+  background: var(--violet-dim); color: var(--violet);
+}
+.rg-card-key {
+  position: absolute; bottom: 3px; right: 5px;
+  font-size: 9px; color: var(--sub);
+}
+.rg-card.rg-shake { animation: rg-shake .22s ease; }
+@keyframes rg-shake {
+  0%, 100% { transform: none; }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* ── Награда, событие, колода ── */
+.rg-cards { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.rg-cards.is-deck { max-height: min(52vh, 460px); overflow-y: auto; padding: 2px; }
+.rg-reward, .rg-event, .rg-deck, .rg-over { display: flex; flex-direction: column; gap: 10px; }
+.rg-reward-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rg-loots { display: flex; gap: 6px; flex-wrap: wrap; }
+.rg-loot {
+  padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+}
+.rg-loot.is-stone { background: var(--accent-dim); color: var(--accent); }
+.rg-loot.is-shard { background: var(--violet-dim); color: var(--violet); }
+
+.rg-event-text { font-size: 13px; color: var(--sub); margin: 0; }
+.rg-options { display: flex; gap: 10px; flex-wrap: wrap; }
+.rg-option {
+  flex: 1 1 200px; display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 12px; text-align: left; cursor: pointer;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text);
+}
+.rg-option:hover { border-color: var(--accent); }
+.rg-option span { font-size: 11.5px; color: var(--sub); }
+
+/* ── Итог ── */
+.rg-results {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px;
+}
+.rg-res {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; background: var(--bg2); border-radius: 8px; font-size: 12px;
+}
+.rg-res span { color: var(--sub); }
+.rg-res b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.rg-over-actions { display: flex; align-items: center; gap: 10px; }
+.rg-record { color: var(--accent); }
+
+/* ── Мини-топ ── */
+.rg-top { display: flex; flex-direction: column; gap: 4px; }
+.rg-top-head { font-size: 12px; color: var(--sub); }
+.rg-top-empty { font-size: 12px; color: var(--sub); }
+.rg-top-list { max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.rg-top-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px; border-radius: 8px; background: var(--bg2); font-size: 12px;
+}
+.rg-top-row.is-me { background: var(--accent-dim); }
+.rg-top-row.is-first .rg-top-rank { color: var(--accent); font-weight: 800; }
+.rg-top-rank { width: 18px; text-align: right; color: var(--sub); font-variant-numeric: tabular-nums; }
+.rg-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; }
+.rg-top-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.rg-top-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rg-top-score { font-variant-numeric: tabular-nums; font-weight: 700; }
+.rg-top-score i { font-style: normal; font-weight: 400; color: var(--sub); font-size: 11px; }
+
+@media (max-width: 620px) {
+  /* На телефоне карточки мельчают, а карта узлов ужимается: в бою важнее
+     видеть руку целиком, чем читать описание с первого взгляда. */
+  .rg-win { --rg-card-w: clamp(84px, 27vw, 110px); }
+  .rg-node { width: 62px; font-size: 9.5px; }
+  .rg-enemy-art { width: 54px; height: 54px; font-size: 20px; }
+  .rg-map { max-height: 40vh; }
+}
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
    Игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
@@ -5337,7 +5677,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.tro-win,
 .modal-win.sol-win,
 .modal-win.pool-win,
-.modal-win.dur-win {
+.modal-win.dur-win,
+.modal-win.rg-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
 @keyframes game-in {
@@ -5413,9 +5754,15 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .sol-card.is-nope,
   .modal-win.pool-win,
   .modal-win.dur-win,
-  .dur-card.is-nope {
+  .dur-card.is-nope,
+  .modal-win.rg-win,
+  .rg-card.rg-shake {
     animation: none;
   }
+  /* Рогалик пошаговый, движения в нём почти нет — гасим подъём карточки под
+     курсором, чтобы не осталось единственного шевелящегося места. */
+  .rg-card { transition: none; }
+  .rg-card:hover { transform: none; }
   /* В дураке движение — это ещё и показ хода (карты летят на стол, в отбой и по
      рукам). Его durak.js выключает сам, увидев эту же настройку, — здесь
      остаётся погасить подсветку, подъём карты под курсором и надпись. */
