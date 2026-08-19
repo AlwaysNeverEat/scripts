@@ -75,10 +75,17 @@ export function openRoguelike(ctx) {
         modal,
         run: loadRun(ctx) || startRun(),
         deck: null,      // открытая колода: { mode: 'view' | 'stone' | 'shard' | 'remove' }
-        board: [],       // карты, выложенные на стол в этот ход (uid)
+        // Стол и рука во время показа хода. Правила к этому моменту уже сыграли
+        // ход целиком (стол у них пуст, рука новая), а окно обязано показать
+        // тот стол, который игрок выложил, — поэтому на время показа оно держит
+        // свою копию. Вне показа обе null, и рисуется состояние движка.
+        table: null,
+        handView: null,
+        foeIntent: null, // намерение, с которым ход НАЧИНАЛСЯ
         busy: false,     // идёт показ хода — ввод не принимается
-        phase: null,     // 'enemy' — ходит враг, руки на столе нет
-        shown: null,     // полосы во время показа: своя копия, её двигает журнал
+        phase: null,     // 'cast' — играет стол, 'enemy' — ходит враг
+        drag: null,      // карта, которую тянут из руки
+        shown: null,     // числа во время показа: своя копия, её двигает журнал
         deal: false,     // новую руку рисуем с раздачей
         top: null,
         topFailed: false,
@@ -95,6 +102,7 @@ export function openRoguelike(ctx) {
         stopTick(state);
         document.removeEventListener('keydown', onKeyDown, true);
         document.removeEventListener('visibilitychange', onHide);
+        window.removeEventListener('resize', onResize);
         store(state);
         modal.remove();
         document.body.classList.remove('modal-open');
@@ -102,11 +110,27 @@ export function openRoguelike(ctx) {
     };
 
     const onKeyDown = (e) => handleKey(state, e, close);
+    // Размер карточки задан в vw, поэтому от смены ширины окна разъезжается и
+    // веер, и подогнанные под рамку описания. Пересчитываем, а не
+    // перерисовываем: посреди показа хода перерисовка сбила бы его.
+    const onResize = () => { fitTable(state); layoutHand(state); fitTexts(state); };
     // Свернули вкладку — перестаём считать время забега. Часы, натикавшие в
     // закрытой вкладке, попали бы в подпись рекорда и врали бы про игру.
     const onHide = () => { countTime(state); state.last = Date.now(); };
     document.addEventListener('keydown', onKeyDown, true);
     document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('resize', onResize);
+    // Шрифт карточек подгружается отдельным файлом, и до его приезда описание
+    // меряется метриками запасного — подгонка выходит неверной. Просим шрифт
+    // ЯВНО (ready тут не годится: он резолвится до того, как браузер вообще
+    // соберётся грузить ещё не встретившийся ему шрифт) и подгоняем заново.
+    // Текст ОБЯЗАТЕЛЬНО русский: шрифт разрезан на подмножества по алфавитам, и
+    // запрос без кириллицы притащил бы латиницу, а описания карт остались бы
+    // мерены запасным шрифтом.
+    const refit = () => { if (openState === state) fitTexts(state); };
+    for (const w of [700, 800]) {
+        document.fonts?.load(`${w} 1em RgSlab`, 'Ещё 12 урона').then(refit, refit);
+    }
 
     modal.querySelector('.modal-backdrop').onclick = close;
     modal.querySelector('#rg-close').onclick = close;
@@ -207,12 +231,11 @@ function onClick(state, e) {
     state.note = '';
 
     switch (act) {
-        // Бой — единственные два действия с показом: они асинхронные и
-        // доводят окно до нужного состояния сами.
-        case 'card': doPlay(state, i); return;
+        // Ход — единственное действие с показом: оно асинхронное и доводит окно
+        // до нужного состояния само. Карты в руке сюда не попадают: их ведёт
+        // указатель (см. handInput), потому что карту ТЯНУТ на стол.
         case 'end': doEnd(state); return;
         case 'node':
-            state.board = [];
             enterNode(run, i);
             state.deal = true;
             break;
@@ -314,7 +337,9 @@ function confirmGiveUp(state) {
 function restart(state) {
     state.run = startRun();
     state.deck = null;
-    state.board = [];
+    state.table = null;
+    state.handView = null;
+    state.foeIntent = null;
     state.busy = false;
     state.phase = null;
     state.shown = null;
@@ -337,18 +362,19 @@ function render(state) {
     note.classList.toggle('is-show', !!state.note);
 
     const view = state.modal.querySelector('#rg-view');
-    if (state.deck) { view.innerHTML = deckHtml(state); return; }
+    if (state.deck) { view.innerHTML = deckHtml(state); fitTexts(state); return; }
     // Пока идёт показ хода, окно ОСТАЁТСЯ на бою, даже если правила уже увели
     // экран к награде: цифры и полосы обязаны доиграть на том столе, где
     // начались, иначе последний удар игрок просто не увидит.
     const screen = state.busy && run.battle ? SCREEN_BATTLE : run.screen;
     switch (screen) {
-        case SCREEN_BATTLE: view.innerHTML = battleHtml(state); layoutHand(state); break;
+        case SCREEN_BATTLE: view.innerHTML = battleHtml(state); fitTable(state); layoutHand(state); break;
         case SCREEN_REWARD: view.innerHTML = rewardHtml(state); break;
         case SCREEN_EVENT:  view.innerHTML = eventHtml(state); break;
         case SCREEN_OVER:   view.innerHTML = overHtml(state); break;
         default:            view.innerHTML = mapHtml(state); scrollMap(state); break;
     }
+    fitTexts(state);
 }
 
 // Карта нарисована снизу вверх и в окно целиком не влезает, поэтому её
@@ -475,23 +501,20 @@ function battleHtml(state) {
     const run = state.run;
     const b = run.battle;
     const e = enemyView(run);
-    const intent = intentView(run);
     const s = shownOf(state);
     const hero = b.hero;
 
-    // Выложенные в этот ход карты. Их держит окно, а не правила: для правил
-    // карта уже в сбросе, а на столе она лежит, чтобы игрок видел свой ход.
-    const board = state.board
+    // Стол — заявка игрока на этот ход. Во время показа он берётся из копии
+    // окна: правила к этому моменту уже сыграли его целиком.
+    const board = (state.table ?? b.board)
         .map(uid => cardOf(run, uid))
         .filter(Boolean)
         .map(card => cardHtml(cardView(run, card), { small: true }))
         .join('');
 
-    // Пока ходит враг, руки нет вовсе: она ушла в сброс вместе со столом, а
-    // новая приедет после его хода — с раздачей, которую видно.
-    const hand = state.phase === 'enemy' ? '' : b.hand.map((uid, i) => {
+    const hand = (state.handView ?? b.hand).map((uid, i) => {
         const view = cardView(run, cardOf(run, uid));
-        return cardHtml(view, { i, act: 'card', dim: view.cost > hero.energy, key: i + 1, deal: state.deal });
+        return cardHtml(view, { i, dim: view.cost > hero.energy, key: i + 1, deal: state.deal });
     }).join('');
 
     const heroLow = s.heroHp * 3 < hero.maxHp ? ' is-low' : '';
@@ -513,16 +536,11 @@ function battleHtml(state) {
                 </div>
                 <div class="rg-vitals" id="rg-foe-vitals">${vitalsHtml(s.enemyHp, e.maxHp, s.enemyBlock)}</div>
                 <div class="rg-badges" id="rg-foe-badges">${statusesHtml(e.st)}</div>
-                <div class="rg-intent">${state.phase === 'enemy'
-                    ? '<span class="rg-intent-act is-now">Ходит…</span>'
-                    // Пока враг ходит, показывать его СЛЕДУЮЩЕЕ намерение нельзя:
-                    // правила уже прокрутили ход вперёд, и подпись говорила бы не
-                    // про тот удар, который сейчас летит в игрока.
-                    : intentHtml(intent)}</div>
+                <div class="rg-intent" id="rg-intent">${intentBoxHtml(state)}</div>
             </div>
 
             <div class="rg-board" id="rg-board">
-                ${board || '<span class="rg-board-hint">Сыгранные карты ложатся сюда</span>'}
+                ${board || '<span class="rg-board-hint">Тяните карту сюда — сработает по «Ходу»</span>'}
             </div>
 
             <div class="rg-me" id="rg-me">
@@ -533,10 +551,11 @@ function battleHtml(state) {
                         ${b.wardEach ? `<i class="rg-status s-str" title="«Запас»: в начале каждого хода броня растёт">запас ${b.wardEach}</i>` : ''}
                     </div>
                 </div>
-                <div class="rg-energy" title="Энергия: сколько ещё можно разыграть в этот ход">
-                    <b>${hero.energy}</b><span>/${hero.maxEnergy}</span>
+                <div class="rg-energy" title="Энергия: на столько ещё можно выложить карт в этот ход">
+                    <b>${s.energy}</b><span>/${hero.maxEnergy}</span>
                 </div>
                 <button type="button" class="btn btn-pri rg-end" data-act="end"
+                        title="Стол сработает слева направо, потом сходит враг"
                         ${state.busy ? 'disabled' : ''}>Ход ▸</button>
                 <div class="rg-pops" id="rg-me-pops"></div>
             </div>
@@ -545,7 +564,7 @@ function battleHtml(state) {
 
             <div class="rg-battle-foot">
                 <span class="rg-piles">Колода <b>${b.draw.length}</b> · Сброс <b>${b.discard.length}</b>${b.exhaust.length ? ` · Изгнано <b>${b.exhaust.length}</b>` : ''}</span>
-                <span class="rg-hint">Клавиши <kbd>1</kbd>…<kbd>${HAND_SIZE}</kbd> — карта, <kbd>пробел</kbd> — ход</span>
+                <span class="rg-hint">Клавиши <kbd>1</kbd>…<kbd>${HAND_SIZE}</kbd> — карта на стол, <kbd>пробел</kbd> — ход</span>
             </div>
         </div>`;
 }
@@ -570,6 +589,16 @@ function vitalsHtml(hp, maxHp, armor) {
                    <i>◈</i><b>${armor}</b>
                </span>`
             : '');
+}
+
+/**
+ * Панель намерения. Во время показа хода она рисуется НЕ из правил: правила уже
+ * прокрутили ход вперёд и загадали врагу СЛЕДУЮЩЕЕ намерение, а игрок в этот
+ * момент смотрит на предыдущее — то, под которое он и выкладывал карты.
+ */
+function intentBoxHtml(state) {
+    if (state.phase === 'enemy') return '<span class="rg-intent-act is-now">Ходит…</span>';
+    return intentHtml(state.foeIntent ?? intentView(state.run));
 }
 
 function intentHtml(intent) {
@@ -613,13 +642,16 @@ function calm() {
 
 // Сколько держать событие на экране. Удар — самое важное, ему больше всех;
 // «ход врага» — пауза перед его действиями.
-const EVENT_MS = { hit: 340, poison: 360, heal: 300, block: 240, status: 240, turn: 420, over: 420 };
+const EVENT_MS = {
+    cast: 300, sweep: 300, hit: 340, poison: 360, heal: 300,
+    block: 240, status: 240, turn: 420, over: 420,
+};
 
 /** Полосы и числа берутся отсюда: во время показа они отстают от правил. */
 function shownOf(state) {
     const b = state.run.battle;
     return state.shown || {
-        heroHp: b.hero.hp, heroBlock: b.hero.block,
+        heroHp: b.hero.hp, heroBlock: b.hero.block, energy: b.hero.energy,
         enemyHp: b.enemy.hp, enemyBlock: b.enemy.block,
     };
 }
@@ -627,7 +659,7 @@ function shownOf(state) {
 function snapshot(state) {
     const b = state.run.battle;
     state.shown = {
-        heroHp: b.hero.hp, heroBlock: b.hero.block,
+        heroHp: b.hero.hp, heroBlock: b.hero.block, energy: b.hero.energy,
         enemyHp: b.enemy.hp, enemyBlock: b.enemy.block,
     };
 }
@@ -670,9 +702,22 @@ function applyEvent(state, ev) {
         case 'status':
             pop(state, who, `${STATUS_INFO[ev.s].name} ${ev.v}`, 'is-status');
             break;
+        case 'cast':
+            // Карта со стола пошла в дело. Ровно по этой отметке стол и
+            // подсвечивается слева направо: правила посчитали ход целиком, а
+            // окно идёт по журналу и показывает, чья это была цифра.
+            castCard(state, ev.uid);
+            break;
+        case 'sweep':
+            // Невыложенная рука ушла в сброс. Показать это надо: карта, которую
+            // не положили на стол, потеряна, и игрок должен видеть цену.
+            sweepHand(state);
+            break;
         case 'turn':
             // Отметка «дальше ходит враг»: без неё его удары выглядят
             // продолжением хода игрока.
+            state.phase = 'enemy';
+            paintIntent(state);
             flag(state, 'Ход врага');
             break;
         case 'over':
@@ -695,6 +740,34 @@ function paintBattle(state) {
     });
     set('#rg-foe-badges', el => { el.innerHTML = statusesHtml(b.enemy.st); });
     set('#rg-me-badges', el => { el.innerHTML = statusesHtml(b.hero.st); });
+}
+
+function paintIntent(state) {
+    const el = state.modal.querySelector('#rg-intent');
+    if (el) el.innerHTML = intentBoxHtml(state);
+}
+
+/** Подсветить карту, которая срабатывает сейчас; предыдущую — погасить. */
+function castCard(state, uid) {
+    const board = state.modal.querySelector('#rg-board');
+    if (!board) return;
+    board.querySelectorAll('.rg-card.is-cast').forEach(el => {
+        el.classList.remove('is-cast');
+        el.classList.add('is-done');
+    });
+    board.querySelector(`.rg-card[data-uid="${uid}"]`)?.classList.add('is-cast');
+}
+
+/** Смахнуть невыложенную руку в сброс. */
+function sweepHand(state) {
+    state.handView = [];
+    const cards = state.modal.querySelectorAll('#rg-hand .rg-card');
+    cards.forEach((el, i) => {
+        if (calm()) { el.style.opacity = '0'; return; }
+        el.style.transition = `transform .3s ease-in ${i * 26}ms, opacity .3s ease-in ${i * 26}ms`;
+        el.style.transform = 'translate(30vw, 24vh) scale(.5) rotate(14deg)';
+        el.style.opacity = '0';
+    });
 }
 
 /** Улетающее число над бойцом. */
@@ -737,33 +810,55 @@ function flag(state, text) {
 }
 
 // ── Действия в бою ───────────────────────────────────────────────────────────
+// Ход игрока — ЗАЯВКА: он выкладывает карты на стол (энергия тратится сразу,
+// но ничего не происходит), а по «Ходу» стол срабатывает слева направо, и
+// только тогда видно, что вышло. Правила считают всё мгновенно, окно
+// проигрывает журнал.
 
-/** Разыграть карту: сначала полёт на стол, потом правила, потом показ. */
-async function doPlay(state, i) {
+/** Выложить карту на стол. Она долетает из руки на своё место (FLIP). */
+function doPlay(state, i) {
     const run = state.run;
     const b = run.battle;
     if (state.busy || !b || b.over) return;
     const uid = b.hand[i];
-    const card = uid === undefined ? null : cardOf(run, uid);
-    if (!card) return;
+    if (uid === undefined) return;
+    const card = cardOf(run, uid);
 
     const el = state.modal.querySelector(`#rg-hand .rg-card[data-i="${i}"]`);
-    if (costOf(run, card) > b.hero.energy) { shake(state, el); return; }
+    if (costOf(run, card) > b.hero.energy) { if (el) shake(state, el); return; }
 
-    state.busy = true;
+    const from = el?.getBoundingClientRect();
     state.note = '';
-    snapshot(state);
-    await flyToBoard(state, el);
-    state.board.push(uid);
     playCard(run, i);
-    render(state);              // рука уже без карты, карта лежит на столе
-    await playLog(state);
-    state.shown = null;
-    state.busy = false;
     afterAction(state);
+    flyIn(state, uid, from);
 }
 
-/** Передать ход: стол уезжает в сброс, потом ходит враг, потом новая раздача. */
+/**
+ * Долёт карты из руки на стол.
+ *
+ * Считается FLIP-ом: карта уже нарисована на СВОЁМ месте на столе, и мы лишь
+ * сдвигаем её обратно в руку и отпускаем. Так она приезжает точно туда, где
+ * лежит, — в отличие от полёта «примерно к середине стола», после которого
+ * карта в конце дёргалась на своё настоящее место.
+ */
+function flyIn(state, uid, from) {
+    if (!from || calm()) return;
+    const el = state.modal.querySelector(`#rg-board .rg-card[data-uid="${uid}"]`);
+    if (!el) return;
+    const to = el.getBoundingClientRect();
+    const dx = (from.left + from.width / 2) - (to.left + to.width / 2);
+    const dy = (from.top + from.height / 2) - (to.top + to.height / 2);
+    const k = to.width ? from.width / to.width : 1;
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`;
+    requestAnimationFrame(() => {
+        el.style.transition = 'transform .26s cubic-bezier(.2, .8, .3, 1)';
+        el.style.transform = '';
+    });
+}
+
+/** Передать ход: стол играет слева направо, потом ходит враг, потом раздача. */
 async function doEnd(state) {
     const run = state.run;
     const b = run.battle;
@@ -772,12 +867,20 @@ async function doEnd(state) {
     state.busy = true;
     state.note = '';
     snapshot(state);
-    await sweepTable(state);
-    state.board = [];
-    state.phase = 'enemy';
+    // Копии стола, руки и намерения на время показа: правила сейчас сыграют ход
+    // целиком и оставят пустой стол, новую руку и уже другое намерение врага.
+    state.table = b.board.slice();
+    state.handView = b.hand.slice();
+    state.foeIntent = intentView(run);
+    state.phase = 'cast';
+
     endTurn(run);
-    render(state);              // стол пуст, руки ещё нет, полосы «до хода»
+    render(state);
     await playLog(state);
+
+    state.table = null;
+    state.handView = null;
+    state.foeIntent = null;
     state.phase = null;
     state.shown = null;
     state.busy = false;
@@ -786,37 +889,54 @@ async function doEnd(state) {
     state.deal = false;
 }
 
-async function flyToBoard(state, el) {
-    const board = state.modal.querySelector('#rg-board');
-    if (!el || !board || calm()) return;
-    const from = el.getBoundingClientRect();
-    const to = board.getBoundingClientRect();
-    const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
-    const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
-    el.style.zIndex = '300';
-    el.style.transition = 'transform .26s cubic-bezier(.2, .8, .3, 1)';
-    el.style.transform = `translate(${dx}px, ${dy}px) rotate(0deg) scale(.74)`;
-    await sleep(240);
-}
-
-async function sweepTable(state) {
-    const nodes = state.modal.querySelectorAll('#rg-board .rg-card, #rg-hand .rg-card');
-    if (!nodes.length || calm()) return;
-    // Стол и остаток руки уезжают в сторону сброса — карта, которую не сыграли,
-    // потеряна, и это должно быть видно.
-    nodes.forEach((el, i) => {
-        el.style.transition = `transform .3s ease-in ${i * 28}ms, opacity .3s ease-in ${i * 28}ms`;
-        el.style.transform = 'translate(30vw, 24vh) scale(.5) rotate(14deg)';
-        el.style.opacity = '0';
-    });
-    await sleep(300 + nodes.length * 28);
-}
-
-// ── Веер ─────────────────────────────────────────────────────────────────────
+// ── Рука: веер, наведение и перетаскивание ───────────────────────────────────
 // Раскладку считает JS, а не CSS: шаг между картами зависит и от их числа, и от
-// ширины окна, а такого calc в CSS не написать. Карточки лежат внахлёст, самая
-// правая сверху; наведённая поднимается и разворачивается — тогда её видно
-// целиком, не разбирая веер.
+// ширины окна, а такого calc в CSS не написать.
+//
+// ПОДНЯТАЯ КАРТА ВЫБИРАЕТСЯ ПО КУРСОРУ, а не по :hover, и это не блажь. Карты
+// лежат внахлёст; поднимаясь, карта уезжает из-под курсора, курсор попадает на
+// соседку — она поднимается, первая опускается, и веер начинает дрожать.
+// Поэтому за наведение отвечает ОДИН обработчик на всю руку: он берёт ближайшую
+// по горизонтали карту и поднимает её, что бы там ни думал браузер про :hover.
+//
+// Карта не «нажимается», а ВЫТЯГИВАЕТСЯ на стол — тем же указателем, что и на
+// телефоне. Короткий клик тоже играет: тянуть мышью каждую карту утомительно.
+
+const DRAG_SLOP = 6;        // на столько можно дрогнуть рукой, это ещё клик
+
+/**
+ * Подогнать стол под окно.
+ *
+ * Ширина карточки задана в vw, а высота окна ограничена высотой экрана — на
+ * ноутбуке рука уезжала под нижний край, и выложить карту становилось нельзя,
+ * не доскроллив. Считаем свободную высоту и берём такую карточку, чтобы стол и
+ * рука в неё поместились: враг, счётчики и подпись снизу от размера карточки не
+ * зависят, поэтому одного прохода хватает.
+ */
+const HAND_RATIO = 1.46;    // высота руки в ширинах карточки (см. .rg-hand)
+const BOARD_RATIO = 0.92;   // и высота стола (см. .rg-board)
+
+function fitTable(state) {
+    const win = state.modal.querySelector('.rg-win');
+    const table = state.modal.querySelector('.rg-table');
+    const view = state.modal.querySelector('#rg-view');
+    if (!win || !table || !view) return;
+    // Второй проход нужен из-за портрета врага: он тоже меряется в карточках, и
+    // после первой подгонки шапка стола становится ниже — значит, карточке
+    // достаётся больше места, чем мы насчитали.
+    for (let pass = 0; pass < 2; pass++) {
+        const free = view.clientHeight
+            - height(state, '.rg-foe') - height(state, '.rg-me') - height(state, '.rg-battle-foot')
+            - (table.offsetHeight - table.clientHeight)              // рамка стола
+            - 40;                                                    // отступы, зазоры и запас
+        const w = Math.max(72, Math.min(132, free / (HAND_RATIO + BOARD_RATIO)));
+        win.style.setProperty('--rg-card-w', `${Math.round(w)}px`);
+    }
+}
+
+function height(state, sel) {
+    return state.modal.querySelector(sel)?.offsetHeight || 0;
+}
 
 function layoutHand(state) {
     const box = state.modal.querySelector('#rg-hand');
@@ -824,6 +944,14 @@ function layoutHand(state) {
     const cards = [...box.querySelectorAll('.rg-card')];
     const n = cards.length;
     if (!n) return;
+    // Рука нарисована заново, и поднятой карты в ней нет — иначе следующее
+    // наведение на то же место посчитает, что карта уже поднята, и промолчит.
+    state.raised = -1;
+    // Раскладку веера ставим БЕЗ анимации: карточки только что созданы, и
+    // сглаживание превратило бы каждую перерисовку в разъезжание руки из
+    // стопки. Плавным остаётся то, ради чего сглаживание и нужно, — подъём
+    // карты под курсором и её возврат.
+    box.classList.add('is-still');
     const cardW = cards[0].offsetWidth || 120;
     const room = box.clientWidth - cardW - 8;
     // Чем больше карт, тем сильнее нахлёст: шаг ужимается до того, что влезает.
@@ -839,6 +967,88 @@ function layoutHand(state) {
         el.style.setProperty('--a', `${spread * t}deg`);
         el.style.zIndex = String(10 + i);
     });
+    void box.offsetWidth;                       // применяем раскладку этим же кадром
+    requestAnimationFrame(() => box.classList.remove('is-still'));
+    handInput(state, box, cards);
+}
+
+function handInput(state, box, cards) {
+    // Обработчики вешаются на свежую руку после каждой перерисовки — старые
+    // уезжают вместе со старым DOM, снимать их не нужно.
+    box.addEventListener('pointermove', e => {
+        if (state.drag) { dragMove(state, e); return; }
+        raise(state, cards, nearest(cards, e.clientX));
+    });
+    box.addEventListener('pointerleave', () => { if (!state.drag) raise(state, cards, -1); });
+    box.addEventListener('pointerdown', e => dragStart(state, cards, e));
+    box.addEventListener('pointerup', e => dragEnd(state, e));
+    box.addEventListener('pointercancel', () => dropDrag(state));
+}
+
+/** Ближайшая по горизонтали карта: у веера промежутков между картами нет. */
+function nearest(cards, x) {
+    let best = -1, dist = Infinity;
+    cards.forEach((el, i) => {
+        const r = el.getBoundingClientRect();
+        const d = Math.abs(x - (r.left + r.width / 2));
+        if (d < dist) { dist = d; best = i; }
+    });
+    return best;
+}
+
+function raise(state, cards, i) {
+    if (state.raised === i) return;
+    state.raised = i;
+    cards.forEach((el, k) => {
+        el.classList.toggle('is-up', k === i);
+        // Соседи расступаются — иначе поднятая карта закрывает их собой.
+        el.style.setProperty('--push', i < 0 || k === i ? '0px' : `${k < i ? -12 : 12}px`);
+    });
+}
+
+function dragStart(state, cards, e) {
+    if (state.busy || e.button > 0) return;
+    const el = e.target.closest('.rg-card');
+    if (!el) return;
+    e.preventDefault();
+    state.drag = { el, i: Number(el.dataset.i), x0: e.clientX, y0: e.clientY, moved: false, id: e.pointerId };
+    raise(state, cards, Number(el.dataset.i));
+    el.setPointerCapture?.(e.pointerId);
+    el.classList.add('is-drag');
+}
+
+function dragMove(state, e) {
+    const d = state.drag;
+    const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) > DRAG_SLOP) d.moved = true;
+    d.el.style.setProperty('--dx', `${dx}px`);
+    d.el.style.setProperty('--dy', `${dy}px`);
+    const board = state.modal.querySelector('#rg-board');
+    if (board) board.classList.toggle('is-target', overBoard(state, e.clientY));
+}
+
+/** Карту засчитываем сыгранной, если её вытянули из руки вверх. */
+function overBoard(state, y) {
+    const hand = state.modal.querySelector('#rg-hand');
+    return !!hand && y < hand.getBoundingClientRect().top;
+}
+
+function dragEnd(state, e) {
+    const d = state.drag;
+    if (!d) return;
+    const play = !d.moved || overBoard(state, e.clientY);
+    dropDrag(state);
+    if (play) doPlay(state, d.i);
+}
+
+function dropDrag(state) {
+    const d = state.drag;
+    state.drag = null;
+    if (!d) return;
+    d.el.classList.remove('is-drag');
+    d.el.style.removeProperty('--dx');
+    d.el.style.removeProperty('--dy');
+    state.modal.querySelector('#rg-board')?.classList.remove('is-target');
 }
 
 // ── Карточка ─────────────────────────────────────────────────────────────────
@@ -877,13 +1087,21 @@ function cardHtml(view, { i, act, dim = false, key = 0, small = false, deal = fa
 
     if (art) {
         // Числа кладутся в те самые пустые поля рамки: самоцвет стоимости слева
-        // сверху, шар с главным числом слева снизу, свиток описания посередине.
+        // сверху, шар с уроном слева снизу, свиток описания посередине.
         // Координаты — в CSS процентами от карточки, а не тут.
+        //
+        // ШАР БЫВАЕТ ТОЛЬКО У АТАКИ — так решает движок (mainNumber), и здесь
+        // ничего не выбирается: у умения рамка заклинания, шара на ней нет, а
+        // блок, положенный на его место, читался бы как урон.
+        //
+        // Описание берётся artText: то, что уже стоит в шаре, второй раз
+        // текстом не пишется — свиток маленький, и каждая лишняя строка
+        // выдавливает нужную.
         return `
             <button type="button" class="${cls}" ${attrs} style="background-image:url(${art})">
                 <span class="rg-card-cost${free}"${freeTitle}>${view.cost}</span>
                 ${view.power ? `<span class="rg-card-power is-${view.power.t}">${view.power.v}</span>` : ''}
-                <span class="rg-card-desc">${esc(view.text)}</span>
+                ${view.artText ? `<span class="rg-card-desc">${esc(view.artText)}</span>` : ''}
                 ${lvl}${mutsHtml}${keyHtml}
             </button>`;
     }
@@ -897,6 +1115,40 @@ function cardHtml(view, { i, act, dim = false, key = 0, small = false, deal = fa
             <span class="rg-card-text">${esc(view.text)}</span>
             ${mutsHtml}${keyHtml}
         </button>`;
+}
+
+/**
+ * Подогнать описание под свиток рамки.
+ *
+ * Длина текста у карты не фиксирована и знать её заранее нельзя: описание
+ * собирает движок из эффектов, и оно растёт от мутаций и уровня («Ещё 9 урона,
+ * если рука пуста» плюс две мутации). Обрезать текст рамкой нельзя — карта
+ * перестаёт объяснять, что делает, — поэтому шрифт УМЕНЬШАЕТСЯ, как на
+ * настоящих карточках.
+ *
+ * Меряем, а не считаем по числу букв: одна и та же длина в разных словах
+ * переносится по-разному, а после подгрузки шрифта метрики ещё и меняются
+ * (отсюда повторный проход по document.fonts.ready).
+ */
+const DESC_STEPS = [1, 0.92, 0.85, 0.78, 0.72, 0.66];
+
+function fitTexts(state) {
+    fitPass(state);
+    // Второй проход следующим кадром. Первый иногда меряет ещё запасным
+    // шрифтом: браузер берётся грузить наш ровно в тот момент, когда впервые
+    // встречает его в разметке, — то есть прямо на этой отрисовке, и разница в
+    // метриках даёт лишнюю строку.
+    requestAnimationFrame(() => { if (openState === state) fitPass(state); });
+}
+
+function fitPass(state) {
+    const nodes = state.modal.querySelectorAll('.rg-card.is-art .rg-card-desc');
+    for (const el of nodes) {
+        for (const k of DESC_STEPS) {
+            el.style.setProperty('--fit', String(k));
+            if (el.scrollHeight <= el.clientHeight + 1) break;
+        }
+    }
 }
 
 // ── Награда ──────────────────────────────────────────────────────────────────
