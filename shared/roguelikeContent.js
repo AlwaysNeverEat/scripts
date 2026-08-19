@@ -40,12 +40,14 @@ export const THORNS = 'thorns';   // бьющего по владельцу от
 export const STATUS_INFO = {
     // sign — значок для окна игры; окно не держит своей таблицы значков, иначе
     // яд в бою и яд в описании карты рано или поздно нарисуются по-разному.
-    [POISON]: { name: 'Яд',           sign: '☠\uFE0E', hint: 'В конце хода снимает столько здоровья и слабеет на 1' },
-    [WEAK]:   { name: 'Ослабление',   sign: '↓', hint: 'Наносимый урон меньше на четверть, ходов осталось столько' },
-    [VULN]:   { name: 'Уязвимость',   sign: '◎', hint: 'Получаемый урон больше в полтора раза, ходов осталось столько' },
-    [STR]:    { name: 'Сила',         sign: '↑', hint: 'Каждая атака сильнее на столько' },
-    [REGEN]:  { name: 'Восстановление', sign: '✚', hint: 'В конце хода лечит на столько и слабеет на 1' },
-    [THORNS]: { name: 'Шипы',         sign: '✳', hint: 'Тот, кто бьёт, получает столько урона в ответ' },
+    // gen — родительный падеж для описаний карт («накладывает 5 яда»): русский
+    // текст собирается движком, и падеж — такая же часть контента, как имя.
+    [POISON]: { name: 'Яд',           gen: 'яда',            sign: '☠\uFE0E', hint: 'В конце хода снимает столько здоровья и слабеет на 1' },
+    [WEAK]:   { name: 'Ослабление',   gen: 'ослабления',     sign: '↓', hint: 'Наносимый урон меньше на четверть, ходов осталось столько' },
+    [VULN]:   { name: 'Уязвимость',   gen: 'уязвимости',     sign: '◎', hint: 'Получаемый урон больше в полтора раза, ходов осталось столько' },
+    [STR]:    { name: 'Сила',         gen: 'силы',           sign: '↑', hint: 'Каждая атака сильнее на столько' },
+    [REGEN]:  { name: 'Восстановление', gen: 'восстановления', sign: '✚', hint: 'В конце хода лечит на столько и слабеет на 1' },
+    [THORNS]: { name: 'Шипы',         gen: 'шипов',          sign: '✳', hint: 'Тот, кто бьёт, получает столько урона в ответ' },
 };
 
 // Множители статусов. WEAK округляется ВНИЗ, VULN — тоже вниз: игрок, считающий
@@ -103,7 +105,7 @@ export const CONDITIONS = {
     blocked:  { text: 'если у вас есть блок',                test: b => b.hero.block > 0 },
     poisoned: { text: 'если враг отравлен',                  test: b => (b.enemy.st[POISON] | 0) > 0 },
     hurt:     { text: 'если здоровья меньше половины',       test: b => b.hero.hp * 2 < b.hero.maxHp },
-    empty:    { text: 'если это последняя карта в руке',     test: b => b.hand.length === 0 },
+    empty:    { text: 'если рука пуста',                     test: b => b.hand.length === 0 },
     strong:   { text: 'если у вас есть сила',                test: b => (b.hero.st[STR] | 0) > 0 },
 };
 
@@ -162,7 +164,7 @@ export const CARDS = [
     { id: 'adrenaline', name: 'Адреналин', kind: SKILL, rarity: EPIC, cost: 0, exhaust: true,
       effects: [{ t: ENERGY, v: 2 }, { t: DRAW, v: 1 }] },
     { id: 'echostone',  name: 'Эхо-камень', kind: ATTACK, rarity: EPIC, cost: 1, bounce: true,
-      effects: [{ t: DAMAGE, v: 5 }] },
+      effects: [{ t: DAMAGE, v: 7 }] },
     { id: 'forge',      name: 'Кузница',   kind: SKILL, rarity: EPIC, cost: 2, exhaust: true,
       effects: [{ t: UPGRADE, v: 1 }] },
     { id: 'mirror',     name: 'Зеркало',   kind: SKILL, rarity: EPIC, cost: 1, exhaust: true,

@@ -108,6 +108,59 @@ test('намерение врага видно ДО хода игрока и с�
     }
 });
 
+test('карта не срабатывает при выкладывании — она ложится на стол и ждёт «Хода»', () => {
+    // Ход игрока — это ЗАЯВКА: пока карты лежат на столе, ни здоровье, ни броня
+    // не двигаются, и «сколько выйдет урона» приходится считать в голове.
+    const run = startRun(42);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.hand = [];
+    const guard = run.deck.find(c => c.id === 'guard');
+    const strike = run.deck.find(c => c.id === 'strike');
+    b.hand.push(guard.uid, strike.uid);
+    const hp = b.enemy.hp;
+
+    playCard(run, 0);
+    playCard(run, 0);
+    assert.deepEqual(b.board, [guard.uid, strike.uid], 'карты не легли на стол');
+    assert.equal(b.hero.block, 0, 'защита сработала раньше «Хода»');
+    assert.equal(b.enemy.hp, hp, 'урон прошёл раньше «Хода»');
+    // Энергия при этом тратится СРАЗУ: иначе на стол можно выложить всю руку.
+    assert.equal(b.hero.energy, ENERGY_PER_TURN - CARD_BY_ID.guard.cost - CARD_BY_ID.strike.cost);
+});
+
+test('стол играет слева направо, в порядке выкладывания', () => {
+    const run = startRun(77);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.hand = [];
+    const guard = run.deck.find(c => c.id === 'guard');
+    const strike = run.deck.find(c => c.id === 'strike');
+    b.hand.push(strike.uid, guard.uid);
+    playCard(run, 0);
+    playCard(run, 0);
+    const casts = castTurn(run).filter(e => e.t === 'cast').map(e => e.uid);
+    assert.deepEqual(casts, [strike.uid, guard.uid]);
+});
+
+test('добор и энергия срабатывают СРАЗУ: иначе они не делают ничего', () => {
+    // Карта, которая тянет карты в конце хода, тянет их в руку, уходящую в
+    // сброс. Поэтому всё, что меняет саму заявку, работает при выкладывании.
+    const run = startRun(78);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.hand = [run.deck.find(c => c.id === 'focus').uid];
+    b.hero.energy = 3;
+    playCard(run, 0);
+    assert.equal(b.hand.length, 2, 'карты не пришли в руку сразу');
+
+    const adr = addCard(run, 'adrenaline');
+    b.hand.push(adr.uid);
+    const energy = b.hero.energy;
+    playCard(run, b.hand.length - 1);
+    assert.ok(b.hero.energy > energy, 'энергия не пришла сразу');
+});
+
 test('броня съедает урон и ОСТАТОК ПЕРЕЖИВАЕТ ход', () => {
     // Главное отличие от одноразового блока: поставленное сегодня работает и
     // завтра. Из-за этого числа защиты в контенте и маленькие.
@@ -122,10 +175,12 @@ test('броня съедает урон и ОСТАТОК ПЕРЕЖИВАЕТ 
     playCard(run, 0);
     // Число берём из контента, а не пишем цифрой: баланс правят, тест не должен
     // падать от «защита теперь на единицу больше».
-    assert.equal(b.hero.block, CARD_BY_ID.guard.effects[0].v);
+    const gained = castTurn(run).find(e => e.t === 'block' && e.who === 'hero');
+    assert.ok(gained, 'защита не сработала на «Ходе»');
+    assert.equal(gained.v, CARD_BY_ID.guard.effects[0].v);
 
-    // Даём заведомо много брони и слабое намерение: остаток обязан дожить до
-    // следующего хода игрока.
+    // Даём заведомо много брони и смотрим, что остаток дожил до следующего хода.
+    if (b.over) return;
     b.hero.block = 40;
     const hp = b.hero.hp;
     endTurn(run);
@@ -144,11 +199,48 @@ test('«Запас» наращивает броню каждый ход', () =>
     b.hand = [card.uid];
     b.hero.energy = 9;
     playCard(run, 0);
-    const after = b.hero.block;
+    assert.ok(castTurn(run).some(e => e.t === 'block' && e.who === 'hero'), 'сама карта брони не дала');
+    assert.ok(b.wardEach > 0, 'правило на бой не включилось');
+    if (b.over) return;
     b.hero.block = 0;
     endTurn(run);
     if (!b.over) assert.ok(b.hero.block > 0, 'в начале хода броня не приросла');
-    assert.ok(after > 0, 'сама карта брони не дала');
+});
+
+test('«Зеркало» удваивает следующую карту НА СТОЛЕ', () => {
+    const run = startRun(44);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.enemy.hp = 2000; b.enemy.maxHp = 2000; b.enemy.block = 0; b.enemy.st = {};
+    b.hero.energy = 9;
+    const strike = run.deck.find(c => c.id === 'strike');
+    b.hand = [strike.uid];
+    playCard(run, 0);
+    const plain = cardDamage(castTurn(run));
+
+    if (b.over) return;
+    b.enemy.block = 0; b.enemy.st = {}; b.hero.energy = 9;
+    const mirror = addCard(run, 'mirror');
+    b.hand = [mirror.uid, strike.uid];
+    playCard(run, 0);   // «Зеркало» ложится первым
+    playCard(run, 0);   // за ним удар
+    assert.equal(cardDamage(castTurn(run)), plain * 2);
+});
+
+test('«Эхо-камень» возвращается в руку в НАЧАЛЕ следующего хода', () => {
+    // Вернуть карту в руку сразу после срабатывания в отложенном ходу нельзя:
+    // рука в этот момент уходит в сброс, и «возврат» означал бы потерю карты.
+    const run = startRun(45);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    const stone = addCard(run, 'echostone');
+    b.hand = [stone.uid];
+    b.hero.energy = 9;
+    playCard(run, 0);
+    endTurn(run);
+    if (b.over) return;
+    assert.ok(b.hand.includes(stone.uid), 'карта не вернулась в руку');
+    assert.ok(!b.discard.includes(stone.uid), 'карта заодно уехала в сброс');
 });
 
 test('яд идёт мимо блока и слабеет на единицу за ход', () => {
@@ -169,9 +261,10 @@ test('шипы отвечают тому, кто бьёт', () => {
     const b = run.battle;
     b.enemy.st[THORNS] = 4;
     b.hand = [run.deck.find(c => c.id === 'strike').uid];
-    const hp = b.hero.hp;
     playCard(run, 0);
-    assert.equal(b.hero.hp, hp - 4);
+    const back = castTurn(run).find(e => e.t === 'hit' && e.who === 'hero' && e.src === 'thorns');
+    assert.ok(back, 'шипы не ответили');
+    assert.equal(back.dmg, 4);
 });
 
 test('энергия кончается, и карту без неё сыграть нельзя', () => {
@@ -208,20 +301,26 @@ test('журнал боя рассказывает ход по шагам и с�
     b.enemy.block = 0; b.enemy.st = {};
     b.hand = [run.deck.find(c => c.id === 'strike').uid];
     b.hero.energy = 3;
+    const uid = b.hand[0];
     const hpBefore = b.enemy.hp;
     playCard(run, 0);
+    assert.deepEqual(takeLog(run), [], 'выкладывание карты — ещё не событие боя');
 
+    endTurn(run);
     const log = takeLog(run);
+    // Первым событием карты идёт «cast» с её uid — по нему окно и подсвечивает
+    // стол слева направо.
+    const cast = log.find(e => e.t === 'cast');
+    assert.ok(cast && cast.uid === uid, 'карта не отмечена в журнале');
     const hit = log.find(e => e.t === 'hit' && e.who === 'enemy');
     assert.ok(hit, 'удара в журнале нет');
     assert.equal(hit.src, 'card');
-    assert.equal(hit.real, hpBefore - b.enemy.hp, 'в журнале не тот урон');
-    assert.equal(hit.hp, b.enemy.hp, 'в журнале не то здоровье');
+    assert.equal(hit.real, hpBefore - hit.hp, 'в журнале не тот урон');
+    assert.ok(log.indexOf(cast) < log.indexOf(hit), 'удар записан раньше своей карты');
     assert.deepEqual(takeLog(run), [], 'журнал не очистился');
 
     // Ход врага отмечен отдельно — по этой отметке окно делает паузу.
-    endTurn(run);
-    const turn = takeLog(run).find(e => e.t === 'turn' && e.who === 'enemy');
+    const turn = log.find(e => e.t === 'turn' && e.who === 'enemy');
     assert.ok(turn, 'начало хода врага в журнале не отмечено');
 });
 
@@ -233,6 +332,23 @@ test('журнал не растёт бесконечно, если его ни�
     for (let i = 0; i < 300 && !run.battle?.over; i++) endTurn(run);
     assert.ok(!run.battle || run.battle.log.length <= 400, 'журнал разросся');
 });
+
+// Сыграть выложенный стол и вернуть события журнала. Отдельная функция нужна
+// потому, что в отложенном ходу карта не делает ничего до «Хода», и проверять
+// её действие можно только по журналу: состояние к концу endTurn уже включает
+// ответ врага.
+function castTurn(run) {
+    takeLog(run);
+    endTurn(run);
+    return takeLog(run);
+}
+
+/** Сколько урона врагу нанесли карты со стола за этот ход. */
+function cardDamage(events) {
+    return events
+        .filter(e => e.t === 'hit' && e.who === 'enemy' && e.src === 'card')
+        .reduce((s, e) => s + e.dmg, 0);
+}
 
 // ── Уровни и мутации ─────────────────────────────────────────────────────────
 
@@ -274,16 +390,17 @@ test('мутация-множитель действительно множит 
     b.enemy.hp = 200; b.enemy.maxHp = 200;
     const card = run.deck.find(c => c.id === 'strike');
 
-    b.hand = [card.uid]; b.played = 1; b.hero.energy = 9;
-    const before = b.enemy.hp;
+    b.enemy.hp = 2000; b.enemy.maxHp = 2000;
+    b.hand = [card.uid]; b.hero.energy = 9;
     playCard(run, 0);
-    const plain = before - b.enemy.hp;
+    const plain = cardDamage(castTurn(run));
 
+    if (b.over) return;
+    b.enemy.block = 0; b.enemy.st = {};
     card.mut.opener = 2;                       // ×4
-    b.hand = [card.uid]; b.played = 0;         // условие «первая карта в ходу»
-    const before2 = b.enemy.hp;
+    b.hand = [card.uid]; b.hero.energy = 9;    // условие «первая карта в ходу»
     playCard(run, 0);
-    assert.equal(before2 - b.enemy.hp, plain * 4);
+    assert.equal(cardDamage(castTurn(run)), plain * 4);
 });
 
 test('мутация на карту падает только подходящая по виду', () => {
@@ -329,6 +446,33 @@ test('у каждой карты есть непустое описание, с�
             assert.equal(grown, text, `${def.id}: уровень изменил то, что меняться не должно`);
         }
     }
+});
+
+test('шар с числом бывает ТОЛЬКО у атаки, и описание его не повторяет', () => {
+    // Шар нарисован на рамке оружия и означает урон. Блок, положенный на его
+    // место, читается как «столько эта карта бьёт» — ровно так и выглядела
+    // ошибка на «Защите».
+    const run = startRun(81);
+    for (const def of CARDS) {
+        const card = addCard(run, def.id);
+        const view = cardView(run, card);
+        if (def.kind !== 'attack') {
+            assert.equal(view.power, null, `${def.id}: шар у не-атаки`);
+            assert.equal(view.artText, view.text, `${def.id}: из описания что-то пропало`);
+        } else if (view.power) {
+            assert.equal(view.power.t, 'dmg');
+            assert.ok(!view.artText.startsWith('Наносит'), `${def.id}: описание повторяет шар`);
+        }
+    }
+});
+
+test('условная прибавка написана прибавкой, а не вторым «наносит»', () => {
+    // «Наносит 7 урона. Наносит 7 урона, если это первая карта» читается как
+    // «в любом случае 7», хотя карта бьёт на 14.
+    const run = startRun(82);
+    const ambush = cardText(addCard(run, 'ambush'));
+    assert.match(ambush, /Ещё \d+ урона, если/);
+    assert.equal(ambush.match(/Наносит/g).length, 1, 'два «наносит» в одном описании');
 });
 
 test('cardView отдаёт готовые числа и мутации', () => {
@@ -389,6 +533,7 @@ test('планка сложности: первый цикл берётся по
     const first = depths.filter(d => d >= 1).length / depths.length;
     const deep = depths.filter(d => d >= 10).length;
     const best = Math.max(...depths);
+    if (process.env.RG_DEBUG) console.error('первый цикл', Math.round(first*100)+'%', 'лучший', best, 'среднее', (depths.reduce((a,b)=>a+b,0)/depths.length).toFixed(2));
     // Средний игрок (а бот играет именно так) проходит первый цикл в
     // подавляющем большинстве забегов — иначе игра отталкивает на входе.
     // Порог с запасом: у бота выходит около двух третей, и просесть ниже
@@ -470,7 +615,12 @@ function botTurn(run) {
 
     let guard = 0;
     while (!b.over && guard++ < 40) {
-        const needBlock = incoming > b.hero.block && b.hero.hp <= incoming + 8;
+        // Броня от выложенных карт ещё не встала (стол играет по «Ходу»), но
+        // человек её, конечно, считает — поэтому считает и бот: иначе он
+        // закрывался бы всей рукой подряд и изображал не среднего игрока, а
+        // растерянного.
+        const planned = b.hero.block + b.board.reduce((s, uid) => s + blockOf(run, uid), 0);
+        const needBlock = incoming > planned && b.hero.hp <= incoming + 8;
         const order = [...b.hand.keys()].sort((x, y) => score(run, b.hand[y], needBlock) - score(run, b.hand[x], needBlock));
         const i = order.find(k => playCard(run, k).ok);
         if (i === undefined) break;
@@ -479,6 +629,13 @@ function botTurn(run) {
     // Ход стоит времени: без этого runResult отдаёт нулевые секунды, и проверка
     // «слишком быстро» на сервере отвергла бы честный забег.
     addTime(run, 4000);
+}
+
+function blockOf(run, uid) {
+    const card = cardOf(run, uid);
+    return CARD_BY_ID[card.id].effects
+        .filter(e => e.t === 'block' && !e.when)
+        .reduce((s, e) => s + scaleValue(e.v, card.lvl), 0);
 }
 
 function score(run, uid, needBlock) {

@@ -467,10 +467,12 @@ function startBattle(run, kind) {
         hero: { hp: run.hp, maxHp: run.maxHp, block: 0, energy: 0, maxEnergy: ENERGY_PER_TURN, st: {} },
         draw: shuffled(run.rng, run.deck.map(c => c.uid)),
         hand: [],
+        board: [],      // выложено на стол в этот ход, ещё не сработало
+        hold: [],       // вернётся в руку в начале следующего хода («Эхо-камень»)
         discard: [],
         exhaust: [],
         turn: 0,
-        played: 0,      // карт разыграно В ЭТОМ ХОДУ (условие «первая карта»)
+        played: 0,      // карт СРАБОТАЛО в этом ходу (условие «первая карта»)
         spent: 0,       // энергии потрачено в этом ходу (мутация «разгон»)
         double: 0,      // сколько ближайших карт сработают дважды («Зеркало»)
         wardEach: 0,    // столько брони прирастает в начале каждого хода («Запас»)
@@ -502,6 +504,11 @@ function heroTurn(run) {
     b.spent = 0;
     b.double = 0;
     rollIntent(run);
+    // Карты, которые «возвращаются в руку», приезжают в НАЧАЛЕ хода, а не сразу
+    // после срабатывания: стол играет в конце хода, и возвращённая карта попала
+    // бы в руку ровно в тот момент, когда рука целиком уходит в сброс.
+    while (b.hold.length && b.hand.length < MAX_HAND) b.hand.push(b.hold.shift());
+    b.hold = [];
     drawCards(run, HAND_SIZE);
 }
 
@@ -551,7 +558,22 @@ function numMult(b, card, isDamage) {
     return m;
 }
 
-/** Разыграть карту из руки. Возвращает { ok } — окно на неё и опирается. */
+/**
+ * Выложить карту из руки НА СТОЛ. Энергия тратится сейчас, а сработает карта в
+ * конце хода — см. resolveBoard.
+ *
+ * ПОЧЕМУ РОЗЫГРЫШ ОТЛОЖЕН. Ход игрока — это ЗАЯВКА: он выкладывает карты, видя
+ * их числа и намерение врага, и только потом смотрит, что из этого вышло. Так
+ * ход приходится считать в голове заранее, а не подбирать по одной карте,
+ * глядя на уже уехавшее здоровье врага. Порядок карт на столе — тоже решение:
+ * «Зеркало» перед «Размахом», «Порча» перед атаками, «Засада» первой.
+ *
+ * ЧТО СРАБАТЫВАЕТ СРАЗУ: добор, энергия и улучшение карты в руке (INSTANT).
+ * Это не исключение «для удобства», а следствие того, что они меняют САМУ
+ * ЗАЯВКУ: карта, которая тянет карты в конце хода, тянет их в руку, уходящую в
+ * сброс, то есть не делает ничего. Всё, что трогает здоровье, броню и статусы,
+ * ждёт «Хода» — иначе видно результат заранее, и заявки нет.
+ */
 export function playCard(run, handIdx) {
     const b = run.battle;
     if (!b || b.over) return { ok: false, reason: 'no_battle' };
@@ -567,37 +589,66 @@ export function playCard(run, handIdx) {
     b.hero.energy -= cost;
     b.spent += cost;
     if (free) b.surge[uid] = (b.surge[uid] | 0) + 1;
+    b.board.push(uid);
 
-    // «Зеркало» — единственное место, где карта срабатывает дважды целиком, со
-    // всеми условиями и мутациями. Именно поэтому оно и эпик.
-    const times = b.double > 0 ? 2 : 1;
-    if (b.double > 0) b.double--;
-    for (let k = 0; k < times && !b.over; k++) applyCard(run, card, def);
+    applyInstant(run, card, def);
+    return { ok: true };
+}
 
-    b.played++;
-    run.stats.cards++;
+/**
+ * Сыграть стол СЛЕВА НАПРАВО. Один вызов — весь ход игрока: правила считают его
+ * целиком и мгновенно, а окно потом проигрывает журнал по шагам.
+ */
+function resolveBoard(run) {
+    const b = run.battle;
+    while (b.board.length && !b.over) {
+        const uid = b.board.shift();
+        const card = cardOf(run, uid);
+        const def = CARD_BY_ID[card.id];
+        note(b, { t: 'cast', uid });
 
-    // Куда уходит карта. Порядок важен: «эхо» сильнее изгнания — карта, которая
-    // вернулась в руку, из боя не уходит.
+        // «Зеркало» — единственное место, где карта срабатывает дважды целиком,
+        // со всеми условиями и мутациями. Именно поэтому оно и эпик.
+        const times = b.double > 0 ? 2 : 1;
+        if (b.double > 0) b.double--;
+        for (let k = 0; k < times && !b.over; k++) applyCard(run, card, def);
+
+        b.played++;
+        run.stats.cards++;
+        toPile(run, card, def, uid);
+        checkEnd(run);
+    }
+    // Врага добили посреди стола — остальные карты просто уходят в сброс.
+    if (b.board.length) { b.discard.push(...b.board); b.board = []; }
+}
+
+/**
+ * Куда уходит сработавшая карта. Порядок важен: «эхо» сильнее изгнания — карта,
+ * которая вернулась в руку, из боя не уходит.
+ */
+function toPile(run, card, def, uid) {
+    const b = run.battle;
     const echoLeft = mutPower('echo', card.mut?.echo | 0) - (b.echo[uid] | 0);
     if (card.mut?.echo && echoLeft > 0) {
         b.echo[uid] = (b.echo[uid] | 0) + 1;
-        b.hand.push(uid);
+        b.hold.push(uid);
     } else if (def.bounce) {
-        b.hand.push(uid);
+        b.hold.push(uid);
     } else if (def.exhaust) {
         b.exhaust.push(uid);
     } else {
         b.discard.push(uid);
     }
-
-    checkEnd(run);
-    return { ok: true };
 }
+
+// Эффекты, которые срабатывают ПРИ ВЫКЛАДЫВАНИИ, а не в конце хода: все три
+// меняют не бой, а саму заявку — что ещё игрок успеет положить на стол.
+const INSTANT = new Set([DRAW, ENERGY, UPGRADE]);
 
 function applyCard(run, card, def) {
     const b = run.battle;
     for (const e of def.effects) {
+        if (INSTANT.has(e.t)) continue;
         if (e.when && !CONDITIONS[e.when].test(b)) continue;
         applyEffect(run, card, e);
         if (b.over) return;
@@ -609,7 +660,17 @@ function applyCard(run, card, def) {
     if (mu.venom && def.kind === ATTACK) addStatus(b, b.enemy, POISON, mutPower('venom', mu.venom));
     if (mu.leech) healUnit(b, b.hero, mutPower('leech', mu.leech));
     if (mu.ward) addBlock(b, b.hero, mutPower('ward', mu.ward));
-    if (mu.insight) drawCards(run, mutPower('insight', mu.insight));
+}
+
+/** Часть карты, которая срабатывает сразу при выкладывании. */
+function applyInstant(run, card, def) {
+    const b = run.battle;
+    for (const e of def.effects) {
+        if (!INSTANT.has(e.t)) continue;
+        if (e.when && !CONDITIONS[e.when].test(b)) continue;
+        applyEffect(run, card, e);
+    }
+    if (card.mut?.insight) drawCards(run, mutPower('insight', card.mut.insight));
 }
 
 function applyEffect(run, card, e) {
@@ -679,7 +740,9 @@ function applyEffect(run, card, e) {
 // состояния — ему нужно, ЧТО ИМЕННО происходило и в каком порядке.
 //
 // Отсюда журнал: каждое событие несёт не только своё число, но и здоровье с
-// блоком ПОСЛЕ себя. Окно проигрывает журнал по одному событию, ставя полосы в
+// блоком ПОСЛЕ себя. Первым событием каждой сработавшей карты идёт `cast` с её
+// uid — по нему окно и подсвечивает стол слева направо; `sweep` означает, что
+// невыложенная рука ушла в сброс. Окно проигрывает журнал по одному событию, ставя полосы в
 // эти значения, — и ему не нужно ни повторять правила, ни угадывать порядок
 // (сравните с дураком, где показ хода вычисляется разницей двух видов: там
 // позиция приезжает с сервера без рассказа о том, что случилось, а здесь
@@ -757,8 +820,15 @@ export function endTurn(run) {
     const b = run.battle;
     if (!b || b.over) return { ok: false };
 
-    // Рука уходит в сброс целиком: карта, которую не сыграли, потеряна. Это
-    // главная причина считать энергию, а не копить «на потом».
+    // Сначала играет СТОЛ — в том порядке, в каком игрок выкладывал карты.
+    resolveBoard(run);
+    if (b.over) return { ok: true };
+
+    // Рука уходит в сброс целиком: карта, которую не выложили, потеряна. Это
+    // главная причина считать энергию, а не копить «на потом». Считается это
+    // ПОСЛЕ стола: условие «если рука пуста» смотрит на невыложенные карты, а
+    // не на пустоту, наступившую от самого конца хода.
+    if (b.hand.length) note(b, { t: 'sweep', n: b.hand.length });
     b.discard.push(...b.hand);
     b.hand = [];
 
@@ -1050,16 +1120,22 @@ function effectText(card, e) {
         case DAMAGE: {
             const n = scaleValue(e.v, lvl);
             const times = e.times || 1;
-            return times > 1
-                ? `Наносит ${n} урона ${times} ${plural(times, 'раз', 'раза', 'раз')}${when}.`
-                : `Наносит ${n} урона${when}.`;
+            if (times > 1) return `Наносит ${n} урона ${times} ${plural(times, 'раз', 'раза', 'раз')}${when}.`;
+            // Условный урон — это ПРИБАВКА к безусловному, и написан он должен
+            // быть прибавкой: «Наносит 7 урона. Наносит 7 урона, если это первая
+            // карта» читается как «в любом случае 7», хотя карта бьёт на 14.
+            return e.when ? `Ещё ${n} урона${when}.` : `Наносит ${n} урона.`;
         }
-        case BLOCK:  return `Даёт ${scaleValue(e.v, lvl)} блока${when}.`;
-        case HEAL:   return `Лечит на ${scaleValue(e.v, lvl)}${when}.`;
+        case BLOCK:  return e.when
+            ? `Ещё ${scaleValue(e.v, lvl)} блока${when}.`
+            : `Даёт ${scaleValue(e.v, lvl)} блока.`;
+        case HEAL:   return e.when
+            ? `Лечит ещё на ${scaleValue(e.v, lvl)}${when}.`
+            : `Лечит на ${scaleValue(e.v, lvl)}.`;
         case DRAW:   return `Тянет ${e.v} ${plural(e.v, 'карту', 'карты', 'карт')}${when}.`;
         case ENERGY: return `Даёт ${e.v} ${plural(e.v, 'энергию', 'энергии', 'энергии')}${when}.`;
         case STATUS: {
-            const name = STATUS_INFO[e.s].name.toLowerCase();
+            const name = STATUS_INFO[e.s].gen;
             const v = scaleValue(e.v, lvl);
             return e.to === 'self' ? `Даёт себе ${v} ${name}${when}.` : `Накладывает ${v} ${name}${when}.`;
         }
@@ -1071,11 +1147,19 @@ function effectText(card, e) {
     }
 }
 
-/** Полное описание карты — то, что показывается на самой карточке. */
-export function cardText(card) {
+/**
+ * Полное описание карты.
+ *
+ * skipMain убирает из текста эффект, который И ТАК стоит в шаре нарисованной
+ * карточки: «Удар» с семёркой в шаре не должен ещё раз писать «Наносит 7
+ * урона» — в карточных играх число на карте не дублируют текстом, а свиток
+ * описания у рамки маленький, и каждая лишняя строка выдавливает нужную.
+ */
+export function cardText(card, { skipMain = false } = {}) {
     const def = CARD_BY_ID[card.id];
-    const parts = def.effects.map(e => effectText(card, e)).filter(Boolean);
-    if (def.bounce) parts.push('Возвращается в руку.');
+    const main = skipMain ? mainNumber(card)?.e : null;
+    const parts = def.effects.filter(e => e !== main).map(e => effectText(card, e)).filter(Boolean);
+    if (def.bounce) parts.push('Вернётся в руку в начале следующего хода.');
     if (def.exhaust) parts.push('Уходит из боя.');
     return parts.join(' ');
 }
@@ -1092,18 +1176,21 @@ export function mutationList(card) {
 }
 
 /**
- * «Главное число» карты — то, что стоит в шаре на нарисованной карточке: урон у
- * атаки, блок у защиты, у остальных ничего. Считает его движок, а не окно: это
- * число карты, а не оформление, и браться оно обязано оттуда же, откуда
- * описание, — иначе на картинке и в тексте окажутся разные цифры.
+ * «Главное число» карты — то, что стоит в шаре на нарисованной карточке.
  *
- * Берётся первый БЕЗУСЛОВНЫЙ эффект: у «Засады» на шаре стоит её базовый урон, а
- * прибавка «если это первая карта в ходу» — в описании, ей на шаре не место.
+ * ШАР БЫВАЕТ ТОЛЬКО У АТАК, и это не оформление, а правило. Шар нарисован на
+ * рамке оружия и означает ровно одно — урон; у умения рамка заклинания, шара на
+ * ней нет вовсе, и блок, положенный на её место, читается как «столько эта
+ * карта бьёт». Всё, что делает умение, живёт в описании.
+ *
+ * Берётся первый БЕЗУСЛОВНЫЙ урон: у «Засады» на шаре её базовые 7, а прибавка
+ * «если это первая карта в ходу» — в описании, ей на шаре не место.
  */
 function mainNumber(card) {
     const def = CARD_BY_ID[card.id];
-    const e = def.effects.find(x => !x.when && (x.t === DAMAGE || x.t === BLOCK));
-    return e ? { t: e.t === DAMAGE ? 'dmg' : 'block', v: scaleValue(e.v, card.lvl) } : null;
+    if (def.kind !== ATTACK) return null;
+    const e = def.effects.find(x => !x.when && x.t === DAMAGE);
+    return e ? { t: 'dmg', v: scaleValue(e.v, card.lvl), e } : null;
 }
 
 /** Всё, что окну нужно про карту: числа уже посчитаны. */
@@ -1119,7 +1206,8 @@ export function cardView(run, card) {
         baseCost: def.cost,
         lvl: card.lvl,
         text: cardText(card),
-        power: mainNumber(card),
+        artText: cardText(card, { skipMain: true }),
+        power: mainNumber(card) && { t: 'dmg', v: mainNumber(card).v },
         muts: mutationList(card),
     };
 }

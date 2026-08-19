@@ -5361,15 +5361,29 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    нарисованы рамками, цветом и буквой. Места под настоящие картинки
    размечены заранее (.rg-art) и ждут текстур — что именно рисовать и
    каких размеров, расписано в design/roguelike-cards/README.md. */
-.modal-win.rg-win { max-width: 860px; }
-.rg-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+/* Окно бою отдаётся ЦЕЛИКОМ и с фиксированной высотой: рука должна быть видна
+   всегда. Карту нельзя выложить на стол, если до руки нужно доскроллить, —
+   поэтому окно не растёт под содержимое, а стол подгоняется под окно
+   (fitTable в roguelike.js). Прокрутка остаётся у остальных экранов: карта
+   узлов и колода длинные по своей природе. */
+.modal-win.rg-win {
+  max-width: 860px;
+  max-height: 92vh;
+  height: min(900px, 92vh);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.rg-body {
+  padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px;
+  flex: 1; min-height: 0; overflow-y: auto;
+}
 
 .rg-win {
   /* Размер карточки — ОДИН на всю игру: рука в бою, лут и колода рисуются
      одной и той же вёрсткой, и разъехаться они не могут. Ширина ужимается на
      узком экране, но не ниже 96px: на карточке должно помещаться описание в
      три строки, иначе играть по ней нельзя. */
-  --rg-card-w: clamp(96px, 13.5vw, 132px);
+  --rg-card-w: clamp(84px, 13.5vw, 132px);
   --rg-card-h: calc(var(--rg-card-w) * 1.42);
   --rg-common: var(--sub);
   --rg-rare: var(--blue);
@@ -5425,7 +5439,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* position нужен надписям показа («Ход врага», «Победа»): они ложатся
    поверх стола по центру экрана игры. */
-.rg-view { position: relative; min-height: 320px; display: flex; flex-direction: column; gap: 10px; }
+.rg-view { position: relative; min-height: 320px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+/* Экран боя — единственный, который обязан поместиться целиком, поэтому у него
+   свои правила: он занимает всю высоту окна и не даёт руке уехать за край. */
+.rg-view:has(.rg-table) { min-height: 0; }
 .rg-screen-head {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   font-size: 14px; font-weight: 700;
@@ -5443,7 +5460,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .rg-map {
   padding: 8px; background: var(--card);
   border: 1px solid var(--border); border-radius: 12px;
-  max-height: min(46vh, 420px); overflow-y: auto;
+  /* Карта узлов длинная по своей природе — она прокручивается внутри окна и
+     занимает всю его высоту (окно фиксированное, см. .modal-win.rg-win). */
+  flex: 1 1 auto; min-height: 160px; overflow-y: auto;
 }
 /* Обёртка нужна ради дорог: проценты в SVG считаются от высоты РОДИТЕЛЯ, и в
    самом прокручиваемом контейнере линии легли бы по видимой части карты, а не
@@ -5488,8 +5507,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    frontend/src/roguelike.js), поэтому здесь много анимаций — но все они
    двигают только transform и opacity. */
 .rg-table {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 10px 12px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  height: 100%; min-height: 0;
+  padding: 8px 12px 10px;
   border: 1px solid var(--border); border-radius: 14px;
   /* «Сукно»: два мягких пятна света — сверху под врагом и снизу под рукой.
      Картинки стола нет и не нужно: она отвлекала бы от карт, а они тут
@@ -5520,7 +5540,13 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   background: var(--red-dim); color: var(--red); border-radius: 999px; cursor: help;
 }
 .rg-foe-figure { position: relative; }
-.rg-foe-art { width: 84px; height: 84px; font-size: 28px; }
+/* Портрет врага меряется В КАРТОЧКАХ: на низком окне стол ужимает карточку, и
+   портрет обязан ужиматься вместе с ней — иначе он съедает высоту, которой не
+   хватает руке. */
+.rg-foe-art {
+  width: calc(var(--rg-card-w) * 0.66); height: calc(var(--rg-card-w) * 0.66);
+  font-size: calc(var(--rg-card-w) * 0.22);
+}
 .rg-foe-art.is-lunge { animation: rg-lunge .34s ease; }
 @keyframes rg-lunge {
   0%, 100% { transform: none; }
@@ -5556,18 +5582,24 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* ── Стол ── */
 .rg-board {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: calc(var(--rg-card-w) * 0.9);
+  flex: 1 1 auto; min-height: calc(var(--rg-card-w) * 0.92);
   padding: 6px;
   border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border);
 }
 .rg-board-hint { font-size: 11.5px; color: var(--sub); opacity: .65; }
-/* Легшая на стол карта чуть подпрыгивает — видно, что она долетела. */
-.rg-board .rg-card { animation: rg-land .22s cubic-bezier(.2, .8, .3, 1) both; cursor: default; }
-@keyframes rg-land {
-  from { transform: translateY(-14px) scale(1.08); opacity: .6; }
-  to   { transform: none; opacity: 1; }
-}
+/* Стол ждёт карту, пока её тянут из руки. */
+.rg-board.is-target { border-color: var(--accent); background: var(--accent-dim); }
+.rg-board .rg-card { cursor: default; transition: transform .2s ease, opacity .2s ease, filter .2s ease; }
 .rg-board .rg-card:hover { transform: none; }
+/* Карта, которая срабатывает прямо сейчас: по ней и видно, что стол играет
+   слева направо. Отыгравшая гаснет — иначе к четвёртой карте непонятно, где
+   мы находимся. */
+.rg-board .rg-card.is-cast {
+  transform: translateY(-8px) scale(1.12);
+  filter: drop-shadow(0 6px 14px oklch(0 0 0 / .5));
+  z-index: 5;
+}
+.rg-board .rg-card.is-done { opacity: .4; filter: grayscale(.6); }
 
 /* ── Игрок ── */
 .rg-me {
@@ -5638,34 +5670,62 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    разворачивается: тогда её видно целиком, не разбирая веер. */
 .rg-hand {
   position: relative;
-  /* Высота — под самую высокую карточку веера плюс место на подъём наведённой:
-     иначе поднятая карта вылезает на строку с колодой и сбросом. */
-  height: calc(var(--rg-card-w) * 1.42 + 22px);
-  margin: 4px 0 8px;
+  /* Высота — ровно под карточку веера: она поднимается ВВЕРХ, на стол, и место
+     под подъём занимать не нужно. Ширину карточки подбирает fitTable, так что
+     рука всегда помещается в окно. */
+  height: calc(var(--rg-card-w) * 1.46);
+  margin: 2px 0 4px;
+  flex: 0 0 auto;
 }
+/* Кадр, в котором рука нарисована заново: раскладка веера ставится сразу, без
+   разъезжания карт из стопки (см. layoutHand). */
+.rg-hand.is-still .rg-card { transition: none; }
 .rg-hand .rg-card {
   position: absolute; bottom: 0; left: 50%;
   margin-left: calc(var(--rg-card-w) / -2);
-  transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--a, 0deg));
+  transform: translate(calc(var(--x, 0px) + var(--push, 0px)), var(--y, 0px)) rotate(var(--a, 0deg));
   transform-origin: 50% 130%;
-  transition: transform .18s cubic-bezier(.2, .8, .3, 1), filter .18s ease;
+  transition: transform .16s cubic-bezier(.2, .8, .3, 1), filter .16s ease;
+  /* Карту ТЯНУТ, а не листают: без этого браузер на телефоне уводит движение
+     в прокрутку страницы и карта из руки не выходит. */
+  touch-action: none;
+  will-change: transform;
 }
-.rg-hand .rg-card:hover,
+/* Поднятую карту выбирает JS (ближайшую к курсору), а не :hover: поднимаясь,
+   карта уезжает из-под курсора, тот попадает на соседку — и веер дрожит. */
+.rg-hand .rg-card.is-up,
 .rg-hand .rg-card:focus-visible {
-  transform: translate(var(--x, 0), calc(var(--y, 0) - 52px)) rotate(0deg) scale(1.14);
+  transform: translate(calc(var(--x, 0px) + var(--push, 0px)), calc(var(--y, 0px) - 54px)) rotate(0deg) scale(1.14);
   z-index: 99 !important;
   filter: drop-shadow(0 10px 22px oklch(0 0 0 / .55));
 }
-.rg-hand .rg-card.is-dim:hover { filter: none; }
-/* Раздача: карты приезжают снизу по одной. Задержка — от номера в веере. */
-.rg-hand .rg-card.is-deal { animation: rg-deal .3s cubic-bezier(.2, .8, .3, 1) both; }
+.rg-hand .rg-card.is-dim.is-up { filter: none; }
+/* Карта в руке. Пока её тянут, она идёт за пальцем без сглаживания: любая
+   задержка на перетаскивании читается как «залипло». */
+.rg-hand .rg-card.is-drag {
+  transform: translate(calc(var(--x, 0px) + var(--dx, 0px)), calc(var(--y, 0px) + var(--dy, 0px)))
+             rotate(0deg) scale(1.1);
+  transition: none;
+  z-index: 200 !important;
+  cursor: grabbing;
+}
+/* Раздача: карты приезжают снизу по одной. Задержка — от номера в веере.
+   Заливка backwards, а НЕ both: доигравшая анимация с both продолжает держать
+   свой последний кадр и перебивает любой transform из обычных правил — карта
+   переставала и подниматься под курсором, и тянуться на стол. */
+.rg-hand .rg-card.is-deal { animation: rg-deal .3s cubic-bezier(.2, .8, .3, 1) backwards; }
 .rg-hand .rg-card.is-deal { animation-delay: calc(var(--i, 0) * 55ms); }
 @keyframes rg-deal {
   from { opacity: 0; transform: translate(0, 70px) rotate(0deg) scale(.7); }
   to   { opacity: 1; transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--a, 0deg)); }
 }
 
-.rg-battle-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.rg-battle-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; flex: 0 0 auto; }
+/* На низком окне подсказка про клавиши уходит первой: она не состояние игры, а
+   напоминание, и место под руку важнее. */
+@media (max-height: 720px) {
+  .rg-battle-foot .rg-hint { display: none; }
+}
 .rg-piles { font-size: 11.5px; color: var(--sub); }
 .rg-piles b { color: var(--text); }
 
@@ -5767,7 +5827,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   position: absolute; left: 50%; top: 78%; transform: translate(-50%, -50%);
   width: 62%; max-height: 21%; overflow: hidden;
   font-family: 'RgSlab', Georgia, 'Times New Roman', serif;
-  font-weight: 700; font-size: calc(var(--w) * .085); line-height: 1.18;
+  /* --fit подбирает окно (fitTexts): длинное описание УМЕНЬШАЕТСЯ, а не
+     обрезается рамкой — обрезанная карта перестаёт объяснять, что делает. */
+  font-weight: 700; font-size: calc(var(--w) * .085 * var(--fit, 1)); line-height: 1.18;
   color: #23180d; text-align: center;
 }
 .rg-card.is-art .rg-card-lvl { top: 8%; right: 6%; }
@@ -5779,8 +5841,12 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* ── Награда, событие, колода ── */
 .rg-cards { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-.rg-cards.is-deck { max-height: min(52vh, 460px); overflow-y: auto; padding: 2px; }
+/* Колода прокручивается ВНУТРИ окна и занимает всю его высоту: окно теперь не
+   растёт под содержимое (см. .modal-win.rg-win), и фиксированная высота списка
+   оставляла бы под ним пустоту. */
+.rg-cards.is-deck { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 2px; align-content: flex-start; }
 .rg-reward, .rg-event, .rg-deck, .rg-over { display: flex; flex-direction: column; gap: 10px; }
+.rg-deck { height: 100%; min-height: 0; }
 .rg-reward-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rg-loots { display: flex; gap: 6px; flex-wrap: wrap; }
 .rg-loot {
@@ -5836,8 +5902,6 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
      видеть руку целиком, чем читать описание с первого взгляда. */
   .rg-win { --rg-card-w: clamp(84px, 27vw, 110px); }
   .rg-node { width: 62px; font-size: 9.5px; }
-  .rg-foe-art { width: 66px; height: 66px; font-size: 22px; }
-  .rg-map { max-height: 40vh; }
 }
 
 /* ── Движение в окнах пасхалок ────────────────────────────────────
@@ -5947,11 +6011,16 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
      настройке идёт быстрее — паузы между событиями режет roguelike.js. */
   .rg-pop, .rg-flag { animation-duration: .45s; }
   .rg-vital b { animation: none; }
+  /* Перетаскивание карты движением не считаем: без него карту на стол не
+     положить вовсе. Гасим только сглаживание. */
   .rg-hand .rg-card { transition: none; }
   /* Рогалик пошаговый, движения в нём почти нет — гасим подъём карточки под
      курсором, чтобы не осталось единственного шевелящегося места. */
   .rg-card { transition: none; }
   .rg-card:hover { transform: none; }
+  /* Подсветку срабатывающей карты оставляем: она не украшение, а единственное,
+     что показывает, чья цифра сейчас отлетела. */
+  .rg-board .rg-card { transition: none; }
   /* В дураке движение — это ещё и показ хода (карты летят на стол, в отбой и по
      рукам). Его durak.js выключает сам, увидев эту же настройку, — здесь
      остаётся погасить подсветку, подъём карты под курсором и надпись. */
