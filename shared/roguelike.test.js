@@ -24,7 +24,7 @@ import assert from 'node:assert/strict';
 
 import {
     startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent,
-    removeCard, useStone, useShard, giveUp, cardOf, cardText, cardView, addCard, addTime,
+    removeCard, useStone, useShard, giveUp, cardOf, cardText, cardView, addCard, addTime, takeLog,
     intentView, enemyView, runResult, isPlausibleRun, scaleValue, mutPower, costOf,
     MAP_ROWS, START_HP, HAND_SIZE, ENERGY_PER_TURN, LEVEL_STEP,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
@@ -108,7 +108,9 @@ test('намерение врага видно ДО хода игрока и с�
     }
 });
 
-test('блок съедает урон и сгорает к следующему ходу', () => {
+test('броня съедает урон и ОСТАТОК ПЕРЕЖИВАЕТ ход', () => {
+    // Главное отличие от одноразового блока: поставленное сегодня работает и
+    // завтра. Из-за этого числа защиты в контенте и маленькие.
     const run = startRun(42);
     enterNode(run, nextNodes(run)[0].i);
     const b = run.battle;
@@ -121,12 +123,32 @@ test('блок съедает урон и сгорает к следующему
     // Число берём из контента, а не пишем цифрой: баланс правят, тест не должен
     // падать от «защита теперь на единицу больше».
     assert.equal(b.hero.block, CARD_BY_ID.guard.effects[0].v);
+
+    // Даём заведомо много брони и слабое намерение: остаток обязан дожить до
+    // следующего хода игрока.
+    b.hero.block = 40;
     const hp = b.hero.hp;
-    // Ставим намерение руками: тест про блок, а не про то, что выпало.
-    b.enemy.intent = 0;
     endTurn(run);
-    assert.ok(b.hero.hp > hp - 20, 'блок хоть что-то съел');
-    assert.equal(b.hero.block, 0, 'блок сгорел к новому ходу');
+    if (!b.over) {
+        assert.equal(b.hero.hp, hp, 'броня не удержала удар');
+        assert.ok(b.hero.block > 0, 'остаток брони сгорел');
+        assert.ok(b.hero.block < 40, 'броня не потратилась вовсе');
+    }
+});
+
+test('«Запас» наращивает броню каждый ход', () => {
+    const run = startRun(43);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    const card = addCard(run, 'vault');
+    b.hand = [card.uid];
+    b.hero.energy = 9;
+    playCard(run, 0);
+    const after = b.hero.block;
+    b.hero.block = 0;
+    endTurn(run);
+    if (!b.over) assert.ok(b.hero.block > 0, 'в начале хода броня не приросла');
+    assert.ok(after > 0, 'сама карта брони не дала');
 });
 
 test('яд идёт мимо блока и слабеет на единицу за ход', () => {
@@ -173,6 +195,43 @@ test('в начале хода тянут пять карт, а не сыгра�
         assert.equal(b.hand.length, HAND_SIZE);
         assert.ok(b.discard.length + b.draw.length + b.hand.length + b.exhaust.length >= run.deck.length);
     }
+});
+
+test('журнал боя рассказывает ход по шагам и совпадает с итогом', () => {
+    // На журнале держится весь показ боя в окне: карта прилетает на стол, цифры
+    // урона отлетают, полосы едут. Если журнал разойдётся с состоянием, окно
+    // покажет одно, а правила посчитают другое.
+    const run = startRun(64);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    takeLog(run);                       // выбрасываем события раздачи
+    b.enemy.block = 0; b.enemy.st = {};
+    b.hand = [run.deck.find(c => c.id === 'strike').uid];
+    b.hero.energy = 3;
+    const hpBefore = b.enemy.hp;
+    playCard(run, 0);
+
+    const log = takeLog(run);
+    const hit = log.find(e => e.t === 'hit' && e.who === 'enemy');
+    assert.ok(hit, 'удара в журнале нет');
+    assert.equal(hit.src, 'card');
+    assert.equal(hit.real, hpBefore - b.enemy.hp, 'в журнале не тот урон');
+    assert.equal(hit.hp, b.enemy.hp, 'в журнале не то здоровье');
+    assert.deepEqual(takeLog(run), [], 'журнал не очистился');
+
+    // Ход врага отмечен отдельно — по этой отметке окно делает паузу.
+    endTurn(run);
+    const turn = takeLog(run).find(e => e.t === 'turn' && e.who === 'enemy');
+    assert.ok(turn, 'начало хода врага в журнале не отмечено');
+});
+
+test('журнал не растёт бесконечно, если его никто не разбирает', () => {
+    // Окно закрыли посреди боя — журнал уезжает в localStorage вместе с забегом,
+    // и расти ему нельзя.
+    const run = startRun(65);
+    enterNode(run, nextNodes(run)[0].i);
+    for (let i = 0; i < 300 && !run.battle?.over; i++) endTurn(run);
+    assert.ok(!run.battle || run.battle.log.length <= 400, 'журнал разросся');
 });
 
 // ── Уровни и мутации ─────────────────────────────────────────────────────────
