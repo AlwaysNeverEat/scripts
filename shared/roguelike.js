@@ -39,7 +39,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-    CARDS, CARD_BY_ID, START_DECK, RARITY, COMMON, RARE, EPIC,
+    CARDS, CARD_BY_ID, START_DECK, RARITY, COMMON, RARE, EPIC, LEGEND,
     CONDITIONS, MUTATIONS, MUTATION_BY_ID, MUTATORS, MUTATOR_BY_ID,
     ENEMIES, BOSSES, EVENTS, EVENT_BY_ID,
     DAMAGE, BLOCK, HEAL, DRAW, ENERGY, STATUS, UPGRADE, DOUBLE, AMPLIFY, RULE,
@@ -50,7 +50,7 @@ import {
 } from './roguelikeContent.js';
 
 export {
-    CARDS, CARD_BY_ID, RARITY, COMMON, RARE, EPIC, MUTATIONS, MUTATION_BY_ID,
+    CARDS, CARD_BY_ID, RARITY, COMMON, RARE, EPIC, LEGEND, MUTATIONS, MUTATION_BY_ID,
     MUTATORS, MUTATOR_BY_ID, ENEMIES, BOSSES, EVENTS,
     ATTACK, SKILL, POWER, KIND_NAME,
     POISON, WEAK, VULN, STR, REGEN, THORNS, STATUS_INFO,
@@ -115,6 +115,23 @@ export const STONE_CHANCE = { [NODE_FIGHT]: 0.3, [NODE_ELITE]: 1, [NODE_CHEST]: 
 export const SHARD_CHANCE = { [NODE_FIGHT]: 0, [NODE_ELITE]: 0.05, [NODE_CHEST]: 0.04, [NODE_BOSS]: 0.2 };
 export const SHARD_LOOP_GAIN = 0.25;   // за каждый пройденный цикл
 export const SHARD_CAP = 0.5;
+
+// Легендарки. Их три на всю игру, и встретить их должно быть событием: обычным
+// броском редкости они не выпадают вовсе (вес 0 в контенте), а шанс считается
+// отдельно и по трём правилам.
+//
+//   1. ОН РАСТЁТ С ЦИКЛОМ. В первом цикле легендарка — почти случайность (около
+//      одного забега из десяти), к третьему её видит примерно каждый второй, к
+//      пятому — почти каждый. Иначе они либо не встречаются никогда, либо
+//      обесцениваются на первом же сундуке.
+//   2. ВЫПАВШАЯ ГАСИТ СЛЕДУЮЩИЕ. Каждая уже выпавшая делит шанс на пять: две
+//      легендарки за забег — редкость, три — история, которую рассказывают.
+//   3. ЭЛИТА И БОСС ТЯНУТ ВВЕРХ тем же множителем, что и остальная редкость:
+//      легендарка с босса — то, чего от босса и ждут.
+export const LEGEND_CHANCE = 0.008;    // базовый шанс на одну награду в первом цикле
+export const LEGEND_LOOP_GAIN = 0.022; // +столько за каждый пройденный цикл
+export const LEGEND_CAP = 0.12;
+export const LEGEND_FADE = 0.22;       // во столько раз реже после каждой выпавшей
 
 // ── Генератор случайного ─────────────────────────────────────────────────────
 // xorshift32: три сдвига, целые числа, одинаковый результат в любом браузере и в
@@ -211,6 +228,7 @@ export function startRun(seed = makeSeed()) {
         nextUid: 1,
         stones: 0,
         shards: 0,
+        legends: 0,     // сколько легендарок уже выпало: каждая гасит шанс следующей
         map: null,
         at: { row: -1, i: 0 },
         battle: null,
@@ -480,6 +498,7 @@ function startBattle(run, kind) {
         spent: 0,       // энергии потрачено в этом ходу (мутация «разгон»)
         double: 0,      // сколько ближайших карт сработают дважды («Зеркало»)
         wardEach: 0,    // столько брони прирастает в начале каждого хода («Запас»)
+        doubleEach: 0,  // столько первых карт хода срабатывают дважды («Зеркальный зал»)
         echo: {},       // uid → сколько раз карта уже вернулась в руку за бой
         surge: {},      // uid → сколько раз карта сыграна бесплатно за бой
         log: [],
@@ -506,7 +525,7 @@ function heroTurn(run) {
     b.hero.energy = b.hero.maxEnergy;
     b.played = 0;
     b.spent = 0;
-    b.double = 0;
+    b.double = b.doubleEach | 0;
     rollIntent(run);
     // Карты, которые «возвращаются в руку», приезжают в НАЧАЛЕ хода, а не сразу
     // после срабатывания: стол играет в конце хода, и возвращённая карта попала
@@ -715,12 +734,25 @@ function applyInstant(run, card, def) {
     if (card.mut?.insight) drawCards(run, mutPower('insight', card.mut.insight));
 }
 
+// «За каждую…» — общий множитель числа от происходящего в бою, а не поле под
+// одну карту. Считается на МОМЕНТ СРАБАТЫВАНИЯ, и в этом весь смысл: «Час
+// расплаты», положенный на стол последним, бьёт за все карты перед собой, а
+// положенный первым — не бьёт вовсе.
+const PER = {
+    played: b => b.played,
+};
+
+function perMult(b, e) {
+    return e.per ? PER[e.per](b) : 1;
+}
+
 function applyEffect(run, card, e) {
     const b = run.battle;
     const lvl = card.lvl;
     switch (e.t) {
         case DAMAGE: {
-            const n = Math.round(scaleValue(e.v, lvl) * numMult(b, card, true));
+            const n = Math.round(scaleValue(e.v, lvl) * numMult(b, card, true) * perMult(b, e));
+            if (n <= 0) break;
             for (let i = 0; i < (e.times || 1); i++) {
                 heroHit(run, n);
                 if (b.over || b.enemy.hp <= 0) return;
@@ -754,10 +786,16 @@ function applyEffect(run, card, e) {
             // Карты, которым уровень ничего не даёт, «Кузница» пропускает по
             // той же причине, по которой их не берёт камень.
             const hand = b.hand.filter(uid => canLevel(cardOf(run, uid)));
-            const pool = hand.length ? hand : run.deck.filter(canLevel).map(c => c.uid);
+            const inHand = hand.length > 0;
+            const pool = inHand ? hand : run.deck.filter(canLevel).map(c => c.uid);
             if (pool.length) {
                 const target = cardOf(run, pool[rndInt(run.rng, pool.length)]);
-                if (target) target.lvl += e.v;
+                if (target) {
+                    target.lvl += e.v;
+                    // Какую именно карту улучшили — окно обязано сказать: выбор
+                    // случайный, и молча выросший уровень выглядит как ничего.
+                    note(b, { t: 'upgrade', uid: target.uid, lvl: target.lvl, inHand });
+                }
             }
             break;
         }
@@ -770,10 +808,13 @@ function applyEffect(run, card, e) {
             break;
         }
         case RULE:
-            // Единственное правило, которое карта включает на весь бой: броня
-            // сама нарастает в начале каждого хода. Отдельной ветки под каждую
-            // такую карту в движке быть не должно — только именованные правила.
+            // Правила, которые карта включает на весь бой. Каждое — ИМЕНОВАННОЕ
+            // и общее; ветки «если это карта такая-то» в движке быть не должно.
             if (e.r === 'ward') b.wardEach = (b.wardEach | 0) + (e.v || 0);
+            // Энергия прибавляется к ПОТОЛКУ, а не к текущей: карта сработала в
+            // конце хода, и щедрость её видна со следующего.
+            if (e.r === 'energy') b.hero.maxEnergy += e.v || 0;
+            if (e.r === 'mirror') b.doubleEach = (b.doubleEach | 0) + (e.v || 0);
             break;
     }
 }
@@ -988,7 +1029,7 @@ export function giveUp(run) {
 function rollRarity(run, kind) {
     // Элита и босс тянут выбор вверх: не «дают эпик», а перевешивают шансы. Иначе
     // элита превращается в обязательный узел, а обход — в проигрыш по очкам.
-    const bump = kind === NODE_ELITE || kind === NODE_BOSS ? 2.5 : kind === NODE_CHEST ? 1.6 : 1;
+    const bump = rarityBump(kind);
     const w = {
         [COMMON]: RARITY[COMMON].weight,
         [RARE]: RARITY[RARE].weight * bump,
@@ -1001,6 +1042,29 @@ function rollRarity(run, kind) {
     return COMMON;
 }
 
+/** Множитель редкости за узел: элита и босс тянут выбор вверх. */
+function rarityBump(kind) {
+    return kind === NODE_ELITE || kind === NODE_BOSS ? 2.5 : kind === NODE_CHEST ? 1.6 : 1;
+}
+
+/** Шанс легендарки на этой награде — см. константы выше. */
+export function legendChance(run, kind) {
+    const base = Math.min(LEGEND_CAP, LEGEND_CHANCE + LEGEND_LOOP_GAIN * (run.loop - 1));
+    return base * rarityBump(kind) * Math.pow(LEGEND_FADE, run.legends | 0);
+}
+
+/**
+ * Выпала ли легендарка. Уже лежащая в колоде повторно не приходит: их три на всю
+ * игру, и вторая копия «Зеркального зала» — не подарок, а разбавленная колода.
+ */
+function rollLegend(run, kind) {
+    const own = new Set(run.deck.map(c => c.id));
+    const pool = CARDS.filter(c => c.rarity === LEGEND && !own.has(c.id));
+    if (!pool.length || rnd(run.rng) >= legendChance(run, kind)) return null;
+    run.legends = (run.legends | 0) + 1;
+    return pick(run.rng, pool).id;
+}
+
 function rollReward(run, kind) {
     const cards = [];
     let guard = 0;
@@ -1010,6 +1074,12 @@ function rollReward(run, kind) {
         if (!pool.length) continue;
         cards.push(pick(run.rng, pool).id);
     }
+
+    // Легендарка занимает ОДНО из трёх мест, а не приходит вместо выбора: даже
+    // её берут не всегда — «Сердце горна» за три энергии в колоде из дешёвых
+    // карт может оказаться хуже второго «Размаха».
+    const legend = rollLegend(run, kind);
+    if (legend) cards[0] = legend;
 
     const shardBase = (SHARD_CHANCE[kind] || 0) * Math.min(1 + SHARD_LOOP_GAIN * (run.loop - 1), 3);
     return {
@@ -1174,6 +1244,7 @@ function effectText(card, e) {
         case DAMAGE: {
             const n = scaleValue(e.v, lvl);
             const times = e.times || 1;
+            if (e.per) return `Ещё ${n} урона за каждую карту, сработавшую до неё в этом ходу${when}.`;
             if (times > 1) return `Наносит ${n} урона ${times} ${plural(times, 'раз', 'раза', 'раз')}${when}.`;
             // Условный урон — это ПРИБАВКА к безусловному, и написан он должен
             // быть прибавкой: «Наносит 7 урона. Наносит 7 урона, если это первая
@@ -1196,7 +1267,17 @@ function effectText(card, e) {
         case UPGRADE: return 'Улучшает случайную карту в руке на уровень — навсегда.';
         case DOUBLE:  return 'Следующая карта в этом ходу сработает дважды.';
         case AMPLIFY: return 'Удваивает яд, который уже висит на враге.';
-        case RULE:    return e.r === 'ward' ? `В начале каждого хода даёт ${e.v} брони.` : '';
+        case RULE:
+            if (e.r === 'ward') return `В начале каждого хода даёт ${e.v} брони.`;
+            if (e.r === 'energy') {
+                return `До конца боя каждый ход даёт на ${e.v} ${plural(e.v, 'энергию', 'энергии', 'энергии')} больше.`;
+            }
+            if (e.r === 'mirror') {
+                return e.v > 1
+                    ? `До конца боя первые ${e.v} карты каждого хода срабатывают дважды.`
+                    : 'До конца боя первая карта каждого хода срабатывает дважды.';
+            }
+            return '';
         default:      return '';
     }
 }
@@ -1246,7 +1327,8 @@ export function mutationList(card) {
 function mainNumber(card) {
     const def = CARD_BY_ID[card.id];
     if (def.kind !== ATTACK) return null;
-    const e = def.effects.find(x => !x.when && x.t === DAMAGE);
+    // Эффект «за каждую…» в шар не идёт: там стоит число, а не формула.
+    const e = def.effects.find(x => !x.when && !x.per && x.t === DAMAGE);
     if (!e) return null;
     // plain — исчерпывается ли карта этим числом. У «Череды» нет: она бьёт 4
     // урона ДВА РАЗА, и одна четвёрка в шаре означала бы совсем другую карту.
