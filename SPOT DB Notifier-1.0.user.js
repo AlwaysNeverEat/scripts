@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT DB Notifier
 // @namespace    zamena-masla-spot.ru
-// @version      1.2.613
+// @version      1.2.617
 // @description  Проверяет найденную машину в базе рассчитанных: «✓ эта машина уже рассчитана» → клик открывает страницу машины на сайте
 // @match        https://www.mann-filter.com/*
 // @match        https://mann-filter.com/*
