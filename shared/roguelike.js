@@ -529,6 +529,23 @@ function drawCards(run, n) {
     }
 }
 
+// Что уровень вообще умеет растить. Добор, энергия и удвоение сюда не входят
+// намеренно (см. applyEffect): «тянет 2.6 карты» — не число, а действие, и
+// округление превратило бы уровень в лотерею «повезло/не повезло».
+const SCALING = new Set([DAMAGE, BLOCK, HEAL, STATUS]);
+
+/**
+ * Растёт ли карта от уровня.
+ *
+ * У «Сосредоточения» (тянет 2 карты) расти нечему, и точильный камень в неё —
+ * камень в никуда. Поэтому камень такие карты и НЕ БЕРЁТ: правило про «уровень
+ * не трогает добор» честное, а вот дать игроку молча испортить камень — нет.
+ * Знать список таких карт по именам никому не нужно: это следствие эффектов.
+ */
+export function canLevel(card) {
+    return CARD_BY_ID[card.id].effects.some(e => SCALING.has(e.t));
+}
+
 /** Стоимость карты прямо сейчас: мутация «разгон» может сделать её бесплатной. */
 export function costOf(run, card) {
     const def = CARD_BY_ID[card.id];
@@ -734,7 +751,10 @@ function applyEffect(run, card, e) {
             // Улучшает карту В РУКЕ и НАВСЕГДА — то есть на весь забег, а не «до
             // конца боя». В этом вся ценность эпика: он превращает бой в
             // вложение в колоду.
-            const pool = b.hand.length ? b.hand : run.deck.map(c => c.uid);
+            // Карты, которым уровень ничего не даёт, «Кузница» пропускает по
+            // той же причине, по которой их не берёт камень.
+            const hand = b.hand.filter(uid => canLevel(cardOf(run, uid)));
+            const pool = hand.length ? hand : run.deck.filter(canLevel).map(c => c.uid);
             if (pool.length) {
                 const target = cardOf(run, pool[rndInt(run.rng, pool.length)]);
                 if (target) target.lvl += e.v;
@@ -1023,6 +1043,7 @@ export function useStone(run, uid) {
     if (run.stones <= 0) return { ok: false, reason: 'no_stone' };
     const card = cardOf(run, uid);
     if (!card) return { ok: false, reason: 'no_card' };
+    if (!canLevel(card)) return { ok: false, reason: 'no_growth' };
     card.lvl++;
     run.stones--;
     return { ok: true, card };
@@ -1244,6 +1265,7 @@ export function cardView(run, card) {
         cost: run?.battle ? costOf(run, card) : def.cost,
         baseCost: def.cost,
         lvl: card.lvl,
+        canLevel: canLevel(card),
         text: cardText(card),
         artText: cardText(card, { skipMain: true }),
         power: mainNumber(card) && { t: 'dmg', v: mainNumber(card).v },

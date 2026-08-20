@@ -25,7 +25,7 @@ import assert from 'node:assert/strict';
 import {
     startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent,
     removeCard, useStone, useShard, giveUp, cardOf, cardText, cardView, addCard, addTime, takeLog, moveCard,
-    intentView, enemyView, runResult, isPlausibleRun, scaleValue, mutPower, costOf,
+    intentView, enemyView, runResult, isPlausibleRun, scaleValue, mutPower, costOf, canLevel,
     MAP_ROWS, START_HP, HAND_SIZE, ENERGY_PER_TURN, LEVEL_STEP, MAX_MUTATIONS,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
     NODE_BOSS, NODE_ELITE, NODE_FIGHT, NODE_CHEST, NODE_EVENT,
@@ -360,6 +360,28 @@ test('уровень — ровный line-scaling одной формулой',
     assert.ok(scaleValue(6, 30) > scaleValue(6, 20));
 });
 
+test('камень не тратится на карту, которой уровень ничего не даёт', () => {
+    // «Сосредоточение» тянет 2 карты — уровень тут не растит ничего, и молча
+    // съесть камень было бы обманом: игрок увидел бы «4 ур.» и те же 2 карты.
+    const run = startRun(93);
+    run.stones = 3;
+    const focus = run.deck.find(c => c.id === 'focus');
+    const res = useStone(run, focus.uid);
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, 'no_growth');
+    assert.equal(focus.lvl, 1);
+    assert.equal(run.stones, 3, 'камень всё равно пропал');
+    // А в карту с числами — берётся.
+    assert.equal(useStone(run, run.deck.find(c => c.id === 'strike').uid).ok, true);
+
+    // И это следствие эффектов, а не список имён: растёт то, где есть числа.
+    for (const def of CARDS) {
+        const card = addCard(run, def.id);
+        const grows = def.effects.some(e => ['dmg', 'block', 'heal', 'status'].includes(e.t));
+        assert.equal(canLevel(card), grows, `${def.id}: не то решение про уровень`);
+    }
+});
+
 test('апгрейд ложится на ЭКЗЕМПЛЯР, а не на тип карты', () => {
     const run = startRun(1);
     const strikes = run.deck.filter(c => c.id === 'strike');
@@ -620,8 +642,12 @@ function botRun(run, limit = 200_000) {
             removeCard(run, worst.uid);
             continue;
         }
-        if (run.stones > 0) { useStone(run, bestCard(run).uid); continue; }
-        if (run.shards > 0) { useShard(run, bestCard(run).uid); continue; }
+        // Камень кладём только в карту, которой уровень вообще что-то даёт:
+        // «Сосредоточение» от него не меняется, и камень на ней завис бы
+        // навсегда — прогон бы не кончился.
+        const growable = run.deck.filter(canLevel);
+        if (run.stones > 0 && growable.length) { useStone(run, bestOf(growable).uid); continue; }
+        if (run.shards > 0) { useShard(run, bestOf(run.deck).uid); continue; }
 
         switch (run.screen) {
             case SCREEN_MAP: {
@@ -646,10 +672,10 @@ function botRun(run, limit = 200_000) {
     return steps;
 }
 
-function bestCard(run) {
-    // Вкладываемся в самую дорогую карту колоды — примитивно, но именно так
-    // играет человек, который не хочет думать.
-    return run.deck.reduce((a, c) => (CARD_BY_ID[c.id].cost > CARD_BY_ID[a.id].cost ? c : a), run.deck[0]);
+function bestOf(cards) {
+    // Вкладываемся в самую дорогую карту — примитивно, но именно так играет
+    // человек, который не хочет думать.
+    return cards.reduce((a, c) => (CARD_BY_ID[c.id].cost > CARD_BY_ID[a.id].cost ? c : a), cards[0]);
 }
 
 function botTurn(run) {

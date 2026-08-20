@@ -292,6 +292,7 @@ function pickCard(state, uid) {
     if (mode === 'stone') {
         const res = useStone(run, uid);
         if (res.ok) state.note = `«${cardView(run, res.card).name}» теперь ${res.card.lvl} уровня.`;
+        else if (res.reason === 'no_growth') state.note = 'У этой карты нечему расти — камень остался при вас.';
         if (!run.stones) state.deck = { mode: 'view' };
     } else if (mode === 'shard') {
         const res = useShard(run, uid);
@@ -1175,10 +1176,15 @@ function cardTipHtml(view) {
     const blocks = [];
     if (view.lvl > 1) {
         const grow = Math.round((view.lvl - 1) * LEVEL_STEP * 100);
+        // У карты без растущих чисел уровень честно означает «ничего»: раньше
+        // подсказка обещала «+90%» «Сосредоточению», которое на любом уровне
+        // тянет свои две карты.
         blocks.push(`
             <div class="rg-tip-block is-lvl">
                 <b>Уровень ${view.lvl}</b>
-                <span>Числа карты выросли на ${grow}% — точильные камни ложатся на этот экземпляр, а не на все такие карты.</span>
+                <span>${view.canLevel
+                    ? `Числа карты выросли на ${grow}% — точильные камни ложатся на этот экземпляр, а не на все такие карты.`
+                    : 'У этой карты уровень ничего не меняет: добор, энергия и удвоение от него не растут.'}</span>
             </div>`);
     }
     for (const m of view.muts) {
@@ -1442,7 +1448,14 @@ function deckHtml(state) {
 
     // Колода показывается в том порядке, в каком она есть, а не отсортированной
     // по стоимости: игрок помнит свои карты по тому, когда их взял.
-    const cards = run.deck.map((card, i) => cardHtml(cardView(run, card), { i, act })).join('');
+    // В режиме камня карты, которым уровень ничего не даёт, погашены и не
+    // берутся: «Сосредоточение» тянет свои 2 карты на любом уровне, и камень в
+    // ней — камень в никуда.
+    const cards = run.deck.map((card, i) => {
+        const view = cardView(run, card);
+        const dead = mode === 'stone' && !view.canLevel;
+        return cardHtml(view, { i, act: dead ? '' : act, dim: dead });
+    }).join('');
     return `
         <div class="rg-deck">
             <div class="rg-screen-head">
@@ -1451,6 +1464,9 @@ function deckHtml(state) {
             </div>
             ${mode === 'shard'
                 ? '<p class="rg-hint">Мутацию выбирает случай, карту — вы. Та же мутация на ту же карту удваивает силу.</p>'
+                : ''}
+            ${mode === 'stone'
+                ? '<p class="rg-hint">Погашенные карты уровень не берут: у них нет чисел, которые растут, — только добор, энергия или удвоение.</p>'
                 : ''}
             <div class="rg-cards is-deck">${cards}</div>
         </div>
