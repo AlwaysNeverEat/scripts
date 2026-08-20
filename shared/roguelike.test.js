@@ -24,9 +24,9 @@ import assert from 'node:assert/strict';
 
 import {
     startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent,
-    removeCard, useStone, useShard, giveUp, cardOf, cardText, cardView, addCard, addTime, takeLog,
+    removeCard, useStone, useShard, giveUp, cardOf, cardText, cardView, addCard, addTime, takeLog, moveCard,
     intentView, enemyView, runResult, isPlausibleRun, scaleValue, mutPower, costOf,
-    MAP_ROWS, START_HP, HAND_SIZE, ENERGY_PER_TURN, LEVEL_STEP,
+    MAP_ROWS, START_HP, HAND_SIZE, ENERGY_PER_TURN, LEVEL_STEP, MAX_MUTATIONS,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
     NODE_BOSS, NODE_ELITE, NODE_FIGHT, NODE_CHEST, NODE_EVENT,
     CARDS, CARD_BY_ID, MUTATIONS, MUTATORS, I_ATTACK,
@@ -401,6 +401,41 @@ test('мутация-множитель действительно множит 
     b.hand = [card.uid]; b.hero.energy = 9;    // условие «первая карта в ходу»
     playCard(run, 0);
     assert.equal(cardDamage(castTurn(run)), plain * 4);
+});
+
+test('карты на столе переставляются, а сыграются в новом порядке', () => {
+    const run = startRun(91);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.hand = [];
+    const strike = run.deck.find(c => c.id === 'strike');
+    const guard = run.deck.find(c => c.id === 'guard');
+    b.hand.push(strike.uid, guard.uid);
+    playCard(run, 0);
+    playCard(run, 0);
+    assert.deepEqual(b.board, [strike.uid, guard.uid]);
+
+    assert.equal(moveCard(run, 1, 0).ok, true);
+    assert.deepEqual(b.board, [guard.uid, strike.uid]);
+    // Перестановка ничего не отменяет: энергия остаётся потраченной.
+    assert.equal(b.hero.energy, ENERGY_PER_TURN - CARD_BY_ID.strike.cost - CARD_BY_ID.guard.cost);
+    assert.equal(moveCard(run, 5, 0).ok, false, 'карты с таким номером на столе нет');
+
+    const casts = castTurn(run).filter(e => e.t === 'cast').map(e => e.uid);
+    assert.deepEqual(casts, [guard.uid, strike.uid], 'стол сыграл в старом порядке');
+});
+
+test('на карте не больше четырёх РАЗНЫХ чар — дальше осколок усиливает', () => {
+    // Потолок не про силу, а про читаемость: карта с десятком строк перестаёт
+    // быть картой. Осколок сверх потолка идёт в то же удвоение.
+    const run = startRun(92);
+    run.shards = 60;
+    const card = run.deck.find(c => c.id === 'strike');
+    for (let i = 0; i < 60; i++) useShard(run, card.uid);
+    const ids = Object.keys(card.mut);
+    assert.ok(ids.length <= MAX_MUTATIONS, `чар на карте ${ids.length}`);
+    const stacks = ids.reduce((s, id) => s + card.mut[id], 0);
+    assert.equal(stacks, 60, 'осколки пропали впустую');
 });
 
 test('мутация на карту падает только подходящая по виду', () => {
