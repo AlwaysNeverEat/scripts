@@ -5791,21 +5791,35 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    перестаёт что-либо значить. */
 .rg-card.r-rare { box-shadow: 0 0 0 1px var(--rg-rare) inset; }
 .rg-card.r-epic { box-shadow: 0 0 0 1px var(--rg-epic) inset, 0 0 12px var(--violet-dim); }
-/* Легендарная — золотой перелив по рамке. Их три на всю игру, встречаются они
-   раз в несколько циклов, и в тройке наград такая карта обязана быть видна
-   раньше, чем игрок прочитает её текст. */
-.rg-card.r-legend { box-shadow: 0 0 0 2px var(--rg-legend) inset, 0 0 18px var(--accent-dim); }
+/* Легендарная — переливающееся СИЯНИЕ ПО КРАЮ, как у улучшенной карты, только
+   золотое и живое. Их три на всю игру, и в тройке наград такая карта обязана
+   быть видна раньше, чем игрок прочитает её текст.
+   Первой попыткой был перелив ПОВЕРХ карточки — блик, едущий по градиенту. Так
+   делать нельзя: градиент лежит прямоугольником, а нарисованная карточка —
+   картинка с прозрачными углами, поэтому заливка накрыла и рамку, и рисунок, а
+   текст оказался поверх жёлтой плёнки. Свет должен идти ПО карточке, а не
+   вместо неё. */
 .rg-card.r-legend::before {
-  content: ''; position: absolute; inset: -3px; z-index: -1;
-  border-radius: 13px;
-  background: linear-gradient(115deg,
-    oklch(0.85 0.17 85 / 0), oklch(0.9 0.19 95 / .95), oklch(0.85 0.17 85 / 0) 60%);
-  background-size: 260% 100%;
-  animation: rg-legend 2.8s linear infinite;
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit;
+  animation: rg-legend 2.4s ease-in-out infinite;
 }
+/* Обычная карточка — прямоугольник, ей хватает кольца тени. */
 @keyframes rg-legend {
-  from { background-position: 160% 0; }
-  to   { background-position: -60% 0; }
+  0%, 100% { box-shadow: 0 0 0 1px var(--rg-legend), 0 0 10px 1px oklch(0.86 0.17 88 / .5); }
+  50%      { box-shadow: 0 0 0 2px oklch(0.93 0.16 100), 0 0 22px 4px oklch(0.9 0.18 75 / .85); }
+}
+/* Нарисованная карточка светится ПО КРАЮ РИСУНКА: под ней лежит копия её же
+   картинки, и переливается её drop-shadow — тот же приём, что у свечения
+   уровня и чар (см. выше), только цвет живой. */
+.rg-card.is-art.r-legend::before {
+  border-radius: 0;
+  background-image: inherit; background-size: 100% 100%; background-repeat: no-repeat;
+  animation-name: rg-legend-art;
+}
+@keyframes rg-legend-art {
+  0%, 100% { filter: drop-shadow(0 0 4px oklch(0.86 0.17 88)) drop-shadow(0 0 9px oklch(0.86 0.17 88 / .45)); }
+  50%      { filter: drop-shadow(0 0 9px oklch(0.93 0.16 100)) drop-shadow(0 0 20px oklch(0.9 0.18 75 / .8)); }
 }
 .rg-tag.is-legend {
   background: linear-gradient(90deg, var(--accent), oklch(0.86 0.16 60));
@@ -6180,7 +6194,14 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   /* Свечение улучшенной карты перестаёт дышать, но не гаснет: оно отвечает на
      вопрос «где тут моя вложенная карта», а не украшает. */
   .rg-card.is-lvl::after, .rg-card.is-mut::after { animation: none; opacity: .9; }
-  .rg-card.r-legend::before { animation: none; opacity: .8; }
+  .rg-card.r-legend::before {
+    animation: none;
+    box-shadow: 0 0 0 1px var(--rg-legend), 0 0 12px 2px oklch(0.86 0.17 88 / .6);
+  }
+  .rg-card.is-art.r-legend::before {
+    box-shadow: none;
+    filter: drop-shadow(0 0 6px oklch(0.86 0.17 88)) drop-shadow(0 0 12px oklch(0.86 0.17 88 / .5));
+  }
   .rg-card.is-tuned { animation: none; }
   .rg-tip, .rg-zoom { animation: none; }
   /* В дураке движение — это ещё и показ хода (карты летят на стол, в отбой и по
