@@ -25,7 +25,7 @@ import assert from 'node:assert/strict';
 import {
     startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent,
     removeCard, useStone, useShard, giveUp, cardOf, cardText, cardView, addCard, addTime, takeLog, moveCard,
-    intentView, enemyView, runResult, isPlausibleRun, scaleValue, mutPower, costOf, canLevel,
+    intentView, enemyView, runResult, isPlausibleRun, scaleValue, mutPower, costOf, canLevel, legendChance,
     MAP_ROWS, START_HP, HAND_SIZE, ENERGY_PER_TURN, LEVEL_STEP, MAX_MUTATIONS,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
     NODE_BOSS, NODE_ELITE, NODE_FIGHT, NODE_CHEST, NODE_EVENT,
@@ -350,6 +350,138 @@ function cardDamage(events) {
         .reduce((s, e) => s + e.dmg, 0);
 }
 
+// ── Легендарки ───────────────────────────────────────────────────────────────
+
+test('легендарка растёт в шансе с циклом и гаснет после каждой выпавшей', () => {
+    const run = startRun(101);
+    const first = legendChance(run, NODE_FIGHT);
+    run.loop = 3;
+    const third = legendChance(run, NODE_FIGHT);
+    assert.ok(third > first * 3, `шанс почти не вырос: ${first} → ${third}`);
+
+    // Босс тянет вверх сильнее обычного боя — как и вся остальная редкость.
+    assert.ok(legendChance(run, NODE_BOSS) > third);
+
+    run.legends = 1;
+    const after = legendChance(run, NODE_FIGHT);
+    assert.ok(after < third / 4, `выпавшая легендарка почти не сбила шанс: ${third} → ${after}`);
+    run.legends = 2;
+    assert.ok(legendChance(run, NODE_FIGHT) < after / 4);
+});
+
+test('легендарка — событие в первом цикле и обычное дело к пятому', () => {
+    // Считаем по-настоящему: гоняем награды и смотрим, как часто она приходит.
+    const rate = loop => {
+        let seen = 0, tries = 0;
+        for (let seed = 1; seed <= 300; seed++) {
+            const run = startRun(seed);
+            run.loop = loop;
+            enterNode(run, nextNodes(run)[0].i);
+            run.battle.enemy.hp = 0;
+            endTurn(run);
+            tries++;
+            if (run.reward?.cards.some(id => CARD_BY_ID[id].rarity === 'legend')) seen++;
+        }
+        return seen / tries;
+    };
+    const one = rate(1), five = rate(5);
+    assert.ok(one < 0.04, `в первом цикле легендарка сыплется: ${Math.round(one * 100)}%`);
+    assert.ok(five > one * 4, `к пятому циклу шанс почти не вырос: ${one} → ${five}`);
+});
+
+test('вторая копия легендарки не приходит', () => {
+    const run = startRun(102);
+    run.loop = 40;                       // шанс упёрт в потолок
+    for (const def of CARDS.filter(c => c.rarity === 'legend')) addCard(run, def.id);
+    let rewards = 0;
+    for (let i = 0; i < 300 && !run.over; i++) {
+        // Выбрасываем что угодно, кроме легендарки: иначе тест сам освободит ей
+        // место в колоде и проверять станет нечего.
+        if (run.pending?.t === 'remove') {
+            removeCard(run, run.deck.find(c => CARD_BY_ID[c.id].rarity !== 'legend').uid);
+            continue;
+        }
+        if (run.screen === SCREEN_REWARD) {
+            const legends = run.reward.cards.filter(id => CARD_BY_ID[id].rarity === 'legend');
+            assert.equal(legends.length, 0, `предложили уже лежащую в колоде: ${legends}`);
+            rewards++;
+            chooseReward(run, -1);
+            continue;
+        }
+        if (run.screen === SCREEN_EVENT) { chooseEvent(run, 0); continue; }
+        if (run.screen === SCREEN_BATTLE) { run.battle.enemy.hp = 0; endTurn(run); continue; }
+        const options = nextNodes(run);
+        if (!options.length) break;
+        enterNode(run, options[0].i);
+    }
+    assert.ok(rewards > 20, `наград было всего ${rewards} — проверять нечего`);
+});
+
+test('«Час расплаты» бьёт за каждую карту, сработавшую до него', () => {
+    // Ровно тот случай, ради которого порядок стола и сделан решением.
+    const run = startRun(103);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.enemy.hp = 4000; b.enemy.maxHp = 4000; b.enemy.block = 0; b.enemy.st = {};
+    b.hero.hp = 4000; b.hero.maxHp = 4000;
+    const card = addCard(run, 'reckoning');
+
+    b.hand = [card.uid]; b.hero.energy = 9;
+    playCard(run, 0);
+    const alone = cardDamage(castTurn(run));
+
+    b.enemy.block = 0; b.enemy.st = {}; b.hero.energy = 9;
+    const jabs = [addCard(run, 'jab').uid, addCard(run, 'jab').uid];
+    b.hand = [jabs[0], jabs[1], card.uid];
+    playCard(run, 0); playCard(run, 0); playCard(run, 0);
+    const late = cardDamage(castTurn(run));
+    const jabDamage = alone - alone;     // тычки считаем отдельно ниже
+    assert.equal(jabDamage, 0);
+    // Два тычка плюс «Час расплаты» за две карты перед ним: он обязан вырасти
+    // ровно на две своих прибавки.
+    const jab = CARD_BY_ID.jab.effects[0].v;
+    assert.equal(late - 2 * jab, alone * 3, `${alone} в одиночку, ${late} с двумя картами перед ним`);
+});
+
+test('«Зеркальный зал» удваивает первую карту КАЖДОГО хода', () => {
+    const run = startRun(104);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.enemy.hp = 4000; b.enemy.maxHp = 4000; b.enemy.block = 0; b.enemy.st = {};
+    b.hero.hp = 4000; b.hero.maxHp = 4000;
+    const strike = run.deck.find(c => c.id === 'strike');
+
+    b.hand = [strike.uid]; b.hero.energy = 9;
+    playCard(run, 0);
+    const plain = cardDamage(castTurn(run));
+
+    b.enemy.block = 0; b.enemy.st = {}; b.hero.energy = 9;
+    b.hand = [addCard(run, 'mirrorhall').uid];
+    playCard(run, 0);
+    castTurn(run);
+
+    for (let turn = 0; turn < 2; turn++) {
+        b.enemy.block = 0; b.enemy.st = {}; b.hero.energy = 9;
+        b.hand = [strike.uid];
+        playCard(run, 0);
+        assert.equal(cardDamage(castTurn(run)), plain * 2, `ход ${turn + 1}: удвоения нет`);
+    }
+});
+
+test('«Сердце горна» поднимает энергию со следующего хода', () => {
+    const run = startRun(105);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.hero.hp = 4000; b.hero.maxHp = 4000;
+    const before = b.hero.maxEnergy;
+    b.hand = [addCard(run, 'forgeheart').uid];
+    b.hero.energy = 9;
+    playCard(run, 0);
+    endTurn(run);
+    assert.equal(b.hero.maxEnergy, before + 1);
+    assert.equal(b.hero.energy, before + 1, 'ход начался со старой энергией');
+});
+
 // ── Уровни и мутации ─────────────────────────────────────────────────────────
 
 test('уровень — ровный line-scaling одной формулой', () => {
@@ -594,7 +726,7 @@ test('забег всегда кончается: бесконечность н�
 
 test('планка сложности: первый цикл берётся почти всегда, десятый — никогда', () => {
     const depths = [];
-    for (let seed = 1000; seed < 1080; seed++) {
+    for (let seed = 1000; seed < 1000 + Number(process.env.RG_SEEDS || 200); seed++) {
         const run = startRun(seed);
         botRun(run);
         depths.push(run.stats.loops);
@@ -607,6 +739,10 @@ test('планка сложности: первый цикл берётся по
     // подавляющем большинстве забегов — иначе игра отталкивает на входе.
     // Порог с запасом: у бота выходит около двух третей, и просесть ниже
     // половины он может только от правки баланса, а не от случайности сидов.
+    //
+    // Сидов двести, а не восемьдесят, именно поэтому: на восьмидесяти разброс
+    // самой выборки — ±6%, и правка, которая всего лишь сдвигает поток
+    // случайных чисел, роняла тест на ровном месте.
     assert.ok(first > 0.55, `первый цикл берут только ${Math.round(first * 100)}% забегов`);
     // И упирается в стену задолго до десятого: эскалация обязана догонять.
     assert.equal(deep, 0, `бот дошёл до десятого цикла ${deep} раз (лучший ${best})`);

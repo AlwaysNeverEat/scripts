@@ -68,7 +68,7 @@ export const STATUS  = 'status';   // статус: { s, v, to: 'enemy' | 'self'
 export const UPGRADE = 'upgrade';  // +1 уровень случайной карте в руке — НАВСЕГДА, на весь забег
 export const DOUBLE  = 'double';   // следующая карта в этом ходу срабатывает дважды
 export const AMPLIFY = 'amplify';  // удвоить яд, уже висящий на враге
-export const RULE    = 'rule';     // включить правило на весь бой: { r: 'keepBlock' }
+export const RULE    = 'rule';     // включить правило на весь бой: { r: 'ward' | 'energy' | 'mirror' }
 
 // Виды карт. Влияют на цвет рамки в окне и на то, к чему цепляются мутации
 // (яд и вампиризм — только к атакам: «ядовитая защита» читалась бы как ошибка).
@@ -85,11 +85,16 @@ export const KIND_NAME = { [ATTACK]: 'Атака', [SKILL]: 'Умение', [POW
 export const COMMON = 'common';
 export const RARE   = 'rare';
 export const EPIC   = 'epic';
+export const LEGEND = 'legend';
 
+// Вес — это шанс попасть в тройку предложенных карт. У легендарных он НУЛЕВОЙ, и
+// это не описка: обычным броском они не выпадают вовсе, их шанс считается
+// отдельно и растёт с циклом (см. legendChance в roguelike.js).
 export const RARITY = {
-    [COMMON]: { name: 'Обычная', weight: 66 },
-    [RARE]:   { name: 'Редкая',  weight: 28 },
-    [EPIC]:   { name: 'Эпик',    weight: 6 },
+    [COMMON]: { name: 'Обычная',      weight: 66 },
+    [RARE]:   { name: 'Редкая',       weight: 28 },
+    [EPIC]:   { name: 'Эпик',         weight: 6 },
+    [LEGEND]: { name: 'Легендарная',  weight: 0 },
 };
 
 // ── Условия у карт ───────────────────────────────────────────────────────────
@@ -124,7 +129,10 @@ export const CONDITIONS = {
 //   cost     — энергия; уровень карты стоимость НЕ меняет (см. scaleValue);
 //   effects  — список эффектов; `when` — ключ из CONDITIONS;
 //   exhaust  — карта уходит из боя после розыгрыша (в колоду забега вернётся);
-//   bounce   — карта возвращается в руку вместо сброса.
+//   bounce   — карта возвращается в руку вместо сброса;
+//   per      — множитель числа от происходящего в бою («за каждую сработавшую
+//              до неё карту»); список того, что вообще можно считать, — PER в
+//              движке, и он общий, а не «поле под одну карту».
 export const CARDS = [
     // ── Обычные ──
     { id: 'strike',   name: 'Удар',        kind: ATTACK, rarity: COMMON, cost: 1, effects: [{ t: DAMAGE, v: 7 }] },
@@ -173,6 +181,23 @@ export const CARDS = [
       effects: [{ t: STATUS, s: POISON, v: 4, to: 'enemy' }, { t: AMPLIFY, v: 1 }] },
     { id: 'vault',      name: 'Запас',     kind: POWER, rarity: EPIC, cost: 2, exhaust: true,
       effects: [{ t: RULE, r: 'ward', v: 3 }, { t: BLOCK, v: 4 }] },
+
+    // ── Легендарные: три на всю игру ──
+    // Обычным броском они не выпадают вовсе (вес 0): шанс считается отдельно,
+    // растёт с каждым циклом и резко падает после каждой выпавшей — см.
+    // legendChance. Раз встретить их так трудно, они и должны быть неприлично
+    // сильными: легендарка не «ещё одна хорошая карта», а ответ на вопрос
+    // «во что превратился этот забег».
+    //
+    // Три оси, по одной на карту, — иначе они спорили бы друг с другом за одно
+    // и то же место в колоде: ТЕМП (энергия), МНОЖИТЕЛЬ (удвоение) и ВЗРЫВ
+    // (одна атака, растущая от длины хода).
+    { id: 'forgeheart', name: 'Сердце горна', kind: POWER, rarity: LEGEND, cost: 3, exhaust: true,
+      effects: [{ t: RULE, r: 'energy', v: 1 }, { t: UPGRADE, v: 1 }] },
+    { id: 'mirrorhall', name: 'Зеркальный зал', kind: POWER, rarity: LEGEND, cost: 2, exhaust: true,
+      effects: [{ t: RULE, r: 'mirror', v: 1 }] },
+    { id: 'reckoning',  name: 'Час расплаты', kind: ATTACK, rarity: LEGEND, cost: 1,
+      effects: [{ t: DAMAGE, v: 7 }, { t: DAMAGE, v: 7, per: 'played' }] },
 ];
 
 export const CARD_BY_ID = Object.fromEntries(CARDS.map(c => [c.id, c]));

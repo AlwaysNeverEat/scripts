@@ -38,7 +38,7 @@ import {
     runResult, addTime, mutationList, takeLog, costOf,
     MAP_ROWS, SKIP_HEAL, HAND_SIZE, LEVEL_STEP, KIND_NAME, RARITY,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
-    NODE_INFO, NODE_BOSS, NODE_ELITE, STATUS_INFO, MUTATOR_BY_ID, EVENTS,
+    NODE_INFO, NODE_BOSS, NODE_ELITE, STATUS_INFO, MUTATOR_BY_ID, EVENTS, CARD_BY_ID, LEGEND,
     I_ATTACK, I_BLOCK, I_STATUS,
 } from '../../shared/roguelike.js';
 import { namePrefixHtml } from './namePrefix.js';
@@ -883,8 +883,31 @@ function doPlay(state, i) {
     const from = el?.getBoundingClientRect();
     state.note = '';
     playCard(run, i);
+    // Мгновенная часть карты (добор, энергия, «Кузница») уже случилась — и если
+    // она что-то улучшила, об этом надо сказать: цель выбирается случайно, и
+    // молча выросший уровень выглядит как «карта ничего не сделала».
+    const instant = takeLog(run).filter(ev => ev.t === 'upgrade');
     afterAction(state);
+    for (const ev of instant) tuned(state, ev);
     flyIn(state, uid, from);
+}
+
+/** Показать улучшенную карту: подпись под шапкой и вспышка на самой карте. */
+function tuned(state, ev) {
+    const card = cardOf(state.run, ev.uid);
+    if (!card) return;
+    const name = cardView(state.run, card).name;
+    state.note = ev.inHand
+        ? `Кузница: «${name}» в руке теперь ${ev.lvl} уровня.`
+        : `Кузница: «${name}» в колоде теперь ${ev.lvl} уровня.`;
+    const note = state.modal.querySelector('#rg-note');
+    if (note) { note.innerHTML = esc(state.note); note.classList.add('is-show'); }
+    const el = state.modal.querySelector(`#rg-hand .rg-card[data-uid="${ev.uid}"]`);
+    if (el && !calm()) {
+        el.classList.remove('is-tuned');
+        void el.offsetWidth;
+        el.classList.add('is-tuned');
+    }
 }
 
 /**
@@ -1397,10 +1420,15 @@ function rewardHtml(state) {
     if (r.stone) loot.push('<span class="rg-loot is-stone">◆ точильный камень</span>');
     if (r.shard) loot.push('<span class="rg-loot is-shard">✦ осколок мутации</span>');
 
+    // Легендарку называем вслух: три карты на всю игру, и встретить её — событие,
+    // которое не должно потеряться среди двух обычных соседок.
+    const legend = r.cards.some(id => CARD_BY_ID[id].rarity === LEGEND);
+
     return `
         <div class="rg-reward">
             <div class="rg-screen-head">
                 ${run.battle ? 'Победа' : 'Сундук'}
+                ${legend ? '<span class="rg-tag is-legend">легендарная карта</span>' : ''}
                 ${loot.length ? `<span class="rg-loots">${loot.join('')}</span>` : ''}
             </div>
             <div class="rg-cards">${cards}</div>
