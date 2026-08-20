@@ -35,7 +35,7 @@
 import {
     startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent, moveCard,
     removeCard, useStone, useShard, giveUp, cardOf, cardView, intentView, enemyView,
-    runResult, addTime, mutationList, takeLog, costOf,
+    runResult, addTime, mutationList, takeLog, costOf, isFlash,
     MAP_ROWS, SKIP_HEAL, HAND_SIZE, LEVEL_STEP, KIND_NAME, RARITY,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
     NODE_INFO, NODE_BOSS, NODE_ELITE, STATUS_INFO, MUTATOR_BY_ID, EVENTS, CARD_BY_ID, LEGEND,
@@ -882,17 +882,56 @@ function doPlay(state, i) {
 
     const from = el?.getBoundingClientRect();
     state.note = '';
+    // Карта-вспышка (добор, энергия, «Кузница») на стол не ложится и сейчас
+    // просто исчезнет из руки — поэтому её силуэт снимаем ДО розыгрыша: потом
+    // показывать будет нечего.
+    const ghost = isFlash(card) ? makeGhost(state, el) : null;
+
     playCard(run, i);
-    // Мгновенная часть карты (добор, энергия, «Кузница») уже случилась — и если
-    // она что-то улучшила, об этом надо сказать: цель выбирается случайно, и
-    // молча выросший уровень выглядит как «карта ничего не сделала».
+    // Мгновенная часть уже случилась — и если она что-то улучшила, об этом надо
+    // сказать: цель выбирается случайно, и молча выросший уровень выглядит как
+    // «карта ничего не сделала».
     const instant = takeLog(run).filter(ev => ev.t === 'upgrade');
     afterAction(state);
+    if (ghost) flash(ghost);
     for (const ev of instant) tuned(state, ev);
-    flyIn(state, uid, from);
+    if (!ghost) flyIn(state, uid, from);
 }
 
-/** Показать улучшенную карту: подпись под шапкой и вспышка на самой карте. */
+/**
+ * Снимок карточки, положенный поверх окна на её же месте.
+ *
+ * Нужен там, где карта из DOM уже исчезла, а показать её ещё надо: вспышка
+ * мгновенной карты. Копия живёт своей жизнью и умирает сама.
+ */
+function makeGhost(state, el) {
+    if (!el || calm()) return null;
+    const r = el.getBoundingClientRect();
+    const ghost = el.cloneNode(true);
+    ghost.className = `${el.className} rg-ghost`;
+    ghost.style.cssText = el.style.cssText;
+    ghost.style.left = `${r.left}px`;
+    ghost.style.top = `${r.top}px`;
+    ghost.style.width = `${r.width}px`;
+    ghost.style.height = `${r.height}px`;
+    // Копия уезжает из окна игры, а размеры и цвета карточки заданы его
+    // переменными — переносим их с собой, иначе клон приедет голым.
+    const style = getComputedStyle(state.modal.querySelector('.rg-win'));
+    for (const v of ['--rg-card-w', '--rg-common', '--rg-rare', '--rg-epic', '--rg-legend']) {
+        ghost.style.setProperty(v, style.getPropertyValue(v));
+    }
+    ghost.style.setProperty('--w', `${r.width}px`);
+    document.body.appendChild(ghost);
+    return ghost;
+}
+
+/** Показать сработавшую мгновенную карту: вспышка и вверх. */
+function flash(ghost) {
+    ghost.classList.add('is-flash');
+    setTimeout(() => ghost.remove(), 700);
+}
+
+/** Показать улучшенную карту: подпись под шапкой, свет и подпись над картой. */
 function tuned(state, ev) {
     const card = cardOf(state.run, ev.uid);
     if (!card) return;
@@ -902,12 +941,25 @@ function tuned(state, ev) {
         : `Кузница: «${name}» в колоде теперь ${ev.lvl} уровня.`;
     const note = state.modal.querySelector('#rg-note');
     if (note) { note.innerHTML = esc(state.note); note.classList.add('is-show'); }
+
     const el = state.modal.querySelector(`#rg-hand .rg-card[data-uid="${ev.uid}"]`);
-    if (el && !calm()) {
-        el.classList.remove('is-tuned');
-        void el.offsetWidth;
-        el.classList.add('is-tuned');
-    }
+    if (!el || calm()) return;
+    el.classList.remove('is-tuned');
+    void el.offsetWidth;
+    el.classList.add('is-tuned');
+    label(el, `${ev.lvl} уровень`);
+}
+
+/** Подпись, всплывающая над карточкой. */
+function label(el, text) {
+    const r = el.getBoundingClientRect();
+    const tag = document.createElement('span');
+    tag.className = 'rg-card-label';
+    tag.textContent = text;
+    tag.style.left = `${Math.round(r.left + r.width / 2)}px`;
+    tag.style.top = `${Math.round(r.top)}px`;
+    document.body.appendChild(tag);
+    setTimeout(() => tag.remove(), 1200);
 }
 
 /**

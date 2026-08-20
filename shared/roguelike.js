@@ -105,16 +105,44 @@ export const MAX_MUTATIONS = 4;
 // Шанс точильного камня и осколка мутации по типу узла.
 //
 // КАМНИ ЧАСТЫЕ, ОСКОЛКИ РЕДКИЕ, и это главный баланс всей игры. Уровень растёт
-// ровно (+30%), поэтому камень можно давать почти за каждый второй бой. Мутация
+// ровно (+30%), поэтому камень можно давать примерно за каждый четвёртый бой — за
+// каждый второй выходило по пять камней за цикл, и к четвёртому колода
+// обгоняла любую эскалацию (за элиту и босса камень по-прежнему обязателен:
+// это плата за риск, а не лотерея). Мутация
 // растёт УДВОЕНИЕМ (×2 → ×4 → ×8), поэтому осколок — это событие: на первом
 // цикле его почти не бывает, а к пятому он приходит примерно раз в цикл. Расти
 // шансу по циклам нужно потому, что и враги растут: без второй мутации на
 // восьмом цикле забег упирается в стену не из-за решений игрока, а из-за
 // арифметики.
-export const STONE_CHANCE = { [NODE_FIGHT]: 0.3, [NODE_ELITE]: 1, [NODE_CHEST]: 0.75, [NODE_BOSS]: 1 };
+export const STONE_CHANCE = { [NODE_FIGHT]: 0.22, [NODE_ELITE]: 1, [NODE_CHEST]: 0.6, [NODE_BOSS]: 1 };
 export const SHARD_CHANCE = { [NODE_FIGHT]: 0, [NODE_ELITE]: 0.05, [NODE_CHEST]: 0.04, [NODE_BOSS]: 0.2 };
 export const SHARD_LOOP_GAIN = 0.25;   // за каждый пройденный цикл
 export const SHARD_CAP = 0.5;
+
+// ── Подгонка врагов под игрока ───────────────────────────────────────────────
+// Ровная эскалация по циклам (+35% здоровья) держится ровно до тех пор, пока
+// колода растёт так же ровно. Но колода растёт УМНОЖЕНИЕМ: уровень карты, чары
+// с их ×2 → ×4 → ×8 и легендарка вместе дают удар не на 30, а на 300 — и с
+// четвёртого цикла забег превращается в прогулку, где враг не успевает сходить.
+//
+// Поэтому с ADAPT_LOOP враг перестаёт считаться только от номера цикла и
+// начинает считаться ОТ ИГРОКА: сколько урона тот выдаёт за ход и сколько брони
+// успевает набрать (обе величины — скользящее среднее по последним боям, а не
+// один удачный ход). Здоровье врага подгоняется так, чтобы бой длился примерно
+// ADAPT_TURNS ходов, а удар — так, чтобы броня не съедала его целиком.
+//
+// ПОТОЛКИ РАЗНЫЕ, и это главное: рядовой враг остаётся рядовым (крыса с девятью
+// тысячами здоровья — не сложность, а тоска), элита заметно крепче, а босс
+// становится настоящей стеной. Раньше четвёртого цикла подгонки нет вовсе:
+// первые циклы должны читаться как «я стал сильнее», а не как «игра догоняет».
+export const ADAPT_LOOP = 4;
+export const ADAPT_TURNS = { fight: 2.5, elite: 4, boss: 6 };
+export const ADAPT_HP_CAP = { fight: 3, elite: 5, boss: 10 };
+export const ADAPT_DMG_CAP = { fight: 2, elite: 3, boss: 4 };
+// Во сколько раз удар врага должен перекрывать набранную игроком броню.
+export const ADAPT_HIT = 1.15;
+// Насколько быстро «средний игрок» забывает прошлые бои.
+export const ADAPT_EMA = 0.5;
 
 // Легендарки. Их три на всю игру, и встретить их должно быть событием: обычным
 // броском редкости они не выпадают вовсе (вес 0 в контенте), а шанс считается
@@ -229,6 +257,10 @@ export function startRun(seed = makeSeed()) {
         stones: 0,
         shards: 0,
         legends: 0,     // сколько легендарок уже выпало: каждая гасит шанс следующей
+        // Чем игрок стал к этому моменту: урон за ход и броня за ход, скользящим
+        // средним по боям. Отсюда считается подгонка врагов (см. ADAPT_LOOP).
+        power: 0,
+        guard: 0,
         map: null,
         at: { row: -1, i: 0 },
         battle: null,
@@ -399,6 +431,12 @@ function makeEnemy(run, kind) {
         if (m.hp) hpMult *= m.hp;
         if (m.dmg) dmgMult *= m.dmg;
     }
+    // Подгонка под игрока: с ADAPT_LOOP здоровье и урон врага считаются не только
+    // от номера цикла, но и от того, что игрок реально выдаёт (см. константы).
+    const fit = adaptTo(run, kind);
+    hpMult *= fit.hp;
+    dmgMult *= fit.dmg;
+
     const maxHp = Math.max(12, Math.round(base.hp * hpMult));
 
     return {
@@ -413,6 +451,62 @@ function makeEnemy(run, kind) {
         intent: null,
         lastIntent: -1,
     };
+}
+
+/**
+ * Насколько поднять врага под нынешнего игрока.
+ *
+ * Здоровье — чтобы бой длился примерно ADAPT_TURNS ходов при его уроне за ход.
+ * Урон — чтобы удар перекрывал набираемую им броню: игрок с двумя сотнями брони
+ * в ход неуязвим для врага, бьющего на тридцать, сколько бы здоровья тому ни
+ * добавили.
+ *
+ * Оба множителя ограничены сверху И СВОИМ ПОТОЛКОМ НА ТИП ВРАГА: рядовой
+ * остаётся рядовым, стеной становится босс.
+ */
+function adaptTo(run, kind) {
+    const none = { hp: 1, dmg: 1 };
+    if (run.loop < ADAPT_LOOP || !run.power) return none;
+    const tier = kind === NODE_BOSS ? 'boss' : kind === NODE_ELITE ? 'elite' : 'fight';
+
+    // Сколько здоровья нужно, чтобы игрок возился с врагом положенные ходы, — и
+    // сколько у врага есть без подгонки (base.hp считается снаружи, поэтому
+    // сравниваем в множителях: цикл уже учтён в hpMult).
+    const want = run.power * ADAPT_TURNS[tier];
+    const have = typicalHp(run, kind);
+    const hp = clamp(want / Math.max(1, have), 1, ADAPT_HP_CAP[tier]);
+
+    // Урон: чтобы броня не съедала удар целиком. Броня НЕ СГОРАЕТ, поэтому за
+    // ориентир берём именно набираемое за ход.
+    const wantHit = run.guard * ADAPT_HIT;
+    const haveHit = typicalHit(run, kind);
+    const dmg = clamp(wantHit / Math.max(1, haveHit), 1, ADAPT_DMG_CAP[tier]);
+    return { hp, dmg };
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+/** Типичное здоровье врага этого узла на этом цикле — БЕЗ подгонки. */
+function typicalHp(run, kind) {
+    const boss = kind === NODE_BOSS;
+    const list = boss ? BOSSES : ENEMIES;
+    const avg = list.reduce((s, e) => s + e.hp, 0) / list.length;
+    return avg * (1 + LOOP_HP * (run.loop - 1)) * (kind === NODE_ELITE ? ELITE_HP : 1);
+}
+
+/** Типичный урон врага за ход на этом цикле — БЕЗ подгонки. */
+function typicalHit(run, kind) {
+    const boss = kind === NODE_BOSS;
+    const list = boss ? BOSSES : ENEMIES;
+    let sum = 0, n = 0;
+    for (const e of list) {
+        for (const i of e.intents) {
+            sum += i.acts.filter(a => a.t === I_ATTACK).reduce((s, a) => s + a.v * (a.times || 1), 0);
+            n++;
+        }
+    }
+    const avg = n ? sum / n : 1;
+    return avg * (1 + LOOP_DMG * (run.loop - 1)) * (kind === NODE_ELITE ? ELITE_DMG : 1);
 }
 
 function modNum(enemy, field) {
@@ -494,6 +588,8 @@ function startBattle(run, kind) {
         discard: [],
         exhaust: [],
         turn: 0,
+        dealt: 0,       // урона нанесено врагу за бой (из этого считается сила игрока)
+        gained: 0,      // брони набрано за бой (из этого — насколько больно должен бить враг)
         played: 0,      // карт СРАБОТАЛО в этом ходу (условие «первая карта»)
         spent: 0,       // энергии потрачено в этом ходу (мутация «разгон»)
         double: 0,      // сколько ближайших карт сработают дважды («Зеркало»)
@@ -629,9 +725,20 @@ export function playCard(run, handIdx) {
     b.hero.energy -= cost;
     b.spent += cost;
     if (free) b.surge[uid] = (b.surge[uid] | 0) + 1;
-    b.board.push(uid);
 
     applyInstant(run, card, def);
+
+    // Карта-вспышка своё уже сделала — на стол она не ложится, а сразу уходит в
+    // сброс. В журнал при этом пишется отметка: окну надо её показать, иначе
+    // карта просто исчезнет из руки без объяснений.
+    if (isFlash(card)) {
+        note(b, { t: 'flash', uid });
+        run.stats.cards++;
+        toPile(run, card, def, uid);
+        return { ok: true, flash: true };
+    }
+
+    b.board.push(uid);
     return { ok: true };
 }
 
@@ -705,6 +812,23 @@ function toPile(run, card, def, uid) {
 // Эффекты, которые срабатывают ПРИ ВЫКЛАДЫВАНИИ, а не в конце хода: все три
 // меняют не бой, а саму заявку — что ещё игрок успеет положить на стол.
 const INSTANT = new Set([DRAW, ENERGY, UPGRADE]);
+
+// Мутации, которые ДОБАВЛЯЮТ карте бой (см. applyCard): с любой из них даже
+// «Адреналин» перестаёт быть чистой подготовкой.
+const MUT_COMBAT = ['venom', 'leech', 'ward'];
+
+/**
+ * Карта-вспышка: вся её работа мгновенная — добор, энергия, улучшение.
+ *
+ * Такие карты НА СТОЛ НЕ ЛОЖАТСЯ. Стол — это заявка на бой, а «Адреналин» уже
+ * отработал в тот момент, когда его вытянули из руки: лежать ему там нечего, он
+ * только загораживает карты, которые действительно сработают по «Ходу».
+ */
+export function isFlash(card) {
+    const def = CARD_BY_ID[card.id];
+    return def.effects.every(e => INSTANT.has(e.t))
+        && !MUT_COMBAT.some(id => card.mut?.[id]);
+}
 
 function applyCard(run, card, def) {
     const b = run.battle;
@@ -867,6 +991,7 @@ function healUnit(b, unit, n) {
 function addBlock(b, unit, n) {
     if (n <= 0) return;
     unit.block += n;
+    if (unit === b.hero) b.gained += n;
     note(b, { t: 'block', who: side(b, unit), v: n, block: unit.block });
 }
 
@@ -896,6 +1021,7 @@ function heroHit(run, n) {
     const b = run.battle;
     const real = strike(b, b.hero, b.enemy, n, true, 'card');
     run.stats.damage += real;
+    b.dealt += real;
     const thorns = b.enemy.st[THORNS] | 0;
     if (thorns > 0) strike(b, b.enemy, b.hero, thorns, false, 'thorns');
     checkEnd(run);
@@ -943,6 +1069,9 @@ function tickEnd(b, unit) {
     if (p > 0) {
         unit.hp = Math.max(0, unit.hp - p);
         st[POISON] = p - 1;
+        // Яд на враге — это тоже урон игрока, и в силу игрока он обязан входить:
+        // колода на яде иначе выглядела бы для подгонки беспомощной.
+        if (unit === b.enemy) b.dealt += p;
         note(b, { t: 'poison', who: side(b, unit), v: p, hp: unit.hp });
     }
     const r = st[REGEN] | 0;
@@ -1004,12 +1133,28 @@ function checkEnd(run) {
 
 function winBattle(run) {
     const b = run.battle;
+    measure(run, b);
     run.hp = b.hero.hp;
     run.stats.kills++;
     if (b.kind === NODE_ELITE) run.stats.elites++;
     if (b.kind === NODE_BOSS) run.stats.bosses++;
     run.reward = rollReward(run, b.kind);
     run.screen = SCREEN_REWARD;
+}
+
+/**
+ * Запомнить, что игрок вытворял в этом бою: урон за ход и броня за ход.
+ *
+ * Считаем СКОЛЬЗЯЩИМ СРЕДНИМ, а не максимумом: один удачный ход с «Часом
+ * расплаты» не должен объявлять игрока вдвое сильнее, чем он есть, — иначе
+ * следующий бой окажется наказанием за хорошую руку.
+ */
+function measure(run, b) {
+    const turns = Math.max(1, b.turn);
+    const power = b.dealt / turns;
+    const guard = b.gained / turns;
+    run.power = run.power ? run.power * (1 - ADAPT_EMA) + power * ADAPT_EMA : power;
+    run.guard = run.guard ? run.guard * (1 - ADAPT_EMA) + guard * ADAPT_EMA : guard;
 }
 
 function endRun(run) {
