@@ -496,9 +496,21 @@ test('шар с числом бывает ТОЛЬКО у атаки, и опи�
             assert.equal(view.artText, view.text, `${def.id}: из описания что-то пропало`);
         } else if (view.power) {
             assert.equal(view.power.t, 'dmg');
-            assert.ok(!view.artText.startsWith('Наносит'), `${def.id}: описание повторяет шар`);
+            // Многоударная атака — исключение: шар показывает урон ОДНОГО удара,
+            // и без слов «2 раза» карта читалась бы вдвое слабее.
+            const multi = def.effects.some(e => e.t === 'dmg' && e.times > 1);
+            if (!multi) assert.ok(!view.artText.startsWith('Наносит'), `${def.id}: описание повторяет шар`);
         }
     }
+});
+
+test('многоударная атака описание НЕ теряет: в шаре одно число', () => {
+    // «Череда» бьёт 4 урона два раза. Четвёрка в шаре без слов означала бы
+    // обычный удар на четыре — описание тут обязано остаться.
+    const run = startRun(83);
+    const view = cardView(run, addCard(run, 'flurry'));
+    assert.ok(view.power, 'у атаки нет шара');
+    assert.match(view.artText, /2 раза/, `описание пропало: «${view.artText}»`);
 });
 
 test('условная прибавка написана прибавкой, а не вторым «наносит»', () => {

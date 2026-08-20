@@ -1190,7 +1190,10 @@ function effectText(card, e) {
  */
 export function cardText(card, { skipMain = false } = {}) {
     const def = CARD_BY_ID[card.id];
-    const main = skipMain ? mainNumber(card)?.e : null;
+    // Умолчать про эффект можно, только если шар рассказывает о нём ВСЁ:
+    // многоударная атака числом в шаре не описывается (см. mainNumber).
+    const m = skipMain ? mainNumber(card) : null;
+    const main = m?.plain ? m.e : null;
     const parts = def.effects.filter(e => e !== main).map(e => effectText(card, e)).filter(Boolean);
     if (def.bounce) parts.push('Вернётся в руку в начале следующего хода.');
     if (def.exhaust) parts.push('Уходит из боя.');
@@ -1223,7 +1226,10 @@ function mainNumber(card) {
     const def = CARD_BY_ID[card.id];
     if (def.kind !== ATTACK) return null;
     const e = def.effects.find(x => !x.when && x.t === DAMAGE);
-    return e ? { t: 'dmg', v: scaleValue(e.v, card.lvl), e } : null;
+    if (!e) return null;
+    // plain — исчерпывается ли карта этим числом. У «Череды» нет: она бьёт 4
+    // урона ДВА РАЗА, и одна четвёрка в шаре означала бы совсем другую карту.
+    return { t: 'dmg', v: scaleValue(e.v, card.lvl), e, plain: !(e.times > 1) };
 }
 
 /** Всё, что окну нужно про карту: числа уже посчитаны. */
