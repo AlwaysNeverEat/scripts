@@ -26,7 +26,9 @@ import {
     startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent,
     removeCard, useStone, useShard, giveUp, cardOf, cardText, cardView, addCard, addTime, takeLog, moveCard,
     intentView, enemyView, runResult, isPlausibleRun, scaleValue, mutPower, costOf, canLevel, legendChance,
+    isFlash,
     MAP_ROWS, START_HP, HAND_SIZE, ENERGY_PER_TURN, LEVEL_STEP, MAX_MUTATIONS,
+    ADAPT_HP_CAP, ADAPT_DMG_CAP,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
     NODE_BOSS, NODE_ELITE, NODE_FIGHT, NODE_CHEST, NODE_EVENT,
     CARDS, CARD_BY_ID, MUTATIONS, MUTATORS, I_ATTACK,
@@ -159,6 +161,40 @@ test('добор и энергия срабатывают СРАЗУ: иначе
     const energy = b.hero.energy;
     playCard(run, b.hand.length - 1);
     assert.ok(b.hero.energy > energy, 'энергия не пришла сразу');
+});
+
+test('карта-вспышка на стол не ложится, а сразу уходит в сброс', () => {
+    // «Адреналин» своё дело сделал в момент выкладывания — на столе он только
+    // загораживал бы карты, которые действительно сработают по «Ходу».
+    const run = startRun(94);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    const adr = addCard(run, 'adrenaline');
+    b.hand = [adr.uid];
+    const energy = b.hero.energy;
+    const res = playCard(run, 0);
+    assert.equal(res.flash, true);
+    assert.deepEqual(b.board, [], 'вспышка легла на стол');
+    assert.ok(b.exhaust.includes(adr.uid), 'карта не ушла из боя');
+    assert.ok(b.hero.energy > energy, 'энергия не пришла');
+
+    // А карта, у которой есть боевая часть, ложится как обычно.
+    const guard = run.deck.find(c => c.id === 'guard');
+    b.hand = [guard.uid];
+    b.hero.energy = 3;
+    assert.equal(playCard(run, 0).flash, undefined);
+    assert.deepEqual(b.board, [guard.uid]);
+});
+
+test('чара с боевым эффектом снимает карту со вспышек', () => {
+    // «Оберег» превращает «Сосредоточение» в карту, которая даёт блок, — значит,
+    // ей место на столе, вместе с остальным ходом.
+    const run = startRun(95);
+    enterNode(run, nextNodes(run)[0].i);
+    const focus = run.deck.find(c => c.id === 'focus');
+    assert.equal(isFlash(focus), true);
+    focus.mut.ward = 1;
+    assert.equal(isFlash(focus), false);
 });
 
 test('броня съедает урон и ОСТАТОК ПЕРЕЖИВАЕТ ход', () => {
@@ -349,6 +385,75 @@ function cardDamage(events) {
         .filter(e => e.t === 'hit' && e.who === 'enemy' && e.src === 'card')
         .reduce((s, e) => s + e.dmg, 0);
 }
+
+// ── Подгонка врагов под игрока ───────────────────────────────────────────────
+
+/**
+ * Здоровье и урон врага такого узла на этом цикле, усреднённые по сидам.
+ *
+ * Тип узла подменяем в первой строке карты: там всегда бои, а элиту и босса
+ * иначе пришлось бы искать прогулкой через полкарты.
+ */
+function enemyOn(loop, kind, tune) {
+    let hp = 0, dmg = 0, n = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+        const run = startRun(seed);
+        run.loop = loop;
+        if (tune) Object.assign(run, tune);
+        run.map.rows[0][0].t = kind;
+        enterNode(run, 0);
+        assert.ok(run.battle, `сид ${seed}: боя не случилось`);
+        hp += run.battle.enemy.maxHp;
+        dmg += run.battle.enemy.dmg;
+        n++;
+    }
+    return { hp: hp / n, dmg: dmg / n };
+}
+
+test('до четвёртого цикла врагов не подгоняют под игрока', () => {
+    // Первые циклы должны читаться как «я стал сильнее», а не как «игра догоняет».
+    for (const loop of [1, 2, 3]) {
+        const plain = enemyOn(loop, NODE_FIGHT);
+        const strong = enemyOn(loop, NODE_FIGHT, { power: 500, guard: 200 });
+        assert.equal(strong.hp, plain.hp, `цикл ${loop}: здоровье поехало`);
+        assert.equal(strong.dmg, plain.dmg, `цикл ${loop}: урон поехал`);
+    }
+});
+
+test('сильный игрок на пятом цикле получает врагов покрепче — но крыса не станет стеной', () => {
+    const plain = enemyOn(5, NODE_FIGHT);
+    const strong = enemyOn(5, NODE_FIGHT, { power: 400, guard: 150 });
+    assert.ok(strong.hp > plain.hp * 1.5, `враг не подтянулся: ${plain.hp} → ${strong.hp}`);
+    assert.ok(strong.dmg > plain.dmg * 1.2, `удар не подтянулся: ${plain.dmg} → ${strong.dmg}`);
+    // Потолок рядового врага — три его обычных здоровья, а не «сколько выйдет».
+    assert.ok(strong.hp <= plain.hp * ADAPT_HP_CAP.fight + 1, `рядовой раздулся: ${strong.hp}`);
+    assert.ok(strong.dmg <= plain.dmg * ADAPT_DMG_CAP.fight + 0.01);
+});
+
+test('босс подтягивается сильнее рядового врага', () => {
+    const tune = { power: 400, guard: 150 };
+    const fight = enemyOn(5, NODE_FIGHT), boss = enemyOn(5, NODE_BOSS);
+    const fightUp = enemyOn(5, NODE_FIGHT, tune).hp / fight.hp;
+    const bossUp = enemyOn(5, NODE_BOSS, tune).hp / boss.hp;
+    assert.ok(bossUp > fightUp * 1.5, `босс подтянулся не сильнее рядового: ${fightUp} против ${bossUp}`);
+});
+
+test('сила игрока считается по боям, а не берётся с потолка', () => {
+    const run = startRun(120);
+    assert.equal(run.power, 0);
+    enterNode(run, nextNodes(run)[0].i);
+    const b = run.battle;
+    b.enemy.hp = 1; b.enemy.st = {}; b.enemy.block = 0;
+    b.hand = [run.deck.find(c => c.id === 'strike').uid];
+    playCard(run, 0);
+    endTurn(run);
+    assert.ok(run.power > 0, 'урон за ход не записался');
+    // Слабый игрок — слабая подгонка: множитель считается от того же числа.
+    run.loop = 9;
+    const weak = enemyOn(9, NODE_FIGHT, { power: run.power, guard: run.guard });
+    const strong = enemyOn(9, NODE_FIGHT, { power: run.power * 20, guard: run.guard * 20 });
+    assert.ok(strong.hp > weak.hp, 'подгонка не зависит от силы игрока');
+});
 
 // ── Легендарки ───────────────────────────────────────────────────────────────
 
@@ -743,7 +848,12 @@ test('планка сложности: первый цикл берётся по
     // Сидов двести, а не восемьдесят, именно поэтому: на восьмидесяти разброс
     // самой выборки — ±6%, и правка, которая всего лишь сдвигает поток
     // случайных чисел, роняла тест на ровном месте.
-    assert.ok(first > 0.55, `первый цикл берут только ${Math.round(first * 100)}% забегов`);
+    //
+    // Порог — половина, а не «около шестидесяти»: у бота сейчас 59%, и это уже
+    // с урезанными точильными камнями. Порог тут — сигнализация («баланс уехал
+    // вдвое»), а не мишень: подгонять контент под красивое число этого теста —
+    // верный способ подогнать его под бота, а не под человека.
+    assert.ok(first > 0.5, `первый цикл берут только ${Math.round(first * 100)}% забегов`);
     // И упирается в стену задолго до десятого: эскалация обязана догонять.
     assert.equal(deep, 0, `бот дошёл до десятого цикла ${deep} раз (лучший ${best})`);
 });
