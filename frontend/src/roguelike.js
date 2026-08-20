@@ -33,10 +33,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-    startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent,
+    startRun, nextNodes, enterNode, playCard, endTurn, chooseReward, chooseEvent, moveCard,
     removeCard, useStone, useShard, giveUp, cardOf, cardView, intentView, enemyView,
     runResult, addTime, mutationList, takeLog, costOf,
-    MAP_ROWS, SKIP_HEAL, HAND_SIZE,
+    MAP_ROWS, SKIP_HEAL, HAND_SIZE, LEVEL_STEP, KIND_NAME, RARITY,
     SCREEN_MAP, SCREEN_BATTLE, SCREEN_REWARD, SCREEN_EVENT, SCREEN_OVER,
     NODE_INFO, NODE_BOSS, NODE_ELITE, STATUS_INFO, MUTATOR_BY_ID, EVENTS,
     I_ATTACK, I_BLOCK, I_STATUS,
@@ -75,6 +75,10 @@ export function openRoguelike(ctx) {
         modal,
         run: loadRun(ctx) || startRun(),
         deck: null,      // открытая колода: { mode: 'view' | 'stone' | 'shard' | 'remove' }
+        zoom: null,      // uid карты, открытой крупно
+        move: null,      // карта, которую переставляют на столе
+        tipFor: null,    // карта, над которой держат курсор
+        tipTimer: 0,
         // Стол и рука во время показа хода. Правила к этому моменту уже сыграли
         // ход целиком (стол у них пуст, рука новая), а окно обязано показать
         // тот стол, который игрок выложил, — поэтому на время показа оно держит
@@ -138,6 +142,7 @@ export function openRoguelike(ctx) {
     // навешивать их заново после каждой перерисовки — лишняя работа и лишний
     // повод забыть одну.
     modal.querySelector('.rg-body').addEventListener('click', e => onClick(state, e));
+    tipInput(state, modal.querySelector('.rg-body'));
 
     startTick(state);
     render(state);
@@ -159,7 +164,8 @@ function shellHtml() {
                 <div class="rg-note" id="rg-note"></div>
                 <div class="rg-view" id="rg-view"></div>
             </div>
-        </div>`;
+        </div>
+        <div class="rg-tip" id="rg-tip" hidden></div>`;
 }
 
 // ── Сохранение забега ────────────────────────────────────────────────────────
@@ -253,11 +259,13 @@ function onClick(state, e) {
             if (res.notes?.length) state.note = res.notes.join(', ') + '.';
             break;
         }
+        case 'zoom': state.zoom = uid; break;
+        case 'closezoom': state.zoom = null; break;
         case 'deck': state.deck = state.deck ? null : { mode: 'view' }; break;
         case 'stone': state.deck = { mode: 'stone' }; break;
         case 'shard': state.deck = { mode: 'shard' }; break;
         case 'pick': pickCard(state, uid); break;
-        case 'closedeck': state.deck = null; break;
+        case 'closedeck': state.deck = null; state.zoom = null; break;
         case 'restart': restart(state); break;
         case 'giveup': if (confirmGiveUp(state)) giveUp(run); break;
         default: return;
@@ -302,6 +310,7 @@ function pickCard(state, uid) {
 function handleKey(state, e, close) {
     if (e.key === 'Escape') {
         e.preventDefault();
+        if (state.zoom != null) { state.zoom = null; render(state); return; }
         if (state.deck && state.run.pending?.t !== 'remove') { state.deck = null; render(state); return; }
         close();
         return;
@@ -337,6 +346,8 @@ function confirmGiveUp(state) {
 function restart(state) {
     state.run = startRun();
     state.deck = null;
+    state.zoom = null;
+    state.move = null;
     state.table = null;
     state.handView = null;
     state.foeIntent = null;
@@ -352,6 +363,9 @@ function restart(state) {
 
 function render(state) {
     const run = state.run;
+    // Панель подсказки висит рядом с карточкой, а карточки при перерисовке
+    // создаются заново — держать её открытой не за что.
+    tipHide(state);
     // Незакрытый выбор «выбросить карту» — это не экран, а долг: пока он висит,
     // забег не двигается. Ставим колоду сами, в том числе когда забег подняли из
     // localStorage прямо на этом месте.
@@ -368,7 +382,12 @@ function render(state) {
     // начались, иначе последний удар игрок просто не увидит.
     const screen = state.busy && run.battle ? SCREEN_BATTLE : run.screen;
     switch (screen) {
-        case SCREEN_BATTLE: view.innerHTML = battleHtml(state); fitTable(state); layoutHand(state); break;
+        case SCREEN_BATTLE:
+            view.innerHTML = battleHtml(state);
+            fitTable(state);
+            layoutHand(state);
+            boardInput(state);
+            break;
         case SCREEN_REWARD: view.innerHTML = rewardHtml(state); break;
         case SCREEN_EVENT:  view.innerHTML = eventHtml(state); break;
         case SCREEN_OVER:   view.innerHTML = overHtml(state); break;
@@ -509,7 +528,7 @@ function battleHtml(state) {
     const board = (state.table ?? b.board)
         .map(uid => cardOf(run, uid))
         .filter(Boolean)
-        .map(card => cardHtml(cardView(run, card), { small: true }))
+        .map((card, i) => cardHtml(cardView(run, card), { i, small: true }))
         .join('');
 
     const hand = (state.handView ?? b.hand).map((uid, i) => {
@@ -542,6 +561,9 @@ function battleHtml(state) {
             <div class="rg-board" id="rg-board">
                 ${board || '<span class="rg-board-hint">Тяните карту сюда — сработает по «Ходу»</span>'}
             </div>
+            ${!state.table && b.board.length > 1
+                ? '<span class="rg-board-note">Стол играет слева направо — карты можно переставить</span>'
+                : ''}
 
             <div class="rg-me" id="rg-me">
                 <div class="rg-me-side">
@@ -601,25 +623,38 @@ function intentBoxHtml(state) {
     return intentHtml(state.foeIntent ?? intentView(state.run));
 }
 
+/**
+ * Намерение врага — РЯДОМ КАРТОЧЕК, как рука напротив.
+ *
+ * Так видно, что враг тоже «выкладывает ход»: у него свои карты, они лежат
+ * строкой и подписаны словами, а не значками (значок меча половина шрифтов
+ * рисует цветной картинкой, и число рядом читается как что угодно).
+ */
 function intentHtml(intent) {
     if (!intent) return '';
     const acts = intent.acts.map(a => {
-        // Намерение подписано СЛОВАМИ, а не значками: «меч» половина шрифтов
-        // рисует цветной картинкой, а число рядом с ним читается как что угодно.
-        // «Бьёт 12» не читается никак иначе.
         if (a.t === I_ATTACK) {
-            return `<span class="rg-intent-act is-atk" title="Столько урона прилетит в ваш ход">
-                        Бьёт <b>${a.v}</b>${a.times > 1 ? `<i>×${a.times}</i>` : ''}</span>`;
+            return icardHtml('is-atk', a.v, a.times > 1 ? `урона ×${a.times}` : 'урона',
+                'Столько урона прилетит, когда вы передадите ход');
         }
         if (a.t === I_BLOCK) {
-            return `<span class="rg-intent-act is-blk" title="Закроется блоком">Закроется на <b>${a.v}</b></span>`;
+            return icardHtml('is-blk', a.v, 'блока', 'Закроется блоком — ваш урон уйдёт в него');
         }
         const info = STATUS_INFO[a.s];
-        return `<span class="rg-intent-act is-st" title="${esc(info.name)}: ${esc(info.hint)}">
-                    ${esc(info.name)} <b>${a.v}</b>${a.to === 'self' ? ' себе' : ''}</span>`;
+        return icardHtml('is-st', a.v, `${info.gen}${a.to === 'self' ? ' себе' : ''}`,
+            `${info.name}: ${info.hint}`);
     }).join('');
-    return `<span class="rg-intent-label">Намерение:</span>${acts}` +
-        (intent.twice ? '<span class="rg-intent-act is-twice" title="Ускоренный: в этот ход он сходит дважды">дважды</span>' : '');
+    const twice = intent.twice
+        ? icardHtml('is-twice', '×2', 'весь ход', 'Ускоренный: в этот ход он сходит дважды')
+        : '';
+    return `<span class="rg-intent-label">Использует в следующем ходу</span>
+            <span class="rg-intent-cards">${acts}${twice}</span>`;
+}
+
+function icardHtml(cls, value, label, hint) {
+    return `<span class="rg-icard ${cls}" title="${esc(hint)}">
+                <b>${esc(String(value))}</b><i>${esc(label)}</i>
+            </span>`;
 }
 
 function statusesHtml(st) {
@@ -715,9 +750,12 @@ function applyEvent(state, ev) {
             break;
         case 'turn':
             // Отметка «дальше ходит враг»: без неё его удары выглядят
-            // продолжением хода игрока.
+            // продолжением хода игрока. Стол к этому моменту отыграл целиком —
+            // гасим последнюю подсвеченную карту и уводим весь стол в сброс,
+            // иначе она так и стоит поднятой и яркой поверх чужого хода.
             state.phase = 'enemy';
             paintIntent(state);
+            sweepBoard(state);
             flag(state, 'Ход врага');
             break;
         case 'over':
@@ -756,6 +794,20 @@ function castCard(state, uid) {
         el.classList.add('is-done');
     });
     board.querySelector(`.rg-card[data-uid="${uid}"]`)?.classList.add('is-cast');
+}
+
+/** Убрать отыгравший стол в сброс. */
+function sweepBoard(state) {
+    state.table = [];
+    const board = state.modal.querySelector('#rg-board');
+    if (!board) return;
+    board.querySelectorAll('.rg-card').forEach((el, i) => {
+        el.classList.remove('is-cast');
+        if (calm()) { el.style.opacity = '0'; return; }
+        el.style.transition = `transform .32s ease-in ${i * 24}ms, opacity .32s ease-in ${i * 24}ms`;
+        el.style.transform = 'translate(26vw, 20vh) scale(.5) rotate(10deg)';
+        el.style.opacity = '0';
+    });
 }
 
 /** Смахнуть невыложенную руку в сброс. */
@@ -999,6 +1051,7 @@ function nearest(cards, x) {
 function raise(state, cards, i) {
     if (state.raised === i) return;
     state.raised = i;
+    tipQueue(state, i >= 0 ? cards[i] : null);
     cards.forEach((el, k) => {
         el.classList.toggle('is-up', k === i);
         // Соседи расступаются — иначе поднятая карта закрывает их собой.
@@ -1011,6 +1064,7 @@ function dragStart(state, cards, e) {
     const el = e.target.closest('.rg-card');
     if (!el) return;
     e.preventDefault();
+    tipHide(state);
     state.drag = { el, i: Number(el.dataset.i), x0: e.clientX, y0: e.clientY, moved: false, id: e.pointerId };
     raise(state, cards, Number(el.dataset.i));
     el.setPointerCapture?.(e.pointerId);
@@ -1051,6 +1105,171 @@ function dropDrag(state) {
     state.modal.querySelector('#rg-board')?.classList.remove('is-target');
 }
 
+// ── Подсказка сбоку ──────────────────────────────────────────────────────────
+// Что навешано на карту, рассказывает ОТДЕЛЬНАЯ ПАНЕЛЬ, а не строчки поверх
+// картинки. Причина простая: уровень и чары растут весь забег, на карточке под
+// них нет места, и к пятой мутации список вылезал за её край — а прочитать его
+// там всё равно было нельзя.
+//
+// Появляется она с ЗАДЕРЖКОЙ: рука перебирается курсором постоянно, и панель,
+// выскакивающая мгновенно, мельтешила бы при каждом движении. Задержка — это
+// разница между «веду курсор» и «смотрю на карту».
+
+const TIP_DELAY = 700;
+
+function tipInput(state, body) {
+    // Рука сюда НЕ ПОПАДАЕТ, и это важно: поднимаясь, карта веера уезжает
+    // из-под курсора, браузер тут же присылает pointerout — по нему подсказка
+    // гасла бы ровно в тот момент, когда карту и разглядывают. В руке подсказку
+    // заводит тот же код, что поднимает карту (raise): он один знает, на какую
+    // карту сейчас смотрят.
+    const outside = el => el && !el.closest('#rg-hand');
+    body.addEventListener('pointerover', e => {
+        const el = e.target.closest('.rg-card[data-uid]');
+        if (outside(el)) tipQueue(state, el);
+    });
+    body.addEventListener('pointerout', e => {
+        const el = e.target.closest('.rg-card[data-uid]');
+        if (outside(el) && (!e.relatedTarget || !el.contains(e.relatedTarget))) tipHide(state);
+    });
+}
+
+/** Показать подсказку по этой карте через TIP_DELAY; null — спрятать. */
+function tipQueue(state, el) {
+    if (el && el === state.tipFor) return;
+    tipHide(state);
+    if (!el || state.busy || state.drag || state.move) return;
+    state.tipFor = el;
+    state.tipTimer = setTimeout(() => tipShow(state, el), TIP_DELAY);
+}
+
+function tipHide(state) {
+    clearTimeout(state.tipTimer);
+    state.tipFor = null;
+    const tip = state.modal?.querySelector('#rg-tip');
+    if (tip) tip.hidden = true;
+}
+
+function tipShow(state, el) {
+    const card = cardOf(state.run, Number(el.dataset.uid));
+    const tip = state.modal.querySelector('#rg-tip');
+    if (!card || !tip || !el.isConnected) return;
+    tip.innerHTML = cardTipHtml(cardView(state.run, card));
+    tip.hidden = false;
+
+    // Слева или справа от карты — куда влезает. Панель нарочно НЕ накрывает
+    // карту: смотрят на них вместе.
+    const r = el.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const gap = 10;
+    const left = r.right + gap + t.width < window.innerWidth - 8
+        ? r.right + gap
+        : Math.max(8, r.left - gap - t.width);
+    const top = Math.max(8, Math.min(window.innerHeight - t.height - 8, r.top + r.height / 2 - t.height / 2));
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+}
+
+/** Содержимое подсказки: сама карта, потом уровень, потом чары по одной. */
+function cardTipHtml(view) {
+    const blocks = [];
+    if (view.lvl > 1) {
+        const grow = Math.round((view.lvl - 1) * LEVEL_STEP * 100);
+        blocks.push(`
+            <div class="rg-tip-block is-lvl">
+                <b>Уровень ${view.lvl}</b>
+                <span>Числа карты выросли на ${grow}% — точильные камни ложатся на этот экземпляр, а не на все такие карты.</span>
+            </div>`);
+    }
+    for (const m of view.muts) {
+        blocks.push(`
+            <div class="rg-tip-block is-mut">
+                <b>${esc(m.name)} ${m.mult ? '×' : '+'}${m.power}</b>
+                <span>${esc(m.text)}${m.stacks > 1 ? ` · осколков: ${m.stacks}` : ''}</span>
+            </div>`);
+    }
+    return `
+        <div class="rg-tip-head">
+            <b>${esc(view.name)}</b>
+            <span>${esc(KIND_NAME[view.kind])} · ${esc(RARITY[view.rarity].name)} · ${view.cost} ${plural(view.cost, 'энергия', 'энергии', 'энергии')}</span>
+        </div>
+        <p class="rg-tip-text">${esc(view.text) || 'Без дополнительных условий.'}</p>
+        ${blocks.join('')}`;
+}
+
+// ── Стол: перестановка карт ──────────────────────────────────────────────────
+// Порядок стола — решение игрока, а ошибиться в нём легко: карты кладут быстро.
+// Отмены выкладывания нет (энергия потрачена, добор уже случился), а вот
+// перестановка ничего не отменяет — она и разрешена.
+//
+// Карта переставляется ЖИВЬЁМ, прямо в DOM: сосед уступает место, пока её
+// тянут, — иначе непонятно, куда она встанет. В правила уходит только итог
+// (moveCard), и то один раз, на отпускании.
+
+function boardInput(state) {
+    const box = state.modal.querySelector('#rg-board');
+    if (!box) return;
+    box.addEventListener('pointerdown', e => boardDown(state, box, e));
+    box.addEventListener('pointermove', e => boardMove(state, box, e));
+    box.addEventListener('pointerup', () => boardUp(state, box));
+    box.addEventListener('pointercancel', () => boardDrop(state));
+}
+
+function boardDown(state, box, e) {
+    if (state.busy || state.table || e.button > 0) return;
+    const el = e.target.closest('.rg-card');
+    if (!el || box.querySelectorAll('.rg-card').length < 2) return;
+    e.preventDefault();
+    state.move = { el, from: Number(el.dataset.i), x0: e.clientX, y0: e.clientY };
+    el.setPointerCapture?.(e.pointerId);
+    el.classList.add('is-moving');
+}
+
+function boardMove(state, box, e) {
+    const d = state.move;
+    if (!d) return;
+    d.el.style.setProperty('--dx', `${e.clientX - d.x0}px`);
+    d.el.style.setProperty('--dy', `${e.clientY - d.y0}px`);
+
+    // Куда встанет: первая карта, чью середину курсор уже прошёл.
+    const others = [...box.querySelectorAll('.rg-card')].filter(el => el !== d.el);
+    const before = others.find(el => {
+        const r = el.getBoundingClientRect();
+        return e.clientX < r.left + r.width / 2;
+    }) || null;
+    if (before === d.el.nextElementSibling || (before === null && !d.el.nextElementSibling)) return;
+
+    // Переставляем в DOM и тут же сдвигаем точку хвата на столько, на сколько
+    // уехала сама карта: иначе она выпрыгнет из-под курсора.
+    const was = d.el.getBoundingClientRect();
+    box.insertBefore(d.el, before);
+    const now = d.el.getBoundingClientRect();
+    d.x0 += now.left - was.left;
+    d.y0 += now.top - was.top;
+    d.el.style.setProperty('--dx', `${e.clientX - d.x0}px`);
+    d.el.style.setProperty('--dy', `${e.clientY - d.y0}px`);
+}
+
+function boardUp(state, box) {
+    const d = state.move;
+    if (!d) return;
+    const to = [...box.querySelectorAll('.rg-card')].indexOf(d.el);
+    boardDrop(state);
+    if (to >= 0 && to !== d.from) {
+        moveCard(state.run, d.from, to);
+        afterAction(state);
+    }
+}
+
+function boardDrop(state) {
+    const d = state.move;
+    state.move = null;
+    if (!d) return;
+    d.el.classList.remove('is-moving');
+    d.el.style.removeProperty('--dx');
+    d.el.style.removeProperty('--dy');
+}
+
 // ── Карточка ─────────────────────────────────────────────────────────────────
 // Одна вёрстка на всю игру: и рука в бою, и стол, и лут, и колода.
 //
@@ -1066,23 +1285,31 @@ function dropDrag(state) {
 // напечатанные на картинке соврали бы в первый же апгрейд. Что где лежит —
 // design/roguelike-cards/README.md.
 
-function cardHtml(view, { i, act, dim = false, key = 0, small = false, deal = false } = {}) {
+function cardHtml(view, { i, act, dim = false, key = 0, small = false, big = false, deal = false } = {}) {
     const art = CARD_ART[view.id];
     const cls = [
         'rg-card', `k-${view.kind}`, `r-${view.rarity}`,
         art ? 'is-art' : '',
         dim ? 'is-dim' : '',
         small ? 'is-small' : '',
+        big ? 'is-big' : '',
         deal ? 'is-deal' : '',
+        view.lvl > 1 ? 'is-lvl' : '',
+        view.muts.length ? 'is-mut' : '',
     ].filter(Boolean).join(' ');
     const attrs = `${act ? `data-act="${act}"` : ''} data-i="${i ?? ''}" data-uid="${view.uid}"`;
     const free = view.cost !== view.baseCost ? ' is-free' : '';
     const freeTitle = free ? ' title="Мутация «Разгон»: сейчас бесплатно"' : '';
+    // Уровень и чары — ДВЕ КОРОТКИЕ МЕТКИ и свечение рамки, а не список поверх
+    // картинки. Список висел прямо на карточке и к десятой мутации вылезал за
+    // её край; читать его там всё равно было нельзя. Что именно навешано —
+    // рассказывает подсказка сбоку (cardTipHtml), она же и появляется, когда на
+    // карту действительно смотрят.
+    const stacks = view.muts.reduce((n, m) => n + m.stacks, 0);
     const lvl = view.lvl > 1
-        ? `<span class="rg-card-lvl" title="Уровень: числа карты выросли">ур. ${view.lvl}</span>` : '';
-    const muts = view.muts.map(m =>
-        `<i title="${esc(m.name)}: ${esc(m.text)}">${m.mult ? '×' : '+'}${m.power} ${esc(m.name)}</i>`).join('');
-    const mutsHtml = muts ? `<span class="rg-card-muts">${muts}</span>` : '';
+        ? `<span class="rg-card-lvl">${view.lvl} ур.</span>` : '';
+    const mutsHtml = stacks
+        ? `<span class="rg-card-mark">✦${stacks > 1 ? stacks : ''}</span>` : '';
     const keyHtml = key ? `<span class="rg-card-key">${key}</span>` : '';
 
     if (art) {
@@ -1207,7 +1434,11 @@ function deckHtml(state) {
         shard: `Осколок мутации: на какую карту? (осталось ${run.shards})`,
         remove: 'Какую карту выбросить?',
     }[mode];
-    const act = mode === 'view' ? '' : 'pick';
+    // В обычном просмотре клик по карте ОТКРЫВАЕТ ЕЁ КРУПНО: на плитке размером
+    // с ноготь не разглядеть ни картинку, ни описание, а колода — единственное
+    // место, где карты разглядывают, а не играют. В режимах выбора клик,
+    // наоборот, выбирает: там уже решают, а рассмотреть можно подсказкой.
+    const act = mode === 'view' ? 'zoom' : 'pick';
 
     // Колода показывается в том порядке, в каком она есть, а не отсортированной
     // по стоимости: игрок помнит свои карты по тому, когда их взял.
@@ -1222,6 +1453,21 @@ function deckHtml(state) {
                 ? '<p class="rg-hint">Мутацию выбирает случай, карту — вы. Та же мутация на ту же карту удваивает силу.</p>'
                 : ''}
             <div class="rg-cards is-deck">${cards}</div>
+        </div>
+        ${zoomHtml(state)}`;
+}
+
+/** Карта во весь экран: сама карточка и всё, что на ней навешано. */
+function zoomHtml(state) {
+    const card = state.zoom == null ? null : cardOf(state.run, state.zoom);
+    if (!card) return '';
+    const view = cardView(state.run, card);
+    return `
+        <div class="rg-zoom" data-act="closezoom">
+            <div class="rg-zoom-in">
+                ${cardHtml(view, { big: true })}
+                <div class="rg-zoom-side">${cardTipHtml(view)}</div>
+            </div>
         </div>`;
 }
 

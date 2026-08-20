@@ -98,6 +98,10 @@ export const SKIP_HEAL = 8;
 // карт нет и заводить её нельзя.
 export const LEVEL_STEP = 0.3;
 
+// Сколько РАЗНЫХ мутаций помещается на одну карту. Дальше осколки усиливают
+// уже висящие — см. useShard.
+export const MAX_MUTATIONS = 4;
+
 // Шанс точильного камня и осколка мутации по типу узла.
 //
 // КАМНИ ЧАСТЫЕ, ОСКОЛКИ РЕДКИЕ, и это главный баланс всей игры. Уровень растёт
@@ -596,6 +600,27 @@ export function playCard(run, handIdx) {
 }
 
 /**
+ * Переставить карту на столе.
+ *
+ * Порядок стола — это решение («Порча» перед атаками, «Зеркало» перед
+ * «Размахом»), а ошибиться в нём легко: карты кладут быстро. Перестановка при
+ * этом ничего не отменяет — ни потраченную энергию, ни уже случившийся добор, —
+ * поэтому она безопасна, в отличие от возврата карты в руку.
+ */
+export function moveCard(run, from, to) {
+    const b = run.battle;
+    if (!b || b.over) return { ok: false, reason: 'no_battle' };
+    if (!Number.isInteger(from) || !Number.isInteger(to)) return { ok: false, reason: 'shape' };
+    if (from < 0 || from >= b.board.length) return { ok: false, reason: 'no_card' };
+    const at = Math.max(0, Math.min(b.board.length - 1, to));
+    if (at !== from) {
+        const [uid] = b.board.splice(from, 1);
+        b.board.splice(at, 0, uid);
+    }
+    return { ok: true };
+}
+
+/**
  * Сыграть стол СЛЕВА НАПРАВО. Один вызов — весь ход игрока: правила считают его
  * целиком и мгновенно, а окно потом проигрывает журнал по шагам.
  */
@@ -1014,7 +1039,15 @@ export function useShard(run, uid) {
     const card = cardOf(run, uid);
     if (!card) return { ok: false, reason: 'no_card' };
     const def = CARD_BY_ID[card.id];
-    const pool = MUTATIONS.filter(m => !m.kind || m.kind === def.kind);
+    const own = Object.keys(card.mut || {});
+    // Разных мутаций на карте не больше MAX_MUTATIONS. Дальше осколок не
+    // добавляет новую строку, а УСИЛИВАЕТ одну из уже висящих — то есть идёт по
+    // тому же удвоению (×2 → ×4 → ×8), ради которого мутации и задуманы.
+    // Причина потолка не в силе, а в читаемости: карта с десятком строк
+    // перестаёт быть картой, её нельзя ни показать, ни удержать в голове.
+    const pool = own.length >= MAX_MUTATIONS
+        ? own.map(id => MUTATION_BY_ID[id])
+        : MUTATIONS.filter(m => !m.kind || m.kind === def.kind);
     const m = pick(run.rng, pool);
     card.mut[m.id] = (card.mut[m.id] | 0) + 1;
     run.shards--;
