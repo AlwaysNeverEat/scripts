@@ -726,13 +726,21 @@ export function playCard(run, handIdx) {
     b.spent += cost;
     if (free) b.surge[uid] = (b.surge[uid] | 0) + 1;
 
+    const handBefore = b.hand.length;
+    const energyBefore = b.hero.energy;
     applyInstant(run, card, def);
 
     // Карта-вспышка своё уже сделала — на стол она не ложится, а сразу уходит в
-    // сброс. В журнал при этом пишется отметка: окну надо её показать, иначе
-    // карта просто исчезнет из руки без объяснений.
+    // сброс. В журнал при этом пишется отметка, и не пустая: окно показывает
+    // словами, ЧТО именно случилось («+2 карты»), иначе карта просто исчезает из
+    // руки, а рука в тот же кадр становится другой.
     if (isFlash(card)) {
-        note(b, { t: 'flash', uid });
+        note(b, {
+            t: 'flash',
+            uid,
+            drew: b.hand.length - handBefore,
+            energy: b.hero.energy - energyBefore,
+        });
         run.stats.cards++;
         toPile(run, card, def, uid);
         return { ok: true, flash: true };
