@@ -534,7 +534,10 @@ function battleHtml(state) {
 
     const hand = (state.handView ?? b.hand).map((uid, i) => {
         const view = cardView(run, cardOf(run, uid));
-        return cardHtml(view, { i, dim: view.cost > hero.energy, key: i + 1, deal: state.deal });
+        return cardHtml(view, {
+            i, dim: view.cost > hero.energy, key: i + 1,
+            deal: state.deal || !!state.dealt?.has(uid),
+        });
     }).join('');
 
     const heroLow = s.heroHp * 3 < hero.maxHp ? ' is-low' : '';
@@ -886,15 +889,22 @@ function doPlay(state, i) {
     // просто исчезнет из руки — поэтому её силуэт снимаем ДО розыгрыша: потом
     // показывать будет нечего.
     const ghost = isFlash(card) ? makeGhost(state, el) : null;
+    const had = new Set(b.hand);
 
     playCard(run, i);
-    // Мгновенная часть уже случилась — и если она что-то улучшила, об этом надо
-    // сказать: цель выбирается случайно, и молча выросший уровень выглядит как
-    // «карта ничего не сделала».
-    const instant = takeLog(run).filter(ev => ev.t === 'upgrade');
+    const log = takeLog(run);
+    // Пришедшие тут же карты отмечаем поимённо: они должны ПРИЕХАТЬ В РУКУ по
+    // одной, а не появиться в ней между двумя кадрами. Раздача начинается не
+    // мгновенно — сперва должно быть видно, что сама карта сработала.
+    state.dealt = new Set(b.hand.filter(u => !had.has(u)));
+    state.dealBase = ghost && state.dealt.size ? FLASH_HOLD : 0;
+
     afterAction(state);
-    if (ghost) flash(ghost);
-    for (const ev of instant) tuned(state, ev);
+    state.dealt = null;
+    if (ghost) flash(state, ghost, log.find(ev => ev.t === 'flash'));
+    // Если мгновенная часть что-то улучшила, об этом надо сказать: цель
+    // выбирается случайно, и молча выросший уровень выглядит как «ничего».
+    for (const ev of log) if (ev.t === 'upgrade') tuned(state, ev);
     if (!ghost) flyIn(state, uid, from);
 }
 
@@ -908,8 +918,15 @@ function makeGhost(state, el) {
     if (!el || calm()) return null;
     const r = el.getBoundingClientRect();
     const ghost = el.cloneNode(true);
-    ghost.className = `${el.className} rg-ghost`;
+    // Классы руки копии не нужны: она уже не в руке, а её собственная анимация
+    // не должна спорить с раздачей и подъёмом под курсором.
+    ghost.className = `${el.className.replace(/\bis-(deal|up|drag|dim)\b/g, '')} rg-ghost`;
     ghost.style.cssText = el.style.cssText;
+    // …и по той же причине сбрасываем то, что оставила о себе рука: место в
+    // веере задаёт z-index, а раздача — задержку анимации. С ними копия уехала
+    // бы ПОД окно игры (у него z-index 500) и стартовала бы не сразу.
+    ghost.style.zIndex = '';
+    ghost.style.animationDelay = '';
     ghost.style.left = `${r.left}px`;
     ghost.style.top = `${r.top}px`;
     ghost.style.width = `${r.width}px`;
@@ -925,10 +942,19 @@ function makeGhost(state, el) {
     return ghost;
 }
 
-/** Показать сработавшую мгновенную карту: вспышка и вверх. */
-function flash(ghost) {
+// Сколько карточка держится на месте, вспыхнув, прежде чем уехать вверх. На это
+// же время задерживается раздача добранных карт: сначала видно, что сработало,
+// потом уже приезжает результат.
+const FLASH_HOLD = 260;
+
+/** Показать сработавшую мгновенную карту: вспышка на месте, потом вверх. */
+function flash(state, ghost, ev) {
     ghost.classList.add('is-flash');
-    setTimeout(() => ghost.remove(), 700);
+    setTimeout(() => ghost.remove(), 900);
+    const said = [];
+    if (ev?.drew > 0) said.push(`+${ev.drew} ${plural(ev.drew, 'карта', 'карты', 'карт')}`);
+    if (ev?.energy > 0) said.push(`+${ev.energy} ${plural(ev.energy, 'энергия', 'энергии', 'энергии')}`);
+    if (said.length) label(ghost, said.join(' · '));
 }
 
 /** Показать улучшенную карту: подпись под шапкой, свет и подпись над картой. */
@@ -950,7 +976,7 @@ function tuned(state, ev) {
     label(el, `${ev.lvl} уровень`);
 }
 
-/** Подпись, всплывающая над карточкой. */
+/** Подпись, всплывающая над карточкой (или над её улетающим силуэтом). */
 function label(el, text) {
     const r = el.getBoundingClientRect();
     const tag = document.createElement('span');
@@ -1095,6 +1121,11 @@ function layoutHand(state) {
         el.style.setProperty('--a', `${spread * t}deg`);
         el.style.zIndex = String(10 + i);
     });
+    // Раздача идёт ПО ОДНОЙ: задержка у каждой приезжающей карты своя, и считать
+    // её надо от их числа, а не от места в веере — иначе две добранные карты
+    // приедут с разбегом в полсекунды только потому, что легли справа.
+    cards.filter(el => el.classList.contains('is-deal'))
+        .forEach((el, k) => { el.style.animationDelay = `${(state.dealBase || 0) + k * 90}ms`; });
     void box.offsetWidth;                       // применяем раскладку этим же кадром
     requestAnimationFrame(() => box.classList.remove('is-still'));
     handInput(state, box, cards);
