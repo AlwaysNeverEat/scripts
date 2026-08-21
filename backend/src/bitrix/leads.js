@@ -15,6 +15,14 @@
 // 3. Описание лида — BB-код, а не HTML и не голый текст.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Пустое значение Битрикс отдаёт то null'ом, то пустой строкой, то ЛОЖЬЮ
+// (пустые пользовательские поля приезжают как false). Через String() последнее
+// превратилось бы в текст 'false' и уехало бы в лид настоящей строкой.
+function asText(value) {
+    if (value == null || value === false) return '';
+    return String(value);
+}
+
 export class BitrixLeadError extends Error {
     constructor(message) {
         super(message);
@@ -47,7 +55,7 @@ export function textToBB(text) {
     return value
         .split(/\n{2,}/)
         .map(part => `[p]\n${part.trim()}\n[/p]`)
-        .join('');
+        .join('\n');
 }
 
 export function bbToText(bb) {
@@ -73,11 +81,17 @@ function putMulti(form, field, values) {
         return;
     }
     list.forEach((item, i) => {
+        // Битрикс отдаёт значения в ВЕРХНЕМ регистре (ID/VALUE/VALUE_TYPE), а
+        // внутри сайта удобнее обычный. Читаем оба: перепутать регистр —
+        // значит потерять id и завести клиенту второй номер.
+        const id = item?.id ?? item?.ID;
         // Есть id — правим существующее значение, нет — добавляем новое.
-        const key = item?.id ? String(item.id) : `n${i}`;
-        form.set(`${field}[${key}][VALUE]`, String(item?.value ?? ''));
-        form.set(`${field}[${key}][VALUE_TYPE]`, String(item?.valueType || DEFAULT_MULTI_TYPE[field] || 'WORK'));
-        if (item?.countryCode) form.set(`${field}[${key}][VALUE_COUNTRY_CODE]`, String(item.countryCode));
+        const key = id ? String(id) : `n${i}`;
+        const type = item?.valueType || item?.VALUE_TYPE || DEFAULT_MULTI_TYPE[field] || 'WORK';
+        const country = item?.countryCode || item?.VALUE_COUNTRY_CODE;
+        form.set(`${field}[${key}][VALUE]`, asText(item?.value ?? item?.VALUE));
+        form.set(`${field}[${key}][VALUE_TYPE]`, String(type));
+        if (country) form.set(`${field}[${key}][VALUE_COUNTRY_CODE]`, String(country));
     });
 }
 
@@ -116,7 +130,7 @@ export function buildLeadSaveForm(lead, patch = {}) {
 
     for (const field of PLAIN_FIELDS) {
         const value = values[field];
-        form.set(field, value == null ? '' : String(value));
+        form.set(field, asText(value));
     }
 
     // Клиента (компанию и контакт) отправляем ровно тем, чем он был: трогать
@@ -131,7 +145,7 @@ export function buildLeadSaveForm(lead, patch = {}) {
     // не наши, но без них редактор считает, что их очистили.
     for (const [name, value] of Object.entries(lead?.uf || {})) {
         if (!/^UF_/.test(name)) continue;
-        form.set(name, value == null ? '' : String(value));
+        form.set(name, asText(value));
     }
 
     return form;

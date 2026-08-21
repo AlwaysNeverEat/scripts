@@ -55,7 +55,8 @@ test('стадия и ответственный меняются', () => {
 
 test('описание уезжает BB-кодом', () => {
     const f = asObject(buildLeadSaveForm(LEAD, { comments: 'ищет масло\n\nперезвонить в среду' }));
-    assert.equal(f.COMMENTS, '[p]\nищет масло\n[/p][p]\nперезвонить в среду\n[/p]');
+    // Абзацы разделены переводом строки — ровно так их хранит сам Битрикс.
+    assert.equal(f.COMMENTS, '[p]\nищет масло\n[/p]\n[p]\nперезвонить в среду\n[/p]');
 });
 
 test('пустая стадия — отказ, а не тихий увод лида в начало воронки', () => {
@@ -68,8 +69,33 @@ test('без числового id сохранять нечего', () => {
     assert.throws(() => buildLeadSaveForm({ ...LEAD, ID: 'нет' }, {}), BitrixLeadError);
 });
 
+// Пустые пользовательские поля Битрикс отдаёт ложью, а не пустой строкой:
+// через String() в лид уехало бы слово 'false'.
+test('пустое поле не превращается в строку false', () => {
+    const lead = { ...LEAD, HONORIFIC: null, POST: false, uf: { UF_CRM_ROISTAT: false, UF_CRM_DCT_CITY: 'СПб' } };
+    const f = asObject(buildLeadSaveForm(lead, {}));
+    assert.equal(f.POST, '');
+    assert.equal(f.HONORIFIC, '');
+    assert.equal(f.UF_CRM_ROISTAT, '');
+    assert.equal(f.UF_CRM_DCT_CITY, 'СПб');
+});
+
+// Лид, прочитанный из Битрикса как есть: телефон приезжает с ключами в верхнем
+// регистре, и потерять на этом id значения нельзя — уедет второй номер.
+test('телефон читается и из формата самого Битрикса', () => {
+    const lead = { ...LEAD, PHONE: [{ ID: '698360', VALUE: '79112527716', VALUE_TYPE: 'WORK', TYPE_ID: 'PHONE' }] };
+    const f = asObject(buildLeadSaveForm(lead, {}));
+    assert.equal(f['PHONE[698360][VALUE]'], '79112527716');
+    assert.ok(!('PHONE[n0][VALUE]' in f));
+});
+
 test('BB-код разбирается обратно в текст', () => {
     assert.equal(bbToText(LEAD.COMMENTS), 'какое то крафтовское масло ищет (Сергей)');
+    // Два абзаца из живого лида: между ними [/p]\n[p]
+    assert.equal(
+        bbToText('[p]\nраз\n[/p]\n[p]\nдва\n[/p]'),
+        'раз\n\nдва',
+    );
     assert.equal(bbToText('[p]раз[/p][p]два[/p]'), 'раз\n\nдва');
     assert.equal(bbToText('строка[br]вторая'), 'строка\nвторая');
     assert.equal(bbToText(''), '');
