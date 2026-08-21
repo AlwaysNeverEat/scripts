@@ -6185,6 +6185,14 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .bs-plate {
   grid-area: plate;
   position: relative;
+  /* ЧИСЛА СЛОЁВ НИЖЕ ДЕЙСТВУЮТ ТОЛЬКО ВНУТРИ ПОЛЯ. Само по себе
+     position: relative контекста наложения не заводит, и z-index клеток с
+     кораблями спорил не с соседним слоем поля, а со ВСЕМ окном: надпись «Мимо»
+     и карточка итога уезжали ПОД сетку — сквозь них было видно клетки и
+     корпуса. Накладкам ниже проставлен свой z-index, и одного его хватило бы,
+     но здесь запирается сама причина: следующая накладка, добавленная в окно
+     без оглядки на внутренности поля, обязана просто работать. */
+  isolation: isolate;
   background: var(--bs-water);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -6317,6 +6325,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    выстрела, а не мешает стрелять дальше. */
 .bs-shout {
   position: absolute; inset: 0;
+  z-index: 5;
   display: flex; align-items: center; justify-content: center;
   pointer-events: none;
   font-size: clamp(26px, 6vw, 46px); font-weight: 800; letter-spacing: .04em;
@@ -6336,6 +6345,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 .bs-over {
   position: absolute; inset: 0;
+  /* Выше надписи: итог партии перекрывает всё, включая недоигранный «Убил». */
+  z-index: 6;
   display: flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, var(--bg) 78%, transparent);
   backdrop-filter: blur(2px);
