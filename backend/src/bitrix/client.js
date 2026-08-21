@@ -28,6 +28,7 @@
 import { query } from '../db/client.js';
 import { linkSecretConfigured, openSecret, sealSecret } from '../crm/secretBox.js';
 import { fetchWithRetry, describeNetworkError } from '../http/netRetry.js';
+import { parseFrameCacheVars, compositeHeaders, dynamicUrl, dynamicHtml } from './composite.js';
 
 const BASE = (process.env.BITRIX_BASE_URL || 'https://spotexpress.bitrix24.ru').replace(/\/$/, '');
 const BASE_URL = new URL(`${BASE}/`);
@@ -282,15 +283,45 @@ export function extractSessid(html) {
     return m ? m[1] : null;
 }
 
-// Живая ли сессия: портал отвечает страницей приложения, а не гонит на
-// Bitrix24.Network. Заодно обновляем sessid — он меняется вместе с сессией.
-async function probeSession(state) {
-    const res = await followRedirects(await rawFetch('/crm/lead/list/', state.jar), state.jar);
-    const url = new URL(res.url || BASE_URL.href);
-    if (url.origin !== BASE_URL.origin || /\/(auth|oauth)\//.test(url.pathname)) return false;
-    const sessid = extractSessid(await res.text());
+// Страница портала целиком, с учётом композитного кэша (composite.js): на
+// первый GET приходит общий для всех каркас, и настоящее содержимое надо
+// спросить вторым запросом. Отсюда же берётся ответ на вопрос «жива ли
+// сессия»: каркас отдают кому угодно, а вот sessid есть только у вошедшего.
+async function loadPage(state, path) {
+    const first = await followRedirects(await rawFetch(path, state.jar), state.jar);
+    const url = new URL(first.url || BASE_URL.href);
+    if (url.origin !== BASE_URL.origin) return { html: '', url, authed: false };
+
+    const shell = await first.text();
+    const vars = parseFrameCacheVars(shell);
+    let html = shell;
+
+    if (vars) {
+        const res = await rawFetch(dynamicUrl(path), state.jar, {
+            headers: compositeHeaders(vars, { referer: BASE_URL.href }),
+        });
+        const text = await res.text();
+        let body = text;
+        try {
+            body = dynamicHtml(JSON.parse(text));
+        } catch {
+            // Портал ответил не JSON — это либо страница входа, либо поломка.
+            // Разбираем как разметку: sessid в ней всё равно не найдётся, и
+            // вызывающий получит честное «сессии нет».
+        }
+        html = `${shell}\n${body}`;
+    }
+
+    const sessid = extractSessid(html);
     if (sessid) state.sessid = sessid;
-    return Boolean(sessid);
+    return { html, url, authed: Boolean(sessid) };
+}
+
+// Живая ли сессия. Проверяем списком лидов, а не главной: главная зависит от
+// шаблона портала, а список лидов — та самая часть, ради которой мы и ходим.
+async function probeSession(state) {
+    const { authed } = await loadPage(state, '/crm/lead/list/');
+    return authed;
 }
 
 // ── Вход ─────────────────────────────────────────────────────────────────────
@@ -476,17 +507,15 @@ export async function bitrixAjax(userId, path, body = null, { method = 'POST', j
 }
 
 // Страница портала (карточка лида, список) — для того, чего в ajax нет.
+// Возвращается уже СОБРАННАЯ разметка: каркас плюс динамические блоки, иначе
+// в ответе не окажется ни одного значения лида (см. composite.js).
 export async function bitrixGetHtml(userId, path) {
     const state = await bitrixEnsureSession(userId);
-    const res = await followRedirects(await rawFetch(path, state.jar), state.jar);
-    const url = new URL(res.url || BASE_URL.href);
-    if (url.origin !== BASE_URL.origin) {
+    const { html, authed } = await loadPage(state, path);
+    if (!authed) {
         await dropState(userId);
         throw new BitrixError('bitrix_auth_required', 'сессия Битрикса закрылась');
     }
-    const html = await res.text();
-    const sessid = extractSessid(html);
-    if (sessid) state.sessid = sessid;
     await saveState(userId, state);
     return html;
 }
