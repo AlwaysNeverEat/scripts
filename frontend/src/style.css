@@ -3407,6 +3407,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .games-tile-blank > i { font-style: normal; color: var(--sub); }
 .games-tile-blank > i:nth-child(2), .games-tile-blank > i:nth-child(3) { color: var(--red); }
+/* Игра может положить в плитку и SVG вместо типографского знака (морской бой:
+   якоря и прицела в шрифтах либо нет, либо это цветное эмодзи). Значок такой же
+   участник сетки, как символ, — ему нужен только display, чтобы не висеть на
+   базовой линии буквы. */
+.games-tile-blank > i > .icon { display: block; }
 .games-tile:hover { background: var(--bg2); }
 .games-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .games-tile:active { transform: scale(.94); }
@@ -6120,6 +6125,283 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .rg-node { width: 62px; font-size: 9.5px; }
 }
 
+/* ══ Пасхалка «Морской бой» ═════════════════════════════════════════════════
+   Три экрана в одном окне: лобби (с кем играть), расстановка, бой. Лобби,
+   списки и мини-топ намеренно похожи на бильярдные и дурацкие: три парные игры,
+   которые выглядят по-разному без причины, выглядят как три разные программы.
+
+   ПОЛЕ УСТРОЕНО ТРЕМЯ СЛОЯМИ, и разделение принципиальное:
+     .bs-grid  — сто клеток, в них значки выстрелов;
+     .bs-ships — корабли ОДНОЙ полосой поверх сетки, а не подкрашенными
+                 клетками: четырёхпалубный из четырёх крашеных клеток читается
+                 как четыре катера в ряд, а вся игра как раз про эту разницу;
+     буквы и цифры по краям — отдельными полосками, они за партию не меняются.
+
+   Из-за слоя кораблей ширина клетки живёт в переменной: корабль позиционируется
+   арифметикой по --bs-cell и --bs-gap, и «на глаз» его поставить нельзя. */
+.modal-win.bs-win { width: min(940px, 96vw); max-width: 96vw; }
+.bs-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+.bs-win {
+  /* Клетка. Потолок 34px — выше номер клетки читаться лучше не начинает, а два
+     поля по десять клеток перестают помещаться рядом. Нижняя граница 20px:
+     мельче в клетку не влезает значок, а без него попадание и промах
+     различаются только цветом. */
+  --bs-cell: max(20px, min(34px, calc((100vw - 190px) / 22)));
+  --bs-gap: 1px;
+  --bs-water: color-mix(in srgb, var(--accent) 8%, var(--bg2));
+  --bs-hull: color-mix(in srgb, var(--text) 45%, var(--bg2));
+}
+
+/* ── Поле ── */
+.bs-board {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: '.  letters' 'digits plate';
+  gap: 2px;
+  justify-content: start;
+}
+.bs-letters, .bs-digits { display: grid; gap: var(--bs-gap); font-size: 10.5px; opacity: .55; }
+.bs-letters {
+  grid-area: letters;
+  grid-template-columns: repeat(10, var(--bs-cell));
+}
+.bs-digits {
+  grid-area: digits;
+  grid-template-rows: repeat(10, var(--bs-cell));
+  align-items: center;
+}
+.bs-letters > i, .bs-digits > i {
+  font-style: normal; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* ПОРЯДОК СЛОЁВ ЗДЕСЬ — НЕ ОФОРМЛЕНИЕ, А ПРАВИЛО ЧИТАЕМОСТИ: вода снизу,
+   корабли над ней, отметки выстрелов ПОВЕРХ ВСЕГО. Пока у клеток был свой
+   непрозрачный фон, корабль приходилось класть поверх них — и попадания в
+   собственный, ещё не потопленный корабль скрывались под его корпусом, то есть
+   игрок не видел ровно того, что ему важнее всего. Поэтому вода теперь
+   нарисована на подложке, клетки прозрачны, а линии сетки им рисует тень
+   наружу — своего фона у клетки нет вовсе. */
+.bs-plate {
+  grid-area: plate;
+  position: relative;
+  background: var(--bs-water);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bs-grid {
+  position: relative; z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(10, var(--bs-cell));
+  grid-auto-rows: var(--bs-cell);
+  gap: var(--bs-gap);
+}
+.bs-cell {
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  box-shadow: 0 0 0 var(--bs-gap) color-mix(in srgb, var(--border) 85%, transparent);
+  color: var(--sub);
+  position: relative;
+  transition: background-color .15s ease;
+}
+/* Промах — приглушённый, попадание — красное: за партию их набирается под
+   сотню, и если кричать обоими, поле превращается в кашу. Но «приглушённый» не
+   значит «невидимый»: промах — это половина всего, что игрок знает о чужом
+   поле. */
+.bs-cell.is-miss { color: color-mix(in srgb, var(--text) 52%, transparent); }
+.bs-cell.is-hit, .bs-cell.is-dead { color: var(--red); }
+.bs-cell.is-dead { background: color-mix(in srgb, var(--red) 20%, transparent); }
+.bs-cell .icon { display: block; }
+/* Клетки, изменившиеся последним ходом: коротко вспыхивают. Иначе серия чужих
+   попаданий приезжает одним опросом и просто «уже нарисована». */
+.bs-cell.is-fresh { animation: bs-pop .45s ease-out both; }
+@keyframes bs-pop {
+  0%   { transform: scale(.55); opacity: .2; }
+  55%  { transform: scale(1.18); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+/* Чужое поле, когда наш ход: курсор-прицел на клетках, куда ещё не стреляли. */
+.bs-grid.is-aim .bs-cell:not(.is-miss):not(.is-hit):not(.is-dead) { cursor: crosshair; }
+.bs-grid.is-aim .bs-cell:not(.is-miss):not(.is-hit):not(.is-dead):hover {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+/* ── Корабли ── */
+.bs-ships { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.bs-ship {
+  position: absolute;
+  background: var(--bs-hull);
+  border: 1px solid color-mix(in srgb, var(--text) 62%, transparent);
+  /* Скругление в половину клетки: получается вытянутая «капсула», по которой
+     длина корабля видна с одного взгляда. */
+  border-radius: calc(var(--bs-cell) * 0.4);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
+}
+/* Потопленный: тонет вместе с рамкой — «ранен» и «убит» обязаны различаться
+   с расстояния, значка на клетке для этого мало. */
+.bs-ship.is-dead {
+  background: color-mix(in srgb, var(--red) 34%, var(--bs-hull));
+  border-color: var(--red);
+}
+/* Призрак под курсором при расстановке. */
+.bs-ship.bs-ghost { opacity: .62; border-style: dashed; }
+.bs-ship.bs-ghost.is-ok { background: color-mix(in srgb, var(--accent) 55%, var(--bs-hull)); border-color: var(--accent); }
+.bs-ship.bs-ghost.is-bad { background: color-mix(in srgb, var(--red) 55%, var(--bs-hull)); border-color: var(--red); }
+
+.bs-field-head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; margin-bottom: 6px; min-height: 20px;
+}
+.bs-field-head .icon { opacity: .6; flex: 0 0 auto; }
+.bs-field-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Сколько кораблей ещё живо. Число, а не полоска: тут вся арифметика в целых
+   («у него осталось три»), и полоска отвечала бы только на «много или мало». */
+.bs-left {
+  margin-left: auto; flex: 0 0 auto;
+  font-size: 11.5px; font-weight: 700; opacity: .7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Расстановка ── */
+.bs-setup-cols { display: flex; gap: 16px; flex-wrap: wrap; align-items: stretch; justify-content: center; }
+/* Док не растягивается на всю оставшуюся ширину: строка «катер … 4» длиной в
+   пол-окна читается хуже короткой, а поле от этого не выигрывает ничего. */
+.bs-dock-box { display: flex; flex-direction: column; gap: 8px; flex: 0 1 300px; min-width: 190px; }
+.bs-dock { display: flex; flex-direction: column; gap: 4px; }
+/* Список кораблей, а не выпадашка: размеров четыре, и выбрать надо одним
+   нажатием — расстановка это десять кликов подряд. */
+.bs-dock-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px;
+  font: inherit; font-size: 12.5px; color: var(--text); text-align: left;
+  background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer;
+}
+.bs-dock-item.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.bs-dock-item:disabled { cursor: default; opacity: .4; }
+.bs-dock-item.is-done:not(.is-on) { opacity: .38; }
+/* Корабль в доке — не значок, а его НАСТОЯЩАЯ длина квадратиками: выбирают тут
+   именно размер, и «четыре клетки» показывают четыре клетки. */
+.bs-dock-ship { display: flex; gap: 2px; flex: 0 0 auto; }
+.bs-dock-ship > i {
+  width: 11px; height: 11px; border-radius: 2px;
+  background: var(--bs-hull);
+  border: 1px solid color-mix(in srgb, var(--text) 55%, transparent);
+}
+.bs-dock-name { flex: 1 1 auto; opacity: .75; }
+.bs-dock-count { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.bs-setup-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.bs-setup-bar .btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; font-size: 12.5px; }
+.bs-ready { width: 100%; }
+/* Запертые кнопки расстановки гасим руками: общий .btn в проекте
+   про :disabled ничего не знает, и «Готов» на половине флота выглядел бы
+   готовым к нажатию — а нажать его нельзя. */
+.bs-setup-bar .btn:disabled, .bs-ready:disabled { opacity: .45; cursor: default; }
+.bs-setup-back { display: flex; gap: 6px; margin-top: auto; }
+.bs-setup-back .btn { flex: 1 1 auto; padding: 4px 9px; font-size: 12.5px; }
+
+/* ── Бой ── */
+.bs-battle { position: relative; display: flex; flex-direction: column; gap: 10px; }
+.bs-fields { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.bs-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bs-bar-gap { flex: 1 1 auto; }
+.bs-bar .btn { padding: 4px 10px; font-size: 12.5px; }
+
+.bs-note { font-size: 12px; opacity: .7; min-height: 16px; }
+.bs-note.is-flash { opacity: 1; color: var(--red); }
+
+/* Крупная надпись поверх полей. Сквозная для кликов: она показывает исход
+   выстрела, а не мешает стрелять дальше. */
+.bs-shout {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  font-size: clamp(26px, 6vw, 46px); font-weight: 800; letter-spacing: .04em;
+  color: var(--text);
+  text-shadow: 0 2px 14px var(--bg);
+  opacity: 0;
+}
+.bs-shout.is-show { animation: bs-shout .9s ease-out both; }
+.bs-shout.is-hit { color: var(--red); }
+.bs-shout.is-foe { opacity: .9; font-size: clamp(20px, 4.4vw, 34px); }
+@keyframes bs-shout {
+  0%   { opacity: 0; transform: scale(.8); }
+  20%  { opacity: 1; transform: scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+
+.bs-over {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(2px);
+  border-radius: 10px;
+}
+.bs-over-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 18px 26px;
+  background: var(--card);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  text-align: center;
+}
+.bs-over-title { font-size: 20px; font-weight: 800; }
+.bs-over-sub { font-size: 12.5px; opacity: .7; }
+
+/* ── Лобби, списки и мини-топ ── */
+.bs-lobby { display: flex; flex-direction: column; gap: 10px; }
+.bs-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.bs-box {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg2);
+  min-width: 0;
+}
+.bs-box h4 { margin: 0; font-size: 14px; }
+.bs-hint { margin: 0; font-size: 11.5px; opacity: .65; line-height: 1.35; }
+.bs-levels { display: flex; gap: 6px; flex-wrap: wrap; }
+.bs-levels .btn { flex: 1 1 auto; padding: 4px 10px; font-size: 12.5px; }
+
+.bs-list { display: flex; flex-direction: column; gap: 2px; max-height: 148px; overflow-y: auto; }
+.bs-empty { font-size: 12px; opacity: .6; padding: 4px 0; }
+.bs-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+.bs-row.is-mine { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.bs-row-main { flex: 1 1 auto; min-width: 0; }
+.bs-row-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bs-row-sub { font-size: 11px; opacity: .6; }
+.bs-row-tag.is-turn { opacity: 1; color: var(--accent); font-weight: 600; }
+.bs-row-btn { flex: 0 0 auto; padding: 3px 10px; font-size: 12px; }
+
+.bs-top { display: flex; flex-direction: column; gap: 4px; }
+.bs-top-head { font-size: 12px; opacity: .7; }
+.bs-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 132px; overflow-y: auto; }
+.bs-top-row { display: flex; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+.bs-top-row.is-me { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.bs-top-row.is-first .bs-top-rank { font-weight: 700; color: var(--accent); }
+.bs-top-rank { width: 18px; flex: 0 0 auto; text-align: right; opacity: .7; font-size: 12px; }
+.bs-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; }
+.bs-top-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bs-top-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bs-top-score { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.bs-top-losses { opacity: .5; font-weight: 400; }
+.bs-top-row.is-mine-extra { margin-top: 4px; }
+
+/* Узкое окно: поля встают друг под друга, а не ужимаются до нечитаемых клеток.
+   Два поля рядом на телефоне дали бы клетку в двенадцать пикселей — в неё не
+   влезает ни значок, ни палец. */
+@media (max-width: 720px) {
+  .bs-cols { grid-template-columns: minmax(0, 1fr); }
+  .bs-fields { flex-direction: column; align-items: center; }
+  .bs-win { --bs-cell: max(24px, min(32px, calc((100vw - 90px) / 10))); }
+  .bs-setup-cols { flex-direction: column; align-items: center; }
+  .bs-dock-box { width: 100%; }
+}
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
    Игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
@@ -6135,6 +6417,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.sol-win,
 .modal-win.pool-win,
 .modal-win.dur-win,
+.modal-win.bs-win,
 .modal-win.rg-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
@@ -6212,6 +6495,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .modal-win.pool-win,
   .modal-win.dur-win,
   .dur-card.is-nope,
+  .modal-win.bs-win,
+  .bs-cell.is-fresh,
   .modal-win.rg-win,
   .rg-card.rg-shake,
   .rg-card.is-deal,
@@ -6221,6 +6506,11 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .rg-me.is-hurt {
     animation: none;
   }
+  /* Надпись исхода выстрела в морском бою НЕ выключаем, а укорачиваем: на
+     клетке в четверть сантиметра попадание от промаха отличается значком, и
+     без крупного слова чужой ход остаётся незамеченным. Та же логика, что у
+     улетающих чисел рогалика ниже. */
+  .bs-shout.is-show { animation-duration: .5s; }
   /* Улетающие числа и надписи показа НЕ выключаем, а укорачиваем: это не
      украшение, а единственный способ понять, что случилось за ход врага
      (то же решение, что с фазами цепочки в тройке). Сам показ при этой

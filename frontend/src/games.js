@@ -27,6 +27,7 @@ import iconKontekst from './assets/game-kontekst.png';
 import iconMinesweeper from './assets/game-minesweeper.png';
 import iconTetris from './assets/game-tetris.png';
 import iconTroika from './assets/game-troika.png';
+import { anchorIcon, crosshairIcon, blastIcon, splashIcon } from './icons.js';
 
 const MODAL_ID = 'games-modal';
 
@@ -48,6 +49,12 @@ const GAMES = [
     // Иконки нет и здесь — на плитке то, из чего забег состоит: карта, меч и
     // осколок мутации.
     { name: 'Рогалик',    blank: ['⚔', '◆', '✦'], open: () => import('./roguelike.js').then(m => m.openRoguelike) },
+    // Своей иконки нет и у морского боя, но типографских значков под него не
+    // нашлось: якорь, прицел и взрыв в шрифтах либо цветные эмодзи, либо
+    // отсутствуют вовсе. Поэтому на плитке — те же SVG, которыми игра рисует
+    // поле (icons.js), и выглядят они ровно так же в любой системе.
+    { name: 'Морской бой', blank: [anchorIcon(26), crosshairIcon(26), blastIcon(26), splashIcon(26)],
+      open: () => import('./battleship.js').then(m => m.openBattleship) },
 ];
 
 let openModal = null;   // одно окно за раз

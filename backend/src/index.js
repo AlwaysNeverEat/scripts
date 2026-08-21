@@ -19,6 +19,7 @@ import solitaireRouter from './routes/solitaire.js';
 import roguelikeRouter from './routes/roguelike.js';
 import poolRouter from './routes/pool.js';
 import durakRouter from './routes/durak.js';
+import battleshipRouter from './routes/battleship.js';
 import facultyRouter from './routes/faculty.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
@@ -111,6 +112,9 @@ app.use('/api/pool', requireSession, poolRouter);
 // Дурак — как бильярд, партию ведёт сервер, но по другой причине: в карты играют
 // ЗАКРЫТЫМИ, и клиенту уезжает не позиция, а его вид на неё (см. routes/durak.js).
 app.use('/api/durak', requireSession, durakRouter);
+// Морской бой — та же причина, что у дурака, только сильнее: закрыта не рука, а
+// вся чужая расстановка, то есть игра целиком (см. routes/battleship.js).
+app.use('/api/battleship', requireSession, battleshipRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются
