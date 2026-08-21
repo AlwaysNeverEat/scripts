@@ -1,0 +1,435 @@
+<title>Пять минут вместо часа</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:      #eef0f3;
+    --surface:    #f9fafb;
+    --surface-2:  #e4e8ec;
+    --ink:        #12181e;
+    --ink-soft:   #4b5762;
+    --ink-faint:  #77838d;
+    --line:       #ccd4da;
+    --line-soft:  #dde3e8;
+    --accent:     #a85f12;
+    --accent-mark:#c98322;
+    --steel:      #2f6070;
+
+    --f-display: "Bitter", "Georgia", serif;
+    --f-body:    "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-mono:    "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+    --step--1: clamp(.78rem, .76rem + .1vw, .84rem);
+    --step-0:  clamp(1rem, .97rem + .16vw, 1.09rem);
+    --step-1:  clamp(1.2rem, 1.13rem + .34vw, 1.42rem);
+    --step-2:  clamp(1.5rem, 1.36rem + .68vw, 2rem);
+    --step-3:  clamp(1.95rem, 1.66rem + 1.42vw, 2.95rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0e1218;
+      --surface:    #151b22;
+      --surface-2:  #1c242c;
+      --ink:        #e7ecf0;
+      --ink-soft:   #9dabb6;
+      --ink-faint:  #7c8994;
+      --line:       #26313a;
+      --line-soft:  #1e262e;
+      --accent:     #e8a340;
+      --accent-mark:#f0b35e;
+      --steel:      #74b2c2;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0e1218;
+    --surface:    #151b22;
+    --surface-2:  #1c242c;
+    --ink:        #e7ecf0;
+    --ink-soft:   #9dabb6;
+    --ink-faint:  #7c8994;
+    --line:       #26313a;
+    --line-soft:  #1e262e;
+    --accent:     #e8a340;
+    --accent-mark:#f0b35e;
+    --steel:      #74b2c2;
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 68rem;
+    margin: 0 auto;
+    padding: clamp(1.5rem, 1rem + 2vw, 3.5rem) clamp(1.1rem, .6rem + 2.4vw, 3rem) 5rem;
+  }
+
+  .lbl {
+    font-family: var(--f-mono);
+    font-size: var(--step--1);
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ── шапка ───────────────────────────────────────────── */
+  .head { display: flex; flex-direction: column; gap: 1.1rem; padding-bottom: 2.2rem; }
+  .head-top { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; align-items: baseline; justify-content: space-between; }
+  .head h1 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: var(--step-3);
+    line-height: 1.08;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+    margin: 0;
+    max-width: 22ch;
+  }
+  .head h1 em { font-style: normal; color: var(--accent); }
+  .head-sub { color: var(--ink-soft); max-width: 58ch; margin: 0; }
+  .rule-amber { height: 3px; background: var(--accent); width: 4.5rem; border-radius: 2px; }
+
+  /* ── цифры ───────────────────────────────────────────── */
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-top: 1.4rem;
+  }
+  .fact { background: var(--surface); padding: .95rem 1.05rem; display: flex; flex-direction: column; gap: .15rem; }
+  .fact b {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: var(--step-1);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+  }
+  .fact span { font-family: var(--f-mono); font-size: var(--step--1); color: var(--ink-faint); line-height: 1.35; }
+
+  /* ── секции: рельс слева, содержание справа ──────────── */
+  .sec {
+    display: grid;
+    grid-template-columns: 11.5rem minmax(0, 1fr);
+    gap: 0 2.5rem;
+    padding: 2.6rem 0 0;
+    border-top: 1px solid var(--line);
+    margin-top: 2.6rem;
+  }
+  .sec > .rail { display: flex; flex-direction: column; gap: .4rem; }
+  .sec h2 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: var(--step-2);
+    line-height: 1.15;
+    letter-spacing: -.01em;
+    margin: 0 0 1rem;
+    text-wrap: balance;
+  }
+  .sec p { margin: 0 0 1rem; max-width: 66ch; }
+  .sec p:last-child { margin-bottom: 0; }
+  @media (max-width: 46rem) {
+    .sec { grid-template-columns: 1fr; gap: .8rem; }
+    .sec > .rail { flex-direction: row; flex-wrap: wrap; gap: .2rem .9rem; }
+  }
+
+  .thesis {
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: var(--step-1);
+    line-height: 1.42;
+    color: var(--ink);
+    border-left: 3px solid var(--accent);
+    padding-left: 1.1rem;
+    margin: 0 0 1.4rem;
+    max-width: 52ch;
+  }
+
+  /* ── кейсы ───────────────────────────────────────────── */
+  .case {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 1.5rem clamp(1.1rem, .8rem + 1vw, 1.9rem) 1.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: .9rem;
+  }
+  .cases { display: flex; flex-direction: column; gap: 1.1rem; }
+  .case-head { display: flex; flex-direction: column; gap: .35rem; }
+  .case h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: var(--step-1);
+    line-height: 1.25;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .case p { margin: 0; max-width: 68ch; }
+  .case p + p { margin-top: -.15rem; }
+  .case .role { color: var(--steel); font-family: var(--f-mono); font-size: var(--step--1); }
+
+  .kv { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: .45rem 1rem; margin: 0; }
+  .kv dt { font-family: var(--f-mono); font-size: var(--step--1); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); padding-top: .2rem; }
+  .kv dd { margin: 0; }
+  @media (max-width: 34rem) {
+    .kv { grid-template-columns: 1fr; gap: .15rem; }
+    .kv dd { margin-bottom: .5rem; }
+  }
+
+  .bullets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+  .bullets li { position: relative; padding-left: 1.15rem; max-width: 68ch; }
+  .bullets li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: .72em;
+    width: .45rem; height: 1px;
+    background: var(--accent);
+  }
+  .bullets strong { font-weight: 600; }
+
+  .stack { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .3rem; }
+  .chip {
+    font-family: var(--f-mono);
+    font-size: var(--step--1);
+    padding: .18rem .55rem;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .case .chip { background: transparent; }
+
+  /* ── финальный блок ──────────────────────────────────── */
+  .show {
+    margin-top: 3rem;
+    border: 1px solid var(--accent);
+    background: var(--surface);
+    padding: clamp(1.4rem, 1rem + 1.6vw, 2.4rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .show h2 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: var(--step-2); line-height: 1.15; }
+  .show .kicker { font-family: var(--f-display); font-size: var(--step-1); line-height: 1.45; margin: 0; max-width: 54ch; }
+  .contacts { display: flex; flex-wrap: wrap; gap: .5rem 2rem; padding-top: .4rem; border-top: 1px solid var(--line); }
+  .contacts div { display: flex; flex-direction: column; }
+  .contacts b { font-weight: 500; font-family: var(--f-mono); font-size: var(--step-0); }
+
+  mark { background: none; color: var(--accent-mark); font-weight: 600; }
+
+  a { color: var(--accent); text-underline-offset: .18em; }
+  a:focus-visible, :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .reveal { animation: rise .5s cubic-bezier(.2,.7,.3,1) both; }
+  .reveal:nth-of-type(2) { animation-delay: .05s; }
+  .reveal:nth-of-type(3) { animation-delay: .1s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { animation: none; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="head reveal">
+    <div class="head-top">
+      <span class="lbl">Портфолио · автоматизация процессов</span>
+      <span class="lbl">Санкт-Петербург</span>
+    </div>
+    <div class="rule-amber"></div>
+    <h1>Если рутина занимает час — значит, её можно закрыть за <em>пять минут</em></h1>
+    <p class="head-sub">Внутренние инструменты, надстройки над чужими CRM, собственные базы данных и сервисы. Не «проекты для резюме»: всё перечисленное работает в проде каждый день, и каждое сделано по своей инициативе — потому что мешала ручная работа.</p>
+
+    <div class="facts">
+      <div class="fact"><b>~23</b><span>точки сети,<br>где это работает</span></div>
+      <div class="fact"><b>4</b><span>продукта<br>в проде</span></div>
+      <div class="fact"><b>~75 000</b><span>строк кода<br>в основном репозитории</span></div>
+      <div class="fact"><b>50</b><span>наборов<br>автотестов</span></div>
+      <div class="fact"><b>34</b><span>миграции<br>схемы БД</span></div>
+    </div>
+  </header>
+
+  <section class="sec reveal">
+    <div class="rail"><span class="lbl">Подход</span></div>
+    <div>
+      <h2>Как я к этому пришёл</h2>
+      <p class="thesis">Цель всегда была одна: получать те же деньги за меньший объём ручной работы. Не строчка в резюме и не галочка в плане.</p>
+      <p>Я довольно долго не знал, что у этого есть название и что это отдельная профессия. Работал в сервисе, видел, что одно и то же действие повторяется по сорок раз в день, и делал так, чтобы оно повторялось само. Никто из этого не ставил задачу, бюджета не выделял и сроков не назначал — я просто не умею делать руками то, что можно не делать руками.</p>
+      <p>Из этого следует, как я выбираю, за что браться: не за самое технологичное, а за самое частое. Инструмент, которым пользуются каждый день пятьдесят человек, важнее красивой архитектуры, о которой знаю только я.</p>
+    </div>
+  </section>
+
+  <section class="sec reveal">
+    <div class="rail">
+      <span class="lbl">Работы</span>
+      <span class="lbl">2022 — сейчас</span>
+    </div>
+    <div>
+      <h2>Что сделано</h2>
+      <p style="color: var(--ink-soft); margin-bottom: 1.4rem;">Названия компаний и внутренние ссылки здесь намеренно не указаны. Всё показываю лично — репозитории, историю коммитов и рабочие версии.</p>
+
+      <div class="cases">
+
+        <article class="case">
+          <div class="case-head">
+            <span class="lbl">Кейс · надстройки над CRM</span>
+            <h3>Инструменты поверх чужого интерфейса, которые обновляются сами</h3>
+            <span class="role">Сеть автосервисов, ~23 точки · инициатива, от идеи до прода</span>
+          </div>
+          <dl class="kv">
+            <dt>Было</dt>
+            <dd>Работа шла в готовой CRM, которую нельзя переписать. Половина действий оператора — ручной поиск по чужим сайтам, пересчёт калькулятором и переключение между вкладками.</dd>
+            <dt>Стало</dt>
+            <dd>
+              <ul class="bullets">
+                <li><strong>Интерактивная карта метро с бронированием</strong> прямо поверх админки: видно, где рядом с клиентом есть свободное окно, и запись создаётся отсюда же.</li>
+                <li><strong>Пересчёт стоимости заказа</strong> — без калькулятора и без «посчитаю и перезвоню».</li>
+                <li><strong>Калькулятор подбора масла</strong>: сам сверяет автомобиль с базой, считает объём и отдаёт готовый ответ клиенту с обоснованием.</li>
+                <li><strong>Поиск артикулов фильтров</strong> по каталогам поставщиков — несколько разных сайтов, один одинаковый результат.</li>
+              </ul>
+            </dd>
+            <dt>Важное</dt>
+            <dd>Раздача и обновление автоматические: сборка в CI, у людей всё обновляется само. Никому никогда не приходилось ничего переустанавливать вручную — иначе половина сети осталась бы на версии двухлетней давности.</dd>
+          </dl>
+          <div class="stack">
+            <span class="chip">userscript / Tampermonkey</span><span class="chip">JavaScript</span><span class="chip">GitHub Actions</span><span class="chip">интеграция с CRM</span>
+          </div>
+        </article>
+
+        <article class="case">
+          <div class="case-head">
+            <span class="lbl">Кейс · данные</span>
+            <h3>Собственная база автомобилей и подбор масла по допускам</h3>
+            <span class="role">Сбор данных, схема, backend, сайт — целиком</span>
+          </div>
+          <dl class="kv">
+            <dt>Было</dt>
+            <dd>Характеристики автомобиля искали заново под каждый заказ. Требования по маслу противоречивы: в паспорте рекомендаций в среднем под три десятка допусков, и две трети из них — вообще чужих марок.</dd>
+            <dt>Стало</dt>
+            <dd>Конвейер сбора из нескольких открытых каталогов, своя схема в PostgreSQL, API и сайт. Логика подбора вынесена в один общий модуль: им пользуются и сайт, и надстройка в CRM, поэтому правило существует ровно в одном месте и не может разойтись между инструментами.</dd>
+            <dt>Суть</dt>
+            <dd>Каждый допуск разбирается на физику — зольность, HTHS, вязкость, интервал — и сверяется с маркой автомобиля; чужие марки весят ноль. Ограничение накладывается только там, где для него есть железная причина (например, сажевый фильтр). На выходе не «вот список», а один ответ и объяснение, почему он такой.</dd>
+            <dt>Рядом</dt>
+            <dd>Список «этой машине так не делаем» — тоже одним файлом на весь проект, с тестами на формулировки: неточная формулировка правила означает, что оператор откажет клиенту там, где отказывать не надо.</dd>
+          </dl>
+          <div class="stack">
+            <span class="chip">Node.js</span><span class="chip">Express</span><span class="chip">PostgreSQL</span><span class="chip">Vite</span><span class="chip">сбор и разбор данных</span>
+          </div>
+        </article>
+
+        <article class="case">
+          <div class="case-head">
+            <span class="lbl">Кейс · отказоустойчивость</span>
+            <h3>Резервная обложка над рабочей системой записи клиентов</h3>
+            <span class="role">Самая ответственная из моих работ: тут ломается не отчёт, а запись клиента</span>
+          </div>
+          <dl class="kv">
+            <dt>Было</dt>
+            <dd>Внешняя система записи периодически падала. Вместе с ней вставала запись клиентов по всей сети — на полчаса, на час, как повезёт.</dd>
+            <dt>Стало</dt>
+            <dd>Страница-обложка: сервер раз в минуту снимает состояние доски, интерфейс работает по кешу и честно показывает возраст данных. Пока оригинал лежит, действия копятся в очереди и применяются сами после восстановления, с сохранением порядка.</dd>
+            <dt>Главное</dt>
+            <dd>Целостность. Длинная запись в оригинале — это несколько отдельных получасовых слотов, и транзакций там нет. Перенос идёт по шагам с сохранением прогресса: если посреди операции окно занял кто-то другой или система умолкла, уже переехавшие слоты возвращаются на прежние места. <mark>Половина записи в новом месте не остаётся никогда.</mark></dd>
+            <dt>Поверх</dt>
+            <dd>Карта точек с поиском ближайшей по адресу клиента, перенос всей записи одним действием, права на серверной стороне, а не спрятанной кнопкой, карточка точки (высота ворот, оборудование) и предупреждения вроде «заправка кондиционера не работает» — их видит вся сеть до того, как что-то пообещали клиенту.</dd>
+            <dt>Эффект</dt>
+            <dd>Падение внешней системы перестало быть остановкой работы.</dd>
+          </dl>
+          <div class="stack">
+            <span class="chip">Node.js</span><span class="chip">PostgreSQL</span><span class="chip">очередь операций</span><span class="chip">идемпотентность</span><span class="chip">Leaflet</span>
+          </div>
+        </article>
+
+        <article class="case">
+          <div class="case-head">
+            <span class="lbl">Кейс · сайт</span>
+            <h3>Промо-сайт компании с нуля, восемь версий</h3>
+          </div>
+          <p>Сделан целиком, включая дизайн и вёрстку, и переделан восемь раз — каждый раз по тому, что реально работало. С 3D-элементами и с фотоотчётами, которые тянутся из внутреннего API: на сайте видны настоящие работы, а не стоковые картинки, и обновляются они сами по мере того, как сервис работает.</p>
+          <div class="stack">
+            <span class="chip">JavaScript</span><span class="chip">3D в вебе</span><span class="chip">интеграция с внутренним API</span>
+          </div>
+        </article>
+
+        <article class="case">
+          <div class="case-head">
+            <span class="lbl">Кейс · до этого</span>
+            <h3>Приёмка, сведённая к одной кнопке</h3>
+          </div>
+          <p>На предыдущем месте камера сама распознавала номера въезжающих машин и сверяла их с заявками в переписке — мне оставалось принять оплату. По сути я заменил автоматизацией собственную роль: мне заплатили за сделанную работу, и на этом мы разошлись. Считаю это нормальным итогом, а не курьёзом.</p>
+          <div class="stack">
+            <span class="chip">распознавание номеров</span><span class="chip">интеграция с мессенджером</span><span class="chip">автоматизация приёмки</span>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail"><span class="lbl">Как сделано</span></div>
+    <div>
+      <h2>Правила, которых держусь</h2>
+      <ul class="bullets">
+        <li><strong>Один источник правды.</strong> Каталог, правила подбора, список исключений живут в общем модуле — сайт, API и надстройка в CRM читают одно и то же. Правило, скопированное в интерфейс, рано или поздно разойдётся с оригиналом, и никто не заметит.</li>
+        <li><strong>Бизнес-правила закрыты тестами.</strong> Не «покрытие ради покрытия»: тестами закрыто именно то, от чего зависит ответ клиенту, вплоть до формулировок.</li>
+        <li><strong>Обновления доезжают сами.</strong> Сборка и раскатка в CI. Если инструмент требует, чтобы пятьдесят человек что-то у себя переустановили, — им не будут пользоваться.</li>
+        <li><strong>Сбой одного элемента не роняет прогон.</strong> Долгие сборы данных продолжаются с места остановки, а не начинаются заново.</li>
+        <li><strong>Сомнительное совпадение хуже пустого поля.</strong> Лучше пропустить строку, чем записать вероятный артикул: неверный артикул у оператора дороже пустого.</li>
+        <li><strong>Прод свой и обслуживаю его я:</strong> сервер, контейнеры, база, TLS, бэкапы, миграции. Инструмент, который некому поднять после перезагрузки, — не инструмент.</li>
+        <li><strong>Решения записаны.</strong> В проекте документировано не «что делает код», а почему сделано так, а не иначе. Это единственное, что не восстанавливается по исходникам через полгода.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail"><span class="lbl">Стек</span></div>
+    <div>
+      <h2>Чем работаю</h2>
+      <div class="stack" style="gap: .5rem;">
+        <span class="chip">JavaScript / Node.js</span>
+        <span class="chip">Express</span>
+        <span class="chip">PostgreSQL</span>
+        <span class="chip">Vite</span>
+        <span class="chip">Docker / Docker Compose</span>
+        <span class="chip">nginx + TLS</span>
+        <span class="chip">Git / GitHub Actions</span>
+        <span class="chip">Tampermonkey / userscripts</span>
+        <span class="chip">Telegram Bot API</span>
+        <span class="chip">Bitrix24</span>
+        <span class="chip">парсинг и сбор данных</span>
+        <span class="chip">Linux / VPS</span>
+      </div>
+      <p style="margin-top: 1.2rem; color: var(--ink-soft);">Список короткий сознательно: сюда попало только то, на чём у меня работает что-то живое, а не то, что я однажды пробовал.</p>
+    </div>
+  </section>
+
+  <section class="show">
+    <span class="lbl">Дальше</span>
+    <h2>Готов показать всё лично</h2>
+    <p class="kicker">Ничего из перечисленного не существует только на словах. Всё это работает прямо сейчас — и открывается при вас.</p>
+    <ul class="bullets">
+      <li><strong>Репозитории и историю коммитов</strong> — видно, как всё это росло, а не только чем закончилось.</li>
+      <li><strong>Рабочие версии в проде</strong> — можно потыкать руками.</li>
+      <li><strong>Демо на созвоне с шарингом экрана:</strong> любой кейс отсюда разберу до кода, вплоть до «почему вот здесь сделано именно так».</li>
+      <li><strong>Тестовое задание</strong> — с удовольствием, если это быстрее, чем разговор.</li>
+    </ul>
+    <div class="contacts">
+      <div><span class="lbl">Почта</span><b>укажите здесь</b></div>
+      <div><span class="lbl">Телеграм</span><b>укажите здесь</b></div>
+      <div><span class="lbl">Телефон</span><b>укажите здесь</b></div>
+    </div>
+  </section>
+
+</div>
