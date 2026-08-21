@@ -27,7 +27,11 @@ import iconKontekst from './assets/game-kontekst.png';
 import iconMinesweeper from './assets/game-minesweeper.png';
 import iconTetris from './assets/game-tetris.png';
 import iconTroika from './assets/game-troika.png';
-import { anchorIcon, crosshairIcon, blastIcon, splashIcon } from './icons.js';
+import iconSolitaire from './assets/game-solitaire.png';
+import iconPool from './assets/game-pool.png';
+import iconDurak from './assets/game-durak.png';
+import iconRoguelike from './assets/game-roguelike.png';
+import iconBattleship from './assets/game-battleship.png';
 
 const MODAL_ID = 'games-modal';
 
@@ -39,22 +43,11 @@ const GAMES = [
     { name: 'Сапёр',      icon: iconMinesweeper, open: () => import('./minesweeper.js').then(m => m.openMinesweeper) },
     { name: 'Тетрис',     icon: iconTetris,      open: () => import('./tetris.js').then(m => m.openTetris) },
     { name: 'Тройка',     icon: iconTroika,      open: () => import('./troika.js').then(m => m.openTroika) },
-    // Иконки ещё нет: вместо картинки плитка рисует значки из blank. Пустое
-    // место было бы хуже — игра работает, а меню выглядело бы сломанным.
-    { name: 'Пасьянс',    blank: ['♠', '♥', '♦', '♣'], open: () => import('./solitaire.js').then(m => m.openSolitaire) },
-    // Иконки тоже пока нет — на плитке номера шаров восьмёрки.
-    { name: 'Бильярд',    blank: ['8', '●', '◍'], open: () => import('./pool.js').then(m => m.openPool) },
-    // И тут иконки нет — на плитке козырь с шестёркой.
-    { name: 'Дурак',      blank: ['6', '♦', 'К'], open: () => import('./durak.js').then(m => m.openDurak) },
-    // Иконки нет и здесь — на плитке то, из чего забег состоит: карта, меч и
-    // осколок мутации.
-    { name: 'Рогалик',    blank: ['⚔', '◆', '✦'], open: () => import('./roguelike.js').then(m => m.openRoguelike) },
-    // Своей иконки нет и у морского боя, но типографских значков под него не
-    // нашлось: якорь, прицел и взрыв в шрифтах либо цветные эмодзи, либо
-    // отсутствуют вовсе. Поэтому на плитке — те же SVG, которыми игра рисует
-    // поле (icons.js), и выглядят они ровно так же в любой системе.
-    { name: 'Морской бой', blank: [anchorIcon(26), crosshairIcon(26), blastIcon(26), splashIcon(26)],
-      open: () => import('./battleship.js').then(m => m.openBattleship) },
+    { name: 'Пасьянс',    icon: iconSolitaire,   open: () => import('./solitaire.js').then(m => m.openSolitaire) },
+    { name: 'Бильярд',    icon: iconPool,        open: () => import('./pool.js').then(m => m.openPool) },
+    { name: 'Дурак',      icon: iconDurak,       open: () => import('./durak.js').then(m => m.openDurak) },
+    { name: 'Рогалик',    icon: iconRoguelike,   open: () => import('./roguelike.js').then(m => m.openRoguelike) },
+    { name: 'Морской бой', icon: iconBattleship, open: () => import('./battleship.js').then(m => m.openBattleship) },
 ];
 
 let openModal = null;   // одно окно за раз
@@ -116,6 +109,9 @@ export function openGames(ctx) {
 }
 
 function shellHtml() {
+    // Ветка с blank осталась для игры, которая уже работает, а иконка ей ещё
+    // рисуется: пустое место на плитке читалось бы как «меню сломалось».
+    // Сейчас иконки есть у всех, но путь этот проходили пять игр подряд.
     const tiles = GAMES.map(g => `
         <button type="button" class="games-tile">
             ${g.icon
