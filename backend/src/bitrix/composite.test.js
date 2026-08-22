@@ -66,6 +66,17 @@ test('блоки бывают объектами с CONTENT', () => {
     assert.match(html, /<div>поля<\/div>/);
 });
 
+// Так блоки приезжают на самом деле: списком, у каждого свой ID и разметка в
+// CONTENT. Форма снята с живого ответа портала.
+test('блоки приезжают списком с ID и CONTENT', () => {
+    const html = dynamicHtml({ dynamicBlocks: [
+        { ID: 'bxdynamic_title', CONTENT: '<title>Лид</title>', HASH: '07537d6b107f', PROPS: {} },
+        { ID: 'page-area', CONTENT: '<div id="pagetitle">Лиды</div>', HASH: 'f22c497fe93e', PROPS: {} },
+    ] });
+    assert.match(html, /<title>Лид<\/title>/);
+    assert.match(html, /pagetitle/);
+});
+
 test('пустой ответ — пустая строка, а не падение', () => {
     assert.equal(dynamicHtml(null), '');
     assert.equal(dynamicHtml({}), '');

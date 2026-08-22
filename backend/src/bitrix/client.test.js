@@ -20,6 +20,14 @@ test('sessid берётся из адреса ajax-обработчика', () =
     assert.equal(extractSessid(html), 'aaaaaaaabbbbbbbbccccccccdddddddd');
 });
 
+// А на динамических блоках портала sessid встречается вообще без кавычек —
+// внутри адреса. Ровно на этом виде разбор однажды промолчал, и живая сессия
+// выглядела закрытой.
+test('sessid берётся из адреса без кавычек', () => {
+    const html = '{"links":{"load":"/bitrix/components/bitrix/app.layout/lazyload.ajax.php?sessid=bfa219678549c3558ec4a2d15623eaae&site=s1"}}';
+    assert.equal(extractSessid(html), 'bfa219678549c3558ec4a2d15623eaae');
+});
+
 // Страница логина sessid не содержит, и это ровно тот признак, по которому
 // клиент понимает, что сессия умерла. Вернуть отсюда что попало нельзя.
 test('на странице без sessid возвращается null', () => {
