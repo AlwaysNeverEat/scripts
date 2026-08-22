@@ -1,3 +1,11 @@
+-- МИГРАЦИЯ ОТЛОЖЕНА ЦЕЛИКОМ ВМЕСТЕ С «ЛИДАМИ» (см. docs/BITRIX.md).
+--
+-- Панель Битрикса выключена (проводка закомментирована в backend/src/index.js
+-- и frontend/src/main.js), и заводить под неё пять пустых таблиц на новой базе
+-- незачем. Там, где база уже налита, таблицы остались — их никто не трогает.
+-- Вернуть: снять комментарии здесь и накатить файл, все CREATE идемпотентные.
+--
+-- Ниже — исходный текст миграции как есть.
 -- Битрикс24 (spotexpress.bitrix24.ru) в интерфейсе сайта: карточка лида во
 -- время звонка, чтобы оператор не прыгал между вкладками.
 --
@@ -12,23 +20,23 @@
 -- через Bitrix24.Network двумя ступенями). Общая таблица с колонкой «система»
 -- означала бы поля, половина из которых всегда пустая.
 
-CREATE TABLE IF NOT EXISTS bitrix_links (
-  user_id        uuid        PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
-  bitrix_login   text        NOT NULL,
+-- CREATE TABLE IF NOT EXISTS bitrix_links (
+--   user_id        uuid        PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+--   bitrix_login   text        NOT NULL,
   -- 'v1.<iv>.<tag>.<ciphertext>' в base64url — см. crm/secretBox.js
-  password_enc   text        NOT NULL,
-  linked_at      timestamptz NOT NULL DEFAULT now(),
-  last_login_at  timestamptz
-);
+--   password_enc   text        NOT NULL,
+--   linked_at      timestamptz NOT NULL DEFAULT now(),
+--   last_login_at  timestamptz
+-- );
 
-CREATE TABLE IF NOT EXISTS bitrix_sessions (
-  user_id     uuid        PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
-  cookies     jsonb       NOT NULL,
+-- CREATE TABLE IF NOT EXISTS bitrix_sessions (
+--   user_id     uuid        PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+--   cookies     jsonb       NOT NULL,
   -- CSRF-токен портала: живёт вместе с сессией и нужен каждому запросу,
   -- поэтому лежит рядом с куками, а не вычитывается со страницы каждый раз.
-  sessid      text,
-  updated_at  timestamptz NOT NULL DEFAULT now()
-);
+--   sessid      text,
+--   updated_at  timestamptz NOT NULL DEFAULT now()
+-- );
 
 -- Лиды, которые прошли через сайт. Это НЕ копия CRM и не попытка её заменить:
 -- храним только то, что сами показали и поправили, — чтобы вкладка обращений
@@ -37,24 +45,24 @@ CREATE TABLE IF NOT EXISTS bitrix_sessions (
 --
 -- Телефон отдельной колонкой и в нормализованном виде (только цифры): ради
 -- него всё и затевалось — по нему потом привяжутся машины клиента.
-CREATE TABLE IF NOT EXISTS bitrix_leads (
-  lead_id          bigint      PRIMARY KEY,
-  phone            text,
-  title            text,
-  name             text,
-  status_id        text,
-  source_id        text,
-  assigned_by_id   integer,
-  comments         text,
+-- CREATE TABLE IF NOT EXISTS bitrix_leads (
+--   lead_id          bigint      PRIMARY KEY,
+--   phone            text,
+--   title            text,
+--   name             text,
+--   status_id        text,
+--   source_id        text,
+--   assigned_by_id   integer,
+--   comments         text,
   -- когда последний раз читали из Битрикса и когда последний раз писали туда
-  seen_at          timestamptz NOT NULL DEFAULT now(),
-  saved_at         timestamptz,
+--   seen_at          timestamptz NOT NULL DEFAULT now(),
+--   saved_at         timestamptz,
   -- кто с сайта правил лид последним (для вкладки обращений)
-  saved_by         uuid        REFERENCES users (id) ON DELETE SET NULL
-);
+--   saved_by         uuid        REFERENCES users (id) ON DELETE SET NULL
+-- );
 
-CREATE INDEX IF NOT EXISTS bitrix_leads_phone_idx ON bitrix_leads (phone, seen_at DESC);
-CREATE INDEX IF NOT EXISTS bitrix_leads_seen_idx  ON bitrix_leads (seen_at DESC);
+-- CREATE INDEX IF NOT EXISTS bitrix_leads_phone_idx ON bitrix_leads (phone, seen_at DESC);
+-- CREATE INDEX IF NOT EXISTS bitrix_leads_seen_idx  ON bitrix_leads (seen_at DESC);
 
 
 -- Активный звонок. Битрикс сам связывает входящий с лидом (данные карточки
@@ -65,26 +73,26 @@ CREATE INDEX IF NOT EXISTS bitrix_leads_seen_idx  ON bitrix_leads (seen_at DESC)
 -- трубку положили, а имя, источник и комментарий дописываются ещё минуту, и
 -- панель обязана оставаться открытой. Момент окончания разговора нам поэтому
 -- не нужен вовсе — что и хорошо, потому что телефония о нём не сообщает.
-CREATE TABLE IF NOT EXISTS bitrix_calls (
-  id          bigserial   PRIMARY KEY,
+-- CREATE TABLE IF NOT EXISTS bitrix_calls (
+--   id          bigserial   PRIMARY KEY,
   -- id звонка со стороны телефонии: по нему отличаем повтор от нового звонка
-  call_id     text        NOT NULL,
-  user_id     uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  lead_id     bigint,
-  phone       text,
-  line        text,
-  direction   text,
-  started_at  timestamptz NOT NULL DEFAULT now(),
+--   call_id     text        NOT NULL,
+--   user_id     uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+--   lead_id     bigint,
+--   phone       text,
+--   line        text,
+--   direction   text,
+--   started_at  timestamptz NOT NULL DEFAULT now(),
   -- проставляется, когда оператор сохранил или закрыл лид
-  closed_at   timestamptz
-);
+--   closed_at   timestamptz
+-- );
 
 -- Один и тот же звонок датчик пришлёт много раз (карточка перерисовывается),
 -- и каждый раз заводить строку нельзя.
-CREATE UNIQUE INDEX IF NOT EXISTS bitrix_calls_uniq ON bitrix_calls (user_id, call_id);
+-- CREATE UNIQUE INDEX IF NOT EXISTS bitrix_calls_uniq ON bitrix_calls (user_id, call_id);
 -- Открытый звонок у оператора ровно один — его и ищет панель.
-CREATE INDEX IF NOT EXISTS bitrix_calls_open_idx ON bitrix_calls (user_id, started_at DESC)
-    WHERE closed_at IS NULL;
+-- CREATE INDEX IF NOT EXISTS bitrix_calls_open_idx ON bitrix_calls (user_id, started_at DESC)
+--     WHERE closed_at IS NULL;
 
 -- Машины, закреплённые за клиентом по номеру телефона.
 --
@@ -95,19 +103,19 @@ CREATE INDEX IF NOT EXISTS bitrix_calls_open_idx ON bitrix_calls (user_id, start
 -- Клиент опознаётся ТЕЛЕФОНОМ, а не лидом: лидов у одного человека со
 -- временем несколько (звонил в марте, звонит в августе), а телефон один. По
 -- нему же машина подставится в запись.
-CREATE TABLE IF NOT EXISTS client_cars (
-  id          bigserial   PRIMARY KEY,
+-- CREATE TABLE IF NOT EXISTS client_cars (
+--   id          bigserial   PRIMARY KEY,
   -- только цифры, без +7 и скобок: телефон приезжает из разных мест
-  phone       text        NOT NULL,
-  car_id      uuid        NOT NULL REFERENCES cars (id) ON DELETE CASCADE,
+--   phone       text        NOT NULL,
+--   car_id      uuid        NOT NULL REFERENCES cars (id) ON DELETE CASCADE,
   -- госномер и заметка оператора («серая, зимой на другой резине»)
-  plate       text,
-  note        text,
-  added_by    uuid        REFERENCES users (id) ON DELETE SET NULL,
-  added_at    timestamptz NOT NULL DEFAULT now()
-);
+--   plate       text,
+--   note        text,
+--   added_by    uuid        REFERENCES users (id) ON DELETE SET NULL,
+--   added_at    timestamptz NOT NULL DEFAULT now()
+-- );
 
 -- Одна и та же машина за одним номером — один раз. Повторное закрепление
 -- обновляет заметку, а не плодит строки.
-CREATE UNIQUE INDEX IF NOT EXISTS client_cars_uniq ON client_cars (phone, car_id);
-CREATE INDEX IF NOT EXISTS client_cars_phone_idx ON client_cars (phone, added_at DESC);
+-- CREATE UNIQUE INDEX IF NOT EXISTS client_cars_uniq ON client_cars (phone, car_id);
+-- CREATE INDEX IF NOT EXISTS client_cars_phone_idx ON client_cars (phone, added_at DESC);

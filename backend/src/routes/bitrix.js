@@ -1,3 +1,6 @@
+// ОТЛОЖЕНО: вкладка «Лиды» выключена, проводка закомментирована
+// (см. шапку docs/BITRIX.md). Файл оставлен целиком — возврат делается
+// снятием комментариев, а не переписыванием.
 import { Router } from 'express';
 import {
     bitrixLogin, bitrixLogout, bitrixEnsureSession, bitrixLinkedLogin,
