@@ -9,8 +9,10 @@ import topRouter from './routes/top.js';
 import usersRouter from './routes/users.js';
 import adminRouter from './routes/admin.js';
 import crmRouter from './routes/crm.js';
-import bitrixRouter from './routes/bitrix.js';
-import bitrixSensorRouter from './routes/bitrixSensor.js';
+// Панель Битрикса («Лиды») отложена — см. docs/BITRIX.md. Модули
+// backend/src/bitrix/ и оба роутера на месте, выключена только проводка.
+// import bitrixRouter from './routes/bitrix.js';
+// import bitrixSensorRouter from './routes/bitrixSensor.js';
 import recordsRouter from './routes/records.js';
 import wordleRouter from './routes/wordle.js';
 import kontekstRouter from './routes/kontekst.js';
@@ -85,14 +87,14 @@ app.use('/api/users', requireSession, usersRouter);
 // роутера: без личности проверять роль нечем.
 app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm', requireSession, crmRouter);
-// Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md).
-//
-// Датчик звонков стоит ПЕРЕД панелью и БЕЗ requireSession: он работает на
-// вкладке Битрикса, где сессии сайта нет, и опознаёт оператора привязкой
-// учётки (routes/bitrixSensor.js). Порядок важен — иначе его перехватит
-// сессионный роутер и ответит 401.
-app.use('/api/bitrix/sensor', bitrixSensorRouter);
-app.use('/api/bitrix', requireSession, bitrixRouter);
+// Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md). ОТЛОЖЕНА
+// целиком — ручки не подняты, чтобы сайт не хранил чужие сессии портала ради
+// выключенной вкладки. Когда вернём: датчик звонков обязан стоять ПЕРЕД
+// панелью и БЕЗ requireSession — он работает на вкладке Битрикса, где сессии
+// сайта нет, и опознаёт оператора привязкой учётки (routes/bitrixSensor.js).
+// Порядок важен — иначе его перехватит сессионный роутер и ответит 401.
+// app.use('/api/bitrix/sensor', bitrixSensorRouter);
+// app.use('/api/bitrix', requireSession, bitrixRouter);
 // Распределяющая шляпа: тест на факультет. Строго именной — и прогресс, и
 // результат привязаны к аккаунту, а пройти его можно один раз (routes/faculty.js).
 app.use('/api/faculty', requireSession, facultyRouter);

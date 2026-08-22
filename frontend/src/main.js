@@ -15,7 +15,9 @@ import { openCarCreator } from './carEditor.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { carCardInner } from './carCard.js';
 import { initTheme } from './theme.js';
-import { initLeadsPage, startCallWatch } from './leads.js';
+// «Лиды» (панель Битрикса) отложены — см. docs/BITRIX.md. Сам модуль
+// frontend/src/leads.js на месте, выключена только проводка.
+// import { initLeadsPage, startCallWatch } from './leads.js';
 
 // Тема уже применена inline-скриптом из <head> (иначе страница мигнула бы
 // тёмной перед светлой) — здесь только вешаем обработчики на переключатели.
@@ -89,13 +91,13 @@ const pageSearch  = document.getElementById('page-search');
 const pageCalc    = document.getElementById('page-calc');
 const pageProfile = document.getElementById('page-profile');
 const pageRecords = document.getElementById('page-records');
-const pageLeads   = document.getElementById('page-leads');
+// const pageLeads   = document.getElementById('page-leads'); // «Лиды» отложены
 const pageScripts = document.getElementById('page-scripts');
 const pageNews    = document.getElementById('page-news');
 const pageTop     = document.getElementById('page-top');
 const pageAdmin   = document.getElementById('page-admin');
 
-const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageLeads, pageScripts, pageNews, pageTop, pageAdmin];
+const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, /* pageLeads, */ pageScripts, pageNews, pageTop, pageAdmin];
 
 function hideAllPages() {
     for (const page of ALL_PAGES) page.classList.add('hidden');
@@ -132,10 +134,11 @@ function enterApp() {
     renderNewsBadge();
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     warmCrmSession();
-    // Звонки ловим ГЛОБАЛЬНО, а не на вкладке «Лиды»: входящий приходит, когда
-    // оператор считает масло в калькуляторе, и уведомление должно догнать его
-    // там же (см. leads.js).
-    startCallWatch({ apiFetch });
+    // Звонки ловили ГЛОБАЛЬНО, а не на вкладке «Лиды»: входящий приходит,
+    // когда оператор считает масло в калькуляторе, и уведомление должно
+    // догнать его там же (см. leads.js). Пока вкладка отложена, опрос выключен
+    // — иначе сайт каждые три секунды ходил бы в мёртвую ручку.
+    // startCallWatch({ apiFetch });
     renderRoute();
     // Прогреваем базу для поиска и тегов. Промах не страшен — снимок догрузится
     // при первом же поиске (runLocalSearch) и при возврате на вкладку, — но
@@ -207,7 +210,7 @@ const DEFAULT_TAB_ROUTE = {
     profile: '#/profile',
     calc:    '#/',
     records: '#/records',
-    leads:   '#/leads',
+    // leads:   '#/leads', // отложено
     scripts: '#/scripts',
     news:    '#/news',
     top:     '#/top',
@@ -221,7 +224,7 @@ let currentRoute = null;
 
 function tabOfHash(hash) {
     if (hash.startsWith('#/records')) return 'records';
-    if (hash === '#/leads') return 'leads';
+    // if (hash === '#/leads') return 'leads'; // отложено: #/leads уходит в калькулятор
     if (hash === '#/scripts') return 'scripts';
     if (hash === '#/news') return 'news';
     if (hash === '#/top') return 'top';
@@ -304,9 +307,9 @@ async function renderRoute() {
             if (userMatch) await initPublicProfilePage({ apiFetch, userId: userMatch[1], viewer: currentUser });
             else await initSelfProfilePage();
         }
-    } else if (tab === 'leads') {
-        showPage(pageLeads);
-        initLeadsPage({ apiFetch });
+    // } else if (tab === 'leads') {          // отложено вместе со вкладкой
+    //     showPage(pageLeads);
+    //     initLeadsPage({ apiFetch });
     } else if (tab === 'scripts') {
         showPage(pageScripts);
         initScriptsFeed(); // фид статичный — собирается один раз

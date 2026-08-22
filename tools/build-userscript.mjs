@@ -40,11 +40,15 @@ const TARGETS = [
         header: 'userscript/src/notifier/header.txt',
         out:    'SPOT DB Notifier-1.0.user.js',
     },
-    {
-        entry:  'userscript/src/bitrix-call/app.js',
-        header: 'userscript/src/bitrix-call/header.txt',
-        out:    'SPOT Bitrix Call Sensor-1.0.user.js',
-    },
+    // Датчик звонков Битрикса собирать сейчас незачем: вкладка «Лиды»
+    // отложена, и ручки /api/bitrix на сервере нет — отправлять звонок некуда.
+    // Собранный артефакт из репозитория НЕ УДАЛЁН: на него смотрит @updateURL
+    // у тех, кто уже поставил датчик, и пропавший файл сломал бы им обновление.
+    // {
+    //     entry:  'userscript/src/bitrix-call/app.js',
+    //     header: 'userscript/src/bitrix-call/header.txt',
+    //     out:    'SPOT Bitrix Call Sensor-1.0.user.js',
+    // },
 ];
 
 for (const t of TARGETS) {
