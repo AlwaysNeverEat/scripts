@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!-- Дев-песочница вкладки «Лиды»: фейковый бэкенд, без Битрикса и без входа.
+     Открыть: npx vite → /dev-leads.html
+       ?state=linked  — учётка привязана (по умолчанию)
+       ?state=fresh   — привязки нет, вкладка предлагает подключиться
+       ?state=empty   — привязка есть, но обращений ещё не было
+       ?slow=2000     — сколько миллисекунд «читается» карточка (видно скелет)
+       ?call=1        — через три секунды приходит входящий звонок
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: лиды</title>
+  <script>
+    // как в index.html: тема ставится до первого кадра
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <nav id="app-tabs" class="app-tabs" aria-label="Разделы">
+    <div class="app-tabs-inner">
+      <div class="app-tabs-row" role="tablist">
+        <button class="app-tab active" role="tab" aria-selected="true">
+          <span class="app-tab-label">Лиды</span>
+        </button>
+      </div>
+      <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Светлая тема" title="Светлая тема">
+        <svg class="theme-icon-sun" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M6 18l-1.4 1.4M19.4 4.6 18 6"/></svg>
+        <svg class="theme-icon-moon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <div id="page-leads">
+    <div class="page-head">
+      <h2 class="page-title">Лиды</h2>
+      <p class="page-sub">Карточка клиента во время звонка — без прыжков по вкладкам.</p>
+    </div>
+    <div id="leads-body" class="page-body leads-body"></div>
+  </div>
+
+  <script type="module">
+    import '/src/style.css';
+    import { initTheme } from '/src/theme.js';
+    import { initLeadsPage, startCallWatch } from '/src/leads.js';
+
+    initTheme();
+
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('state') || 'linked';
+    const slow = Number(params.get('slow')) || 700;
+    const wantCall = params.get('call') === '1';
+
+    let linked = mode !== 'fresh';
+    let call = null;
+    if (wantCall) setTimeout(() => { call = { callId: 'c1', leadId: '268402', phone: '79810025515' }; }, 3000);
+
+    const ago = min => new Date(Date.now() - min * 60000).toISOString();
+    const feed = mode === 'empty' ? [] : [
+      { leadId: '268402', phone: '79810025515', name: 'Владислав', title: 'Входящий звонок', seenAt: ago(1), unfilled: true },
+      { leadId: '268399', phone: '79500081708', name: 'Павел', title: 'Входящий звонок', seenAt: ago(14), unfilled: false },
+      { leadId: '268390', phone: '79219994422', name: '', title: 'Входящий звонок', seenAt: ago(96), unfilled: true },
+      { leadId: '268371', phone: '79112003344', name: 'Екатерина', title: 'Входящий звонок', seenAt: ago(1500), unfilled: false },
+    ];
+
+    const leads = {
+      268402: {
+        id: '268402', title: 'Входящий звонок', name: 'Владислав',
+        statusId: 'NEW', sourceId: 'CALL', assignedById: 17, assignedByName: 'Иван Петров',
+        comments: '', phones: ['79810025515'],
+        sourceNote: 'Звонок поступил на номер: +7 (812) 981-66-44',
+      },
+      268399: {
+        id: '268399', title: 'Входящий звонок', name: 'Павел',
+        statusId: 'IN_PROCESS', sourceId: 'ADVERTISING', assignedById: 21, assignedByName: 'Анна Смирнова',
+        comments: 'Замена масла на Camry 2.5, записан на четверг к 11:00.\nПросил посчитать салонный фильтр.',
+        phones: ['79500081708'], sourceNote: null,
+      },
+    };
+
+    const fail = message => { const e = new Error(message); return e; };
+
+    // Фейковый бэкенд: те же формы ответов, что у /api/bitrix/* (routes/bitrix.js).
+    async function apiFetch(path, opts = {}) {
+      const wait = ms => new Promise(r => setTimeout(r, ms));
+      if (path === '/api/bitrix/status') {
+        await wait(300);
+        return { loggedIn: linked, login: linked ? 'operator3@9816644.ru' : null,
+                 message: linked ? null : 'учётка не привязана' };
+      }
+      if (path === '/api/bitrix/login') { await wait(500); linked = true; return { ok: true }; }
+      if (path === '/api/bitrix/logout') { linked = false; return { ok: true }; }
+      if (path === '/api/bitrix/call') return { call };
+      if (path === '/api/bitrix/call/close') { call = null; return { ok: true }; }
+      if (path.startsWith('/api/bitrix/feed')) { await wait(400); return { leads: feed }; }
+      if (path === '/api/bitrix/users') {
+        await wait(600);
+        return { users: [{ id: 17, name: 'Иван Петров' }, { id: 21, name: 'Анна Смирнова' }, { id: 33, name: 'Олег Крылов' }] };
+      }
+      const read = path.match(/^\/api\/bitrix\/lead\/(\d+)$/);
+      if (read && opts.method !== 'POST') {
+        await wait(slow);
+        const lead = leads[read[1]];
+        if (!lead) throw fail('лид не читается: сессия Битрикса закрылась');
+        return {
+          lead,
+          stages: [{ id: 'NEW', name: 'Не обработан' }, { id: 'IN_PROCESS', name: 'В работе' },
+                   { id: 'PROCESSED', name: 'Обработан' }, { id: 'CONVERTED', name: 'Качественный лид' }],
+          sources: [{ id: 'CALL', name: 'Звонок' }, { id: 'ADVERTISING', name: 'Реклама' },
+                    { id: 'WEB', name: 'Сайт' }, { id: 'PARTNER', name: 'Существующий клиент' }],
+        };
+      }
+      if (read) {
+        await wait(slow);
+        const lead = leads[read[1]];
+        Object.assign(lead, {
+          name: opts.body.name, statusId: opts.body.statusId, sourceId: opts.body.sourceId,
+          assignedById: Number(opts.body.assignedById) || lead.assignedById, comments: opts.body.comments,
+        });
+        const row = feed.find(r => r.leadId === lead.id);
+        if (row) { row.name = lead.name; row.unfilled = false; row.seenAt = new Date().toISOString(); }
+        return { ok: true, lead };
+      }
+      throw fail('нет такого пути в песочнице: ' + path);
+    }
+
+    startCallWatch({ apiFetch });
+    initLeadsPage({ apiFetch });
+  </script>
+</body>
+</html>

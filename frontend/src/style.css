@@ -58,6 +58,11 @@
   --map-bg: #14171f;                     /* подложка Leaflet под тайлами */
   --hover-bright: brightness(1.15);      /* подсветка строки без смены фона */
   --crystal-glow: rgba(186, 230, 253, 0.35);
+  /* Кружок клиента в «Лидах»: оттенок берётся от номера лида, а светлота и
+     насыщенность — отсюда. На тёмном фоне буква должна быть светлее фона, на
+     белом — темнее, иначе она выцветает ровно в одной из тем. */
+  --ava-l: 0.78;
+  --ava-c: 0.12;
 
   /* Стеклянные контролы экрана поиска (поверх канваса со сферой) */
   --search-bg: #07090d;
@@ -188,6 +193,8 @@
      ховер, наоборот, слегка притемняем. */
   --hover-bright: brightness(0.965);
   --crystal-glow: rgba(56, 132, 255, 0.35);
+  --ava-l: 0.5;
+  --ava-c: 0.13;
 
   --search-bg: oklch(0.978 0.003 250);
   --search-glow: oklch(0.52 0.125 62 / 0.07);
@@ -6784,138 +6791,420 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .faculty-progress-bar > span { transition: none; }
 }
 
-/* ── Битрикс в профиле ──────────────────────────────────────────────────────
-   Привязка учётки и проверка чтения лида. Форма переиспользует стили входа в
-   CRM (.crm-login-form/.crm-input): это те же два поля и кнопка, заводить им
-   вторую внешность незачем. */
-.bitrix-link-state {
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-.bitrix-link-ok { color: var(--ok, #2e7d32); }
-.bitrix-link-note {
-    margin-bottom: 8px;
-    color: var(--muted, #6b7280);
-}
-.bitrix-check {
-    margin-top: 10px;
-    border-top: 1px solid var(--line, #e5e7eb);
-    padding-top: 10px;
-}
-.bitrix-check-row {
-    display: flex;
-    gap: 10px;
-    align-items: baseline;
-    padding: 3px 0;
-}
-.bitrix-check-row > span {
-    flex: 0 0 130px;
-    color: var(--muted, #6b7280);
-}
-/* Комментарий приезжает многострочным — переносим как есть, а не в одну строку
-   с многоточием: по нему оператор и вспоминает, о чём был разговор. */
-.bitrix-check-row > b { white-space: pre-wrap; }
 
-/* ── Лиды: карточка клиента во время звонка ─────────────────────────────────
-   Уведомление о звонке живёт поверх всего сайта: входящий приходит, когда
-   человек занят другим разделом. По таймеру оно НЕ исчезает — пропавшая
-   плашка означала бы «ищи лид руками». */
-.lead-toast {
-    position: fixed;
-    right: 18px;
-    bottom: 18px;
-    z-index: 60;
-    min-width: 240px;
-    padding: 14px 18px;
-    border-radius: 14px;
-    background: var(--card, #fff);
-    border: 1px solid var(--line, #e5e7eb);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
-    cursor: pointer;
-    transform: translateY(14px);
-    opacity: 0;
-    transition: transform .18s ease, opacity .18s ease;
-}
-.lead-toast-in { transform: translateY(0); opacity: 1; }
-.lead-toast-title { font-weight: 700; }
-.lead-toast-phone { font-size: 20px; font-weight: 700; margin: 2px 0; }
-.lead-toast-hint { color: var(--muted, #6b7280); font-size: 13px; }
+/* ── Лиды: лента обращений и карточка клиента ───────────────────────────────
+   Страница — это ЛЕНТА со списком обращений слева и карточкой справа; на
+   узком экране карточка встаёт вместо ленты. Всё служебное (учётка Битрикса)
+   ужато до кнопки в углу: привязывают её раз в жизни.
 
-.leads-body { max-width: 720px; }
-.lead-empty { color: var(--muted, #6b7280); padding: 14px 0; }
+   Цвета берутся из токенов темы (--card/--border/--sub/--accent), а не из
+   своих «серых по вкусу»: раздел рисуется в обеих темах, и захардкоженный
+   #6b7280 на тёмном фоне — это ровно та «сырая» вёрстка, от которой уходили. */
+
+/* Кружок с буквой клиента. Оттенок — от номера лида (--h), а светлота и
+   насыщенность из темы: на белом фоне пастельная буква не читается. */
+.lead-ava {
+  flex: none;
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 15px; font-weight: 700;
+  background: oklch(var(--ava-l) var(--ava-c) var(--h, 250) / .18);
+  color: oklch(var(--ava-l) var(--ava-c) var(--h, 250));
+}
+.lead-ava-lg { width: 52px; height: 52px; font-size: 21px; }
+
+/* Колесо ожидания: одно на всю вкладку — в строке ленты, в скелете карточки
+   и в проверке связи. */
+.lead-spin {
+  display: inline-block;
+  width: 13px; height: 13px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: lead-spin .7s linear infinite;
+}
+@keyframes lead-spin { to { transform: rotate(360deg); } }
+
+.lead-boot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 18px 0; color: var(--sub); font-size: 13px;
+}
+
+/* ── Верхняя строка: звонок слева, учётка справа ─────────────────────────── */
+.lead-bar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 14px;
+}
+/* Гнездо плашки звонка. Пустое оно тоже занимает место — тогда кнопка учётки
+   не прыгает вбок, когда звонок начинается и кончается. */
+.lead-live-slot { flex: 1; min-width: 0; }
 .lead-live {
-    font-weight: 700;
-    padding: 8px 12px;
-    margin-bottom: 12px;
-    border-radius: 10px;
-    background: var(--ok-bg, #e8f5e9);
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--green);
+  background: var(--green-dim);
+  color: var(--green);
+  font-size: 13px; font-weight: 700;
 }
-.lead-link-ok { font-weight: 600; margin-bottom: 12px; }
-.lead-link-title { font-weight: 700; margin-bottom: 8px; }
-.lead-link-note, .lead-link-hint { color: var(--muted, #6b7280); margin: 6px 0; }
-.btn-slim { padding: 2px 10px; font-size: 13px; margin-left: 8px; }
+.lead-live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor;
+  animation: lead-pulse 1.2s ease-in-out infinite;
+}
+@keyframes lead-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+.lead-acct { position: relative; flex: none; }
+.lead-acct-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: 260px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--sub);
+  font: inherit; font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+.lead-acct-btn:hover { border-color: var(--accent); color: var(--text); }
+.lead-acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lead-acct-dot {
+  flex: none;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+}
+/* Не привязан — это не ошибка, а «сделай шаг»: кнопка становится заметной,
+   потому что без неё вкладка не работает вовсе. */
+.lead-acct-btn.is-off {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.lead-acct-btn.is-off .lead-acct-dot { background: var(--accent); }
+
+.lead-acct-pop {
+  position: absolute;
+  top: calc(100% + 8px); right: 0;
+  z-index: 20;
+  width: 320px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow-2);
+}
+.lead-acct-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.lead-acct-cap {
+  font-size: 11px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--sub);
+}
+.lead-acct-row > b { font-size: 13px; overflow-wrap: anywhere; }
+.lead-acct-note { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--sub); }
+.lead-acct-form { display: flex; flex-direction: column; gap: 8px; }
+.lead-acct-unlink { margin-top: 10px; }
+.lead-acct-unlink:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
+
+/* ── Две колонки: лента и карточка ───────────────────────────────────────── */
+.leads-body { max-width: 1040px; }
+#page-leads .page-head { max-width: 1040px; }
+
+.lead-solo { display: flex; justify-content: center; padding-top: 8px; }
+.lead-idle-link { width: 100%; max-width: 420px; padding: 32px 24px; }
+.lead-idle-link .lead-acct-form { width: 100%; margin-top: 6px; }
+.lead-idle-link .lead-acct-note { text-align: left; }
+.lead-idle-link .edit-error { width: 100%; }
+
+.lead-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.lead-list { min-width: 0; }
+.lead-list-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px 2px; }
+.lead-sec-title { margin: 0; font-size: 13px; font-weight: 700; }
+.lead-count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg3);
+  color: var(--sub);
+  font-size: 11px; font-weight: 700;
+}
+/* Карточка держится в поле зрения, пока листают ленту: обращений в ней до
+   полусотни, а карточка — то, ради чего вкладку открыли. */
+.lead-pane { position: sticky; top: calc(var(--tabs-h) + 12px); min-width: 0; }
+
+.lead-rows { display: flex; flex-direction: column; gap: 6px; }
+.lead-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.lead-row:hover { border-color: var(--border-strong); }
+.lead-row.is-active { border-color: var(--accent); background: var(--accent-dim); }
+.lead-row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lead-row-phone { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.lead-row-name {
+  font-size: 12px; color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lead-row-side {
+  margin-left: auto;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+  text-align: right;
+}
+.lead-row-when {
+  font-size: 11px; color: var(--sub);
+  display: flex; align-items: center; min-height: 13px;
+}
+/* «Не заполнено» — это про сорванный звонок, до которого не дошли руки.
+   Метим точкой у края строки, а не рамкой вокруг: рамка спорит с выделением
+   открытого лида, и в ленте из сорока строк рябит. */
+.lead-row-flag {
+  font-size: 10.5px; font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.lead-row.is-loading { border-color: var(--accent); }
+
+/* Скелет строки: пока лента едет, места под неё уже видно. */
+.lead-row-skel { height: 58px; pointer-events: none; }
+.lead-row-skel::after {
+  content: '';
+  display: block; width: 100%; height: 100%;
+  border-radius: 10px;
+  background: var(--bg2);
+}
+
+/* ── Карточка клиента ────────────────────────────────────────────────────── */
+.lead-back {
+  display: none;
+  align-items: center; gap: 6px;
+  margin-bottom: 10px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--sub);
+  font: inherit; font-size: 12.5px;
+  cursor: pointer;
+}
+.lead-back:hover { border-color: var(--accent); color: var(--text); }
 
 .lead-card {
-    border: 1px solid var(--line, #e5e7eb);
-    border-radius: 14px;
-    padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  padding: 18px;
+  box-shadow: var(--shadow-1);
 }
 .lead-card-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 12px;
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
-.lead-card-phone { font-size: 22px; font-weight: 700; }
-.lead-card-note { color: var(--muted, #6b7280); font-size: 13px; }
-.lead-card-link { font-size: 13px; white-space: nowrap; }
+.lead-card-id { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lead-card-phone { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.lead-card-phone a { color: inherit; text-decoration: none; }
+.lead-card-phone a:hover { color: var(--accent); }
+.lead-card-meta { font-size: 12px; color: var(--sub); }
+.lead-card-tools { margin-left: auto; display: flex; gap: 6px; }
+.lead-icon-btn {
+  display: inline-grid; place-items: center;
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--sub);
+  cursor: pointer;
+  transition: color .12s, border-color .12s;
+}
+.lead-icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+/* Пояснение телефонии («Звонок поступил на номер: …») — это не поле формы, а
+   подпись к обращению: показываем как есть и не даём редактировать. */
+.lead-card-note {
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg2);
+  color: var(--sub);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
 
-.lead-field { display: block; margin-bottom: 10px; }
-.lead-field > span { display: block; color: var(--muted, #6b7280); margin-bottom: 4px; }
-.lead-input, .lead-select {
-    width: 100%;
-    padding: 9px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--line, #e5e7eb);
-    background: var(--card, #fff);
-    color: inherit;
-    font: inherit;
+.lead-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
-.lead-textarea { resize: vertical; }
+.lead-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.lead-field-wide { grid-column: 1 / -1; }
+.lead-lbl {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--sub);
+}
+.lead-input {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit; font-size: 13px;
+}
+.lead-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.lead-input:disabled { opacity: .6; cursor: default; }
+/* Стрелка нарисована фоном, а не системная: системная в каждой ОС своя и в
+   тёмной теме остаётся чёрной на чёрном. Цвет взят нейтральный — он читается
+   в обеих темах. */
+.lead-select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888f9c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 15px;
+}
+.lead-textarea { resize: vertical; min-height: 84px; line-height: 1.45; }
 /* Поле с источником «Звонок» подсвечиваем: пока он такой, сохранение не
    пройдёт, и узнать об этом лучше до нажатия кнопки. */
-.lead-field-warn .lead-select { border-color: var(--warn, #f59e0b); }
-.lead-warn { color: var(--warn-text, #b45309); margin: -4px 0 10px; font-size: 13px; }
+.lead-field.is-warn .lead-input { border-color: var(--red); }
+.lead-warn { font-size: 11.5px; line-height: 1.4; color: var(--red); }
 
-.lead-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
-.lead-saved { color: var(--ok, #2e7d32); font-weight: 600; }
+.lead-foot { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.lead-saved { color: var(--green); font-size: 12.5px; font-weight: 700; }
 
-.lead-sec-title { margin: 22px 0 8px; }
-.lead-feed { display: flex; flex-direction: column; gap: 6px; }
-.lead-feed-row {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    width: 100%;
-    text-align: left;
-    padding: 9px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--line, #e5e7eb);
-    background: var(--card, #fff);
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
+/* ── Пустое место и скелет ───────────────────────────────────────────────── */
+.lead-idle {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 46px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  text-align: center;
+  color: var(--sub);
 }
-.lead-feed-row:hover { border-color: var(--accent, #2563eb); }
-.lead-feed-phone { font-weight: 600; }
-.lead-feed-name { color: var(--muted, #6b7280); }
-/* «Не заполнено» — это про сорванный звонок, до которого не дошли руки.
-   Помечаем строку целиком, чтобы её было видно, не вчитываясь. */
-.lead-feed-unfilled { border-color: var(--warn, #f59e0b); }
-.lead-feed-flag { color: var(--warn-text, #b45309); font-size: 12px; }
-.lead-feed-when { margin-left: auto; color: var(--muted, #6b7280); font-size: 12px; }
+.lead-idle-icon {
+  display: grid; place-items: center;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: var(--bg2);
+  color: var(--sub);
+  margin-bottom: 2px;
+}
+.lead-idle-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.lead-idle-note { margin: 0; font-size: 12.5px; max-width: 280px; line-height: 1.5; }
+.lead-idle .btn { margin-top: 6px; }
+.lead-note-empty { padding: 16px 2px; color: var(--sub); font-size: 12.5px; }
 
-.lead-check { margin-top: 20px; color: var(--muted, #6b7280); }
-.lead-check summary { cursor: pointer; }
-.lead-check-out { margin-top: 6px; }
+/* Скелет повторяет форму карточки: место, куда приедут поля, видно заранее, и
+   готовая карточка не дёргает страницу. Блик — тот же --sheen, что у остальных
+   загрузок сайта. */
+.sk {
+  display: block;
+  border-radius: 8px;
+  background: var(--bg2);
+  position: relative;
+  overflow: hidden;
+}
+.sk::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, var(--sheen), transparent);
+  animation: lead-sheen 1.3s ease-in-out infinite;
+}
+@keyframes lead-sheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.sk-ava { width: 52px; height: 52px; border-radius: 50%; flex: none; }
+.sk-line { height: 14px; }
+.sk-wide { width: 180px; height: 22px; }
+.sk-narrow { width: 110px; }
+.sk-cap { width: 84px; height: 10px; }
+.sk-box { height: 36px; }
+.sk-tall { height: 84px; }
+.lead-skel-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.lead-card-skel .lead-card-id { gap: 6px; }
+.lead-skel-hint {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 16px;
+  color: var(--sub); font-size: 12.5px;
+}
+
+/* ── Уведомление о звонке ────────────────────────────────────────────────────
+   Живёт поверх всего сайта: входящий приходит, когда человек занят другим
+   разделом. По таймеру оно НЕ исчезает — пропавшая плашка означала бы «ищи
+   лид руками», — но крестиком его убрать можно. */
+.lead-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 60;
+  display: flex; align-items: flex-start; gap: 10px;
+  min-width: 250px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--green);
+  box-shadow: var(--shadow-2);
+  cursor: pointer;
+  transform: translateY(14px);
+  opacity: 0;
+  transition: transform .18s ease, opacity .18s ease;
+}
+.lead-toast-in { transform: translateY(0); opacity: 1; }
+.lead-toast-dot {
+  flex: none;
+  width: 9px; height: 9px; margin-top: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: lead-pulse 1.2s ease-in-out infinite;
+}
+.lead-toast-body { display: flex; flex-direction: column; gap: 1px; }
+.lead-toast-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--green); }
+.lead-toast-phone { font-size: 19px; font-weight: 700; }
+.lead-toast-hint { color: var(--sub); font-size: 12px; }
+.lead-toast-x {
+  border: none; background: none; padding: 2px;
+  color: var(--sub); cursor: pointer; line-height: 0;
+}
+.lead-toast-x:hover { color: var(--text); }
+
+@media (max-width: 900px) {
+  /* Одна колонка: сперва лента, а открытый лид её ЗАМЕНЯЕТ. Карточка под
+     лентой из сорока строк означала бы «нажал и ничего не произошло». */
+  .lead-cols { grid-template-columns: minmax(0, 1fr); }
+  .lead-pane { position: static; }
+  .lead-cols.is-open .lead-list { display: none; }
+  .lead-cols.is-open .lead-back { display: inline-flex; }
+  .lead-acct-pop { width: min(320px, calc(100vw - 40px)); }
+}
+
+@media (max-width: 560px) {
+  .lead-fields { grid-template-columns: minmax(0, 1fr); }
+  .lead-card { padding: 14px; }
+  .lead-card-phone { font-size: 19px; }
+  .lead-bar { flex-wrap: wrap; }
+  .lead-toast { left: 12px; right: 12px; bottom: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lead-spin, .lead-live-dot, .lead-toast-dot { animation: none; }
+  .sk::after { animation: none; }
+}
