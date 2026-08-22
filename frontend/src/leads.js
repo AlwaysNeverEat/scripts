@@ -35,6 +35,9 @@ const state = {
     call: null,          // открытый звонок с сервера
     seenCallId: null,    // по какому звонку уже показали уведомление
     lead: null,          // { view } открытой карточки
+    // Набранное оператором живёт ЗДЕСЬ, а не в DOM: перерисовка не должна
+    // стирать полфразы, которую человек печатает во время разговора.
+    draft: null,
     stages: [],
     sources: [],
     users: [],
@@ -85,15 +88,23 @@ async function pollCall() {
     try {
         const { call } = await api('/api/bitrix/call');
         state.call = call || null;
+
         if (call && call.callId !== state.seenCallId) {
             state.seenCallId = call.callId;
             showCallToast(call);
-            // Карточку подтягиваем сразу: пока оператор здоровается, она уже
-            // будет открыта.
-            if (call.leadId) openLead(call.leadId);
+            // Карточку подтягиваем сразу — пока оператор здоровается, она уже
+            // открыта. Но НЕ поверх недописанного: если в полях есть
+            // несохранённые правки, подменять карточку под руками нельзя,
+            // человек доведёт разговор и откроет новый лид с уведомления сам.
+            if (call.leadId && !isDirty()) openLead(call.leadId);
         }
         if (!call) document.getElementById('lead-call-toast')?.remove();
-        if (root) render();
+
+        // ВАЖНО: опрос обновляет только плашку «идёт звонок», а не всю
+        // страницу. Полная перерисовка каждые четыре секунды выбивала курсор
+        // из поля прямо во время набора — а набирают тут как раз в разговоре,
+        // когда переспросить нельзя.
+        renderLive();
     } catch { /* сеть моргнула — попробуем на следующем тике */ }
 }
 
@@ -144,6 +155,7 @@ async function openLead(id) {
     try {
         const data = await api(`/api/bitrix/lead/${id}`);
         state.lead = data.lead;
+        state.draft = draftOf(data.lead);
         state.stages = data.stages || [];
         state.sources = data.sources || [];
         loadUsers().then(render);
@@ -154,6 +166,24 @@ async function openLead(id) {
     render();
 }
 
+function draftOf(lead) {
+    return {
+        name: lead?.name || '',
+        statusId: lead?.statusId || '',
+        sourceId: lead?.sourceId || '',
+        assignedById: lead?.assignedById ? String(lead.assignedById) : '',
+        comments: lead?.comments || '',
+    };
+}
+
+// Есть ли несохранённые правки. Нужно не для красоты: пока человек печатает,
+// подъехавший второй звонок не должен подменить карточку под руками.
+function isDirty() {
+    if (!state.lead || !state.draft) return false;
+    const clean = draftOf(state.lead);
+    return Object.keys(clean).some(k => String(clean[k]) !== String(state.draft[k]));
+}
+
 async function saveLead(patch) {
     if (!state.lead) return;
     state.leadBusy = true;
@@ -162,6 +192,7 @@ async function saveLead(patch) {
     try {
         const { lead } = await api(`/api/bitrix/lead/${state.lead.id}`, { method: 'POST', body: patch });
         state.lead = lead;
+        state.draft = draftOf(lead);
         state.saved = true;
         state.call = null;
         document.getElementById('lead-call-toast')?.remove();
@@ -202,7 +233,9 @@ function leadCardHtml() {
     }
 
     const lead = state.lead;
-    const callSource = String(lead.sourceId || '').toUpperCase() === 'CALL';
+    // Поля показываем из черновика: он и есть то, что человек набрал.
+    const d = state.draft || draftOf(lead);
+    const callSource = String(d.sourceId || '').toUpperCase() === 'CALL';
 
     return `
         <div class="lead-card">
@@ -217,32 +250,32 @@ function leadCardHtml() {
 
             <label class="lead-field">
                 <span>Имя клиента</span>
-                <input type="text" id="lead-name" class="lead-input" value="${esc(lead.name || '')}"
+                <input type="text" id="lead-name" class="lead-input" value="${esc(d.name)}"
                        placeholder="как зовут" ${state.leadBusy ? 'disabled' : ''}/>
             </label>
 
             <label class="lead-field">
                 <span>Стадия</span>
-                ${selectHtml('lead-stage', state.stages, lead.statusId)}
+                ${selectHtml('lead-stage', state.stages, d.statusId)}
             </label>
 
             <label class="lead-field${callSource ? ' lead-field-warn' : ''}">
                 <span>Источник</span>
-                ${selectHtml('lead-source', state.sources, lead.sourceId)}
+                ${selectHtml('lead-source', state.sources, d.sourceId)}
             </label>
             ${callSource ? '<div class="lead-warn">Источник «Звонок» ставит телефония — выберите настоящий, иначе лид не сохранится.</div>' : ''}
 
             <label class="lead-field">
                 <span>Ответственный</span>
                 ${state.users.length
-                    ? selectHtml('lead-user', state.users.map(u => ({ id: u.id, name: u.name })), lead.assignedById)
+                    ? selectHtml('lead-user', state.users.map(u => ({ id: u.id, name: u.name })), d.assignedById)
                     : `<input type="text" class="lead-input" value="${esc(lead.assignedByName || '')}" disabled/>`}
             </label>
 
             <label class="lead-field lead-field-wide">
                 <span>Комментарий</span>
                 <textarea id="lead-comments" class="lead-input lead-textarea" rows="5"
-                          placeholder="о чём договорились" ${state.leadBusy ? 'disabled' : ''}>${esc(lead.comments || '')}</textarea>
+                          placeholder="о чём договорились" ${state.leadBusy ? 'disabled' : ''}>${esc(d.comments)}</textarea>
             </label>
 
             <div class="lead-actions">
@@ -325,6 +358,21 @@ function checkHtml() {
     return rows.join('');
 }
 
+// Плашка «идёт звонок» — единственное, что обновляет опрос. Живёт в своём
+// гнезде, чтобы менять её, не трогая поля ввода.
+function liveHtml() {
+    return state.call
+        ? `<div class="lead-live">Идёт звонок — ${esc(formatPhone(state.call.phone))}</div>`
+        : '';
+}
+
+function renderLive() {
+    const slot = document.getElementById('lead-live-slot');
+    if (!slot) return;
+    const html = liveHtml();
+    if (slot.innerHTML !== html) slot.innerHTML = html;
+}
+
 function render() {
     if (!root) return;
     if (!state.ready) {
@@ -332,16 +380,34 @@ function render() {
         return;
     }
 
+    // Перерисовка бывает и по делу (сохранили, открыли другой лид), а курсор
+    // при ней всё равно теряется — возвращаем его туда же, где он был, вместе
+    // с положением каретки.
+    const focused = document.activeElement;
+    const focusId = focused && root.contains(focused) ? focused.id : null;
+    const caret = focusId && 'selectionStart' in focused
+        ? [focused.selectionStart, focused.selectionEnd] : null;
+
     root.innerHTML = `
         ${linkHtml()}
         ${state.linked ? `
-            ${state.call ? `<div class="lead-live">Идёт звонок — ${esc(formatPhone(state.call.phone))}</div>` : ''}
+            <div id="lead-live-slot">${liveHtml()}</div>
             ${leadCardHtml()}
             <h3 class="lead-sec-title">Обращения</h3>
             ${feedHtml()}
             ${checkHtml()}
         ` : ''}`;
     bind();
+
+    if (focusId) {
+        const back = root.querySelector(`#${CSS.escape(focusId)}`);
+        if (back) {
+            back.focus();
+            if (caret && 'setSelectionRange' in back) {
+                try { back.setSelectionRange(caret[0], caret[1]); } catch { /* не текстовое поле */ }
+            }
+        }
+    }
 }
 
 function bind() {
@@ -383,14 +449,41 @@ function bind() {
         };
     }
 
+    // Набранное складываем в черновик на каждый символ. Читать значения из
+    // полей в момент сохранения нельзя: между набором и нажатием кнопки
+    // карточка может перерисоваться (пришёл ответ сервера, закрылся звонок), и
+    // тогда в Битрикс уехало бы то, что осталось в DOM, а не то, что человек
+    // написал.
+    const name = root.querySelector('#lead-name');
+    if (name) name.oninput = () => { state.draft.name = name.value; };
+
+    const comments = root.querySelector('#lead-comments');
+    if (comments) comments.oninput = () => { state.draft.comments = comments.value; };
+
+    const stage = root.querySelector('#lead-stage');
+    if (stage) stage.onchange = () => { state.draft.statusId = stage.value; };
+
+    const user = root.querySelector('#lead-user');
+    if (user) user.onchange = () => { state.draft.assignedById = user.value; };
+
+    const source = root.querySelector('#lead-source');
+    if (source) {
+        source.onchange = () => {
+            state.draft.sourceId = source.value;
+            // Единственное поле, из-за которого перерисовываем: с него снимается
+            // (или на него вешается) предупреждение про «Звонок».
+            render();
+        };
+    }
+
     const save = root.querySelector('#lead-save');
     if (save) {
         save.onclick = () => saveLead({
-            name: root.querySelector('#lead-name').value.trim(),
-            statusId: root.querySelector('#lead-stage')?.value,
-            sourceId: root.querySelector('#lead-source')?.value,
-            assignedById: root.querySelector('#lead-user')?.value || undefined,
-            comments: root.querySelector('#lead-comments').value,
+            name: (state.draft.name || '').trim(),
+            statusId: state.draft.statusId,
+            sourceId: state.draft.sourceId,
+            assignedById: state.draft.assignedById || undefined,
+            comments: state.draft.comments,
         });
     }
 
@@ -398,6 +491,7 @@ function bind() {
     if (close) {
         close.onclick = async () => {
             state.lead = null;
+            state.draft = null;
             state.call = null;
             document.getElementById('lead-call-toast')?.remove();
             render();
@@ -423,6 +517,7 @@ function bind() {
             try {
                 state.checked = await api(`/api/bitrix/lead/${id}`);
                 state.lead = state.checked.lead;
+                state.draft = draftOf(state.checked.lead);
                 state.stages = state.checked.stages || [];
                 state.sources = state.checked.sources || [];
                 loadUsers().then(render);
