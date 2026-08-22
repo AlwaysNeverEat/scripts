@@ -18,7 +18,7 @@
 // на ней НЕТ (в отличие от списка лидов) — хватает одного запроса.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { bbToText } from './leads.js';
+import { bbToText, isCallSource, CALL_SOURCE } from './leads.js';
 
 export class BitrixReadError extends Error {
     constructor(message) {
@@ -150,6 +150,63 @@ export function normalizeLead(model) {
 
     return lead;
 }
+
+// ── Источники ────────────────────────────────────────────────────────────────
+
+// Список источников лежит в той же карточке, в описании поля SOURCE_ID:
+//
+//     {'name':'SOURCE_ID','type':'list','data':{'items':[
+//         {'NAME':'Не выбрано','VALUE':''},{'NAME':'Звонок','VALUE':'CALL'}, …]}}
+//
+// Записано это литералом JS с ОДИНАРНЫМИ кавычками, а не JSON'ом, поэтому
+// разбираем парами: городить конвертер ради двух ключей смысла нет, а regexp
+// по паре 'NAME'/'VALUE' переживёт и добавление новых полей внутрь.
+export function parseSourceOptions(html) {
+    const text = String(html || '');
+
+    // Имя поля встречается в карточке дважды: сперва в перечислении разделов
+    // (там у него нет ничего, кроме имени), и только потом в описании самого
+    // поля со списком значений. Первое вхождение притащило бы ЧУЖОЙ список —
+    // на живой карточке в выпадашку источников попали стадии.
+    //
+    // Поэтому смотрим не «рядом», а ВНУТРИ описания: берём кусок до следующего
+    // поля и требуем, чтобы и тип, и список значений нашлись в нём. Вложенные
+    // значения пишутся в верхнем регистре ('NAME'), так что за границу поля их
+    // не примешь.
+    const re = /\{'name':'SOURCE_ID'/g;
+    let m;
+    while ((m = re.exec(text))) {
+        const next = text.indexOf("{'name':'", m.index + 1);
+        const field = text.slice(m.index, next < 0 ? m.index + 8000 : next);
+        if (!field.includes("'type':'list'")) continue;
+        const items = field.indexOf("'items':[");
+        if (items < 0) continue;
+        const end = field.indexOf(']', items);
+        return parseOptionPairs(field.slice(items, end < 0 ? undefined : end));
+    }
+    return [];
+}
+
+function parseOptionPairs(chunk) {
+    const list = [];
+    const re = /\{'NAME':'((?:[^'\\]|\\.)*)','VALUE':'((?:[^'\\]|\\.)*)'\}/g;
+    let m;
+    while ((m = re.exec(chunk))) {
+        const id = m[2];
+        // «Не выбрано» — пустое значение, в выпадашку его класть нечего:
+        // источник у обработанного лида обязан быть. Безымянные пропускаем по
+        // той же причине: в этом портале есть источник с пустым названием
+        // (REPEAT_SALE), и пустая строка в списке — это не выбор, а загадка.
+        if (!id || !m[1]) continue;
+        list.push({ id, name: m[1] });
+    }
+    return list;
+}
+
+// Правило «источник не может остаться Звонком» живёт в leads.js рядом с
+// остальными правилами сохранения; здесь оно только пробрасывается наружу,
+// чтобы панель брала справочник и проверку из одного места.
+export { isCallSource, CALL_SOURCE };
 
 /** Страница карточки лида — тот самый адрес, который открывает слайдер. */
 export function leadPagePath(id) {

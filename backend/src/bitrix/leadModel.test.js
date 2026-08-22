@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLeadModel, normalizeLead, leadPagePath, BitrixReadError } from './leadModel.js';
+import { parseLeadModel, normalizeLead, leadPagePath, parseSourceOptions, BitrixReadError } from './leadModel.js';
 import { buildLeadSaveForm } from './leads.js';
 
 // Обрезанная карточка настоящей формы: тот же вызов фабрики, те же ключи.
@@ -111,4 +111,35 @@ test('прочитанный лид годится для сохранения �
 test('адрес карточки — тот, что открывает слайдер', () => {
     assert.equal(leadPagePath(268402), '/crm/lead/details/268402/?IFRAME=Y&IFRAME_TYPE=SIDE_SLIDER');
     assert.throws(() => leadPagePath('нет'), BitrixReadError);
+});
+
+// Справочник источников лежит в той же карточке. Имя поля встречается в ней
+// дважды: сперва в перечислении разделов, где у него нет ничего, кроме имени.
+// Взяв первое вхождение, мы притащили бы чужой список — на живой карточке в
+// выпадашку источников попали стадии.
+const SCHEME = "{'name':'additional','elements':[{'name':'SOURCE_ID'},{'name':'COMMENTS'}]},"
+    + "{'name':'STATUS_ID','type':'list','data':{'items':[{'NAME':'Не обработан','VALUE':'NEW'}]}},"
+    + "{'name':'SOURCE_ID','title':'','type':'list','editable':true,'data':{'items':["
+    + "{'NAME':'Не выбрано','VALUE':''},{'NAME':'Звонок','VALUE':'CALL'},"
+    + "{'NAME':'По рекомендации','VALUE':'RECOMMENDATION'},{'NAME':'','VALUE':'REPEAT_SALE'}]}}";
+
+test('источники берутся из своего поля, а не из соседнего', () => {
+    const list = parseSourceOptions(SCHEME);
+    assert.deepEqual(list, [
+        { id: 'CALL', name: 'Звонок' },
+        { id: 'RECOMMENDATION', name: 'По рекомендации' },
+    ]);
+});
+
+test('пустые и безымянные источники в список не идут', () => {
+    const ids = parseSourceOptions(SCHEME).map(s => s.id);
+    assert.ok(!ids.includes(''));
+    // В этом портале есть источник без названия — пустая строка в выпадашке
+    // это не выбор, а загадка.
+    assert.ok(!ids.includes('REPEAT_SALE'));
+});
+
+test('нет справочника — пустой список, а не падение', () => {
+    assert.deepEqual(parseSourceOptions('<html></html>'), []);
+    assert.deepEqual(parseSourceOptions(''), []);
 });

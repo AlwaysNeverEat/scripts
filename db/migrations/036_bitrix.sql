@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS bitrix_leads (
   title            text,
   name             text,
   status_id        text,
+  source_id        text,
   assigned_by_id   integer,
   comments         text,
   -- когда последний раз читали из Битрикса и когда последний раз писали туда
@@ -54,3 +55,59 @@ CREATE TABLE IF NOT EXISTS bitrix_leads (
 
 CREATE INDEX IF NOT EXISTS bitrix_leads_phone_idx ON bitrix_leads (phone, seen_at DESC);
 CREATE INDEX IF NOT EXISTS bitrix_leads_seen_idx  ON bitrix_leads (seen_at DESC);
+
+
+-- Активный звонок. Битрикс сам связывает входящий с лидом (данные карточки
+-- звонка приложения телефонии), и сайту остаётся узнать, что звонок идёт.
+--
+-- Ключевое отличие от «журнала звонков»: строка живёт не до конца разговора, а
+-- до тех пор, пока ОПЕРАТОР НЕ ЗАКРЫЛ ЛИД. Так это и работает за стойкой:
+-- трубку положили, а имя, источник и комментарий дописываются ещё минуту, и
+-- панель обязана оставаться открытой. Момент окончания разговора нам поэтому
+-- не нужен вовсе — что и хорошо, потому что телефония о нём не сообщает.
+CREATE TABLE IF NOT EXISTS bitrix_calls (
+  id          bigserial   PRIMARY KEY,
+  -- id звонка со стороны телефонии: по нему отличаем повтор от нового звонка
+  call_id     text        NOT NULL,
+  user_id     uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  lead_id     bigint,
+  phone       text,
+  line        text,
+  direction   text,
+  started_at  timestamptz NOT NULL DEFAULT now(),
+  -- проставляется, когда оператор сохранил или закрыл лид
+  closed_at   timestamptz
+);
+
+-- Один и тот же звонок датчик пришлёт много раз (карточка перерисовывается),
+-- и каждый раз заводить строку нельзя.
+CREATE UNIQUE INDEX IF NOT EXISTS bitrix_calls_uniq ON bitrix_calls (user_id, call_id);
+-- Открытый звонок у оператора ровно один — его и ищет панель.
+CREATE INDEX IF NOT EXISTS bitrix_calls_open_idx ON bitrix_calls (user_id, started_at DESC)
+    WHERE closed_at IS NULL;
+
+-- Машины, закреплённые за клиентом по номеру телефона.
+--
+-- Того, ради чего всё затевалось, в рабочей CRM нет вообще: оператор каждый
+-- раз выясняет машину заново. Здесь она подбирается один раз — в калькуляторе
+-- или на странице машины — и остаётся за номером навсегда.
+--
+-- Клиент опознаётся ТЕЛЕФОНОМ, а не лидом: лидов у одного человека со
+-- временем несколько (звонил в марте, звонит в августе), а телефон один. По
+-- нему же машина подставится в запись.
+CREATE TABLE IF NOT EXISTS client_cars (
+  id          bigserial   PRIMARY KEY,
+  -- только цифры, без +7 и скобок: телефон приезжает из разных мест
+  phone       text        NOT NULL,
+  car_id      uuid        NOT NULL REFERENCES cars (id) ON DELETE CASCADE,
+  -- госномер и заметка оператора («серая, зимой на другой резине»)
+  plate       text,
+  note        text,
+  added_by    uuid        REFERENCES users (id) ON DELETE SET NULL,
+  added_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- Одна и та же машина за одним номером — один раз. Повторное закрепление
+-- обновляет заметку, а не плодит строки.
+CREATE UNIQUE INDEX IF NOT EXISTS client_cars_uniq ON client_cars (phone, car_id);
+CREATE INDEX IF NOT EXISTS client_cars_phone_idx ON client_cars (phone, added_at DESC);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLeadSaveForm, buildStageForm, textToBB, bbToText, BitrixLeadError } from './leads.js';
+import { buildLeadSaveForm, buildStageForm, textToBB, bbToText, isCallSource, BitrixLeadError } from './leads.js';
 
 // Лид из живого запроса (docs/BITRIX.md), урезанный до существенного.
 const LEAD = {
@@ -62,6 +62,26 @@ test('описание уезжает BB-кодом', () => {
 test('пустая стадия — отказ, а не тихий увод лида в начало воронки', () => {
     assert.throws(() => buildLeadSaveForm({ ...LEAD, STATUS_ID: '' }, {}), BitrixLeadError);
     assert.throws(() => buildLeadSaveForm({ ...LEAD }, { statusId: '' }), BitrixLeadError);
+});
+
+// Правило компании: источник «Звонок» ставит телефония, и обработанный лид с
+// ним оставлять нельзя. Проверка стоит в сборке формы, а не в панели: панель
+// может быть любая, а правило одно.
+test('источник «Звонок» не даёт сохранить', () => {
+    assert.throws(() => buildLeadSaveForm({ ...LEAD, SOURCE_ID: 'CALL' }, { name: 'Олег' }), BitrixLeadError);
+    // Регистр значения роли не играет.
+    assert.throws(() => buildLeadSaveForm({ ...LEAD, SOURCE_ID: 'call' }, {}), BitrixLeadError);
+    assert.ok(isCallSource('CALL'));
+    assert.ok(!isCallSource('RECOMMENDATION'));
+});
+
+test('выбранный источник снимает запрет', () => {
+    const f = asObject(buildLeadSaveForm({ ...LEAD, SOURCE_ID: 'CALL' }, { sourceId: 'RECOMMENDATION' }));
+    assert.equal(f.SOURCE_ID, 'RECOMMENDATION');
+});
+
+test('пустой источник тоже не проходит', () => {
+    assert.throws(() => buildLeadSaveForm({ ...LEAD, SOURCE_ID: '' }, {}), BitrixLeadError);
 });
 
 test('без числового id сохранять нечего', () => {

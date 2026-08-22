@@ -23,6 +23,14 @@ function asText(value) {
     return String(value);
 }
 
+// Источник «Звонок» ставит сама телефония, и оставлять его нельзя: правило
+// компании — у обработанного лида источник обязан быть любым другим.
+export const CALL_SOURCE = 'CALL';
+
+export function isCallSource(id) {
+    return String(id ?? '').toUpperCase() === CALL_SOURCE;
+}
+
 export class BitrixLeadError extends Error {
     constructor(message) {
         super(message);
@@ -119,6 +127,19 @@ export function buildLeadSaveForm(lead, patch = {}) {
     if (!String(values.STATUS_ID || '').trim()) {
         // Пустая стадия увела бы лид в начало воронки — молча этого не делаем.
         throw new BitrixLeadError('у лида пустая стадия — сохранение отменено');
+    }
+
+    if (patch.sourceId !== undefined) values.SOURCE_ID = patch.sourceId;
+
+    // Правило компании, а не Битрикса: источник «Звонок» ставит телефония, и у
+    // обработанного лида его быть не должно — оператор обязан выбрать
+    // настоящий источник. Проверяем здесь, а не в панели: панель одна из
+    // возможных, а правило одно.
+    if (isCallSource(values.SOURCE_ID)) {
+        throw new BitrixLeadError('источник всё ещё «Звонок» — выберите настоящий источник');
+    }
+    if (!String(values.SOURCE_ID || '').trim()) {
+        throw new BitrixLeadError('у лида не выбран источник');
     }
 
     const form = new FormData();
