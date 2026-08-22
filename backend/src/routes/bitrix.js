@@ -12,6 +12,7 @@ import { normalizeSelectorUsers } from '../bitrix/dicts.js';
 import {
     openCall, closeCall, rememberLead, leadFeed,
 } from '../bitrix/calls.js';
+import { watchCalls, lastWatch, watchEveryMs } from '../bitrix/watch.js';
 
 // Панель Битрикса: во время звонка сайт показывает лид и даёт править ровно те
 // поля, которыми оператор пользуется, — имя, стадию, источник, ответственного и
@@ -88,12 +89,25 @@ router.get('/status', async (req, res) => {
 
 // ── Звонки ───────────────────────────────────────────────────────────────────
 
-// Состояние для панели: есть ли сейчас звонок. Опрашивается часто, поэтому в
-// Битрикс не ходит вовсе — только своя база.
+// Состояние для панели: есть ли сейчас звонок.
+//
+// Здесь же сайт и СМОТРИТ в Битрикс — раз панель спрашивает, значит вкладка
+// открыта и оператор на месте (bitrix/watch.js объясняет, почему опрос
+// портала это нормально). Частоту держит наблюдатель, а не панель: лишние
+// вопросы он гасит сам, так что три открытых вкладки сайта не превращаются в
+// тройной опрос портала.
+//
+// Ошибка наблюдателя ответ НЕ роняет: даже когда Битрикс недоступен, панель
+// обязана показать звонок, который уже лежит в своей базе.
 router.get('/call', async (req, res) => {
     try {
+        const watch = await watchCalls(req.user.id).catch(err => {
+            console.warn('наблюдатель Битрикса', err);
+            return null;
+        });
         const call = await openCall(req.user.id);
         res.json({
+            watch: watch && { at: watch.at, ids: watch.ids, newest: watch.newest, error: watch.error },
             call: call && {
                 callId: call.call_id,
                 leadId: call.lead_id ? String(call.lead_id) : null,
@@ -102,6 +116,22 @@ router.get('/call', async (req, res) => {
                 direction: call.direction,
                 startedAt: call.started_at,
             },
+        });
+    } catch (err) {
+        sendError(res, err);
+    }
+});
+
+// Что наблюдатель видит в Битриксе. Ручка диагностическая: по ней видно,
+// доходит ли опрос до портала, сколько лидов он разбирает и почему не считает
+// звонком то, что нашёл. Без неё «не всплывает уведомление» не отличить от
+// «портал сменил разметку».
+router.get('/watch', async (req, res) => {
+    try {
+        const seen = lastWatch(req.user.id);
+        res.json({
+            everyMs: watchEveryMs(),
+            watch: seen && !req.query.force ? seen : await watchCalls(req.user.id, { force: true }),
         });
     } catch (err) {
         sendError(res, err);
