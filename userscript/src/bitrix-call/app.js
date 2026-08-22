@@ -16,7 +16,13 @@
 // Оператор опознаётся логином Битрикса (кука BITRIX_SM_UIDL) — тем же, которым
 // он входил в Битрикс через сайт. Сессии сайта тут нет и быть не может: она
 // живёт в заголовке Authorization на другом домене.
+//
+// Отбор свежего звонка — в shared/bitrixCall.js, там же его тесты: карточки на
+// странице КОПЯТСЯ и не обновляются, так что «какой звонок сейчас» — вопрос
+// нетривиальный и проверять его надо не на живых клиентах.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { pickCurrentCall } from '../../../shared/bitrixCall.js';
 
 const API_BASE = 'https://k-spot.ru';
 const API_KEY = 'a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574';
@@ -40,31 +46,10 @@ function bitrixLogin() {
     }
 }
 
-// Карточка звонка — это форма приложения телефонии в размещении CALL_CARD.
-// Все данные лежат в одном скрытом поле, JSON'ом.
-function readCalls() {
-    const found = [];
-    for (const input of document.querySelectorAll('input[name="PLACEMENT_OPTIONS"]')) {
-        let data;
-        try {
-            data = JSON.parse(input.value || '{}');
-        } catch {
-            continue;
-        }
-        if (!data || !data.CALL_ID) continue;
-        found.push({
-            callId: String(data.CALL_ID),
-            phone: data.PHONE_NUMBER ? String(data.PHONE_NUMBER) : null,
-            line: data.LINE_NUMBER ? String(data.LINE_NUMBER) : null,
-            direction: data.CALL_DIRECTION ? String(data.CALL_DIRECTION) : 'incoming',
-            // Лида может ещё не быть (звонок с неизвестного номера в первую
-            // секунду) — тогда шлём звонок без него, сайт покажет номер.
-            leadId: data.CRM_ENTITY_TYPE === 'LEAD' && data.CRM_ENTITY_ID
-                ? String(data.CRM_ENTITY_ID)
-                : null,
-        });
-    }
-    return found;
+// Карточка звонка — форма приложения телефонии в размещении CALL_CARD. Все
+// данные в одном скрытом поле, JSON'ом.
+function readOptions() {
+    return [...document.querySelectorAll('input[name="PLACEMENT_OPTIONS"]')].map(input => input.value);
 }
 
 function report(call, login) {
@@ -102,19 +87,23 @@ function report(call, login) {
     });
 }
 
+let firstScan = true;
+
 function scan() {
     if (muted) return;
     const login = bitrixLogin();
     if (!login) return;
-    for (const call of readCalls()) {
-        if (sent.has(call.callId)) continue;
-        sent.add(call.callId);
-        // Пишем в консоль ДО отправки, а не после ответа: так датчик можно
-        // проверить на живом звонке ещё до того, как сайт научится его
-        // принимать, — видно, что карточка распознана и что из неё прочитано.
-        console.log('[SPOT] увидел звонок:', call);
-        report(call, login);
-    }
+
+    const call = pickCurrentCall(readOptions(), { known: sent, firstScan });
+    firstScan = false;
+    if (!call) return;
+
+    sent.add(call.callId);
+    // Пишем в консоль ДО отправки, а не после ответа: так датчик можно
+    // проверить на живом звонке ещё до того, как сайт научится его принимать, —
+    // видно, что карточка распознана и что именно из неё прочитано.
+    console.log('[SPOT] увидел звонок:', call);
+    report(call, login);
 }
 
 // Смотрим и по изменениям страницы, и по таймеру: карточку звонка вставляют
