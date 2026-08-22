@@ -17,10 +17,10 @@
 // больше, и пустое место всё это время читается как «нажал, и ничего не
 // произошло».
 //
-// Как сайт узнаёт о звонке: датчик на вкладке Битрикса (userscript/src/
-// bitrix-call) сообщает бэкенду «идёт входящий, лид такой-то», а тут мы просто
-// спрашиваем у своего сервера, есть ли открытый звонок. В Битрикс за этим не
-// ходим вовсе — опрос чужого портала раз в несколько секунд был бы свинством.
+// Как сайт узнаёт о звонке: спрашиваем свой сервер, есть ли открытый звонок, а
+// он смотрит в Битрикс сам (backend/src/bitrix/watch.js) и заодно слушает
+// датчик на вкладке Битрикса (userscript/src/bitrix-call). Источников два, и
+// сходятся они в одну запись звонка — здесь эта разница не видна вовсе.
 //
 // Звонок считается идущим, пока лид не сохранён или не закрыт: за стойкой
 // трубку кладут раньше, чем дописывают комментарий.
@@ -31,10 +31,11 @@
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Как часто спрашиваем свой сервер про звонок. Четыре секунды — компромисс:
-// человек берёт трубку и первые слова говорит дольше, а чаще дёргать свой же
-// бэкенд ради секунды выигрыша незачем.
-const CALL_POLL_MS = 4000;
+// Как часто спрашиваем свой сервер про звонок. Три секунды: за ними стоит
+// поход в Битрикс, и уведомление должно успеть всплыть, пока оператор ещё
+// здоровается. Частоту похода в портал держит сам сервер — здесь можно
+// спрашивать чаще, лишнего он не сделает.
+const CALL_POLL_MS = 3000;
 
 // Иконки — инлайновые SVG, как и везде на сайте: эмодзи ✕ и ↗ каждая ОС рисует
 // по-своему, и подогнать их под кнопку 30×30 и под тему нельзя.
@@ -61,7 +62,6 @@ const state = {
     acctOpen: false,     // раскрыта ли карточка учётки в углу
 
     call: null,          // открытый звонок с сервера
-    callKey: '',         // чтобы не перерисовывать страницу на каждом опросе
     seenCallId: null,    // по какому звонку уже показали уведомление
     lead: null,          // view открытой карточки
     draft: null,         // что оператор набрал в форме, но ещё не сохранил
@@ -116,8 +116,13 @@ function showCallToast(call) {
     requestAnimationFrame(() => box.classList.add('lead-toast-in'));
 }
 
+// Опрос идёт в Битрикс, и ответ может задержаться. Второй запрос поверх
+// незаконченного не ускорит ничего, зато перепутает порядок ответов.
+let polling = false;
+
 async function pollCall() {
-    if (!state.linked) return;
+    if (!state.linked || polling) return;
+    polling = true;
     try {
         const { call } = await api('/api/bitrix/call');
         state.call = call || null;
@@ -136,15 +141,14 @@ async function pollCall() {
         }
         if (!call) document.getElementById('lead-call-toast')?.remove();
 
-        // Перерисовываем ТОЛЬКО когда звонок сменился. Опрос идёт раз в четыре
-        // секунды, и безусловный render() посреди разговора стирал бы
-        // недописанный комментарий и закрывал бы раскрытые списки.
-        const key = call ? `${call.callId}:${call.leadId || ''}` : '';
-        if (key !== state.callKey) {
-            state.callKey = key;
-            render();
-        }
-    } catch { /* сеть моргнула — попробуем на следующем тике */ }
+        // ВАЖНО: опрос обновляет ТОЛЬКО плашку «идёт звонок», в своём гнезде, а
+        // не всю страницу. Полная перерисовка каждые три секунды выбивала
+        // курсор из поля прямо во время набора — а набирают тут как раз в
+        // разговоре, когда переспросить нельзя.
+        renderLive();
+    } catch { /* сеть моргнула — попробуем на следующем тике */ } finally {
+        polling = false;
+    }
 }
 
 export function startCallWatch({ apiFetch }) {
@@ -273,7 +277,6 @@ async function saveLead() {
         state.draft = draftOf(lead);
         state.saved = true;
         state.call = null;
-        state.callKey = '';
         document.getElementById('lead-call-toast')?.remove();
         await loadFeed();
     } catch (err) {
@@ -528,8 +531,43 @@ function leadCardHtml() {
 
 // ── Сборка страницы ──────────────────────────────────────────────────────────
 
+// Плашка «идёт звонок» — единственное, что обновляет опрос. Живёт в своём
+// гнезде, чтобы менять её, не трогая поля ввода.
+function liveHtml() {
+    return state.call
+        ? `<div class="lead-live"><span class="lead-live-dot"></span>Идёт звонок — ${esc(formatPhone(state.call.phone))}</div>`
+        : '';
+}
+
+function renderLive() {
+    const slot = document.getElementById('lead-live-slot');
+    if (!slot) return;
+    const html = liveHtml();
+    if (slot.innerHTML !== html) slot.innerHTML = html;
+}
+
+// Перерисовка бывает и по делу (сохранили, открыли другой лид, приехал
+// справочник сотрудников), а курсор при ней всё равно теряется — возвращаем
+// его туда же, где он был, вместе с положением каретки.
 function render() {
     if (!root) return;
+    const focused = document.activeElement;
+    const focusId = focused && root.contains(focused) ? focused.id : null;
+    const caret = focusId && 'selectionStart' in focused
+        ? [focused.selectionStart, focused.selectionEnd] : null;
+
+    paint();
+
+    if (!focusId) return;
+    const back = root.querySelector(`#${CSS.escape(focusId)}`);
+    if (!back) return;
+    back.focus();
+    if (caret && 'setSelectionRange' in back) {
+        try { back.setSelectionRange(caret[0], caret[1]); } catch { /* не текстовое поле */ }
+    }
+}
+
+function paint() {
     if (!state.ready) {
         root.innerHTML = `<div class="lead-boot"><span class="lead-spin"></span>проверяю связь с Битриксом…</div>`;
         return;
@@ -544,9 +582,7 @@ function render() {
     const open = Boolean(state.lead || state.leadBusy || state.leadError);
     root.innerHTML = `
         <div class="lead-bar">
-            ${state.call
-                ? `<div class="lead-live"><span class="lead-live-dot"></span>Идёт звонок — ${esc(formatPhone(state.call.phone))}</div>`
-                : '<div class="lead-bar-gap"></div>'}
+            <div id="lead-live-slot" class="lead-live-slot">${liveHtml()}</div>
             ${acctHtml()}
         </div>
         <div class="lead-cols${open ? ' is-open' : ''}">
@@ -650,7 +686,6 @@ function bind() {
         btn.onclick = async () => {
             closeLead();
             state.call = null;
-            state.callKey = '';
             document.getElementById('lead-call-toast')?.remove();
             render();
             try { await api('/api/bitrix/call/close', { method: 'POST', body: {} }); } catch { /* не критично */ }
