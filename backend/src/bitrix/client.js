@@ -333,10 +333,17 @@ async function loadPage(state, path) {
     return { html, url, authed: Boolean(sessid) };
 }
 
-// Живая ли сессия. Проверяем списком лидов, а не главной: главная зависит от
-// шаблона портала, а список лидов — та самая часть, ради которой мы и ходим.
+// Страница, которой проверяется сессия, — она же страница наблюдения за
+// новыми лидами (bitrix/watch.js). Главная зависит от шаблона портала, а
+// список лидов — та самая часть, ради которой мы и ходим.
+export const WATCH_PATH = '/crm/lead/list/';
+
+// Живая ли сессия. Разметку проверки ПРИДЕРЖИВАЕМ: наблюдатель просит ровно
+// эту же страницу сразу после проверки, и грузить её дважды за один опрос —
+// четыре запроса к порталу вместо двух.
 async function probeSession(state) {
-    const { authed } = await loadPage(state, '/crm/lead/list/');
+    const { html, authed } = await loadPage(state, WATCH_PATH);
+    state.probe = authed ? { html, at: Date.now() } : null;
     return authed;
 }
 
@@ -654,6 +661,27 @@ export async function bitrixAjax(userId, path, body = null, { method = 'POST', j
 export async function bitrixGetHtml(userId, path) {
     const state = await bitrixEnsureSession(userId);
     const { html, authed } = await loadPage(state, path);
+    if (!authed) {
+        await dropState(userId);
+        throw new BitrixError('bitrix_auth_required', 'сессия Битрикса закрылась');
+    }
+    await saveState(userId, state);
+    return html;
+}
+
+// Список лидов для наблюдателя. Отдельная ручка, а не bitrixGetHtml, ровно
+// из-за придержанной разметки: чаще всего страница уже загружена проверкой
+// сессии, и второй раз её тянуть незачем. Разметку после выдачи отпускаем —
+// это мегабайт на оператора, а следующий опрос всё равно возьмёт свежую.
+const PROBE_REUSE_MS = 3000;
+
+export async function bitrixWatchHtml(userId) {
+    const state = await bitrixEnsureSession(userId);
+    const probe = state.probe;
+    state.probe = null;
+    if (probe && Date.now() - probe.at < PROBE_REUSE_MS) return probe.html;
+
+    const { html, authed } = await loadPage(state, WATCH_PATH);
     if (!authed) {
         await dropState(userId);
         throw new BitrixError('bitrix_auth_required', 'сессия Битрикса закрылась');
