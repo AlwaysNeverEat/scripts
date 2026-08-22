@@ -490,14 +490,18 @@ async function performLogin(login, password) {
     const checkFail = loginFailure(check);
     if (checkFail) throw checkFail;
 
-    // 3. Возврат на портал по адресу из ответа: именно на нём портал выдаёт
-    //    свои куки. Без этого шага у нас останется сессия Bitrix24.Network,
-    //    которая сама по себе бесполезна.
+    // 3. Возврат на портал.
+    //
+    // Ответ ручки адреса возврата НЕ содержит — и не должен: форма после
+    // успешной проверки просто идёт по тому же адресу OAuth, на который портал
+    // отправил нас в самом начале. К этому моменту у Bitrix24.Network уже есть
+    // наша сессия, поэтому теперь он не спрашивает пароль, а возвращает на
+    // портал с кодом — и уже портал выдаёт свои куки.
+    //
+    // Адрес из ответа всё же смотрим первым: если однажды он там появится,
+    // идти надо туда, а не по своей памяти.
     const back = check?.data?.redirectUrl || check?.data?.redirect_url
-        || check?.data?.redirect || check?.data?.url;
-    if (!back) {
-        throw new BitrixError('bitrix_auth_failed', 'Битрикс не вернул адрес возврата после входа');
-    }
+        || check?.data?.redirect || check?.data?.url || authUrl.href;
     await followRedirects(await rawFetch(back, jar, {}, NET_URL), jar);
 
     const state = { jar, sessid: null };
