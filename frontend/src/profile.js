@@ -21,6 +21,7 @@ import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml } from './namePrefix.js';
+import { bitrixSectionHtml, attachBitrixSection } from './bitrixLink.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -137,6 +138,12 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 }) : ''}
 
                 ${profileSectionHtml({
+                    title: 'Битрикс',
+                    meta: 'карточка лида во время звонка',
+                    body: bitrixSectionHtml(),
+                })}
+
+                ${profileSectionHtml({
                     title: 'Аккаунт',
                     body: `
                         <button class="btn btn-sec profile-logout" id="btn-logout">Выйти</button>
@@ -147,6 +154,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             </div>
         `;
         bind();
+        attachBitrixSection({ apiFetch });
         attachFeedParticles(box);
         attachActivityFeed(box);
     }
