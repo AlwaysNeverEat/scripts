@@ -99,7 +99,7 @@ const watchers = new Map(); // userId → { baseline, at, inflight, last }
 function watcher(userId) {
     let w = watchers.get(userId);
     if (!w) {
-        w = { baseline: null, at: 0, inflight: null, last: null };
+        w = { baseline: null, at: 0, inflight: null, last: null, reported: null };
         watchers.set(userId, w);
     }
     return w;
@@ -156,7 +156,30 @@ async function poll(userId, w) {
         if (!(err instanceof BitrixError)) console.warn('наблюдатель Битрикса', err);
     }
     w.last = result;
+    report(userId, w, result);
     return result;
+}
+
+// Проход пишется в лог НЕ каждый: в спокойной смене это была бы строка каждые
+// четыре секунды и ничего больше. Пишем первый проход (по нему видно, что
+// наблюдение вообще началось и что список читается), появление и снятие
+// ошибки, и всё, что наблюдатель посчитал или не посчитал звонком. Иначе
+// «уведомление не всплыло» разбирать не по чему: панели диагностика не
+// показывается, а ручка /api/bitrix/watch требует ключа и сессии.
+function report(userId, w, result) {
+    const worth = !w.reported
+        || result.error !== w.reported.error
+        || result.raised.length
+        || result.skipped.length;
+    w.reported = result;
+    if (!worth) return;
+
+    const parts = [`наблюдатель Битрикса (аккаунт ${userId}): лидов на странице ${result.ids}`];
+    if (result.newest) parts.push(`верхний ${result.newest}`);
+    if (result.raised.length) parts.push(`звонок по лидам ${result.raised.join(', ')}`);
+    for (const skip of result.skipped) parts.push(`лид ${skip.id} пропущен: ${skip.why}`);
+    if (result.error) parts.push(`ошибка: ${result.error}`);
+    console.log(parts.join('; '));
 }
 
 // Новый лид → звонок. Возвращает true или причину, по которой не считаем.
