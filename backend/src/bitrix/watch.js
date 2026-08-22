@@ -18,18 +18,23 @@
 //
 // Что опрос МОЖЕТ и чего НЕ может — граница жёсткая:
 //
-//   может  — увидеть НОВЫЙ лид. Телефония заводит его на входящий с
-//            неизвестного номера, с источником «Звонок»;
+//   может  — увидеть НОВЫЙ лид, если тот попадает в список. Телефония заводит
+//            его на входящий с неизвестного номера, с источником «Звонок»;
 //   не может — увидеть звонок ПОВТОРНОГО клиента: у него лид уже есть, нового
-//            не появляется, и в списке ничего не меняется. Такой звонок видит
-//            только датчик — за это он и оставлен.
+//            не появляется, и в списке ничего не меняется;
+//   не может — увидеть новый лид, если список отфильтрован. Настройки списка
+//            персональные и живут на сервере портала (docs/BITRIX.md), а
+//            фильтр адресом не перебить.
+//
+// Отсюда честная оценка: наблюдатель — подспорье, а не источник. Единственное,
+// что видит ЛЮБОЙ звонок, — датчик на вкладке Битрикса.
 //
 // Оба источника сходятся в одну запись звонка: сводит их bitrix/calls.js по
 // лиду, иначе оператор получал бы два уведомления об одном разговоре.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { bitrixWatchPage, bitrixGetHtml, BitrixError } from './client.js';
-import { parseLeadModel, normalizeLead, leadPagePath, BitrixReadError } from './leadModel.js';
+import { parseLeadModel, normalizeLead, leadPagePath } from './leadModel.js';
 import { isCallSource } from './leads.js';
 import { noteCall, rememberLead, sweepLeads } from './calls.js';
 import { query } from '../db/client.js';
@@ -102,7 +107,7 @@ function watcher(userId) {
     if (!w) {
         w = {
             baseline: null, at: 0, inflight: null, last: null, reported: null, reportedAt: 0,
-            cursor: null, misses: 0, caughtUp: false, portalUserId: null,
+            portalUserId: null,
         };
         watchers.set(userId, w);
     }
@@ -189,7 +194,7 @@ async function poll(userId, w) {
     const result = {
         at: Date.now(), ids: 0, newest: null, top: [], shellIds: 0, dynamicIds: 0,
         dynamicLen: 0, portalUserId: null, raised: [], skipped: [], stale: null,
-        probe: null, cursor: null, error: null,
+        error: null,
     };
     try {
         // Список читаем РЕДКО, а щупом ходим каждый проход. Раньше было
@@ -219,14 +224,6 @@ async function poll(userId, w) {
                 result.skipped.push({ id, why: err?.code || String(err?.message || err) });
             }
         }
-        // Курсор щупа — самый большой номер, который сайт вообще знает: из
-        // своей ленты, из списка и из прошлых проходов. Список может отставать
-        // на тысячи номеров (личный фильтр оператора), поэтому берём максимум,
-        // а не последнее увиденное.
-        w.cursor = Math.max(w.cursor ?? 0, known ?? 0, Number(result.newest) || 0) || null;
-        await probeForward(userId, w, result);
-        result.cursor = w.cursor;
-
         if (result.raised.length) sweepLeads().catch(err => console.warn('чистка ленты Битрикса', err));
     } catch (err) {
         result.error = err instanceof BitrixError ? err.code : String(err?.message || err);
@@ -254,7 +251,6 @@ function report(userId, w, result) {
         || result.stale !== before.stale
         || result.raised.length
         || result.skipped.length
-        || result.cursor !== before.cursor
         || result.at - (w.reportedAt || 0) > HEARTBEAT_MS;
     if (!worth) return;
     w.reported = result;
@@ -265,22 +261,19 @@ function report(userId, w, result) {
         + ` (динамика ${result.dynamicIds}, каркас ${result.shellIds}, блоки ${result.dynamicLen} символов)`,
     ];
     if (result.top.length) parts.push(`верхние ${result.top.join(', ')}`);
-    if (result.cursor) {
-        const probe = result.probe;
-        parts.push(`щуп на ${result.cursor}`
-            + (probe ? ` (${probe.catchUp ? 'догон, ' : ''}проб ${probe.tried}, нашёл ${probe.hits})` : ''));
-    }
     if (result.portalUserId) parts.push(`наш номер в портале ${result.portalUserId}`);
     if (result.raised.length) parts.push(`звонок по лидам ${result.raised.join(', ')}`);
     for (const skip of result.skipped) parts.push(`лид ${skip.id} пропущен: ${skip.why}`);
     if (result.error) parts.push(`ошибка: ${result.error}`);
     console.log(parts.join('; '));
 
-    if (result.stale) {
+    // Про отставание списка пишем редко: оно постоянное (личный фильтр
+    // оператора), а звонки ловит не список.
+    if (result.stale && result.stale !== before?.stale) {
         console.log(
             `наблюдатель Битрикса: список отстаёт (верхний ${result.newest}, а лид ${result.stale}`
-            + ' мы уже видели) — в самом Битриксе на списке лидов стоит личный фильтр оператора.'
-            + ' Звонки при этом ловит щуп, список нужен только для картины в логе.',
+            + ' мы уже видели) — на списке лидов в самом Битриксе стоит личный фильтр оператора.'
+            + ' Новый лид сайт так не увидит; звонки ловит датчик на вкладке Битрикса.',
         );
     }
 }
@@ -304,70 +297,6 @@ function report(userId, w, result) {
 // сам: после нескольких промахов подряд он заглядывает не на один вперёд, а на
 // два, три, до пяти — и, попав, переносит курсор туда. Без этого одна дыра
 // останавливала бы наблюдение навсегда.
-const PROBE_WINDOW = 5;
-
-// Сколько карточек читаем за проход. В обычной работе одной хватает с запасом:
-// проход идёт раз в несколько секунд, а номера прирастают куда медленнее. В
-// догоне (см. ниже) читаем пачкой — иначе отставание в сотню номеров
-// разбиралось бы полчаса.
-const PROBE_PER_POLL = 1;
-const CATCHUP_PER_POLL = 8;
-
-/**
- * Догон: пока не нашли ХВОСТ нумерации, звонки не поднимаем.
- *
- * Запустившись, наблюдатель не знает, где кончаются существующие лиды: между
- * последним, что он видел, и сегодняшним днём могут лежать сотни чужих. Если
- * поднимать звонок на каждый, оператор получит сотню уведомлений о разговорах,
- * которых не было.
- *
- * Поэтому сначала щуп молча идёт вперёд, пока пять попыток подряд не упрутся в
- * пустоту — это и есть конец нумерации. Всё, что появится ПОСЛЕ, — уже
- * настоящий новый лид. Времени создания при этом не спрашиваем вовсе: часовой
- * пояс портала нам неизвестен, а «есть номер или нет» — вопрос без часовых
- * поясов.
- */
-async function probeForward(userId, w, result) {
-    if (w.cursor == null) return;
-    const budget = w.caughtUp ? PROBE_PER_POLL : CATCHUP_PER_POLL;
-    result.probe = { from: w.cursor, tried: 0, hits: 0, catchUp: !w.caughtUp };
-
-    for (let i = 0; i < budget; i++) {
-        // Шаг растёт с числом промахов подряд: пока номера идут сплошняком,
-        // щуп ходит на один вперёд, а упёршись в дыру (лид удалили) —
-        // начинает её перешагивать.
-        const step = 1 + (w.misses % PROBE_WINDOW);
-        const candidate = w.cursor + step;
-        result.probe.tried++;
-
-        let why;
-        try {
-            why = await raiseCall(userId, candidate, w);
-        } catch (err) {
-            // Карточки нет — такого лида ещё не существует. Это обычный ход
-            // дела, а не поломка.
-            if (err instanceof BitrixReadError) {
-                w.misses++;
-                if (!w.caughtUp && w.misses >= PROBE_WINDOW) {
-                    w.caughtUp = true;
-                    console.log(`наблюдатель Битрикса (аккаунт ${userId}): догнал нумерацию на ${w.cursor}`);
-                }
-                return; // дальше в этот проход не лезем: конца всё равно нет
-            }
-            throw err;
-        }
-
-        // Лид есть: курсор переносим ВСЕГДА, даже если звонком его не сочли, —
-        // иначе щуп будет вечно спотыкаться об один и тот же чужой лид.
-        w.cursor = candidate;
-        w.misses = 0;
-        result.probe.hits++;
-        if (!w.caughtUp) continue;      // в догоне ничего не поднимаем
-        if (why === true) result.raised.push(String(candidate));
-        else result.skipped.push({ id: String(candidate), why });
-    }
-}
-
 // Кого считаем своим. По умолчанию — учётку, под которой сайт вошёл в портал:
 // щуп видит ВСЕ новые лиды компании, и без этого оператору всплывали бы чужие
 // звонки. BITRIX_WATCH_ASSIGNEE=off снимает проверку, число — задаёт другого.
@@ -396,10 +325,6 @@ async function raiseCall(userId, leadId, w = null) {
     if (only && view.assignedById && view.assignedById !== only) {
         return `ответственный ${view.assignedById}, а наш ${only}`;
     }
-
-    // В догоне только смотрим, есть ли номер: ни в ленту, ни в звонки старые
-    // лиды не идут.
-    if (w && !w.caughtUp) return 'догон';
 
     // В ленту лид кладём с настоящими полями, а не заготовкой: мы его уже
     // прочитали, и оператор увидит в ленте имя и стадию сразу.
