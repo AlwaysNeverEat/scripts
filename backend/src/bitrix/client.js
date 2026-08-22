@@ -303,35 +303,56 @@ export function extractSessid(html) {
 // первый GET приходит общий для всех каркас, и настоящее содержимое надо
 // спросить вторым запросом. Отсюда же берётся ответ на вопрос «жива ли
 // сессия»: каркас отдают кому угодно, а вот sessid есть только у вошедшего.
-async function loadPage(state, path) {
-    const first = await followRedirects(await rawFetch(path, state.jar), state.jar);
+//
+// Каркас и динамику возвращаем ПОРОЗНЬ, а не только склейкой. Каркас — это
+// общий кэш: он одинаков у всех и может быть снят когда угодно, хоть вчера.
+// Всё, что зависит от учётки и от времени (строки списка, счётчики), живёт в
+// динамических блоках. Пока мы разбирали склейку, «сколько лидов на странице»
+// отвечало вперемешку про вчерашний снимок и про сегодня — а по такому ответу
+// не отличить сломанный разбор от протухшего кэша.
+async function loadPage(state, path, { forceDynamic = false, noCache = false } = {}) {
+    const first = await followRedirects(
+        await rawFetch(path, state.jar, noCache ? { headers: NO_CACHE } : {}),
+        state.jar,
+    );
     const url = new URL(first.url || BASE_URL.href);
-    if (url.origin !== BASE_URL.origin) return { html: '', url, authed: false };
+    if (url.origin !== BASE_URL.origin) return { html: '', shell: '', dynamic: '', url, authed: false };
 
     const shell = await first.text();
     const vars = parseFrameCacheVars(shell);
-    let html = shell;
+    let dynamic = '';
 
-    if (vars) {
+    // forceDynamic: спрашиваем содержимое даже когда в каркасе нет параметров
+    // кэша. Пустой список блоков портал понимает как «пришли всё», а стоит
+    // это одного запроса — против молчаливого чтения вчерашнего снимка цена
+    //небольшая.
+    if (vars || forceDynamic) {
         const res = await rawFetch(dynamicUrl(path), state.jar, {
-            headers: compositeHeaders(vars, { referer: BASE_URL.href }),
+            headers: {
+                ...compositeHeaders(vars, { referer: BASE_URL.href }),
+                ...(noCache ? NO_CACHE : {}),
+            },
         });
         const text = await res.text();
-        let body = text;
         try {
-            body = dynamicHtml(JSON.parse(text));
+            dynamic = dynamicHtml(JSON.parse(text));
         } catch {
             // Портал ответил не JSON — это либо страница входа, либо поломка.
             // Разбираем как разметку: sessid в ней всё равно не найдётся, и
             // вызывающий получит честное «сессии нет».
+            dynamic = text;
         }
-        html = `${shell}\n${body}`;
     }
 
+    const html = dynamic ? `${shell}\n${dynamic}` : shell;
     const sessid = extractSessid(html);
     if (sessid) state.sessid = sessid;
-    return { html, url, authed: Boolean(sessid) };
+    return { html, shell, dynamic, url, authed: Boolean(sessid) };
 }
+
+// Композитный кэш живёт и на стороне посредников: без этого можно получить
+// вчерашнюю страницу, ни разу не дойдя до портала.
+const NO_CACHE = { 'Cache-Control': 'no-cache, no-store, max-age=0', Pragma: 'no-cache' };
 
 // Страница, которой проверяется сессия, — она же страница наблюдения за
 // новыми лидами (bitrix/watch.js). Главная зависит от шаблона портала, а
@@ -356,9 +377,9 @@ export function watchPath() {
 // эту же страницу сразу после проверки, и грузить её дважды за один опрос —
 // четыре запроса к порталу вместо двух.
 async function probeSession(state) {
-    const { html, authed } = await loadPage(state, watchPath());
-    state.probe = authed ? { html, at: Date.now() } : null;
-    return authed;
+    const page = await loadPage(state, watchPath(), { forceDynamic: true, noCache: true });
+    state.probe = page.authed ? { page, at: Date.now() } : null;
+    return page.authed;
 }
 
 // ── Вход ─────────────────────────────────────────────────────────────────────
@@ -689,19 +710,19 @@ export async function bitrixGetHtml(userId, path) {
 // это мегабайт на оператора, а следующий опрос всё равно возьмёт свежую.
 const PROBE_REUSE_MS = 3000;
 
-export async function bitrixWatchHtml(userId) {
+export async function bitrixWatchPage(userId) {
     const state = await bitrixEnsureSession(userId);
     const probe = state.probe;
     state.probe = null;
-    if (probe && Date.now() - probe.at < PROBE_REUSE_MS) return probe.html;
+    if (probe && Date.now() - probe.at < PROBE_REUSE_MS) return probe.page;
 
-    const { html, authed } = await loadPage(state, watchPath());
-    if (!authed) {
+    const page = await loadPage(state, watchPath(), { forceDynamic: true, noCache: true });
+    if (!page.authed) {
         await dropState(userId);
         throw new BitrixError('bitrix_auth_required', 'сессия Битрикса закрылась');
     }
     await saveState(userId, state);
-    return html;
+    return page;
 }
 
 // Выход: гасим куки у себя. Сессию на стороне портала специально НЕ закрываем —

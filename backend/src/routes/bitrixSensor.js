@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { userByBitrixLogin } from '../bitrix/client.js';
 import { noteCall, sweepLeads } from '../bitrix/calls.js';
 import { watchCalls, lastWatch, watchEveryMs } from '../bitrix/watch.js';
+import { bitrixWatchPage } from '../bitrix/client.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Приёмник датчика звонков.
@@ -74,6 +75,22 @@ router.get('/watch', async (req, res) => {
     try {
         const userId = await userByBitrixLogin(login);
         if (!userId) return res.json({ ok: false, reason: 'not_linked' });
+
+        // dump=shell|dynamic|all — отдать разметку как есть.
+        //
+        // Нужен он ровно тогда, когда цифры не сходятся и дальше гадать
+        // бессмысленно: видно, что именно портал прислал — каркас общего кэша
+        // или собранные для этой учётки блоки. В разметке лежат имена и
+        // телефоны клиентов, поэтому вызывается это руками и по ключу, а не
+        // висит ручкой на каждый день.
+        const dump = String(req.query?.dump || '');
+        if (dump) {
+            const page = await bitrixWatchPage(userId);
+            const body = dump === 'shell' ? page.shell : dump === 'dynamic' ? page.dynamic : page.html;
+            res.type('text/plain; charset=utf-8').send(body || '');
+            return;
+        }
+
         const seen = lastWatch(userId);
         res.json({
             ok: true,

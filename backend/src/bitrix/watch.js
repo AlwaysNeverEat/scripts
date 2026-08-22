@@ -28,7 +28,7 @@
 // лиду, иначе оператор получал бы два уведомления об одном разговоре.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { bitrixWatchHtml, bitrixGetHtml, BitrixError } from './client.js';
+import { bitrixWatchPage, bitrixGetHtml, BitrixError } from './client.js';
 import { parseLeadModel, normalizeLead, leadPagePath } from './leadModel.js';
 import { isCallSource } from './leads.js';
 import { noteCall, rememberLead, sweepLeads } from './calls.js';
@@ -100,7 +100,7 @@ const watchers = new Map(); // userId → { baseline, at, inflight, last }
 function watcher(userId) {
     let w = watchers.get(userId);
     if (!w) {
-        w = { baseline: null, at: 0, inflight: null, last: null, reported: null };
+        w = { baseline: null, at: 0, inflight: null, last: null, reported: null, reportedAt: 0 };
         watchers.set(userId, w);
     }
     return w;
@@ -140,21 +140,32 @@ async function knownMaxLead() {
 
 async function poll(userId, w) {
     const result = {
-        at: Date.now(), ids: 0, newest: null, top: [], portalUserId: null,
-        raised: [], skipped: [], stale: null, error: null,
+        at: Date.now(), ids: 0, newest: null, top: [], shellIds: 0, dynamicIds: 0,
+        dynamicLen: 0, portalUserId: null, raised: [], skipped: [], stale: null, error: null,
     };
     try {
-        const html = await bitrixWatchHtml(userId);
-        const ids = parseLeadIds(html);
+        const page = await bitrixWatchPage(userId);
+
+        // Считаем ОТДЕЛЬНО по каркасу и по динамике. Каркас — общий кэш, он
+        // может быть снят когда угодно; динамика — то, что портал собрал для
+        // этой учётки сейчас. Если новые номера есть только в каркасе, значит
+        // мы читаем снимок, а не список, и это видно сразу, а не через день
+        // рассуждений.
+        const shellIds = parseLeadIds(page.shell);
+        const dynamicIds = parseLeadIds(page.dynamic);
+        const ids = [...new Set([...dynamicIds, ...shellIds])].sort((a, b) => Number(b) - Number(a));
+
+        result.shellIds = shellIds.length;
+        result.dynamicIds = dynamicIds.length;
+        result.dynamicLen = page.dynamic.length;
         result.ids = ids.length;
         result.newest = ids[0] || null;
         result.top = ids.slice(0, 5);
-        result.portalUserId = parsePortalUserId(html);
+        result.portalUserId = parsePortalUserId(page.html);
 
-        // Список показывает старьё: значит в самом Битриксе на списке лидов
-        // стоит фильтр (сортировку мы задаём адресом, а фильтр перебить
-        // нельзя — он персональный и живёт на сервере портала). Сколько ни
-        // опрашивай такую страницу, нового лида на ней не будет.
+        // Список показывает старьё: либо это снимок кэша, либо в самом
+        // Битриксе на списке лидов стоит фильтр. Сколько ни опрашивай такую
+        // страницу, нового лида на ней не появится.
         const known = await knownMaxLead();
         if (known && result.newest && Number(result.newest) < known) result.stale = known;
 
@@ -185,23 +196,33 @@ async function poll(userId, w) {
     return result;
 }
 
-// Проход пишется в лог НЕ каждый: в спокойной смене это была бы строка каждые
-// четыре секунды и ничего больше. Пишем первый проход (по нему видно, что
-// наблюдение вообще началось и что список читается), появление и снятие
-// ошибки, и всё, что наблюдатель посчитал или не посчитал звонком. Иначе
-// «уведомление не всплыло» разбирать не по чему: панели диагностика не
-// показывается, а ручка /api/bitrix/watch требует ключа и сессии.
-function report(userId, w, result) {
-    const worth = !w.reported
-        || result.error !== w.reported.error
-        || result.stale !== w.reported.stale
-        || result.raised.length
-        || result.skipped.length;
-    w.reported = result;
-    if (!worth) return;
+// Как часто наблюдатель отмечается в логе, даже когда ничего не происходит.
+// Молчание неотличимо от «он не работает», а разбираться с этим приходится по
+// логам с чужой машины.
+const HEARTBEAT_MS = 5 * 60 * 1000;
 
-    const parts = [`наблюдатель Битрикса (аккаунт ${userId}): лидов на странице ${result.ids}`];
-    if (result.newest) parts.push(`верхний ${result.newest}`);
+// Проход пишется в лог НЕ каждый: в спокойной смене это была бы строка каждые
+// четыре секунды и ничего больше. Пишем то, по чему видно жизнь: первый
+// проход, смену верхнего номера, ошибку, разбор лида — и раз в пять минут
+// отметку «жив», чтобы замолчавший наблюдатель не выглядел работающим.
+function report(userId, w, result) {
+    const before = w.reported;
+    const worth = !before
+        || result.error !== before.error
+        || result.newest !== before.newest
+        || result.stale !== before.stale
+        || result.raised.length
+        || result.skipped.length
+        || result.at - (w.reportedAt || 0) > HEARTBEAT_MS;
+    if (!worth) return;
+    w.reported = result;
+    w.reportedAt = result.at;
+
+    const parts = [
+        `наблюдатель Битрикса (аккаунт ${userId}): лидов ${result.ids}`
+        + ` (динамика ${result.dynamicIds}, каркас ${result.shellIds}, блоки ${result.dynamicLen} символов)`,
+    ];
+    if (result.top.length) parts.push(`верхние ${result.top.join(', ')}`);
     if (result.raised.length) parts.push(`звонок по лидам ${result.raised.join(', ')}`);
     for (const skip of result.skipped) parts.push(`лид ${skip.id} пропущен: ${skip.why}`);
     if (result.error) parts.push(`ошибка: ${result.error}`);
@@ -209,9 +230,9 @@ function report(userId, w, result) {
 
     if (result.stale) {
         console.warn(
-            `наблюдатель Битрикса: список лидов отдаёт старьё — верхний ${result.newest},`
-            + ` а лид ${result.stale} мы уже видели. В самом Битриксе на списке лидов стоит фильтр:`
-            + ' снимите его (или выберите «Все»), список персональный — сайт видит ровно то же, что оператор.',
+            `наблюдатель Битрикса: список отдаёт старьё — верхний ${result.newest},`
+            + ` а лид ${result.stale} мы уже видели. Либо портал отдаёт снимок кэша (динамика пустая),`
+            + ' либо в самом Битриксе на списке лидов стоит фильтр.',
         );
     }
 }
