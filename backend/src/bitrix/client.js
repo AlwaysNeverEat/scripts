@@ -351,11 +351,20 @@ async function probeSession(state) {
 
 const NET_AJAX = '/bitrix/services/main/ajax.php';
 
-async function netAction(action, payload, jar) {
+async function netAction(action, payload, jar, sessid) {
     const res = await rawFetch(`${NET_AJAX}?action=${encodeURIComponent(action)}`, jar, {
         method: 'POST',
-        headers: { 'Bx-ajax': 'true', 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers: {
+            'Bx-ajax': 'true',
+            'Content-Type': 'application/json',
+            // У Bitrix24.Network СВОЙ CSRF-токен, к порталу отношения не
+            // имеющий: он лежит в разметке страницы входа. Без него ручка
+            // отвечает «Invalid csrf token» — и это, кстати, хороший признак,
+            // что до неё вообще достучались.
+            ...(sessid ? { 'X-Bitrix-Csrf-Token': sessid } : {}),
+            'X-Bitrix-Site-Id': 's1',
+        },
+        body: JSON.stringify({ ...payload, ...(sessid ? { sessid } : {}) }),
     }, NET_URL);
     const text = await res.text();
     try {
@@ -373,6 +382,19 @@ function loginFailure(answer) {
         ...(Array.isArray(answer?.data?.errors) ? answer.data.errors : []),
     ];
     const codes = errors.map(e => String(e?.code || '')).join(' ');
+    const texts = errors.map(e => String(e?.message || '')).join(' ');
+
+    // «Неверный токен» — не про пароль, а про то, что мы неправильно
+    // разговариваем с формой входа. Считать это отказом авторизации нельзя:
+    // на автовходе такой ответ СТЁР БЫ привязку учётки, то есть за нашу ошибку
+    // расплатился бы работник, которому пришлось бы вводить пароль заново.
+    if (/csrf/i.test(codes) || /csrf/i.test(texts)) {
+        return new BitrixError(
+            'bitrix_unavailable',
+            'Bitrix24.Network не принял токен формы входа — форма изменилась, нужна правка на сайте',
+        );
+    }
+
     if (/CAPTCHA/i.test(codes)) {
         return new BitrixError(
             'bitrix_captcha',
@@ -398,20 +420,29 @@ async function performLogin(login, password) {
     //    забираем и куки, и параметры OAuth (client_id, state, redirect_uri).
     const entry = await followRedirects(await rawFetch('/', jar), jar);
     const authUrl = new URL(entry.url || NET_URL.href);
+    const entryHtml = await entry.text();
     if (authUrl.origin === BASE_URL.origin) {
         // Портал не стал спрашивать вход — сессия уже есть, доделывать нечего.
-        return { jar, sessid: extractSessid(await entry.text()) };
+        return { jar, sessid: extractSessid(entryHtml) };
     }
 
     const params = Object.fromEntries(authUrl.searchParams);
+    const netSessid = extractSessid(entryHtml);
+    if (!netSessid) {
+        throw new BitrixError(
+            'bitrix_unavailable',
+            'на странице входа Bitrix24.Network нет токена — форма входа изменилась',
+        );
+    }
 
     // 2. Есть ли такой аккаунт и пускают ли его паролем.
-    const verify = await netAction('b24network.authorize.verifyLogin', { login, ...params }, jar);
+    const verify = await netAction('b24network.authorize.verifyLogin', { login, ...params }, jar, netSessid);
     const verifyFail = loginFailure(verify);
     if (verifyFail) throw verifyFail;
 
-    // 3. Пароль.
-    const check = await netAction('b24network.authorize.check', { login, password, ...params }, jar);
+    // 3. Пароль. Он может быть каким угодно, включая кириллицу: тело уезжает
+    //    JSON'ом в UTF-8, и перекодировать его по дороге некому.
+    const check = await netAction('b24network.authorize.check', { login, password, ...params }, jar, netSessid);
     const checkFail = loginFailure(check);
     if (checkFail) throw checkFail;
 
