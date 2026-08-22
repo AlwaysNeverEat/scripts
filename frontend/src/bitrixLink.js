@@ -37,6 +37,14 @@ export function attachBitrixSection({ apiFetch }) {
         note: '',
         error: null,
         busy: false,
+        // Проверка чтения: пока панели звонка нет, это единственный способ
+        // убедиться живьём, что карточка лида читается и разбирается. Останется
+        // и потом — когда портал в очередной раз что-нибудь поменяет, проверять
+        // будем отсюда, а не посреди разговора с клиентом.
+        checkId: '',
+        checking: false,
+        checked: null,
+        checkError: null,
     };
 
     function render() {
@@ -52,6 +60,7 @@ export function attachBitrixSection({ apiFetch }) {
                 Связь есть${state.login ? ` — ${esc(state.login)}` : ''}
             </div>`);
             rows.push('<button class="btn btn-sec" id="bitrix-unlink">Отвязать учётку</button>');
+            rows.push(checkHtml());
         } else {
             if (state.note) rows.push(`<div class="bitrix-link-note">${esc(state.note)}</div>`);
             rows.push(`
@@ -78,6 +87,40 @@ export function attachBitrixSection({ apiFetch }) {
         bind();
     }
 
+    function checkHtml() {
+        const parts = [`
+            <form id="bitrix-check" class="crm-login-form">
+                <input type="text" id="bitrix-lead-id" class="crm-input" placeholder="номер лида"
+                       value="${esc(state.checkId)}" ${state.checking ? 'disabled' : ''}/>
+                <button class="btn btn-sec" type="submit" ${state.checking ? 'disabled' : ''}>
+                    ${state.checking ? 'читаю…' : 'Прочитать лид'}
+                </button>
+            </form>`];
+
+        if (state.checkError) parts.push(`<div class="edit-error">${esc(state.checkError)}</div>`);
+
+        if (state.checked) {
+            const { lead, stages, sources } = state.checked;
+            const row = (title, value) => value
+                ? `<div class="bitrix-check-row"><span>${title}</span><b>${esc(value)}</b></div>`
+                : '';
+            parts.push(`<div class="bitrix-check">
+                ${row('Клиент', lead.name)}
+                ${row('Телефон', (lead.phones || []).join(', '))}
+                ${row('Стадия', stageTitle(stages, lead.statusId))}
+                ${row('Ответственный', lead.assignedByName)}
+                ${row('Комментарий', lead.comments)}
+                <div class="bitrix-check-row"><span>Справочники</span><b>стадий ${stages.length}, источников ${sources.length}</b></div>
+            </div>`);
+        }
+        return parts.join('');
+    }
+
+    function stageTitle(stages, id) {
+        const found = (stages || []).find(s => s.id === id);
+        return found ? found.name : id;
+    }
+
     function bind() {
         const form = root.querySelector('#bitrix-form');
         if (form) {
@@ -98,6 +141,30 @@ export function attachBitrixSection({ apiFetch }) {
                     state.error = err.message || 'не удалось войти';
                 }
                 state.busy = false;
+                render();
+            };
+        }
+
+        const check = root.querySelector('#bitrix-check');
+        if (check) {
+            check.onsubmit = async (e) => {
+                e.preventDefault();
+                const id = root.querySelector('#bitrix-lead-id').value.trim();
+                if (!/^\d+$/.test(id)) {
+                    state.checkError = 'номер лида — это число';
+                    return render();
+                }
+                state.checkId = id;
+                state.checking = true;
+                state.checkError = null;
+                state.checked = null;
+                render();
+                try {
+                    state.checked = await apiFetch(`/api/bitrix/lead/${id}`);
+                } catch (err) {
+                    state.checkError = err.message || 'не удалось прочитать лид';
+                }
+                state.checking = false;
                 render();
             };
         }

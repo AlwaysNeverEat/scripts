@@ -6783,3 +6783,35 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .faculty-thinking { animation: none; opacity: 1; }
   .faculty-progress-bar > span { transition: none; }
 }
+
+/* ── Битрикс в профиле ──────────────────────────────────────────────────────
+   Привязка учётки и проверка чтения лида. Форма переиспользует стили входа в
+   CRM (.crm-login-form/.crm-input): это те же два поля и кнопка, заводить им
+   вторую внешность незачем. */
+.bitrix-link-state {
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+.bitrix-link-ok { color: var(--ok, #2e7d32); }
+.bitrix-link-note {
+    margin-bottom: 8px;
+    color: var(--muted, #6b7280);
+}
+.bitrix-check {
+    margin-top: 10px;
+    border-top: 1px solid var(--line, #e5e7eb);
+    padding-top: 10px;
+}
+.bitrix-check-row {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 3px 0;
+}
+.bitrix-check-row > span {
+    flex: 0 0 130px;
+    color: var(--muted, #6b7280);
+}
+/* Комментарий приезжает многострочным — переносим как есть, а не в одну строку
+   с многоточием: по нему оператор и вспоминает, о чём был разговор. */
+.bitrix-check-row > b { white-space: pre-wrap; }
