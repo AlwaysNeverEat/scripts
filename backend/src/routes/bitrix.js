@@ -10,7 +10,7 @@ import {
 import { buildLeadSaveForm, BitrixLeadError } from '../bitrix/leads.js';
 import { normalizeSelectorUsers } from '../bitrix/dicts.js';
 import {
-    noteCall, openCall, closeCall, rememberLead, leadFeed, sweepLeads, normalizePhone,
+    openCall, closeCall, rememberLead, leadFeed,
 } from '../bitrix/calls.js';
 
 // Панель Битрикса: во время звонка сайт показывает лид и даёт править ровно те
@@ -87,30 +87,6 @@ router.get('/status', async (req, res) => {
 });
 
 // ── Звонки ───────────────────────────────────────────────────────────────────
-
-// Сюда стучится датчик со вкладки Битрикса. Ответ намеренно пустой и быстрый:
-// карточку лида сайт прочитает сам, когда оператор откроет уведомление, — во
-// время звонка каждая лишняя секунда чужой работы заметна.
-router.post('/call', async (req, res) => {
-    try {
-        const call = await noteCall(req.user.id, {
-            callId: req.body?.callId,
-            leadId: req.body?.leadId,
-            phone: req.body?.phone,
-            line: req.body?.line,
-            direction: req.body?.direction,
-        });
-        if (!call) {
-            return res.status(400).json({ error: { code: 'bad_request', message: 'нужен callId' } });
-        }
-        // Чистим ленту здесь же: отдельного планировщика в проекте нет, а
-        // звонки идут весь день (см. sweepLeads).
-        sweepLeads().catch(err => console.warn('чистка ленты Битрикса', err));
-        res.json({ ok: true, callId: call.call_id, leadId: call.lead_id });
-    } catch (err) {
-        sendError(res, err);
-    }
-});
 
 // Состояние для панели: есть ли сейчас звонок. Опрашивается часто, поэтому в
 // Битрикс не ходит вовсе — только своя база.

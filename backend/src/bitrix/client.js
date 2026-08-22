@@ -171,6 +171,18 @@ async function dropLink(userId) {
     await tolerantQuery('DELETE FROM bitrix_links WHERE user_id = $1', [userId]);
 }
 
+// Обратный поиск: по учётке Битрикса найти аккаунт сайта. Нужен датчику —
+// он живёт на вкладке Битрикса, где сессии сайта нет и быть не может, зато
+// точно известно, под кем работают в самом Битриксе.
+export async function userByBitrixLogin(login) {
+    const value = String(login ?? '').trim();
+    if (!value) return null;
+    const r = await tolerantQuery(
+        'SELECT user_id FROM bitrix_links WHERE lower(bitrix_login) = lower($1) LIMIT 1', [value],
+    );
+    return r.rows[0]?.user_id || null;
+}
+
 export async function bitrixLinkedLogin(userId) {
     if (!linkSecretConfigured()) return null;
     const r = await tolerantQuery('SELECT bitrix_login FROM bitrix_links WHERE user_id = $1', [userId]);
