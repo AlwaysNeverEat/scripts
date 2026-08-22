@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         SPOT Bitrix — датчик звонков
 // @namespace    k-spot.ru
-// @version      1.0.658
+// @version      1.1.675
 // @description  Сообщает сайту, что пришёл входящий звонок и какой лид Битрикс с ним связал. Ничего не читает и не меняет — только сообщает факт.
 // @match        https://spotexpress.bitrix24.ru/*
 // @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
 // @connect      k-spot.ru
 // @connect      localhost
 // @run-at       document-idle
@@ -56,8 +57,16 @@
   var API_BASE = "https://k-spot.ru";
   var API_KEY = "a56817cfece2ca6ad4bfdf7c2a7b83e1df99184d09daf574";
   var SCAN_EVERY_MS = 2e3;
+  var DOM_COOLDOWN_MS = 3 * 60 * 1e3;
   var sent = /* @__PURE__ */ new Set();
   var muted = false;
+  function pageWindow() {
+    try {
+      return typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
+    } catch {
+      return window;
+    }
+  }
   function bitrixLogin() {
     const m = document.cookie.match(/(?:^|;\s*)BITRIX_SM_UIDL=([^;]+)/);
     if (!m) return null;
@@ -67,10 +76,75 @@
       return m[1];
     }
   }
+  var ENDING = /end|finish|destroy|hangup|complete|cancel/i;
+  function watchPull() {
+    const BX = pageWindow().BX;
+    if (!BX || typeof BX.addCustomEvent !== "function") return false;
+    BX.addCustomEvent("onPullEvent", (moduleId, command, params) => {
+      const where = `${moduleId} ${command}`;
+      if (!/vox|telephon|call/i.test(where)) return;
+      console.log("[SPOT] событие телефонии:", moduleId, command, params);
+      if (ENDING.test(String(command))) return;
+      const call = fromPullParams(params);
+      if (call && !sent.has(call.callId)) {
+        sent.add(call.callId);
+        console.log("[SPOT] увидел звонок (событие):", call);
+        report(call);
+      }
+    });
+    return true;
+  }
+  function fromPullParams(params) {
+    for (const raw of [params, params?.call, params?.CALL, params?.data, params?.PARAMS]) {
+      const call = raw && parseCallOption(raw);
+      if (call) return call;
+    }
+    return null;
+  }
   function readOptions() {
     return [...document.querySelectorAll('input[name="PLACEMENT_OPTIONS"]')].map((input) => input.value);
   }
-  function report(call, login) {
+  var CARD_SELECTOR = [
+    '[class*="call-card"]',
+    '[class*="callcard"]',
+    '[class*="call_card"]',
+    '[class*="callCard"]',
+    ".bx-call-view",
+    ".crm-call-card"
+  ].join(", ");
+  var domSeen = /* @__PURE__ */ new Map();
+  var cardAt = 0;
+  function readCard() {
+    if (Date.now() - cardAt < SCAN_EVERY_MS) return null;
+    cardAt = Date.now();
+    for (const card of document.querySelectorAll(CARD_SELECTOR)) {
+      const text = card.innerText || "";
+      if (!/входящ/i.test(text)) continue;
+      const phone = (text.match(/\+?\d[\d\s\-()]{9,}\d/) || [])[0];
+      if (!phone) continue;
+      const digits = phone.replace(/\D+/g, "");
+      const at = domSeen.get(digits) || 0;
+      if (Date.now() - at < DOM_COOLDOWN_MS) continue;
+      domSeen.set(digits, Date.now());
+      const link = card.querySelector('a[href*="/crm/lead/details/"]') || document.querySelector('a[href*="/crm/lead/details/"]');
+      const leadId = (link?.getAttribute("href")?.match(/\/crm\/lead\/details\/(\d+)\//) || [])[1] || null;
+      return {
+        callId: `dom:${digits}:${Math.floor(Date.now() / 1e3)}`,
+        startedAt: Date.now(),
+        phone: digits,
+        line: null,
+        direction: "incoming",
+        leadId
+      };
+    }
+    return null;
+  }
+  function report(call) {
+    const login = bitrixLogin();
+    if (!login) {
+      console.warn("[SPOT] не вижу логин Битрикса в куках — звонок не отправлен");
+      return;
+    }
     GM_xmlhttpRequest({
       method: "POST",
       url: `${API_BASE}/api/bitrix/sensor`,
@@ -102,19 +176,40 @@
     });
   }
   var firstScan = true;
+  var pullReady = false;
   function scan() {
     if (muted) return;
-    const login = bitrixLogin();
-    if (!login) return;
-    const call = pickCurrentCall(readOptions(), { known: sent, firstScan });
+    if (!pullReady) pullReady = watchPull();
+    if (!bitrixLogin()) return;
+    const call = pickCurrentCall(readOptions(), { known: sent, firstScan }) || readCard();
     firstScan = false;
-    if (!call) return;
+    if (!call || sent.has(call.callId)) return;
     sent.add(call.callId);
     console.log("[SPOT] увидел звонок:", call);
-    report(call, login);
+    report(call);
   }
   new MutationObserver(() => scan()).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(scan, SCAN_EVERY_MS);
   scan();
-  console.log("[SPOT] датчик звонков Битрикса запущен");
+  try {
+    pageWindow().SPOT = {
+      dump() {
+        const cards = [...document.querySelectorAll(CARD_SELECTOR)];
+        const out = {
+          логин: bitrixLogin(),
+          формы: readOptions(),
+          событияТелефонии: pullReady ? "слушаю" : "BX.addCustomEvent не найден",
+          карточек: cards.length,
+          классы: cards.map((c) => c.className).slice(0, 10),
+          тексты: cards.map((c) => (c.innerText || "").slice(0, 200)).slice(0, 5),
+          ссылкиНаЛиды: [...document.querySelectorAll('a[href*="/crm/lead/details/"]')].map((a) => a.getAttribute("href")).slice(0, 10),
+          отправлено: [...sent]
+        };
+        console.log("[SPOT] осмотр:", out);
+        return out;
+      }
+    };
+  } catch {
+  }
+  console.log("[SPOT] датчик звонков Битрикса запущен (события телефонии + форма + карточка)");
 })();
