@@ -336,13 +336,27 @@ async function loadPage(state, path) {
 // Страница, которой проверяется сессия, — она же страница наблюдения за
 // новыми лидами (bitrix/watch.js). Главная зависит от шаблона портала, а
 // список лидов — та самая часть, ради которой мы и ходим.
-export const WATCH_PATH = '/crm/lead/list/';
+//
+// Сортировку задаём В АДРЕСЕ, и это не украшение. Список лидов — обычная
+// таблица портала, а настройки таблицы (сортировка, фильтр, число строк)
+// Битрикс хранит НА СЕРВЕРЕ и ПЕРСОНАЛЬНО: сайт входит той же учёткой и видит
+// ровно то же, что оператор в своём браузере. Один раз кто-то отсортировал
+// список по-своему — и наблюдатель читает чужие настройки, а новых лидов на
+// первой странице просто нет.
+//
+// Фильтр так не перебить: он свой у каждого и живёт отдельно от адреса. Если
+// в списке стоит фильтр, прячущий новые лиды, наблюдатель это заметит и
+// скажет (watch.js), но снимать его за оператора не станет — это его рабочий
+// список, а не наш.
+export function watchPath() {
+    return process.env.BITRIX_WATCH_PATH || '/crm/lead/list/?by=ID&order=desc';
+}
 
 // Живая ли сессия. Разметку проверки ПРИДЕРЖИВАЕМ: наблюдатель просит ровно
 // эту же страницу сразу после проверки, и грузить её дважды за один опрос —
 // четыре запроса к порталу вместо двух.
 async function probeSession(state) {
-    const { html, authed } = await loadPage(state, WATCH_PATH);
+    const { html, authed } = await loadPage(state, watchPath());
     state.probe = authed ? { html, at: Date.now() } : null;
     return authed;
 }
@@ -681,7 +695,7 @@ export async function bitrixWatchHtml(userId) {
     state.probe = null;
     if (probe && Date.now() - probe.at < PROBE_REUSE_MS) return probe.html;
 
-    const { html, authed } = await loadPage(state, WATCH_PATH);
+    const { html, authed } = await loadPage(state, watchPath());
     if (!authed) {
         await dropState(userId);
         throw new BitrixError('bitrix_auth_required', 'сессия Битрикса закрылась');

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractSessid } from './client.js';
+import { extractSessid, watchPath } from './client.js';
 
 // sessid — единственное, что мы вычитываем из разметки портала, и без него не
 // проходит ни один пишущий запрос. Записан он в разных местах по-разному,
@@ -34,4 +34,21 @@ test('на странице без sessid возвращается null', () => 
     assert.equal(extractSessid('<html><body>войдите</body></html>'), null);
     assert.equal(extractSessid(''), null);
     assert.equal(extractSessid(null), null);
+});
+
+// Настройки таблицы (сортировка, фильтр) Битрикс хранит на сервере и
+// персонально: сайт входит той же учёткой и видит ровно то, что оператор.
+// Поэтому сортировка задаётся АДРЕСОМ — иначе наблюдатель читает чужие
+// настройки, и новых лидов на первой странице может не оказаться вовсе.
+test('страница наблюдения просит новые лиды сверху', () => {
+    const was = process.env.BITRIX_WATCH_PATH;
+    try {
+        delete process.env.BITRIX_WATCH_PATH;
+        assert.match(watchPath(), /^\/crm\/lead\/list\/\?by=ID&order=desc$/);
+        process.env.BITRIX_WATCH_PATH = '/crm/lead/list/?by=DATE_CREATE&order=desc';
+        assert.equal(watchPath(), '/crm/lead/list/?by=DATE_CREATE&order=desc');
+    } finally {
+        if (was == null) delete process.env.BITRIX_WATCH_PATH;
+        else process.env.BITRIX_WATCH_PATH = was;
+    }
 });

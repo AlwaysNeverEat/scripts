@@ -32,6 +32,7 @@ import { bitrixWatchHtml, bitrixGetHtml, BitrixError } from './client.js';
 import { parseLeadModel, normalizeLead, leadPagePath } from './leadModel.js';
 import { isCallSource } from './leads.js';
 import { noteCall, rememberLead, sweepLeads } from './calls.js';
+import { query } from '../db/client.js';
 
 // Как часто ходим в Битрикс. Панель спрашивает чаще — лишние вопросы гасятся
 // здесь, чтобы частота опроса портала не зависела от того, сколько вкладок
@@ -124,14 +125,38 @@ export async function watchCalls(userId, { now = Date.now(), force = false } = {
     return w.inflight;
 }
 
+// Самый большой номер лида, который сайт когда-либо видел, — по нему и
+// проверяем, то ли нам показывает портал. Мера грубая, но честная: лиды в
+// Битриксе нумеруются по возрастанию, и список, где верхний номер МЕНЬШЕ уже
+// известного, показывает не начало ленты, а её середину.
+async function knownMaxLead() {
+    try {
+        const r = await query('SELECT max(lead_id) AS top FROM bitrix_leads');
+        return Number(r.rows[0]?.top) || null;
+    } catch {
+        return null; // таблиц ещё нет — сравнивать не с чем, и это не ошибка
+    }
+}
+
 async function poll(userId, w) {
-    const result = { at: Date.now(), ids: 0, newest: null, portalUserId: null, raised: [], skipped: [], error: null };
+    const result = {
+        at: Date.now(), ids: 0, newest: null, top: [], portalUserId: null,
+        raised: [], skipped: [], stale: null, error: null,
+    };
     try {
         const html = await bitrixWatchHtml(userId);
         const ids = parseLeadIds(html);
         result.ids = ids.length;
         result.newest = ids[0] || null;
+        result.top = ids.slice(0, 5);
         result.portalUserId = parsePortalUserId(html);
+
+        // Список показывает старьё: значит в самом Битриксе на списке лидов
+        // стоит фильтр (сортировку мы задаём адресом, а фильтр перебить
+        // нельзя — он персональный и живёт на сервере портала). Сколько ни
+        // опрашивай такую страницу, нового лида на ней не будет.
+        const known = await knownMaxLead();
+        if (known && result.newest && Number(result.newest) < known) result.stale = known;
 
         const fresh = pickNewLeadIds(ids, { baseline: w.baseline });
         // Границу двигаем СРАЗУ на весь список, даже если разбирать будем не
@@ -169,6 +194,7 @@ async function poll(userId, w) {
 function report(userId, w, result) {
     const worth = !w.reported
         || result.error !== w.reported.error
+        || result.stale !== w.reported.stale
         || result.raised.length
         || result.skipped.length;
     w.reported = result;
@@ -180,6 +206,14 @@ function report(userId, w, result) {
     for (const skip of result.skipped) parts.push(`лид ${skip.id} пропущен: ${skip.why}`);
     if (result.error) parts.push(`ошибка: ${result.error}`);
     console.log(parts.join('; '));
+
+    if (result.stale) {
+        console.warn(
+            `наблюдатель Битрикса: список лидов отдаёт старьё — верхний ${result.newest},`
+            + ` а лид ${result.stale} мы уже видели. В самом Битриксе на списке лидов стоит фильтр:`
+            + ' снимите его (или выберите «Все»), список персональный — сайт видит ровно то же, что оператор.',
+        );
+    }
 }
 
 // Новый лид → звонок. Возвращает true или причину, по которой не считаем.
