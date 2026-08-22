@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLeadModel, normalizeLead, leadPagePath, parseSourceOptions, BitrixReadError } from './leadModel.js';
+import { parseLeadModel, normalizeLead, leadPagePath, parseSourceOptions, parseStageOptions, BitrixReadError } from './leadModel.js';
 import { buildLeadSaveForm } from './leads.js';
 
 // Обрезанная карточка настоящей формы: тот же вызов фабрики, те же ключи.
@@ -142,4 +142,8 @@ test('пустые и безымянные источники в список н
 test('нет справочника — пустой список, а не падение', () => {
     assert.deepEqual(parseSourceOptions('<html></html>'), []);
     assert.deepEqual(parseSourceOptions(''), []);
+});
+
+test('стадии читаются из той же карточки', () => {
+    assert.deepEqual(parseStageOptions(SCHEME), [{ id: 'NEW', name: 'Не обработан' }]);
 });

@@ -162,18 +162,27 @@ export function normalizeLead(model) {
 // разбираем парами: городить конвертер ради двух ключей смысла нет, а regexp
 // по паре 'NAME'/'VALUE' переживёт и добавление новых полей внутрь.
 export function parseSourceOptions(html) {
+    return parseFieldOptions(html, 'SOURCE_ID');
+}
+
+/** Стадии — тем же способом и из той же карточки. */
+export function parseStageOptions(html) {
+    return parseFieldOptions(html, 'STATUS_ID');
+}
+
+function parseFieldOptions(html, fieldName) {
     const text = String(html || '');
 
     // Имя поля встречается в карточке дважды: сперва в перечислении разделов
     // (там у него нет ничего, кроме имени), и только потом в описании самого
     // поля со списком значений. Первое вхождение притащило бы ЧУЖОЙ список —
-    // на живой карточке в выпадашку источников попали стадии.
+    // на живой карточке в выпадашку источников попадали стадии.
     //
     // Поэтому смотрим не «рядом», а ВНУТРИ описания: берём кусок до следующего
     // поля и требуем, чтобы и тип, и список значений нашлись в нём. Вложенные
     // значения пишутся в верхнем регистре ('NAME'), так что за границу поля их
     // не примешь.
-    const re = /\{'name':'SOURCE_ID'/g;
+    const re = new RegExp(`\\{'name':'${fieldName}'`, 'g');
     let m;
     while ((m = re.exec(text))) {
         const next = text.indexOf("{'name':'", m.index + 1);

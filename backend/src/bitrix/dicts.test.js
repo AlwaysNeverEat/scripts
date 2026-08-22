@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeStages, normalizeUsers, stageName, callCentreDepartment } from './dicts.js';
+import { normalizeStages, normalizeUsers, stageName, callCentreDepartment, normalizeSelectorUsers } from './dicts.js';
 
 // Формы взяты с живого портала (docs/BITRIX.md), значения обезличены.
 const STAGES = { result: [
@@ -71,4 +71,29 @@ test('имя показывается так же, как в самом Битр
 test('отдел колл-центра вычисляется, а не вписан числом', () => {
     assert.equal(callCentreDepartment(normalizeUsers(USERS)), 18);
     assert.equal(callCentreDepartment([]), null);
+});
+
+// Ручка подбора отдаёт сотрудников по-своему: элементами с id и title. Форма
+// снята с живого запроса карточки лида.
+const SELECTOR = { data: { dialog: { items: [
+    { id: 2636, entityId: 'user', entityType: 'employee', title: 'Оператор Семен',
+      customData: { name: 'Оператор Семен', email: 'kent400@mail.ru', nodeId: 6 } },
+    { id: 2774, entityId: 'user', title: 'Елена Коржова', subtitle: 'Руководитель call-центра',
+      customData: { name: 'Елена Коржова' } },
+    { id: 7, entityId: 'structure-node', title: 'Колл-центр' },
+] } } };
+
+test('сотрудники из ручки подбора приводятся к общему виду', () => {
+    const users = normalizeSelectorUsers(SELECTOR);
+    assert.deepEqual(users.map(u => u.id), [2774, 2636]);
+    assert.equal(users.find(u => u.id === 2774).position, 'Руководитель call-центра');
+});
+
+test('отделы в ответе подбора — не сотрудники', () => {
+    assert.ok(!normalizeSelectorUsers(SELECTOR).some(u => u.id === 7));
+});
+
+test('незнакомый ответ подбора — пустой список, а не падение', () => {
+    assert.deepEqual(normalizeSelectorUsers(null), []);
+    assert.deepEqual(normalizeSelectorUsers({ data: {} }), []);
 });

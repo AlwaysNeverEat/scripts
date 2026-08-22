@@ -108,3 +108,29 @@ export function callCentreDepartment(users) {
     }
     return best?.dep ?? null;
 }
+
+// Сотрудников интерфейс берёт не из страницы, а отдельной ручкой подбора
+// (ui.entityselector.load). Ответ у неё свой: элементы с id и title, а не
+// строки пользователей — приводим к тому же виду, что и остальные, чтобы
+// панель не знала, откуда список приехал.
+export function normalizeSelectorUsers(answer) {
+    const items = answer?.data?.dialog?.items
+        || answer?.dialog?.items
+        || answer?.data?.items
+        || answer?.items;
+    if (!Array.isArray(items)) return [];
+    // Приводим к строкам пользователя и отдаём ОДНИМ списком в общий разбор:
+    // он же и сортирует. Прогнать каждого по отдельности — значит остаться с
+    // порядком, в котором их прислал Битрикс (по «недавно выбранным»).
+    const rows = items
+        .filter(item => !item?.entityId || item.entityId === 'user')
+        .map(item => ({
+            ID: item?.id,
+            NAME: item?.customData?.name || item?.title || '',
+            LAST_NAME: '',
+            WORK_POSITION: item?.subtitle || '',
+            PERSONAL_PHOTO: item?.avatar || '',
+            UF_DEPARTMENT: item?.customData?.nodeId ? [item.customData.nodeId] : [],
+        }));
+    return normalizeUsers(rows);
+}

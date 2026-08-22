@@ -9,6 +9,7 @@ import topRouter from './routes/top.js';
 import usersRouter from './routes/users.js';
 import adminRouter from './routes/admin.js';
 import crmRouter from './routes/crm.js';
+import bitrixRouter from './routes/bitrix.js';
 import recordsRouter from './routes/records.js';
 import wordleRouter from './routes/wordle.js';
 import kontekstRouter from './routes/kontekst.js';
@@ -83,6 +84,8 @@ app.use('/api/users', requireSession, usersRouter);
 // роутера: без личности проверять роль нечем.
 app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm', requireSession, crmRouter);
+// Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md).
+app.use('/api/bitrix', requireSession, bitrixRouter);
 // Распределяющая шляпа: тест на факультет. Строго именной — и прогресс, и
 // результат привязаны к аккаунту, а пройти его можно один раз (routes/faculty.js).
 app.use('/api/faculty', requireSession, facultyRouter);
