@@ -1,10 +1,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Вкладка «Лиды»: карточка клиента во время звонка.
+// Вкладка «Лиды»: лента обращений и карточка клиента во время звонка.
 //
 // Ради чего всё: оператор принимает звонок, и лид, который Битрикс уже завёл,
 // открывается ЗДЕСЬ — сразу редактируемым, из пяти полей, которыми в разговоре
 // и пользуются. Без прыжков по вкладкам и без ста кнопок, из которых нужны
 // пять.
+//
+// Страница устроена как ЛЕНТА, а не как страница-инструкция: главное на ней —
+// список обращений, карточка открывается рядом с ним (на узком экране — вместо
+// него). Всё, что не лид и не список, убрано с глаз: учётка Битрикса живёт в
+// кнопке в углу, потому что привязывают её раз в жизни, а место она занимала
+// постоянно.
+//
+// Пока карточка едет из Битрикса, на её месте лежит СКЕЛЕТ той же формы, а
+// нажатая строка ленты крутит колесо. Чтение чужого портала занимает секунду и
+// больше, и пустое место всё это время читается как «нажал, и ничего не
+// произошло».
 //
 // Как сайт узнаёт о звонке: датчик на вкладке Битрикса (userscript/src/
 // bitrix-call) сообщает бэкенду «идёт входящий, лид такой-то», а тут мы просто
@@ -25,16 +36,36 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
 // бэкенд ради секунды выигрыша незачем.
 const CALL_POLL_MS = 4000;
 
+// Иконки — инлайновые SVG, как и везде на сайте: эмодзи ✕ и ↗ каждая ОС рисует
+// по-своему, и подогнать их под кнопку 30×30 и под тему нельзя.
+const svg = (size, body) =>
+    `<svg class="icon" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">${body}</svg>`;
+
+const ICON = {
+    phone: (s = 16) => svg(s, '<path d="M15.5 21A12.5 12.5 0 0 1 3 8.5 2.5 2.5 0 0 1 5.5 6h2L9 9.5 7.2 11a10 10 0 0 0 5.8 5.8L14.5 15l3.5 1.5v2a2.5 2.5 0 0 1-2.5 2.5Z"/>'),
+    chevron: (s = 14) => svg(s, '<path d="m6 9 6 6 6-6"/>'),
+    close: (s = 16) => svg(s, '<path d="M6 6l12 12M18 6 6 18"/>'),
+    back: (s = 16) => svg(s, '<path d="M15 18 9 12l6-6"/>'),
+    ext: (s = 16) => svg(s, '<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
+    plug: (s = 16) => svg(s, '<path d="M9 3v6M15 3v6"/><path d="M6 9h12v3a6 6 0 0 1-6 6 6 6 0 0 1-6-6V9Z"/><path d="M12 18v3"/>'),
+};
+
 const state = {
     ready: false,
     linked: false,
     login: null,
     linkError: null,
     linkBusy: false,
+    acctOpen: false,     // раскрыта ли карточка учётки в углу
 
     call: null,          // открытый звонок с сервера
+    callKey: '',         // чтобы не перерисовывать страницу на каждом опросе
     seenCallId: null,    // по какому звонку уже показали уведомление
-    lead: null,          // { view } открытой карточки
+    lead: null,          // view открытой карточки
+    draft: null,         // что оператор набрал в форме, но ещё не сохранил
+    openingId: null,     // какой лид сейчас читается — под него скелет и колесо
     stages: [],
     sources: [],
     users: [],
@@ -43,15 +74,13 @@ const state = {
     saved: false,
 
     feed: [],
-    checkId: '',
-    checking: false,
-    checked: null,
-    checkError: null,
+    feedReady: false,
 };
 
 let api = null;
 let root = null;
 let pollTimer = 0;
+let outsideBound = false;
 
 // ── Звонок: опрос и уведомление ──────────────────────────────────────────────
 
@@ -65,14 +94,21 @@ function showCallToast(call) {
     box.id = 'lead-call-toast';
     box.className = 'lead-toast';
     box.innerHTML = `
-        <div class="lead-toast-title">Входящий звонок</div>
-        <div class="lead-toast-phone">${esc(formatPhone(call.phone))}</div>
-        <div class="lead-toast-hint">${call.leadId ? 'нажмите, чтобы открыть лид' : 'лид ещё не создан'}</div>`;
+        <span class="lead-toast-dot" aria-hidden="true"></span>
+        <span class="lead-toast-body">
+            <span class="lead-toast-title">Входящий звонок</span>
+            <span class="lead-toast-phone">${esc(formatPhone(call.phone))}</span>
+            <span class="lead-toast-hint">${call.leadId ? 'нажмите, чтобы открыть карточку' : 'лид ещё не создан'}</span>
+        </span>
+        <button type="button" class="lead-toast-x" aria-label="Скрыть">${ICON.close(15)}</button>`;
     box.onclick = () => {
         box.remove();
         location.hash = '#/leads';
         if (call.leadId) openLead(call.leadId);
     };
+    // Крестик убирает только плашку: звонок при этом идёт дальше, и карточку
+    // потом открывают из ленты.
+    box.querySelector('.lead-toast-x').onclick = e => { e.stopPropagation(); box.remove(); };
     document.body.appendChild(box);
 
     // Само уведомление не исчезает по таймеру: разговор идёт минуту-другую, и
@@ -89,11 +125,25 @@ async function pollCall() {
             state.seenCallId = call.callId;
             showCallToast(call);
             // Карточку подтягиваем сразу: пока оператор здоровается, она уже
-            // будет открыта.
-            if (call.leadId) openLead(call.leadId);
+            // будет открыта. Но НЕ поверх недописанного: звонок приходит и
+            // тогда, когда предыдущий разговор ещё дописывают, а подмена
+            // карточки стёрла бы набранное молча. В этом случае остаётся
+            // уведомление — по нему на новый лид переходят руками.
+            if (call.leadId && !hasUnsavedChanges()) openLead(call.leadId);
+            // Ленту перечитываем следом — новое обращение должно появиться в
+            // списке само.
+            loadFeed().then(render);
         }
         if (!call) document.getElementById('lead-call-toast')?.remove();
-        if (root) render();
+
+        // Перерисовываем ТОЛЬКО когда звонок сменился. Опрос идёт раз в четыре
+        // секунды, и безусловный render() посреди разговора стирал бы
+        // недописанный комментарий и закрывал бы раскрытые списки.
+        const key = call ? `${call.callId}:${call.leadId || ''}` : '';
+        if (key !== state.callKey) {
+            state.callKey = key;
+            render();
+        }
     } catch { /* сеть моргнула — попробуем на следующем тике */ }
 }
 
@@ -113,7 +163,13 @@ async function loadLink() {
         const st = await api('/api/bitrix/status');
         state.linked = Boolean(st.loggedIn);
         state.login = st.login || null;
-        state.linkError = st.loggedIn ? null : (st.message || null);
+        // «Войдите в Битрикс» — это не поломка, а первый заход: краснеть тут
+        // нечему, форма входа и так на экране. Красным показываем только то, о
+        // чём человеку правда надо знать: капчу, отказ по паролю, подтверждение
+        // по телефону.
+        state.linkError = st.loggedIn || !st.reason || st.reason === 'bitrix_auth_required'
+            ? null
+            : (st.message || null);
     } catch (err) {
         state.linked = false;
         state.linkError = err.message || 'Битрикс не отвечает';
@@ -126,6 +182,7 @@ async function loadFeed() {
         const { leads } = await api('/api/bitrix/feed?limit=50');
         state.feed = leads || [];
     } catch { /* лента не главное — покажем пусто */ }
+    state.feedReady = true;
 }
 
 async function loadUsers() {
@@ -137,33 +194,86 @@ async function loadUsers() {
 }
 
 async function openLead(id) {
+    const leadId = String(id);
+    // Старую карточку убираем сразу: показывать чужие поля, пока едут новые, —
+    // это дать оператору дописать комментарий не тому клиенту.
+    state.openingId = leadId;
+    state.lead = null;
+    state.draft = null;
     state.leadBusy = true;
     state.leadError = null;
     state.saved = false;
     render();
     try {
-        const data = await api(`/api/bitrix/lead/${id}`);
+        const data = await api(`/api/bitrix/lead/${leadId}`);
+        // Пока читали, оператор мог нажать другое обращение — тогда ответ уже
+        // не нужен, и подменять им открытую карточку нельзя.
+        if (state.openingId !== leadId) return;
         state.lead = data.lead;
         state.stages = data.stages || [];
         state.sources = data.sources || [];
-        loadUsers().then(render);
+        state.draft = draftOf(data.lead);
+        loadUsers().then(() => { if (state.openingId === leadId) render(); });
     } catch (err) {
+        if (state.openingId !== leadId) return;
         state.leadError = err.message || 'не удалось прочитать лид';
     }
     state.leadBusy = false;
     render();
 }
 
-async function saveLead(patch) {
-    if (!state.lead) return;
+// Форма живёт отдельным черновиком, а не читается из DOM в момент сохранения:
+// страницу перерисовывает и опрос звонка, и приход справочника сотрудников, а
+// набранный текст должен это переживать.
+function draftOf(lead) {
+    return {
+        id: lead.id,
+        name: lead.name || '',
+        statusId: lead.statusId || '',
+        sourceId: lead.sourceId || '',
+        assignedById: lead.assignedById == null ? '' : String(lead.assignedById),
+        comments: lead.comments || '',
+    };
+}
+
+// Есть ли в форме то, чего ещё нет в Битриксе. Нужно ровно в одном месте: не
+// подменять открытую карточку новым звонком, пока в ней недописано.
+function hasUnsavedChanges() {
+    if (!state.lead || !state.draft) return false;
+    const saved = draftOf(state.lead);
+    return Object.keys(saved).some(key => String(saved[key]) !== String(state.draft[key]));
+}
+
+function closeLead() {
+    state.lead = null;
+    state.draft = null;
+    state.openingId = null;
+    state.leadError = null;
+    state.saved = false;
+}
+
+async function saveLead() {
+    if (!state.lead || !state.draft) return;
+    const d = state.draft;
     state.leadBusy = true;
     state.leadError = null;
     render();
     try {
-        const { lead } = await api(`/api/bitrix/lead/${state.lead.id}`, { method: 'POST', body: patch });
+        const { lead } = await api(`/api/bitrix/lead/${state.lead.id}`, {
+            method: 'POST',
+            body: {
+                name: d.name.trim(),
+                statusId: d.statusId,
+                sourceId: d.sourceId,
+                assignedById: d.assignedById || undefined,
+                comments: d.comments,
+            },
+        });
         state.lead = lead;
+        state.draft = draftOf(lead);
         state.saved = true;
         state.call = null;
+        state.callKey = '';
         document.getElementById('lead-call-toast')?.remove();
         await loadFeed();
     } catch (err) {
@@ -173,100 +283,12 @@ async function saveLead(patch) {
     render();
 }
 
-// ── Разметка ─────────────────────────────────────────────────────────────────
+// ── Мелочи разметки ──────────────────────────────────────────────────────────
 
 function formatPhone(raw) {
     const d = String(raw || '').replace(/\D+/g, '');
     if (d.length === 11) return `+${d[0]} ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}`;
     return raw || '';
-}
-
-function selectHtml(id, list, current) {
-    const options = list.map(item =>
-        `<option value="${esc(item.id)}"${String(item.id) === String(current) ? ' selected' : ''}>${esc(item.name)}</option>`);
-    // Значения, которого нет в справочнике, не теряем: молча подменить стадию
-    // на первую попавшуюся — это испортить лид.
-    if (current && !list.some(i => String(i.id) === String(current))) {
-        options.unshift(`<option value="${esc(current)}" selected>${esc(current)}</option>`);
-    }
-    return `<select id="${id}" class="lead-select">${options.join('')}</select>`;
-}
-
-function leadCardHtml() {
-    if (state.leadBusy && !state.lead) return '<div class="lead-empty">читаю карточку…</div>';
-    if (!state.lead) {
-        return `<div class="lead-empty">
-            Карточка откроется сама, когда придёт звонок.
-            ${state.feed.length ? 'Или выберите обращение из списка ниже.' : ''}
-        </div>`;
-    }
-
-    const lead = state.lead;
-    const callSource = String(lead.sourceId || '').toUpperCase() === 'CALL';
-
-    return `
-        <div class="lead-card">
-            <div class="lead-card-head">
-                <div>
-                    <div class="lead-card-phone">${esc(formatPhone(lead.phones?.[0]))}</div>
-                    <div class="lead-card-note">${esc(lead.sourceNote || lead.title || '')}</div>
-                </div>
-                <a class="lead-card-link" href="https://spotexpress.bitrix24.ru/crm/lead/details/${esc(lead.id)}/"
-                   target="_blank" rel="noopener">Открыть в Битриксе</a>
-            </div>
-
-            <label class="lead-field">
-                <span>Имя клиента</span>
-                <input type="text" id="lead-name" class="lead-input" value="${esc(lead.name || '')}"
-                       placeholder="как зовут" ${state.leadBusy ? 'disabled' : ''}/>
-            </label>
-
-            <label class="lead-field">
-                <span>Стадия</span>
-                ${selectHtml('lead-stage', state.stages, lead.statusId)}
-            </label>
-
-            <label class="lead-field${callSource ? ' lead-field-warn' : ''}">
-                <span>Источник</span>
-                ${selectHtml('lead-source', state.sources, lead.sourceId)}
-            </label>
-            ${callSource ? '<div class="lead-warn">Источник «Звонок» ставит телефония — выберите настоящий, иначе лид не сохранится.</div>' : ''}
-
-            <label class="lead-field">
-                <span>Ответственный</span>
-                ${state.users.length
-                    ? selectHtml('lead-user', state.users.map(u => ({ id: u.id, name: u.name })), lead.assignedById)
-                    : `<input type="text" class="lead-input" value="${esc(lead.assignedByName || '')}" disabled/>`}
-            </label>
-
-            <label class="lead-field lead-field-wide">
-                <span>Комментарий</span>
-                <textarea id="lead-comments" class="lead-input lead-textarea" rows="5"
-                          placeholder="о чём договорились" ${state.leadBusy ? 'disabled' : ''}>${esc(lead.comments || '')}</textarea>
-            </label>
-
-            <div class="lead-actions">
-                <button class="btn" id="lead-save" ${state.leadBusy ? 'disabled' : ''}>
-                    ${state.leadBusy ? 'сохраняю…' : 'Сохранить в Битрикс'}
-                </button>
-                <button class="btn btn-sec" id="lead-close">Закрыть</button>
-                ${state.saved ? '<span class="lead-saved">сохранено</span>' : ''}
-            </div>
-            ${state.leadError ? `<div class="edit-error">${esc(state.leadError)}</div>` : ''}
-        </div>`;
-}
-
-function feedHtml() {
-    if (!state.feed.length) {
-        return '<div class="lead-empty">Обращений пока нет — они появятся после первого звонка.</div>';
-    }
-    return `<div class="lead-feed">${state.feed.map(row => `
-        <button class="lead-feed-row${row.unfilled ? ' lead-feed-unfilled' : ''}" data-lead="${esc(row.leadId)}">
-            <span class="lead-feed-phone">${esc(formatPhone(row.phone) || row.title || row.leadId)}</span>
-            <span class="lead-feed-name">${esc(row.name || '')}</span>
-            ${row.unfilled ? '<span class="lead-feed-flag">не заполнено</span>' : ''}
-            <span class="lead-feed-when">${esc(whenText(row.seenAt))}</span>
-        </button>`).join('')}</div>`;
 }
 
 // Время в ленте — относительное: «12 минут назад» читается быстрее, чем
@@ -282,69 +304,286 @@ function whenText(iso) {
     return `${Math.round(hours / 24)} дн назад`;
 }
 
-function linkHtml() {
-    if (state.linked) {
-        return `<div class="lead-link-ok">Связь с Битриксом есть — ${esc(state.login || '')}
-            <button class="btn btn-sec btn-slim" id="lead-unlink">отвязать</button></div>`;
+// Цвет кружка с буквой — от номера лида, а не случайный: один и тот же клиент
+// в ленте и в карточке должен быть одного цвета, иначе кружок ничего не
+// подсказывает. Светлота и насыщенность берутся из темы (--ava-l/--ava-c),
+// поэтому на белом фоне буква не выцветает.
+function hueOf(id) {
+    const s = String(id ?? '');
+    let h = 7;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return h;
+}
+
+function avatarHtml({ id, name }, big = false) {
+    const letter = String(name || '').trim().slice(0, 1).toUpperCase();
+    return `<span class="lead-ava${big ? ' lead-ava-lg' : ''}" style="--h:${hueOf(id)}" aria-hidden="true">${
+        letter ? esc(letter) : ICON.phone(big ? 22 : 15)}</span>`;
+}
+
+function selectHtml(id, list, current, disabled) {
+    const options = list.map(item =>
+        `<option value="${esc(item.id)}"${String(item.id) === String(current) ? ' selected' : ''}>${esc(item.name)}</option>`);
+    // Значения, которого нет в справочнике, не теряем: молча подменить стадию
+    // на первую попавшуюся — это испортить лид.
+    if (current && !list.some(i => String(i.id) === String(current))) {
+        options.unshift(`<option value="${esc(current)}" selected>${esc(current)}</option>`);
     }
+    return `<select id="${id}" class="lead-input lead-select"${disabled ? ' disabled' : ''}>${options.join('')}</select>`;
+}
+
+// ── Учётка Битрикса ──────────────────────────────────────────────────────────
+
+function acctHtml() {
+    // Кнопка в углу — ТОЛЬКО у привязанного. Пока привязки нет, вкладка и так
+    // состоит из одной карточки со входом, и вторая точка входа рядом с ней
+    // только заставляет выбирать, куда нажать.
+    if (!state.linked) return '';
     return `
-        <div class="lead-link">
-            <div class="lead-link-title">Войдите в Битрикс через сайт</div>
-            ${state.linkError ? `<div class="lead-link-note">${esc(state.linkError)}</div>` : ''}
-            <form id="lead-link-form" class="crm-login-form" autocomplete="off">
-                <input type="text" id="lead-login" class="crm-input" placeholder="почта Битрикса"
-                       autocomplete="username" value="${esc(state.login || '')}" ${state.linkBusy ? 'disabled' : ''}/>
-                <input type="password" id="lead-password" class="crm-input" placeholder="пароль"
-                       autocomplete="current-password" ${state.linkBusy ? 'disabled' : ''}/>
-                <button class="btn" type="submit" ${state.linkBusy ? 'disabled' : ''}>
-                    ${state.linkBusy ? 'вхожу…' : 'Привязать'}
-                </button>
-            </form>
-            <div class="lead-link-hint">Пароль вводится один раз и хранится зашифрованным. Вводи внимательно:
-                после нескольких неудачных попыток Битрикс включает капчу, и тогда вход встанет и у тебя в браузере.</div>
+        <div class="lead-acct">
+            <button type="button" class="lead-acct-btn" id="lead-acct-toggle"
+                    aria-expanded="${state.acctOpen ? 'true' : 'false'}">
+                <span class="lead-acct-dot" aria-hidden="true"></span>
+                <span class="lead-acct-name">${esc(state.login || 'Битрикс подключён')}</span>
+                ${ICON.chevron()}
+            </button>
+            ${state.acctOpen ? `<div class="lead-acct-pop">
+                <div class="lead-acct-row">
+                    <span class="lead-acct-cap">Учётка Битрикса</span>
+                    <b>${esc(state.login || '')}</b>
+                </div>
+                <p class="lead-acct-note">Карточки читаются и сохраняются от этого имени.</p>
+                <button class="btn lead-acct-unlink" id="lead-unlink">Отвязать</button>
+            </div>` : ''}
         </div>`;
 }
 
-function checkHtml() {
-    const rows = [`
-        <details class="lead-check">
-            <summary>Проверка чтения</summary>
-            <form id="lead-check-form" class="crm-login-form">
-                <input type="text" id="lead-check-id" class="crm-input" placeholder="номер лида"
-                       value="${esc(state.checkId)}" ${state.checking ? 'disabled' : ''}/>
-                <button class="btn btn-sec" type="submit" ${state.checking ? 'disabled' : ''}>
-                    ${state.checking ? 'читаю…' : 'Прочитать'}
+// Вход в Битрикс. Живёт в карточке на месте лида, а не в форме наверху
+// страницы: пока учётки нет, показывать больше нечего.
+function linkCardHtml() {
+    return `
+        <div class="lead-idle lead-idle-link">
+            <span class="lead-idle-icon">${ICON.plug(26)}</span>
+            <div class="lead-idle-title">Подключите Битрикс</div>
+            <p class="lead-idle-note">Тогда карточка клиента будет открываться сама на входящем звонке.</p>
+            ${state.linkError ? `<div class="edit-error">${esc(state.linkError)}</div>` : ''}
+            <form id="lead-link-form" class="lead-acct-form" autocomplete="off">
+                <input type="text" id="lead-login" class="lead-input" placeholder="почта Битрикса"
+                       autocomplete="username" value="${esc(state.login || '')}" ${state.linkBusy ? 'disabled' : ''}/>
+                <input type="password" id="lead-password" class="lead-input" placeholder="пароль"
+                       autocomplete="current-password" ${state.linkBusy ? 'disabled' : ''}/>
+                <button class="btn btn-pri" type="submit" ${state.linkBusy ? 'disabled' : ''}>
+                    ${state.linkBusy ? 'вхожу…' : 'Привязать'}
                 </button>
-            </form>`];
-    if (state.checkError) rows.push(`<div class="edit-error">${esc(state.checkError)}</div>`);
-    if (state.checked) {
-        rows.push(`<div class="lead-check-out">стадий ${state.checked.stages.length},
-            источников ${state.checked.sources.length} — справочники читаются</div>`);
-    }
-    rows.push('</details>');
-    return rows.join('');
+            </form>
+            <p class="lead-acct-note">Пароль хранится зашифрованным и вводится один раз. Вводи внимательно:
+                после нескольких промахов Битрикс включает капчу, и вход встанет и в браузере тоже.</p>
+        </div>`;
 }
+
+// ── Лента ────────────────────────────────────────────────────────────────────
+
+function feedHtml() {
+    // Пока лента не пришла — строки-скелеты. Пустое место в этот момент
+    // читается как «обращений нет», а это разные вещи.
+    if (!state.feedReady) {
+        return `<div class="lead-rows">${'<div class="lead-row lead-row-skel"></div>'.repeat(4)}</div>`;
+    }
+    if (!state.feed.length) {
+        return `<div class="lead-note-empty">Обращений пока нет — они появятся после первого звонка.</div>`;
+    }
+    return `<div class="lead-rows">${state.feed.map(row => {
+        const opening = String(row.leadId) === String(state.openingId) && !state.lead;
+        const active = state.lead && String(row.leadId) === String(state.lead.id);
+        return `
+        <button type="button" class="lead-row${active ? ' is-active' : ''}${opening ? ' is-loading' : ''}${row.unfilled ? ' is-unfilled' : ''}"
+                data-lead="${esc(row.leadId)}">
+            ${avatarHtml({ id: row.leadId, name: row.name })}
+            <span class="lead-row-main">
+                <span class="lead-row-phone">${esc(formatPhone(row.phone) || row.title || `Лид №${row.leadId}`)}</span>
+                <span class="lead-row-name">${esc(row.name || 'имя не записано')}</span>
+            </span>
+            <span class="lead-row-side">
+                <span class="lead-row-when">${opening ? '<span class="lead-spin"></span>' : esc(whenText(row.seenAt))}</span>
+                ${row.unfilled ? '<span class="lead-row-flag">не заполнено</span>' : ''}
+            </span>
+        </button>`;
+    }).join('')}</div>`;
+}
+
+// ── Карточка ─────────────────────────────────────────────────────────────────
+
+// Скелет повторяет ФОРМУ карточки, а не «крутилку по центру»: место, куда
+// приедут поля, видно заранее, и переход в готовую карточку не дёргает страницу.
+function skeletonHtml() {
+    const field = '<div class="lead-skel-field"><span class="sk sk-cap"></span><span class="sk sk-box"></span></div>';
+    return `
+        <article class="lead-card lead-card-skel" aria-busy="true">
+            <header class="lead-card-head">
+                <span class="sk sk-ava"></span>
+                <span class="lead-card-id">
+                    <span class="sk sk-line sk-wide"></span>
+                    <span class="sk sk-line sk-narrow"></span>
+                </span>
+            </header>
+            <div class="lead-fields">${field.repeat(4)}
+                <div class="lead-skel-field lead-field-wide">
+                    <span class="sk sk-cap"></span><span class="sk sk-box sk-tall"></span>
+                </div>
+            </div>
+            <div class="lead-skel-hint"><span class="lead-spin"></span>читаю карточку в Битриксе…</div>
+        </article>`;
+}
+
+function idleHtml() {
+    return `
+        <div class="lead-idle">
+            <span class="lead-idle-icon">${ICON.phone(24)}</span>
+            <div class="lead-idle-title">Ждём звонок</div>
+            <p class="lead-idle-note">Карточка откроется сама. Или выберите обращение из списка.</p>
+        </div>`;
+}
+
+function leadCardHtml() {
+    if (state.leadBusy && !state.lead) return skeletonHtml();
+    if (!state.lead) {
+        return state.leadError
+            ? `<div class="lead-idle"><div class="lead-idle-title">Карточка не открылась</div>
+                 <p class="lead-idle-note">${esc(state.leadError)}</p></div>`
+            : idleHtml();
+    }
+
+    const lead = state.lead;
+    const d = state.draft;
+    const dis = state.leadBusy ? ' disabled' : '';
+    // Пока источник «Звонок», сохранение не пройдёт (правило компании, см.
+    // backend/src/bitrix/leads.js) — и узнать об этом надо ДО нажатия кнопки.
+    const callSource = String(d.sourceId || '').toUpperCase() === 'CALL';
+    const phone = formatPhone(lead.phones?.[0]);
+    const meta = [lead.name || null, `Лид №${lead.id}`].filter(Boolean).join(' · ');
+
+    return `
+        <article class="lead-card">
+            <header class="lead-card-head">
+                ${avatarHtml({ id: lead.id, name: lead.name }, true)}
+                <div class="lead-card-id">
+                    <div class="lead-card-phone">${phone
+                        ? `<a href="tel:${esc(String(lead.phones[0]).replace(/[^\d+]/g, ''))}">${esc(phone)}</a>`
+                        : esc(lead.title || `Лид №${lead.id}`)}</div>
+                    <div class="lead-card-meta">${esc(meta)}</div>
+                </div>
+                <div class="lead-card-tools">
+                    <a class="lead-icon-btn" title="Открыть в Битриксе" aria-label="Открыть в Битриксе"
+                       href="https://spotexpress.bitrix24.ru/crm/lead/details/${esc(lead.id)}/"
+                       target="_blank" rel="noopener">${ICON.ext()}</a>
+                    <button type="button" class="lead-icon-btn" id="lead-close"
+                            title="Закрыть карточку" aria-label="Закрыть карточку">${ICON.close()}</button>
+                </div>
+            </header>
+
+            ${lead.sourceNote ? `<div class="lead-card-note">${esc(lead.sourceNote)}</div>` : ''}
+
+            <div class="lead-fields">
+                <label class="lead-field">
+                    <span class="lead-lbl">Имя клиента</span>
+                    <input type="text" id="lead-name" class="lead-input" value="${esc(d.name)}"
+                           placeholder="как зовут"${dis}/>
+                </label>
+
+                <label class="lead-field">
+                    <span class="lead-lbl">Стадия</span>
+                    ${selectHtml('lead-stage', state.stages, d.statusId, state.leadBusy)}
+                </label>
+
+                <label class="lead-field${callSource ? ' is-warn' : ''}">
+                    <span class="lead-lbl">Источник</span>
+                    ${selectHtml('lead-source', state.sources, d.sourceId, state.leadBusy)}
+                    ${callSource ? '<span class="lead-warn">«Звонок» ставит телефония — выберите настоящий, иначе лид не сохранится.</span>' : ''}
+                </label>
+
+                <label class="lead-field">
+                    <span class="lead-lbl">Ответственный</span>
+                    ${state.users.length
+                        ? selectHtml('lead-user', state.users.map(u => ({ id: u.id, name: u.name })), d.assignedById, state.leadBusy)
+                        : `<input type="text" class="lead-input" value="${esc(lead.assignedByName || '')}" disabled/>`}
+                </label>
+
+                <label class="lead-field lead-field-wide">
+                    <span class="lead-lbl">Комментарий</span>
+                    <textarea id="lead-comments" class="lead-input lead-textarea" rows="4"
+                              placeholder="о чём договорились"${dis}>${esc(d.comments)}</textarea>
+                </label>
+            </div>
+
+            ${state.leadError ? `<div class="edit-error">${esc(state.leadError)}</div>` : ''}
+
+            <footer class="lead-foot">
+                <button class="btn btn-pri" id="lead-save"${dis}>
+                    ${state.leadBusy ? 'сохраняю…' : 'Сохранить в Битрикс'}
+                </button>
+                ${state.saved ? '<span class="lead-saved">сохранено</span>' : ''}
+            </footer>
+        </article>`;
+}
+
+// ── Сборка страницы ──────────────────────────────────────────────────────────
 
 function render() {
     if (!root) return;
     if (!state.ready) {
-        root.innerHTML = '<div class="lead-empty">проверяю связь с Битриксом…</div>';
+        root.innerHTML = `<div class="lead-boot"><span class="lead-spin"></span>проверяю связь с Битриксом…</div>`;
         return;
     }
 
+    if (!state.linked) {
+        root.innerHTML = `<div class="lead-solo">${linkCardHtml()}</div>`;
+        bind();
+        return;
+    }
+
+    const open = Boolean(state.lead || state.leadBusy || state.leadError);
     root.innerHTML = `
-        ${linkHtml()}
-        ${state.linked ? `
-            ${state.call ? `<div class="lead-live">Идёт звонок — ${esc(formatPhone(state.call.phone))}</div>` : ''}
-            ${leadCardHtml()}
-            <h3 class="lead-sec-title">Обращения</h3>
-            ${feedHtml()}
-            ${checkHtml()}
-        ` : ''}`;
+        <div class="lead-bar">
+            ${state.call
+                ? `<div class="lead-live"><span class="lead-live-dot"></span>Идёт звонок — ${esc(formatPhone(state.call.phone))}</div>`
+                : '<div class="lead-bar-gap"></div>'}
+            ${acctHtml()}
+        </div>
+        <div class="lead-cols${open ? ' is-open' : ''}">
+            <section class="lead-list">
+                <div class="lead-list-head">
+                    <h3 class="lead-sec-title">Обращения</h3>
+                    ${state.feed.length ? `<span class="lead-count">${state.feed.length}</span>` : ''}
+                </div>
+                ${feedHtml()}
+            </section>
+            <section class="lead-pane">
+                ${open ? `<button type="button" class="lead-back" id="lead-back">${ICON.back()}Все обращения</button>` : ''}
+                ${leadCardHtml()}
+            </section>
+        </div>`;
     bind();
 }
 
+// Какие поля формы куда кладутся в черновик.
+const FIELD_KEYS = {
+    'lead-name': 'name',
+    'lead-stage': 'statusId',
+    'lead-source': 'sourceId',
+    'lead-user': 'assignedById',
+    'lead-comments': 'comments',
+};
+
 function bind() {
+    const acct = root.querySelector('#lead-acct-toggle');
+    if (acct) {
+        acct.onclick = () => {
+            state.acctOpen = !state.acctOpen;
+            render();
+            root.querySelector('#lead-login')?.focus();
+        };
+    }
+
     const linkForm = root.querySelector('#lead-link-form');
     if (linkForm) {
         linkForm.onsubmit = async (e) => {
@@ -359,6 +598,7 @@ function bind() {
                 await api('/api/bitrix/login', { method: 'POST', body: { login, password } });
                 state.linked = true;
                 state.login = login;
+                state.acctOpen = false;
                 await loadFeed();
             } catch (err) {
                 state.linkError = err.message || 'не удалось войти';
@@ -375,7 +615,9 @@ function bind() {
             try {
                 await api('/api/bitrix/logout', { method: 'POST', body: { unlink: true } });
                 state.linked = false;
-                state.lead = null;
+                state.acctOpen = false;
+                state.feed = [];
+                closeLead();
             } catch (err) {
                 state.linkError = err.message;
             }
@@ -383,22 +625,32 @@ function bind() {
         };
     }
 
-    const save = root.querySelector('#lead-save');
-    if (save) {
-        save.onclick = () => saveLead({
-            name: root.querySelector('#lead-name').value.trim(),
-            statusId: root.querySelector('#lead-stage')?.value,
-            sourceId: root.querySelector('#lead-source')?.value,
-            assignedById: root.querySelector('#lead-user')?.value || undefined,
-            comments: root.querySelector('#lead-comments').value,
-        });
+    // Форма пишется в черновик на каждый ввод: перерисовка от звонка или от
+    // приехавшего справочника сотрудников не должна стирать набранное.
+    const fields = root.querySelector('.lead-fields');
+    if (fields && state.draft) {
+        const put = e => {
+            const key = FIELD_KEYS[e.target.id];
+            if (key) state.draft[key] = e.target.value;
+        };
+        fields.oninput = put;
+        fields.onchange = e => {
+            put(e);
+            // Предупреждение про источник «Звонок» должно гаснуть сразу, как
+            // выбрали настоящий, — а это перерисовка.
+            if (e.target.id === 'lead-source') render();
+        };
     }
 
-    const close = root.querySelector('#lead-close');
-    if (close) {
-        close.onclick = async () => {
-            state.lead = null;
+    const save = root.querySelector('#lead-save');
+    if (save) save.onclick = () => saveLead();
+
+    const closers = [root.querySelector('#lead-close'), root.querySelector('#lead-back')].filter(Boolean);
+    for (const btn of closers) {
+        btn.onclick = async () => {
+            closeLead();
             state.call = null;
+            state.callKey = '';
             document.getElementById('lead-call-toast')?.remove();
             render();
             try { await api('/api/bitrix/call/close', { method: 'POST', body: {} }); } catch { /* не критично */ }
@@ -408,37 +660,24 @@ function bind() {
     root.querySelectorAll('[data-lead]').forEach(btn => {
         btn.onclick = () => openLead(btn.dataset.lead);
     });
-
-    const check = root.querySelector('#lead-check-form');
-    if (check) {
-        check.onsubmit = async (e) => {
-            e.preventDefault();
-            const id = root.querySelector('#lead-check-id').value.trim();
-            if (!/^\d+$/.test(id)) { state.checkError = 'номер лида — это число'; return render(); }
-            state.checkId = id;
-            state.checking = true;
-            state.checkError = null;
-            state.checked = null;
-            render();
-            try {
-                state.checked = await api(`/api/bitrix/lead/${id}`);
-                state.lead = state.checked.lead;
-                state.stages = state.checked.stages || [];
-                state.sources = state.checked.sources || [];
-                loadUsers().then(render);
-            } catch (err) {
-                state.checkError = err.message || 'не удалось прочитать';
-            }
-            state.checking = false;
-            render();
-        };
-    }
 }
 
 export function initLeadsPage({ apiFetch }) {
     api = apiFetch;
     root = document.getElementById('leads-body');
     if (!root) return;
+
+    // Клик мимо карточки учётки закрывает её — как ведёт себя любое меню.
+    if (!outsideBound) {
+        outsideBound = true;
+        document.addEventListener('click', e => {
+            if (!state.acctOpen || !root) return;
+            if (e.target.closest?.('.lead-acct')) return;
+            state.acctOpen = false;
+            render();
+        });
+    }
+
     render();
     if (!state.ready) loadLink().then(() => { render(); loadFeed().then(render); });
     else loadFeed().then(render);
