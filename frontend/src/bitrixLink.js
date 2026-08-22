@@ -104,10 +104,18 @@ export function attachBitrixSection({ apiFetch }) {
             const row = (title, value) => value
                 ? `<div class="bitrix-check-row"><span>${title}</span><b>${esc(value)}</b></div>`
                 : '';
+            // Источник показываем сразу с предупреждением: пока он «Звонок»,
+            // сохранение не пройдёт, и лучше узнать об этом здесь, чем из
+            // отказа посреди разговора.
+            const src = (sources || []).find(x => x.id === lead.sourceId);
+            const srcText = (src ? src.name : lead.sourceId || 'не выбран')
+                + (lead.sourceId === 'CALL' ? ' — его нужно будет сменить' : '');
+
             parts.push(`<div class="bitrix-check">
                 ${row('Клиент', lead.name)}
                 ${row('Телефон', (lead.phones || []).join(', '))}
                 ${row('Стадия', stageTitle(stages, lead.statusId))}
+                ${row('Источник', srcText)}
                 ${row('Ответственный', lead.assignedByName)}
                 ${row('Комментарий', lead.comments)}
                 <div class="bitrix-check-row"><span>Справочники</span><b>стадий ${stages.length}, источников ${sources.length}</b></div>

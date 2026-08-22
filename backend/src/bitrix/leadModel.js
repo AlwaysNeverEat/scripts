@@ -139,12 +139,19 @@ export function normalizeLead(model) {
         title: lead.TITLE,
         name: [lead.NAME, lead.LAST_NAME].filter(Boolean).join(' ').trim(),
         statusId: lead.STATUS_ID,
+        // Источник панели нужен не для красоты: пока он «Звонок», сохранение
+        // не пройдёт (правило компании, см. leads.js). Значит оператор должен
+        // видеть его в карточке, а не узнавать об этом из отказа.
+        sourceId: lead.SOURCE_ID,
         assignedById: Number(lead.ASSIGNED_BY_ID) || null,
         assignedByName: assigned || null,
         // Панель показывает описание обычным текстом, а не BB-кодом.
         comments: bbToText(lead.COMMENTS),
         phones: lead.PHONE.map(p => p.value),
-        source: String(model?.SOURCE_DESCRIPTION ?? '').trim() || null,
+        // Откуда пришёл звонок («Звонок поступил на номер: …») — это ПОЯСНЕНИЕ
+        // к источнику, а не он сам. Путать их нельзя: первое пишет телефония и
+        // трогать его незачем, второе выбирает оператор.
+        sourceNote: String(model?.SOURCE_DESCRIPTION ?? '').trim() || null,
         createdAt: String(model?.DATE_CREATE ?? '') || null,
     };
 

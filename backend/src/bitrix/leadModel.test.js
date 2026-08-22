@@ -81,6 +81,10 @@ test('панели уезжает описание текстом, а не BB-к
     const { view } = normalizeLead(parseLeadModel(page(MODEL)));
     assert.equal(view.comments, 'масло 5W-40 "Evolution 900" {спросить про фильтр}\n\nперезвонить');
     assert.equal(view.assignedByName, 'Оператор Анастасия');
+    // Источник и пояснение к нему — разные поля: первое выбирает оператор,
+    // второе пишет телефония.
+    assert.equal(view.sourceId, 'PARTNER');
+    assert.equal(view.sourceNote, 'Звонок поступил на номер: +78126034480.');
     assert.deepEqual(view.phones, ['79932190150']);
 });
 
