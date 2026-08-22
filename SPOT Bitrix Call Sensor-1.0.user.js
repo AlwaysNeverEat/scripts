@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT Bitrix — датчик звонков
 // @namespace    k-spot.ru
-// @version      1.0.132
+// @version      1.0.657
 // @description  Сообщает сайту, что пришёл входящий звонок и какой лид Битрикс с ним связал. Ничего не читает и не меняет — только сообщает факт.
 // @match        https://spotexpress.bitrix24.ru/*
 // @grant        GM_xmlhttpRequest
@@ -88,6 +88,7 @@
     for (const call of readCalls()) {
       if (sent.has(call.callId)) continue;
       sent.add(call.callId);
+      console.log("[SPOT] увидел звонок:", call);
       report(call, login);
     }
   }

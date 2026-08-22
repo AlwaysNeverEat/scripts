@@ -109,6 +109,10 @@ function scan() {
     for (const call of readCalls()) {
         if (sent.has(call.callId)) continue;
         sent.add(call.callId);
+        // Пишем в консоль ДО отправки, а не после ответа: так датчик можно
+        // проверить на живом звонке ещё до того, как сайт научится его
+        // принимать, — видно, что карточка распознана и что из неё прочитано.
+        console.log('[SPOT] увидел звонок:', call);
         report(call, login);
     }
 }
