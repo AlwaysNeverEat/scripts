@@ -6815,3 +6815,107 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* Комментарий приезжает многострочным — переносим как есть, а не в одну строку
    с многоточием: по нему оператор и вспоминает, о чём был разговор. */
 .bitrix-check-row > b { white-space: pre-wrap; }
+
+/* ── Лиды: карточка клиента во время звонка ─────────────────────────────────
+   Уведомление о звонке живёт поверх всего сайта: входящий приходит, когда
+   человек занят другим разделом. По таймеру оно НЕ исчезает — пропавшая
+   плашка означала бы «ищи лид руками». */
+.lead-toast {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 60;
+    min-width: 240px;
+    padding: 14px 18px;
+    border-radius: 14px;
+    background: var(--card, #fff);
+    border: 1px solid var(--line, #e5e7eb);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+    cursor: pointer;
+    transform: translateY(14px);
+    opacity: 0;
+    transition: transform .18s ease, opacity .18s ease;
+}
+.lead-toast-in { transform: translateY(0); opacity: 1; }
+.lead-toast-title { font-weight: 700; }
+.lead-toast-phone { font-size: 20px; font-weight: 700; margin: 2px 0; }
+.lead-toast-hint { color: var(--muted, #6b7280); font-size: 13px; }
+
+.leads-body { max-width: 720px; }
+.lead-empty { color: var(--muted, #6b7280); padding: 14px 0; }
+.lead-live {
+    font-weight: 700;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+    background: var(--ok-bg, #e8f5e9);
+}
+.lead-link-ok { font-weight: 600; margin-bottom: 12px; }
+.lead-link-title { font-weight: 700; margin-bottom: 8px; }
+.lead-link-note, .lead-link-hint { color: var(--muted, #6b7280); margin: 6px 0; }
+.btn-slim { padding: 2px 10px; font-size: 13px; margin-left: 8px; }
+
+.lead-card {
+    border: 1px solid var(--line, #e5e7eb);
+    border-radius: 14px;
+    padding: 16px;
+}
+.lead-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.lead-card-phone { font-size: 22px; font-weight: 700; }
+.lead-card-note { color: var(--muted, #6b7280); font-size: 13px; }
+.lead-card-link { font-size: 13px; white-space: nowrap; }
+
+.lead-field { display: block; margin-bottom: 10px; }
+.lead-field > span { display: block; color: var(--muted, #6b7280); margin-bottom: 4px; }
+.lead-input, .lead-select {
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line, #e5e7eb);
+    background: var(--card, #fff);
+    color: inherit;
+    font: inherit;
+}
+.lead-textarea { resize: vertical; }
+/* Поле с источником «Звонок» подсвечиваем: пока он такой, сохранение не
+   пройдёт, и узнать об этом лучше до нажатия кнопки. */
+.lead-field-warn .lead-select { border-color: var(--warn, #f59e0b); }
+.lead-warn { color: var(--warn-text, #b45309); margin: -4px 0 10px; font-size: 13px; }
+
+.lead-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.lead-saved { color: var(--ok, #2e7d32); font-weight: 600; }
+
+.lead-sec-title { margin: 22px 0 8px; }
+.lead-feed { display: flex; flex-direction: column; gap: 6px; }
+.lead-feed-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line, #e5e7eb);
+    background: var(--card, #fff);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+.lead-feed-row:hover { border-color: var(--accent, #2563eb); }
+.lead-feed-phone { font-weight: 600; }
+.lead-feed-name { color: var(--muted, #6b7280); }
+/* «Не заполнено» — это про сорванный звонок, до которого не дошли руки.
+   Помечаем строку целиком, чтобы её было видно, не вчитываясь. */
+.lead-feed-unfilled { border-color: var(--warn, #f59e0b); }
+.lead-feed-flag { color: var(--warn-text, #b45309); font-size: 12px; }
+.lead-feed-when { margin-left: auto; color: var(--muted, #6b7280); font-size: 12px; }
+
+.lead-check { margin-top: 20px; color: var(--muted, #6b7280); }
+.lead-check summary { cursor: pointer; }
+.lead-check-out { margin-top: 6px; }
