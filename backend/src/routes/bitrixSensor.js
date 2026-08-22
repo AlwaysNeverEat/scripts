@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { userByBitrixLogin } from '../bitrix/client.js';
 import { noteCall, sweepLeads } from '../bitrix/calls.js';
 import { watchCalls, lastWatch, watchEveryMs } from '../bitrix/watch.js';
-import { bitrixWatchPage } from '../bitrix/client.js';
+import { bitrixWatchPage, bitrixPageDump } from '../bitrix/client.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Приёмник датчика звонков.
@@ -85,7 +85,11 @@ router.get('/watch', async (req, res) => {
         // висит ручкой на каждый день.
         const dump = String(req.query?.dump || '');
         if (dump) {
-            const page = await bitrixWatchPage(userId);
+            // path=… — любая страница портала, не только список лидов. Ровно
+            // это и позволяет разобрать незнакомую страницу (детализацию
+            // звонков, дела) не вслепую, а по тому, что портал реально шлёт.
+            const path = String(req.query?.path || '');
+            const page = path ? await bitrixPageDump(userId, path) : await bitrixWatchPage(userId);
             const body = dump === 'shell' ? page.shell : dump === 'dynamic' ? page.dynamic : page.html;
             res.type('text/plain; charset=utf-8').send(body || '');
             return;

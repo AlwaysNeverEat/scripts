@@ -38,6 +38,9 @@ const ALLOWED_ORIGINS = new Set([BASE_URL.origin, NET_URL.origin]);
 
 const FETCH_TIMEOUT_MS = Math.max(1_000, Number(process.env.BITRIX_FETCH_TIMEOUT_MS) || 20_000);
 
+// Сколько сессия считается живой без перепроверки (см. bitrixEnsureSession).
+const ALIVE_MS = Math.max(0, Number(process.env.BITRIX_ALIVE_MS) || 30_000);
+
 // Пауза между запросами. Читается на каждый запрос (а не при импорте), чтобы
 // тесты могли её занулить, не завязываясь на порядок импортов.
 const throttleMs = () => {
@@ -612,9 +615,18 @@ export async function bitrixLogin(userId, login, password, { remember = true } =
 // Сессия для запроса: живая — берём её, нет — входим сохранённой привязкой.
 export async function bitrixEnsureSession(userId) {
     const state = await loadState(userId);
+    // Живость сессии держим НЕМНОГО про запас. Проверка — это загрузка
+    // страницы списка, то есть два запроса к порталу; наблюдатель ходит раз в
+    // несколько секунд, и проверять на каждый его шаг значит утроить трафик
+    // ради ответа, который меняется раз в сутки. Если сессия всё же умрёт
+    // раньше, следующий же запрос это увидит (в разметке не будет sessid) и
+    // войдёт заново.
+    if (state?.jar?.size && Date.now() - (state.aliveAt || 0) < ALIVE_MS) return state;
+
     if (state?.jar?.size) {
         try {
             if (await probeSession(state)) {
+                state.aliveAt = Date.now();
                 await saveState(userId, state);
                 return state;
             }
@@ -631,6 +643,7 @@ export async function bitrixEnsureSession(userId) {
 
     try {
         const fresh = await performLogin(link.login, link.password);
+        fresh.aliveAt = Date.now();
         await saveState(userId, fresh);
         await tolerantQuery('UPDATE bitrix_links SET last_login_at = now() WHERE user_id = $1', [userId]);
         return fresh;
@@ -721,6 +734,16 @@ export async function bitrixWatchPage(userId) {
         await dropState(userId);
         throw new BitrixError('bitrix_auth_required', 'сессия Битрикса закрылась');
     }
+    await saveState(userId, state);
+    return page;
+}
+
+// Любая страница портала — целиком и порознь (каркас, динамика), без кэша.
+// Нужна для разбирательств: когда цифры не сходятся, смотреть надо на то, что
+// портал реально прислал, а не на пересказ.
+export async function bitrixPageDump(userId, path) {
+    const state = await bitrixEnsureSession(userId);
+    const page = await loadPage(state, path, { forceDynamic: true, noCache: true });
     await saveState(userId, state);
     return page;
 }
