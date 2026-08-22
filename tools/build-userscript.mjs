@@ -40,6 +40,11 @@ const TARGETS = [
         header: 'userscript/src/notifier/header.txt',
         out:    'SPOT DB Notifier-1.0.user.js',
     },
+    {
+        entry:  'userscript/src/bitrix-call/app.js',
+        header: 'userscript/src/bitrix-call/header.txt',
+        out:    'SPOT Bitrix Call Sensor-1.0.user.js',
+    },
 ];
 
 for (const t of TARGETS) {

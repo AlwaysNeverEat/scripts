@@ -1,0 +1,13 @@
+// ==UserScript==
+// @name         SPOT Bitrix — датчик звонков
+// @namespace    k-spot.ru
+// @version      1.0
+// @description  Сообщает сайту, что пришёл входящий звонок и какой лид Битрикс с ним связал. Ничего не читает и не меняет — только сообщает факт.
+// @match        https://spotexpress.bitrix24.ru/*
+// @grant        GM_xmlhttpRequest
+// @connect      k-spot.ru
+// @connect      localhost
+// @run-at       document-idle
+// @updateURL    https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/SPOT%20Bitrix%20Call%20Sensor-1.0.user.js
+// @downloadURL  https://raw.githubusercontent.com/AlwaysNeverEat/scripts/main/SPOT%20Bitrix%20Call%20Sensor-1.0.user.js
+// ==/UserScript==
