@@ -413,6 +413,28 @@ function looksLikeWrongShape(answer) {
     return errors.some(e => /wrong request|argument|parameter/i.test(String(e?.message || e?.code || '')));
 }
 
+// Адрес возврата, спрятанный в самой странице: у Bitrix24.Network это либо
+// meta-refresh, либо присваивание location в скрипте. Берём только адреса
+// нашего портала — уходить по чужой ссылке из чужой страницы мы не станем.
+function findPortalRedirect(html) {
+    const text = String(html || '');
+    const patterns = [
+        /<meta[^>]+http-equiv=["']refresh["'][^>]+content=["'][^"']*url=([^"'\s]+)/i,
+        /location(?:\.href)?\s*=\s*["']([^"']+)["']/i,
+        /window\.location\.replace\(\s*["']([^"']+)["']\s*\)/i,
+    ];
+    for (const re of patterns) {
+        const m = text.match(re);
+        if (!m) continue;
+        const raw = m[1].replace(/&amp;/g, '&');
+        try {
+            const url = new URL(raw, NET_URL);
+            if (url.origin === BASE_URL.origin) return url.href;
+        } catch { /* не адрес — идём дальше */ }
+    }
+    return null;
+}
+
 // Ошибки входа разбираем по коду, а не по тексту: тексты локализованы и
 // меняются, а коды взяты из самого сценария входа.
 function loginFailure(answer) {
@@ -502,11 +524,35 @@ async function performLogin(login, password) {
     // идти надо туда, а не по своей памяти.
     const back = check?.data?.redirectUrl || check?.data?.redirect_url
         || check?.data?.redirect || check?.data?.url || authUrl.href;
-    await followRedirects(await rawFetch(back, jar, {}, NET_URL), jar);
+    let landed = await followRedirects(await rawFetch(back, jar, {}, NET_URL), jar);
+
+    // Bitrix24.Network возвращает не только заголовком Location: в режиме
+    // страницы он отдаёт HTML, который увозит браузер скриптом. Для нас это
+    // выглядит как «пришли, всё хорошо», хотя на портал мы так и не попали и
+    // куки не получили. Поэтому если остались на его стороне — ищем адрес
+    // возврата в самой странице.
+    if (new URL(landed.url || NET_URL.href).origin === NET_URL.origin) {
+        const next = findPortalRedirect(await landed.text());
+        if (next) landed = await followRedirects(await rawFetch(next, jar, {}, NET_URL), jar);
+    }
+
+    const landedUrl = new URL(landed.url || NET_URL.href);
+    if (landedUrl.origin !== BASE_URL.origin) {
+        // Диагностика в лог сервера, а не в панель: работнику за стойкой
+        // имена кук ничего не говорят, а нам без них не понять, на каком шаге
+        // цепочка оборвалась. Значения кук НЕ пишем — только имена.
+        console.warn('Битрикс: после входа остались на', landedUrl.origin,
+            '| куки:', [...jar.keys()].join(', ') || 'нет');
+    }
 
     const state = { jar, sessid: null };
     if (!await probeSession(state)) {
-        throw new BitrixError('bitrix_auth_failed', 'Битрикс не открыл сессию после входа');
+        console.warn('Битрикс: сессия не открылась. Куки портала:',
+            [...jar.keys()].filter(n => !n.startsWith(NET_COOKIE_PREFIX)).join(', ') || 'нет');
+        throw new BitrixError(
+            'bitrix_auth_failed',
+            'Битрикс принял пароль, но портал не открыл сессию — смотрите логи бэкенда',
+        );
     }
     return state;
 }
