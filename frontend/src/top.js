@@ -19,6 +19,7 @@ import { icons } from './records/icons.js';
 // цифры там и тут считаются по одному источнику (record_credits).
 import { recordsWord } from '../../shared/activityHeatmap.js';
 import { namePrefixHtml, facultyClass } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -77,8 +78,8 @@ function previousHtml(previous) {
     const winners = previous?.winners || [];
     if (!winners.length) return '';
     const label = monthLabel(previous.month);
-    const names = winners.map((w, i) => `
-        <div class="top-prev-user" data-prev-idx="${i}" title="Открыть профиль">
+    const names = winners.map(w => `
+        <div class="top-prev-user"${profileRowAttrs(w)}>
             <div class="top-avatar">${avatarHtml(w)}</div>
             <div class="top-prev-name">${namePrefixHtml(w)}${esc(w.display_name)}</div>
             <span class="top-prev-count">${w.records}&nbsp;${recordsWord(w.records)}</span>
@@ -98,14 +99,14 @@ function render(body, data) {
     // Имя всегда в отдельном span: блик по буквам (background-clip: text)
     // должен резать только само имя, но не плашку роль-префикса рядом.
     const listHtml = rows.length
-        ? rows.map((row, i) => {
+        ? rows.map(row => {
             const gold = row.rank === 1;
             const t = gold ? ' gold-text' : '';
             // Подложка строки — цвета факультета, но ТОЛЬКО не у первого места:
             // золото ни с чем не делится (правило .top-row.faculty-tint в
             // style.css отключено на .top-row-gold, класс тут не мешает).
             return `
-            <div class="top-row ${gold ? 'top-row-gold' : ''}${facultyClass(row.faculty, 'faculty-tint')}" data-top-idx="${i}" title="Открыть профиль">
+            <div class="top-row ${gold ? 'top-row-gold' : ''}${facultyClass(row.faculty, 'faculty-tint')}"${profileRowAttrs(row)}>
                 <span class="top-rank${t}">${row.rank}</span>
                 <div class="top-avatar">${avatarHtml(row)}</div>
                 <div class="top-name">${namePrefixHtml(row)}<span class="${t.trim()}">${esc(row.display_name)}</span></div>
@@ -118,17 +119,7 @@ function render(body, data) {
         + (label ? `<div class="top-month">${esc(label)}</div>` : '')
         + listHtml;
 
-    body.querySelectorAll('[data-top-idx]').forEach(el => {
-        el.onclick = () => {
-            const row = rows[parseInt(el.dataset.topIdx, 10)];
-            location.hash = '#/user/' + row.id;
-        };
-    });
-
-    body.querySelectorAll('[data-prev-idx]').forEach(el => {
-        el.onclick = () => {
-            const w = previous.winners[parseInt(el.dataset.prevIdx, 10)];
-            location.hash = '#/user/' + w.id;
-        };
-    });
+    // Переходы в профиль — общие с мини-топами пасхалок (topProfile.js):
+    // закрывать тут нечего, вкладка «Топ» и так обычная страница.
+    bindProfileRows(body);
 }

@@ -48,6 +48,7 @@ import {
     crosshairIcon, anchorIcon, shuffleIcon,
 } from './icons.js';
 import { namePrefixHtml } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'battleship-modal';
 
@@ -118,6 +119,9 @@ export function openBattleship(ctx) {
         document.body.classList.remove('modal-open');
         openState = null;
     };
+    // Строка мини-топа ведёт в профиль, а профиль — обычная страница под
+    // окном: чтобы её было видно, окно надо закрыть (см. topProfile.js).
+    state.close = close;
     const onKeyDown = e => {
         // Поворот корабля — только на экране расстановки и только если там
         // есть что поворачивать. «R» и «К» — одна и та же клавиша в двух
@@ -385,7 +389,7 @@ function renderTop(state, top) {
     }
     const meId = state.ctx.user?.id;
     const list = rows.map(row => `
-        <div class="bs-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}">
+        <div class="bs-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="bs-top-rank">${row.rank}</span>
             <div class="bs-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
@@ -408,6 +412,7 @@ function renderTop(state, top) {
     // партии, а это победы и поражения.
     box.innerHTML = '<div class="bs-top-head">Таблица — победы / поражения</div>'
         + `<div class="bs-top-list">${list}</div>${mine}`;
+    bindProfileRows(box, state.close);
 }
 
 // ── Вызовы ───────────────────────────────────────────────────────────────────

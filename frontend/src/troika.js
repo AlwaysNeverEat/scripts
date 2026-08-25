@@ -54,6 +54,7 @@ import {
 } from './icons.js';
 import tilesSheet from './assets/troika-tiles.webp';
 import { namePrefixHtml } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'troika-modal';
 
@@ -180,6 +181,9 @@ export function openTroika(ctx) {
         document.body.classList.remove('modal-open');
         openState = null;
     };
+    // Строка мини-топа ведёт в профиль, а профиль — обычная страница под
+    // окном: чтобы её было видно, окно надо закрыть (см. topProfile.js).
+    state.close = close;
 
     const onKeyDown = (e) => handleKey(state, e, close);
     // Свернули вкладку — ставим на паузу. Без этого человек возвращается к
@@ -1269,7 +1273,7 @@ function renderTop(state) {
     }
 
     const list = rows.map(row => `
-        <div class="tro-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}">
+        <div class="tro-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="tro-top-rank">${row.rank}</span>
             <div class="tro-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
@@ -1293,6 +1297,7 @@ function renderTop(state) {
     // Своя строка — ВНЕ прокручиваемого списка: её человек должен видеть сразу,
     // а не искать, домотав до конца.
     box.innerHTML = `<div class="tro-top-head">Мини-топ</div><div class="tro-top-list">${list}</div>${mine}`;
+    bindProfileRows(box, state.close);
 }
 
 function esc(s) {

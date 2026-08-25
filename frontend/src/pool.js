@@ -48,6 +48,7 @@ import clothUrl from './assets/pool-cloth.webp';
 import railUrl from './assets/pool-rail.webp';
 import cueUrl from './assets/pool-cue.webp';
 import { namePrefixHtml } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'pool-modal';
 
@@ -179,6 +180,9 @@ export function openPool(ctx) {
         document.body.classList.remove('modal-open');
         openState = null;
     };
+    // Строка мини-топа ведёт в профиль, а профиль — обычная страница под
+    // окном: чтобы её было видно, окно надо закрыть (см. topProfile.js).
+    state.close = close;
     const onKeyDown = e => {
         if (e.key !== 'Escape') return;
         e.preventDefault();
@@ -369,7 +373,7 @@ function renderTop(state, top) {
     }
     const meId = state.ctx.user?.id;
     const list = rows.map(row => `
-        <div class="pool-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}">
+        <div class="pool-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="pool-top-rank">${row.rank}</span>
             <div class="pool-row-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
@@ -392,6 +396,7 @@ function renderTop(state, top) {
     // партии, а это победы и поражения.
     box.innerHTML = '<div class="pool-top-head">Таблица — победы / поражения</div>'
         + `<div class="pool-top-list">${list}</div>${mine}`;
+    bindProfileRows(box, state.close);
 }
 
 // ── Начало партий ────────────────────────────────────────────────────────────

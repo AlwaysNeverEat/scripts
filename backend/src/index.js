@@ -20,6 +20,7 @@ import minesweeperRouter from './routes/minesweeper.js';
 import tetrisRouter from './routes/tetris.js';
 import troikaRouter from './routes/troika.js';
 import solitaireRouter from './routes/solitaire.js';
+import mahjongRouter from './routes/mahjong.js';
 import roguelikeRouter from './routes/roguelike.js';
 import poolRouter from './routes/pool.js';
 import durakRouter from './routes/durak.js';
@@ -113,6 +114,9 @@ app.use('/api/troika', requireSession, troikaRouter);
 // Пасьянс — там же и по той же причине, только топ у него по времени
 // разложенной партии (см. routes/solitaire.js).
 app.use('/api/solitaire', requireSession, solitaireRouter);
+// Маджонг — там же и по той же причине, что пасьянс: партия в браузере, топ по
+// времени разобранного стола (см. routes/mahjong.js).
+app.use('/api/mahjong', requireSession, mahjongRouter);
 // Рогалик — карточный забег. Считается в браузере, как тетрис с тройкой, и по
 // той же причине: игрок один, прятать не от кого. Серверу остаётся именной
 // мини-топ по пройденным циклам (см. routes/roguelike.js).

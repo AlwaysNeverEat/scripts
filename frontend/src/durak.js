@@ -45,6 +45,7 @@ import { pickMove, LEVELS, NORMAL } from '../../shared/durakBot.js';
 import deckSheet from './assets/cards-8bit.png';
 import cardBack from './assets/card-back.png';
 import { namePrefixHtml } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'durak-modal';
 
@@ -128,6 +129,9 @@ export function openDurak(ctx) {
         document.body.classList.remove('modal-open');
         openState = null;
     };
+    // Строка мини-топа ведёт в профиль, а профиль — обычная страница под
+    // окном: чтобы её было видно, окно надо закрыть (см. topProfile.js).
+    state.close = close;
     const onKeyDown = e => {
         if (e.key !== 'Escape') return;
         e.preventDefault();
@@ -382,7 +386,7 @@ function renderTop(state, top) {
     }
     const meId = state.ctx.user?.id;
     const list = rows.map(row => `
-        <div class="dur-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}">
+        <div class="dur-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="dur-top-rank">${row.rank}</span>
             <div class="dur-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
@@ -405,6 +409,7 @@ function renderTop(state, top) {
     // партии, а это победы и поражения.
     box.innerHTML = '<div class="dur-top-head">Таблица — победы / поражения</div>'
         + `<div class="dur-top-list">${list}</div>${mine}`;
+    bindProfileRows(box, state.close);
 }
 
 // ── Комнаты ──────────────────────────────────────────────────────────────────

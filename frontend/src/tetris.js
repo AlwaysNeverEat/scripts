@@ -40,6 +40,7 @@ import {
     arrowLeftIcon, arrowRightIcon, arrowUpIcon, arrowDownIcon, rotateIcon, hardDropIcon,
 } from './icons.js';
 import { namePrefixHtml } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'tetris-modal';
 const VISIBLE_CELLS = COLS * ROWS;
@@ -120,6 +121,9 @@ export function openTetris(ctx) {
         document.body.classList.remove('modal-open');
         openState = null;
     };
+    // Строка мини-топа ведёт в профиль, а профиль — обычная страница под
+    // окном: чтобы её было видно, окно надо закрыть (см. topProfile.js).
+    state.close = close;
 
     const onKeyDown = (e) => handleKeyDown(state, e, close);
     const onKeyUp = (e) => handleKeyUp(state, e);
@@ -592,7 +596,7 @@ function renderTop(state) {
     }
 
     const list = rows.map(row => `
-        <div class="tet-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}">
+        <div class="tet-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="tet-top-rank">${row.rank}</span>
             <div class="tet-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
@@ -616,6 +620,7 @@ function renderTop(state) {
     // Своя строка — ВНЕ прокручиваемого списка: её человек должен видеть сразу,
     // а не искать, домотав до конца.
     box.innerHTML = `<div class="tet-top-head">Мини-топ</div><div class="tet-top-list">${list}</div>${mine}`;
+    bindProfileRows(box, state.close);
 }
 
 function esc(s) {

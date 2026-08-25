@@ -42,6 +42,7 @@ import {
     I_ATTACK, I_BLOCK, I_STATUS,
 } from '../../shared/roguelike.js';
 import { namePrefixHtml } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 // Арт карты — ЭТО ФАЙЛ С ЕЁ ИМЕНЕМ: положили frontend/src/assets/roguelike/strike.png —
 // и «Удар» стал нарисованным, ничего не правя в коде. Никакой таблицы
@@ -112,6 +113,9 @@ export function openRoguelike(ctx) {
         document.body.classList.remove('modal-open');
         openState = null;
     };
+    // Строка мини-топа ведёт в профиль, а профиль — обычная страница под
+    // окном: чтобы её было видно, окно надо закрыть (см. topProfile.js).
+    state.close = close;
 
     const onKeyDown = (e) => handleKey(state, e, close);
     // Размер карточки задан в vw, поэтому от смены ширины окна разъезжается и
@@ -394,6 +398,9 @@ function render(state) {
         case SCREEN_OVER:   view.innerHTML = overHtml(state); break;
         default:            view.innerHTML = mapHtml(state); scrollMap(state); break;
     }
+    // Мини-топ приезжает внутри экрана (карта или итог), а не отдельным узлом,
+    // поэтому переходы в профиль вешаем на весь вид, а не на топ.
+    bindProfileRows(view, state.close);
     fitTexts(state);
 }
 
@@ -1660,7 +1667,7 @@ function topHtml(state) {
     }
 
     const list = rows.map(row => `
-        <div class="rg-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}">
+        <div class="rg-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="rg-top-rank">${row.rank}</span>
             <div class="rg-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
