@@ -39,9 +39,14 @@
 // клеток разного размера, разъезжается. Растянутая на свою клетку картинка
 // делает разницу в исходниках неважной.
 //
-// ШАШКИ ОСТАЮТСЯ ВЁРСТКОЙ, как шары в бильярде: кружок с короной читается на
-// клетке в тридцать пикселей лучше нарисованной шашки, а главное — он сам берёт
-// цвет темы и подсветку хода. Корона — SVG (icons.js), не эмодзи.
+// ШАШКИ — ТОЖЕ КАРТИНКИ, и это отличает их от шаров бильярда. Шару нужен НОМЕР,
+// а нарисованный номер на кружке в двадцать пикселей не читается, поэтому там
+// вёрстка. Шашке номер не нужен, зато нужна ТОЛЩИНА: дамка в русских шашках —
+// это две шашки друг на друге, и на присланных картинках она так и нарисована.
+// Такую разницу вёрсткой не подделать — кружок с короной поверх рядом не стоял.
+//
+// Файлов нет — рисуем кружки цветом с короной из icons.js. Это рабочее
+// состояние, а не поломка: играть можно, всё видно.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
@@ -56,16 +61,17 @@ import { crownIcon, drawIcon, surrenderIcon, turnIcon } from './icons.js';
 import { namePrefixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
-// Текстуры доски — по имени файла, без таблицы соответствия (см. шапку).
-// Имён у каждой клетки два: и «light/dark», и «white/black» — так называют
-// файлы одинаково часто, а угадывать, какое из двух слов имел в виду художник,
-// не должен никто.
+// Картинки доски — по имени файла, без таблицы соответствия (см. шапку).
+// Шесть штук: две клетки и четыре шашки.
 const SKIN = Object.fromEntries(
     Object.entries(import.meta.glob('./assets/checkers/*.{png,webp,jpg}', { eager: true, import: 'default' }))
         .map(([path, url]) => [path.split('/').pop().replace(/\.\w+$/, '').toLowerCase(), url]),
 );
-const LIGHT_SKIN = SKIN.light || SKIN.white || null;
-const DARK_SKIN = SKIN.dark || SKIN.black || null;
+// Клетки и шашки включаются ПОРОЗНЬ: нарисованная доска с кружками из вёрстки
+// выглядит странно, но работает, а вот половина шашек картинками, половина
+// кружками — это уже сломанная игра. Поэтому у шашек проверяются все четыре.
+const BOARD_SKIN = SKIN.light && SKIN.dark;
+const PIECE_SKIN = SKIN['man-light'] && SKIN['man-dark'] && SKIN['king-light'] && SKIN['king-dark'];
 
 const MODAL_ID = 'checkers-modal';
 
@@ -596,12 +602,14 @@ function drawGrid(state) {
     state.modal.querySelector('#ck-files').innerHTML = files.map(c => `<i>${c}</i>`).join('');
     state.modal.querySelector('#ck-ranks').innerHTML = ranks.map(n => `<i>${n}</i>`).join('');
 
-    // Текстуры вешаем на саму доску: если файлов нет, переменные не заводятся, и
-    // CSS рисует клетки цветом (см. шапку).
+    // Картинки вешаем на саму доску переменными: файлов нет — переменные не
+    // заводятся, и CSS рисует клетки цветом, а шашки кружками (см. шапку).
     const board = state.modal.querySelector('#ck-board');
-    if (LIGHT_SKIN) board.style.setProperty('--ck-light-skin', `url(${LIGHT_SKIN})`);
-    if (DARK_SKIN) board.style.setProperty('--ck-dark-skin', `url(${DARK_SKIN})`);
-    board.classList.toggle('has-skin', !!(LIGHT_SKIN && DARK_SKIN));
+    for (const [name, url] of Object.entries(SKIN)) {
+        board.style.setProperty(`--ck-skin-${name}`, `url(${url})`);
+    }
+    board.classList.toggle('has-board', !!BOARD_SKIN);
+    board.classList.toggle('has-pieces', !!PIECE_SKIN);
 }
 
 /**
@@ -642,13 +650,13 @@ function render(state) {
         const color = colorOf(piece);
         node.className = 'ck-piece'
             + (color === WHITE ? ' is-white' : ' is-black')
-            + (isKing(piece) ? ' is-king' : '')
+            + (isKing(piece) ? ' is-king' : ' is-man')
             + (doomed.has(cell) ? ' is-doomed' : '')
-            + (cell === state.picked ? ' is-picked' : '')
-            + (state.hinting && state.hintCells?.includes(cell) ? ' is-hint' : '');
-        // Корону рисуем один раз: перекладывать SVG на каждую перерисовку
-        // незачем, а класс на узле и так меняется.
-        const crown = isKing(piece);
+            + (cell === state.picked ? ' is-picked' : '');
+        // Корона нужна ТОЛЬКО кружкам из вёрстки: у нарисованной дамки сверху
+        // вторая шашка, и корона поверх неё была бы вторым знаком одного и того
+        // же. Рисуем один раз: перекладывать SVG на каждую перерисовку незачем.
+        const crown = !PIECE_SKIN && isKing(piece);
         if (crown !== (node.dataset.king === '1')) {
             node.innerHTML = crown ? crownIcon(15) : '';
             node.dataset.king = crown ? '1' : '0';
@@ -676,13 +684,22 @@ function fadeOut(state, cell, node) {
     setTimeout(() => node.remove(), 260);
 }
 
-/** Пометки на клетках: выбор, куда можно пойти, откуда и куда сходили. */
+/**
+ * Пометки на клетках: выбор, куда можно пойти, откуда и куда сходили, подсказка.
+ *
+ * ВСЕ они живут на КЛЕТКЕ, а не на шашке, и это не мелочь: шашка — картинка с
+ * прозрачными углами, и рамка вокруг неё обвела бы квадрат, а не кружок. У клетки
+ * же форма как раз квадратная, и подсветка ложится ровно.
+ */
 function markSquares(state) {
     const grid = state.modal.querySelector('#ck-grid');
     const last = state.pos?.last;
+    const hints = state.hinting ? (state.hintCells || []) : [];
     grid.querySelectorAll('.ck-sq.is-dark').forEach(node => {
         const cell = Number(node.dataset.cell);
         node.classList.toggle('is-target', state.targets.includes(cell));
+        node.classList.toggle('is-sel', state.picked === cell);
+        node.classList.toggle('is-hint', hints.includes(cell));
         node.classList.toggle('is-from', !!last && last.from === cell);
         node.classList.toggle('is-to', !!last && last.to === cell);
     });

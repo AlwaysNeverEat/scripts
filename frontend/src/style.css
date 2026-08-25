@@ -6640,9 +6640,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
    ЦВЕТ ДОСКИ НЕ СЛЕДУЕТ ЗА ТЕМОЙ САЙТА, и это сознательно: доска — предмет, а
    не элемент интерфейса, и «тёмная тема» у неё уже есть — это чёрные клетки.
-   Ровно так же ведут себя сукно бильярда и карты пасьянса. Если рядом лежат
-   текстуры (assets/checkers/light.png и dark.png), клетки берут их и цвет
-   становится подложкой на случай, если картинка не загрузилась.
+   Ровно так же ведут себя сукно бильярда и карты пасьянса. Картинки клеток и
+   шашек лежат в assets/checkers/ (light, dark, man-light, man-dark, king-light,
+   king-dark), а цвета ниже остаются подложкой на случай, если картинка не
+   загрузилась, и рабочим видом, пока файлов нет.
 
    КАРТИНКА КЛЕТКИ НАТЯГИВАЕТСЯ НА КЛЕТКУ ЦЕЛИКОМ (background-size: 100% 100%).
    Это главное, что стоит помнить о текстурах: нарисованные светлая и тёмная
@@ -6697,9 +6698,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .ck-sq { position: relative; }
 .ck-sq.is-light { background: var(--ck-light); }
 .ck-sq.is-dark { background: var(--ck-dark); }
-.ck-board.has-skin .ck-sq.is-light { background-image: var(--ck-light-skin); }
-.ck-board.has-skin .ck-sq.is-dark { background-image: var(--ck-dark-skin); }
-.ck-board.has-skin .ck-sq {
+.ck-board.has-board .ck-sq.is-light { background-image: var(--ck-skin-light); }
+.ck-board.has-board .ck-sq.is-dark { background-image: var(--ck-skin-dark); }
+.ck-board.has-board .ck-sq {
   /* Ровно то самое натягивание: размеры исходников больше не важны. */
   background-size: 100% 100%;
   background-repeat: no-repeat;
@@ -6723,6 +6724,16 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 80%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, #000 25%, transparent);
+}
+/* Выбранная шашка и подсказка «бить обязательно» помечаются КЛЕТКОЙ, а не самой
+   шашкой: шашка — картинка с прозрачными углами, и рамка вокруг неё обвела бы
+   квадрат вместо кружка. Рамка внутрь (inset), потому что клетки лежат вплотную
+   и наружная тень залезла бы на соседку. */
+.ck-sq.is-sel { box-shadow: inset 0 0 0 3px var(--accent); }
+.ck-sq.is-hint { animation: ck-hint 1.1s ease-in-out infinite; }
+@keyframes ck-hint {
+  0%, 100% { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  50% { box-shadow: inset 0 0 0 3px var(--accent); }
 }
 
 /* ── Шашки ── */
@@ -6750,15 +6761,28 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .ck-piece.is-white .icon { color: color-mix(in srgb, var(--ck-dark) 80%, #000); }
 .ck-piece.is-black .icon { color: var(--accent); }
 
-.ck-piece.is-picked { transform: scale(1.08); }
-.ck-piece.is-picked::before { box-shadow: 0 0 0 3px var(--accent), 0 3px 6px rgba(0, 0, 0, .4); }
-/* Подсказка «бить обязательно этой» — появляется через восемь секунд простоя,
-   как подсветка пары в тройке и маджонге. */
-.ck-piece.is-hint::before { animation: ck-hint 1.1s ease-in-out infinite; }
-@keyframes ck-hint {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent), 0 2px 3px rgba(0, 0, 0, .35); }
-  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 0%, transparent), 0 2px 3px rgba(0, 0, 0, .35); }
+/* Нарисованная шашка. Тень и поля у неё СВОИ, нарисованные, поэтому кружок из
+   вёрстки вместе с его тенью выключается целиком, а картинка садится почти во
+   всю клетку: сжимать её полями второй раз значит терять размер зря. */
+.ck-board.has-pieces .ck-piece::before {
+  /* Поля у нарисованной шашки уже есть — свои, вместе с тенью. Восьми процентов
+     хватает, чтобы соседние шашки не слипались в сплошную полосу: на настоящей
+     доске шашка занимает примерно четыре пятых клетки. */
+  inset: 8%;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
 }
+.ck-board.has-pieces .ck-piece.is-white.is-man::before { background-image: var(--ck-skin-man-light); }
+.ck-board.has-pieces .ck-piece.is-white.is-king::before { background-image: var(--ck-skin-king-light); }
+.ck-board.has-pieces .ck-piece.is-black.is-man::before { background-image: var(--ck-skin-man-dark); }
+.ck-board.has-pieces .ck-piece.is-black.is-king::before { background-image: var(--ck-skin-king-dark); }
+
+/* Выбранная шашка приподнимается — и всё: рамку рисует клетка под ней. */
+.ck-piece.is-picked { transform: scale(1.08); }
 /* Побитая, но ещё стоящая на доске — турецкий удар: снимают побитое в конце
    цепочки, и до тех пор через него нельзя прыгать второй раз. Правило видно
    глазами, а не читается в справке. */
