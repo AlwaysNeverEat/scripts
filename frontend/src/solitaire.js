@@ -43,6 +43,7 @@ import {
 import deckSheet from './assets/cards-8bit.png';
 import cardBack from './assets/card-back.png';
 import { namePrefixHtml } from './namePrefix.js';
+import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'solitaire-modal';
 
@@ -114,6 +115,9 @@ export function openSolitaire(ctx) {
         document.body.classList.remove('modal-open');
         openState = null;
     };
+    // Строка мини-топа ведёт в профиль, а профиль — обычная страница под
+    // окном: чтобы её было видно, окно надо закрыть (см. topProfile.js).
+    state.close = close;
 
     const onKeyDown = (e) => handleKey(state, e, close);
     // Свернули вкладку — секундомер стоит. Иначе человек возвращается к партии,
@@ -651,7 +655,7 @@ function renderTop(state) {
     }
 
     const list = rows.map(row => `
-        <div class="sol-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}">
+        <div class="sol-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="sol-top-rank">${row.rank}</span>
             <div class="sol-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
@@ -674,6 +678,7 @@ function renderTop(state) {
 
     box.innerHTML = `<div class="sol-top-head">Мини-топ — за сколько разложено</div>`
         + `<div class="sol-top-list">${list}</div>${mine}`;
+    bindProfileRows(box, state.close);
 }
 
 function esc(s) {

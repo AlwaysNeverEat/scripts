@@ -32,6 +32,7 @@ import iconPool from './assets/game-pool.png';
 import iconDurak from './assets/game-durak.png';
 import iconRoguelike from './assets/game-roguelike.png';
 import iconBattleship from './assets/game-battleship.png';
+import iconMahjong from './assets/game-mahjong.png';
 
 const MODAL_ID = 'games-modal';
 
@@ -48,6 +49,7 @@ const GAMES = [
     { name: 'Дурак',      icon: iconDurak,       open: () => import('./durak.js').then(m => m.openDurak) },
     { name: 'Рогалик',    icon: iconRoguelike,   open: () => import('./roguelike.js').then(m => m.openRoguelike) },
     { name: 'Морской бой', icon: iconBattleship, open: () => import('./battleship.js').then(m => m.openBattleship) },
+    { name: 'Маджонг',    icon: iconMahjong,     open: () => import('./mahjong.js').then(m => m.openMahjong) },
 ];
 
 let openModal = null;   // одно окно за раз

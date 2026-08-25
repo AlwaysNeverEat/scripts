@@ -1,7 +1,7 @@
 # Иконки меню игр — исходники
 
-Здесь лежат присланные иконки как есть: десять штук 430×430 RGBA, по одной на
-пасхалку. В сборку они не попадают — в `frontend/src/assets/` лежат их копии
+Здесь лежат присланные иконки как есть: одиннадцать штук 430×430 RGBA, по одной
+на пасхалку. В сборку они не попадают — в `frontend/src/assets/` лежат их копии
 256×256, и меню (`frontend/src/games.js`) импортирует именно их.
 
 | Исходник | В сборке | Игра |
@@ -16,6 +16,14 @@
 | `durak.png` | `assets/game-durak.png` | Дурак |
 | `roguelike.png` | `assets/game-roguelike.png` | Рогалик |
 | `battleship.png` | `assets/game-battleship.png` | Морской бой |
+| `mahjong.png` | `assets/game-mahjong.png` | Маджонг |
+
+Одиннадцатая (маджонг) приехала отдельно и ВДВОЕ КРУПНЕЕ остальных — квадрат
+1254×1254 на два мегабайта, — и лежит здесь уже приведённой к общему виду:
+уменьшенной до 430 и с телом, вписанным в те же 401. Иначе в сетке меню она
+оказалась бы заметно мельче соседей (её тело занимало 371×347 из 430) и съехала
+бы вверх, а в git ушли бы два мегабайта ради картинки, которую показывают в 84
+пикселя.
 
 Вторая пятёрка приехала ОДНИМ листом JPEG — пять плиток в ряд на белом фоне, —
 и лежит здесь уже разрезанной и с прозрачным фоном: плитки вырезаны по границе
@@ -53,6 +61,7 @@ node resize.mjs pool.png       ../../frontend/src/assets/game-pool.png       256
 node resize.mjs durak.png      ../../frontend/src/assets/game-durak.png      256
 node resize.mjs roguelike.png  ../../frontend/src/assets/game-roguelike.png  256
 node resize.mjs battleship.png ../../frontend/src/assets/game-battleship.png 256
+node resize.mjs mahjong.png    ../../frontend/src/assets/game-mahjong.png    256
 ```
 
 Скрипт умеет ровно то, что понадобилось: 8-битный RGBA без чересстрочности.

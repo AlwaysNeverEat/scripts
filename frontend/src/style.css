@@ -6420,6 +6420,219 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .bs-dock-box { width: 100%; }
 }
 
+
+/* ══ Пасхалка «Маджонг» (пасьянс-маджонг, «черепаха») ═══════════════════════
+   Окно открывается только из меню игр («игры» + Enter в поиске).
+
+   ГОРКА СОБИРАЕТСЯ ИЗ ОДНОГО ЧИСЛА — ширины ЛИЦА фишки (--mj-fw). Место
+   каждой из 144 фишек приезжает из mahjong.js долями лица (--tx/--ty), а
+   пикселями оно становится здесь. Поэтому от смены размера окна ничего не
+   пересчитывается в JS, а стол целиком виден и на телефоне, и на ноутбуке
+   с короткой рамкой.
+
+   ЛИЦО И КАРТИНКА — РАЗНОГО РАЗМЕРА, и это главное, что стоит помнить о
+   вёрстке. У фишки в спрайте нарисован ещё и бортик вправо-вниз, поэтому
+   картинка (--mj-cw × --mj-ch) больше шага сетки (--mj-fw × --mj-fh). Соседняя
+   фишка встаёт вплотную ШАГОМ ЛИЦА и закрывает бортик собой — видно его только
+   у крайней в ряду. Если приравнять шаг к картинке, горка расползётся щелями,
+   если картинку к лицу — пропадёт вся объёмность.
+
+   Порядок наложения задан z-index'ом из mahjong.js, а не порядком узлов:
+   правый сосед обязан лечь поверх левого, нижний — поверх верхнего, верхний
+   этаж — поверх всех. */
+.modal-win.mj-win { width: fit-content; max-width: min(1000px, 100%); }
+/* Ширину окна задаёт СТОЛ, а не текст: строка новостей и мини-топ тянутся по
+   нему (width: 0 + min-width: 100% — их собственная ширина в расчёт не идёт),
+   иначе подсказка про правила расталкивала бы окно шире горки. */
+.mj-note, .mj-top { width: 0; min-width: 100%; }
+.mj-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+.mj-win {
+  /* Ширина лица фишки. Потолок 56px — это картинка 78px, УМЕНЬШЕННАЯ в 1.4
+     раза: крупнее рисунок чётче не становится (он и нарисован в 78), а горка
+     из пятнадцати фишек перестаёт помещаться в окно. Нижняя граница 18px:
+     мельче не читается ни номер точек, ни иероглиф.
+
+     15.61 — ширина горки в лицах: пятнадцать фишек в ряд плюс поля под сдвиг
+     верхнего этажа и бортик крайней; 10.8 — её же высота, пересчитанная в
+     ШИРИНЫ лица (8.59 высоты × 1.256). Оба числа считаются в mahjong.js из
+     самой раскладки (BOARD_TX/BOARD_TY) и продублированы здесь: CSS не умеет
+     импортировать, а ошибка в них стоит всего лишь лишних полей по краям.
+     Вычитаемые — всё «не стол» в окне: 72px это поля окна и тела, 250px —
+     шапка, счётчики, строка новостей и мини-топ. */
+  --mj-fw: max(18px, min(56px, calc((100vw - 72px) / 15.61), calc((85vh - 250px) / 10.8)));
+  /* Высота лица: пропорция картинки 78×98. */
+  --mj-fh: calc(var(--mj-fw) * 98 / 78);
+  /* Размер картинки фишки — лицо плюс бортик (клетка спрайта 88×110). */
+  --mj-cw: calc(var(--mj-fw) * 88 / 78);
+  --mj-ch: calc(var(--mj-fh) * 110 / 98);
+}
+
+/* ── Счётчики ── */
+.mj-hud { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+.mj-stat {
+  display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  min-width: 58px; padding: 4px 9px;
+  font-size: 10.5px; color: var(--sub);
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
+}
+.mj-stat b { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
+.mj-hud .mj-btn { padding: 4px 12px; font-size: 12.5px; }
+/* Кнопки прижаты вправо: слева считают, справа делают. */
+.mj-hud #mj-shuffle { margin-left: auto; }
+
+/* ── Стол ── */
+.mj-table { position: relative; margin: 0 auto; }
+.mj-board {
+  position: relative;
+  width: calc(var(--mj-bw) * var(--mj-fw));
+  height: calc(var(--mj-bh) * var(--mj-fh));
+  touch-action: manipulation;   /* по фишкам стучат пальцем — страница не едет */
+  user-select: none;
+}
+
+/* ── Фишка ── */
+.mj-tile {
+  position: absolute;
+  left: calc(var(--tx) * var(--mj-fw));
+  top: calc(var(--ty) * var(--mj-fh));
+  width: var(--mj-cw);
+  height: var(--mj-ch);
+  z-index: var(--zi);
+  padding: 0; border: 0; background: transparent;
+  /* Картинка одна на весь набор: строка и столбец приезжают из правил
+     (spriteRow/spriteCol), таблицы соответствия нет нигде. */
+  background-image: var(--mj-sheet);
+  background-repeat: no-repeat;
+  background-size: calc(var(--mj-cw) * 7) calc(var(--mj-ch) * 6);
+  background-position: calc(var(--col) * var(--mj-cw) * -1) calc(var(--row) * var(--mj-ch) * -1);
+  cursor: default;
+  /* Тень — своя у каждой фишки, и она же единственный признак этажа: сама
+     картинка на всех этажах одинаковая. Рисуем drop-shadow'ом ПО АЛЬФЕ (у фишки
+     скруглённые углы и скошенный бортик, box-shadow обвёл бы прямоугольник) и
+     держим в переменной: наведение и выбор добавляют свои эффекты к ней, а не
+     вместо неё. */
+  --mj-drop: drop-shadow(1px 1px 1px rgba(0, 0, 0, .25));
+  filter: var(--mj-drop);
+  transition: transform .12s ease, filter .12s ease, opacity .2s ease;
+}
+.mj-tile.is-up { --mj-drop: drop-shadow(2px 3px 3px rgba(0, 0, 0, .4)); }
+/* Свободную фишку видно под курсором — и только под ним: искать свободные и
+   есть игра, а вот молча не отзываться на клик окно не должно. */
+.mj-tile.is-free { cursor: pointer; }
+.mj-tile.is-free:hover { transform: translate(-1px, -2px); filter: var(--mj-drop) brightness(1.06); }
+/* Выбранная фишка приподнята и подсвечена: без подсветки после первого клика
+   непонятно, что игра ждёт вторую фишку. Тень рисуем drop-shadow'ом по альфе
+   картинки, а не box-shadow'ом по прямоугольнику — у фишки скруглённые углы и
+   скошенный бортик. */
+.mj-tile.is-sel {
+  /* Поверх соседей: свечение расходится ЗА края фишки, а соседи по ряду
+     нарисованы выше неё (см. z-index из mahjong.js) и срезали бы его. */
+  z-index: 9998;
+  transform: translate(-2px, -3px);
+  filter: var(--mj-drop) drop-shadow(0 0 5px var(--accent)) brightness(1.08);
+}
+/* Подсказка (пара, которую можно снять) — та же подсветка, но золотом и
+   пульсирующая: она появляется сама, и её должно быть видно, не наводя мышь. */
+.mj-tile.is-hint { z-index: 9997; animation: mj-hint 1.2s ease-in-out infinite; }
+@keyframes mj-hint {
+  0%, 100% { filter: var(--mj-drop) drop-shadow(0 0 2px var(--gold)); }
+  50%      { filter: var(--mj-drop) drop-shadow(0 0 8px var(--gold)) brightness(1.12); }
+}
+/* Промах: фишка закрыта или пара не сошлась. */
+.mj-tile.is-nope { animation: mj-nope .3s ease; z-index: 9999; }
+@keyframes mj-nope {
+  0%, 100% { transform: none; }
+  25%      { transform: translateX(-3px); }
+  75%      { transform: translateX(3px); }
+}
+/* Снятая пара исчезает не мгновенно — иначе непонятно, ЧТО именно сняли.
+   Длительность совпадает с GONE_MS в mahjong.js. */
+.mj-tile.is-gone {
+  opacity: 0;
+  transform: scale(.72);
+  pointer-events: none;
+  transition: transform .22s ease, opacity .22s ease;
+}
+
+/* ── Конец партии ── */
+.mj-overlay {
+  position: absolute; inset: 0; z-index: 20000;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(2px);
+  border-radius: 12px;
+}
+.mj-overlay-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 18px 22px; text-align: center;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+}
+.mj-over-title { font-size: 17px; font-weight: 800; }
+.mj-over-sub { font-size: 12.5px; color: var(--sub); max-width: 280px; }
+.mj-record { color: var(--gold); }
+
+/* ── Строка новостей ── */
+.mj-note {
+  min-height: 16px; font-size: 11.5px; color: var(--sub);
+  opacity: 0; transition: opacity .18s ease;
+}
+.mj-note.is-show { opacity: 1; }
+
+/* ── Мини-топ ── */
+/* Разметка та же, что у пасьянса: там тоже соревнуются временем, и человек
+   должен узнавать таблицу с одного взгляда. */
+.mj-top-head {
+  font-size: 10.5px; color: var(--sub); text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: 4px;
+}
+.mj-top-empty { font-size: 12px; color: var(--sub); }
+.mj-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 100px; overflow-y: auto; }
+.mj-top-row {
+  display: grid; grid-template-columns: 20px 22px 1fr auto;
+  align-items: center; gap: 8px;
+  padding: 3px 6px; border-radius: 7px;
+  font-size: 12.5px;
+}
+.mj-top-row.is-me { background: var(--accent-dim); }
+.mj-top-row.is-first .mj-top-score { color: var(--gold); }
+.mj-top-rank { color: var(--sub); font-variant-numeric: tabular-nums; text-align: right; }
+.mj-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; }
+.mj-top-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mj-top-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mj-top-score { font-weight: 700; font-variant-numeric: tabular-nums; }
+.mj-top-row.is-mine-extra { grid-template-columns: 20px 1fr auto; margin-top: 4px; }
+
+/* Пальцем список крутить труднее, чем мышью, — на телефоне он короче
+   (то же, что у пасьянса, и по той же причине). */
+@media (pointer: coarse) { .mj-top-list { max-height: 86px; } }
+
+/* Экран ниже тысячи пикселей: размер фишки упирается не в свой потолок, а в
+   высоту окна, и самый дорогой кусок «не стола» — список мини-топа. Ужимаем его
+   и на освободившееся уменьшаем вычитаемое в --mj-fw: в игре фишки важнее
+   списка, а свою строку игрок всё равно видит отдельно. */
+@media (max-height: 1000px) {
+  .mj-win {
+    --mj-fw: max(18px, min(56px, calc((100vw - 72px) / 15.61), calc((85vh - 210px) / 10.8)));
+  }
+  .mj-top-list { max-height: 62px; }
+}
+@media (max-height: 700px) {
+  .mj-top-list { max-height: 46px; }
+  .mj-body { gap: 6px; }
+}
+
+/* ── Строка топа, ведущая в профиль ───────────────────────────────
+   Помечает её JS (data-profile, см. frontend/src/topProfile.js), и
+   правило тут одно на все списки сразу: месячный топ на вкладке
+   «Топ», мини-топы пасхалок и таблицы парных игр. Подсветку делаем
+   фильтром, а не фоном, — иначе на золотой строке первого места
+   ховер перебивал бы саму золотую плашку (та же причина, что у
+   .top-row:hover выше). */
+[data-profile] { cursor: pointer; }
+[data-profile]:hover { filter: var(--hover-bright); }
+
 /* ── Движение в окнах пасхалок ────────────────────────────────────
    Игры собраны из одинаковых кирпичей, и «оживление» у них общее.
    Правило одно: двигаем только transform и opacity (это не заставляет
@@ -6436,6 +6649,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .modal-win.pool-win,
 .modal-win.dur-win,
 .modal-win.bs-win,
+.modal-win.mj-win,
 .modal-win.rg-win {
   animation: game-in .2s cubic-bezier(.2, .8, .3, 1) both;
 }
@@ -6515,6 +6729,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .dur-card.is-nope,
   .modal-win.bs-win,
   .bs-cell.is-fresh,
+  .modal-win.mj-win,
+  .mj-tile.is-nope,
+  .mj-tile.is-hint,
   .modal-win.rg-win,
   .rg-card.rg-shake,
   .rg-card.is-deal,
