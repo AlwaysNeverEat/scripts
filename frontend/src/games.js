@@ -33,6 +33,7 @@ import iconDurak from './assets/game-durak.png';
 import iconRoguelike from './assets/game-roguelike.png';
 import iconBattleship from './assets/game-battleship.png';
 import iconMahjong from './assets/game-mahjong.png';
+import iconCheckers from './assets/game-checkers.png';
 
 const MODAL_ID = 'games-modal';
 
@@ -50,6 +51,7 @@ const GAMES = [
     { name: 'Рогалик',    icon: iconRoguelike,   open: () => import('./roguelike.js').then(m => m.openRoguelike) },
     { name: 'Морской бой', icon: iconBattleship, open: () => import('./battleship.js').then(m => m.openBattleship) },
     { name: 'Маджонг',    icon: iconMahjong,     open: () => import('./mahjong.js').then(m => m.openMahjong) },
+    { name: 'Шашки',      icon: iconCheckers,    open: () => import('./checkers.js').then(m => m.openCheckers) },
 ];
 
 let openModal = null;   // одно окно за раз
@@ -113,7 +115,7 @@ export function openGames(ctx) {
 function shellHtml() {
     // Ветка с blank осталась для игры, которая уже работает, а иконка ей ещё
     // рисуется: пустое место на плитке читалось бы как «меню сломалось».
-    // Сейчас иконки есть у всех, но путь этот проходили пять игр подряд.
+    // Сейчас иконки есть у всех, но путь этот проходили шесть игр подряд.
     const tiles = GAMES.map(g => `
         <button type="button" class="games-tile">
             ${g.icon

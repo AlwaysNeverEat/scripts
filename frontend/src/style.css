@@ -6623,6 +6623,266 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .mj-body { gap: 6px; }
 }
 
+/* ══ Пасхалка «Шашки» (русские) ═════════════════════════════════════════════
+   Окно открывается только из меню игр («игры» + Enter в поиске).
+
+   ДОСКА СОБИРАЕТСЯ ИЗ ОДНОГО ЧИСЛА — стороны клетки (--ck-cell). Из него же
+   считаются шашки, подписи и вся раскладка, поэтому от смены размера окна в JS
+   не пересчитывается ничего: место шашки приезжает из checkers.js в клетках, а
+   пикселями становится здесь.
+
+   КЛЕТКИ И ШАШКИ — РАЗНЫЕ СЛОИ, и это не оформление. Шашка лежит ПОВЕРХ сетки
+   абсолютом, поэтому её можно довезти до нового места плавно (transition на
+   left/top): ход в шашках надо ВИДЕТЬ, а подменённая доска — это шашка,
+   исчезнувшая в одном месте и в том же кадре появившаяся в другом. Пометки
+   («откуда сходили», «куда можно пойти») живут на клетках под шашками и потому
+   не мешают им ездить.
+
+   ЦВЕТ ДОСКИ НЕ СЛЕДУЕТ ЗА ТЕМОЙ САЙТА, и это сознательно: доска — предмет, а
+   не элемент интерфейса, и «тёмная тема» у неё уже есть — это чёрные клетки.
+   Ровно так же ведут себя сукно бильярда и карты пасьянса. Картинки клеток и
+   шашек лежат в assets/checkers/ (light, dark, man-light, man-dark, king-light,
+   king-dark), а цвета ниже остаются подложкой на случай, если картинка не
+   загрузилась, и рабочим видом, пока файлов нет.
+
+   КАРТИНКА КЛЕТКИ НАТЯГИВАЕТСЯ НА КЛЕТКУ ЦЕЛИКОМ (background-size: 100% 100%).
+   Это главное, что стоит помнить о текстурах: нарисованные светлая и тёмная
+   клетки почти никогда не совпадают по размеру пиксель в пиксель, а доска из
+   клеток разного размера разъезжается. Растянутая картинка делает разницу в
+   исходниках неважной — от неё остаётся только рисунок. */
+.modal-win.ck-win { width: fit-content; max-width: min(920px, 100%); }
+.ck-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+.ck-win {
+  /* Клетка. Потолок 58px — крупнее доска перестаёт помещаться в окно вместе с
+     шапкой и таблицей, а мельче 26px в клетку не влезает шашка с короной.
+     Вычитаемые — всё «не доска» в окне: поля и подписи по краям, счётчики,
+     строка подсказки и кнопки. */
+  --ck-cell: max(26px, min(58px, calc((100vw - 130px) / 8), calc((92vh - 300px) / 8)));
+  /* Дерево доски. Числа фиксированные — см. шапку. */
+  --ck-light: #e7d3ad;
+  --ck-dark: #9a6a44;
+  --ck-white: #f6f1e6;
+  --ck-black: #2b2724;
+}
+
+/* ── Доска ── */
+.ck-board {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: '.  files' 'ranks plate';
+  gap: 3px;
+  justify-content: center;
+}
+.ck-files, .ck-ranks { display: grid; font-size: 10.5px; color: var(--sub); }
+.ck-files { grid-area: files; grid-template-columns: repeat(8, var(--ck-cell)); }
+.ck-ranks { grid-area: ranks; grid-template-rows: repeat(8, var(--ck-cell)); align-items: center; }
+.ck-files > i, .ck-ranks > i { font-style: normal; text-align: center; font-variant-numeric: tabular-nums; }
+
+.ck-plate {
+  grid-area: plate;
+  position: relative;
+  border: 2px solid color-mix(in srgb, var(--ck-dark) 70%, #000);
+  border-radius: 6px;
+  overflow: hidden;
+  /* Свой контекст наложения: без него z-index клеток и шашек спорил бы не с
+     соседним слоем доски, а со всем окном, и карточка итога уехала бы ПОД
+     доску (той же граблей уже наступали в морском бое). */
+  isolation: isolate;
+}
+.ck-grid {
+  display: grid;
+  grid-template-columns: repeat(8, var(--ck-cell));
+  grid-template-rows: repeat(8, var(--ck-cell));
+}
+.ck-sq { position: relative; }
+.ck-sq.is-light { background: var(--ck-light); }
+.ck-sq.is-dark { background: var(--ck-dark); }
+.ck-board.has-board .ck-sq.is-light { background-image: var(--ck-skin-light); }
+.ck-board.has-board .ck-sq.is-dark { background-image: var(--ck-skin-dark); }
+.ck-board.has-board .ck-sq {
+  /* Ровно то самое натягивание: размеры исходников больше не важны. */
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Пометки на клетках. Все — псевдоэлементом поверх фона: у клетки может быть
+   картинка, и красить её саму значило бы прятать рисунок. */
+.ck-sq.is-from::after, .ck-sq.is-to::after {
+  content: ''; position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+.ck-sq.is-to::after { box-shadow: inset 0 0 0 2px var(--accent); }
+/* «Сюда можно пойти» — точка в центре, а на занятой клетке её не бывает: в
+   шашках цель хода всегда пуста, и кольцо вокруг шашки, как в шахматах, тут
+   означало бы неправду. */
+.ck-sq.is-target::after {
+  content: ''; position: absolute;
+  left: 50%; top: 50%; width: 28%; height: 28%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 80%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, #000 25%, transparent);
+}
+/* Выбранная шашка и подсказка «бить обязательно» помечаются КЛЕТКОЙ, а не самой
+   шашкой: шашка — картинка с прозрачными углами, и рамка вокруг неё обвела бы
+   квадрат вместо кружка. Рамка внутрь (inset), потому что клетки лежат вплотную
+   и наружная тень залезла бы на соседку. */
+.ck-sq.is-sel { box-shadow: inset 0 0 0 3px var(--accent); }
+.ck-sq.is-hint { animation: ck-hint 1.1s ease-in-out infinite; }
+@keyframes ck-hint {
+  0%, 100% { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  50% { box-shadow: inset 0 0 0 3px var(--accent); }
+}
+
+/* ── Шашки ── */
+.ck-pieces { position: absolute; inset: 0; pointer-events: none; }
+.ck-piece {
+  position: absolute;
+  width: var(--ck-cell); height: var(--ck-cell);
+  display: flex; align-items: center; justify-content: center;
+  /* Ход виден именно отсюда: узел переезжает, а не перерисовывается. */
+  transition: left .22s ease, top .22s ease, opacity .22s ease, transform .18s ease;
+}
+/* Сама шашка — кружок внутри клетки, с полями: вплотную к краям она сливается
+   с соседками, и доска превращается в мозаику. */
+.ck-piece::before {
+  content: ''; position: absolute; inset: 12%;
+  border-radius: 50%;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, .35), inset 0 -2px 4px rgba(0, 0, 0, .28),
+              inset 0 2px 3px rgba(255, 255, 255, .25);
+}
+.ck-piece.is-white::before { background: radial-gradient(circle at 34% 30%, #fffdf7, var(--ck-white) 62%, #cdc3ae); }
+.ck-piece.is-black::before { background: radial-gradient(circle at 34% 30%, #4a443e, var(--ck-black) 62%, #14120f); }
+/* Корона поверх кружка: у белой шашки тёмная, у чёрной светлая — иначе на своём
+   же цвете её не видно. */
+.ck-piece .icon { position: relative; z-index: 1; }
+.ck-piece.is-white .icon { color: color-mix(in srgb, var(--ck-dark) 80%, #000); }
+.ck-piece.is-black .icon { color: var(--accent); }
+
+/* Нарисованная шашка. Тень и поля у неё СВОИ, нарисованные, поэтому кружок из
+   вёрстки вместе с его тенью выключается целиком, а картинка садится почти во
+   всю клетку: сжимать её полями второй раз значит терять размер зря. */
+.ck-board.has-pieces .ck-piece::before {
+  /* Поля у нарисованной шашки уже есть — свои, вместе с тенью. Восьми процентов
+     хватает, чтобы соседние шашки не слипались в сплошную полосу: на настоящей
+     доске шашка занимает примерно четыре пятых клетки. */
+  inset: 8%;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.ck-board.has-pieces .ck-piece.is-white.is-man::before { background-image: var(--ck-skin-man-light); }
+.ck-board.has-pieces .ck-piece.is-white.is-king::before { background-image: var(--ck-skin-king-light); }
+.ck-board.has-pieces .ck-piece.is-black.is-man::before { background-image: var(--ck-skin-man-dark); }
+.ck-board.has-pieces .ck-piece.is-black.is-king::before { background-image: var(--ck-skin-king-dark); }
+
+/* Выбранная шашка приподнимается — и всё: рамку рисует клетка под ней. */
+.ck-piece.is-picked { transform: scale(1.08); }
+/* Побитая, но ещё стоящая на доске — турецкий удар: снимают побитое в конце
+   цепочки, и до тех пор через него нельзя прыгать второй раз. Правило видно
+   глазами, а не читается в справке. */
+.ck-piece.is-doomed { opacity: .42; }
+.ck-piece.is-doomed::before { filter: grayscale(.7); }
+.ck-piece.is-gone { opacity: 0; transform: scale(.5); }
+
+/* ── Счётчики над доской ── */
+.ck-hud { display: flex; flex-direction: column; gap: 3px; }
+.ck-side {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 9px; border-radius: 9px;
+  background: var(--bg2); border: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.ck-side.is-turn { border-color: var(--accent); background: var(--accent-dim); }
+.ck-side-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-side-left { font-variant-numeric: tabular-nums; }
+.ck-side-kings { display: inline-flex; align-items: center; gap: 2px; color: var(--sub); font-size: 11.5px; }
+.ck-chip { width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto; border: 1px solid rgba(0, 0, 0, .35); }
+.ck-chip.is-white { background: var(--ck-white); }
+.ck-chip.is-black { background: var(--ck-black); }
+
+/* ── Подсказка и кнопки ── */
+.ck-note { min-height: 16px; font-size: 11.5px; color: var(--sub); }
+.ck-note.is-flash { color: var(--accent); }
+.ck-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ck-bar-gap { flex: 1 1 auto; }
+.ck-bar .btn { padding: 4px 10px; font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; }
+
+/* ── Конец партии ── */
+.ck-over {
+  position: absolute; inset: 0; z-index: 20000;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(2px);
+  border-radius: 12px;
+}
+.ck-over-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 18px 22px; text-align: center;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+}
+.ck-over-title { font-size: 17px; font-weight: 800; }
+.ck-over-sub { font-size: 12.5px; color: var(--sub); max-width: 300px; }
+.ck-over-bar { display: flex; gap: 6px; }
+/* Карточка итога лежит поверх ЭКРАНА партии, а не поверх окна: доска под ней
+   должна остаться видной — последнюю позицию и разбирают после партии. */
+.ck-play { position: relative; display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Лобби, списки и таблица ── */
+.ck-lobby { display: flex; flex-direction: column; gap: 10px; }
+.ck-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ck-box {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg2);
+  min-width: 0;
+}
+.ck-box h4 { margin: 0; font-size: 14px; }
+.ck-hint { margin: 0; font-size: 11.5px; opacity: .65; line-height: 1.35; }
+.ck-levels { display: flex; gap: 6px; flex-wrap: wrap; }
+.ck-levels .btn { flex: 1 1 auto; padding: 4px 10px; font-size: 12.5px; }
+.ck-saved { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ck-saved .btn { padding: 4px 10px; font-size: 12.5px; }
+
+.ck-list { display: flex; flex-direction: column; gap: 2px; max-height: 148px; overflow-y: auto; }
+.ck-empty { font-size: 12px; opacity: .6; padding: 4px 0; }
+.ck-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+.ck-row.is-mine { background: var(--accent-dim); }
+.ck-row-main { flex: 1 1 auto; min-width: 0; }
+.ck-row-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-row-sub { font-size: 11px; opacity: .6; }
+.ck-row-tag.is-turn { opacity: 1; color: var(--accent); font-weight: 600; }
+.ck-row-btn { flex: 0 0 auto; padding: 3px 10px; font-size: 12px; }
+
+.ck-top { display: flex; flex-direction: column; gap: 4px; }
+.ck-top-head { font-size: 12px; opacity: .7; }
+.ck-top-list { display: flex; flex-direction: column; gap: 2px; max-height: 132px; overflow-y: auto; }
+.ck-top-row { display: flex; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 6px; font-size: 13px; }
+.ck-top-row.is-me { background: var(--accent-dim); }
+.ck-top-row.is-first .ck-top-rank { font-weight: 700; color: var(--gold); }
+.ck-top-rank { width: 18px; flex: 0 0 auto; text-align: right; opacity: .7; font-size: 12px; }
+.ck-top-avatar { width: 22px; height: 22px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; }
+.ck-top-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ck-top-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-top-score { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.ck-top-rest { opacity: .5; font-weight: 400; }
+.ck-top-row.is-mine-extra { margin-top: 4px; }
+
+/* Узкое окно: две колонки лобби встают друг под друга, а доска ужимается до
+   своего минимума. Доску, в отличие от двух полей морского боя, разносить
+   некуда — она одна, и меньше 26px клетка не становится. */
+@media (max-width: 720px) {
+  .ck-cols { grid-template-columns: minmax(0, 1fr); }
+  .ck-win { --ck-cell: max(26px, min(48px, calc((100vw - 74px) / 8))); }
+}
+
 /* ── Строка топа, ведущая в профиль ───────────────────────────────
    Помечает её JS (data-profile, см. frontend/src/topProfile.js), и
    правило тут одно на все списки сразу: месячный топ на вкладке

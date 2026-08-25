@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<!-- Дев-песочница пасхалки «Шашки»: окно игры без входа и без базы.
+     Открыть: npx vite → /dev-checkers.html
+
+     Партия с ботом здесь настоящая — она и на проде целиком в браузере
+     (см. shared/checkers.js). Заглушка нужна для ВТОРОГО экрана: лобби, вызовов
+     и партии с людьми. Соперника в ней играет тот же бот, но ходит он ЧЕРЕЗ ТЕ
+     ЖЕ запросы, что и живой человек, — иначе половина кода окна (seq, опрос,
+     предложение ничьей, «забрать партию») на песочнице не проверяется вовсе.
+
+     С ?api — ходит в настоящий /api/checkers через прокси vite (нужен
+     запущенный бэкенд, валидная сессия и накатанная миграция 038).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: шашки</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Шашки — песочница</h2>
+    <p class="page-sub">Русские шашки: бить обязательно, простая бьёт назад, дамка летает.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть игру</button>
+    <button class="btn btn-sec" id="dev-drill">Учебная позиция</button>
+    <button class="btn btn-sec" id="dev-forget">Забыть партию с ботом</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { openCheckers } from './src/checkers.js';
+    import {
+      createGame, serialize, deserialize, applyMove, awaited, counts,
+      colorOfSeat, seatOfColor,
+    } from '../shared/checkers.js';
+    import { pickMove } from '../shared/checkersBot.js';
+
+    initTheme();
+    const USER = { id: 'dev-user', display_name: 'Я' };
+
+    // Выдуманная таблица: проверять на ней нужно вёрстку строк, подсветку своей
+    // и переход в профиль по клику, а не работу базы.
+    const top = {
+      rows: [
+        { rank: 1, id: 'u1', display_name: 'Костя', avatar: null, role_prefix: null, wins: 12, draws: 3, losses: 4 },
+        { rank: 2, id: 'dev-user', display_name: 'Я', avatar: null, role_prefix: null, wins: 5, draws: 1, losses: 6 },
+        { rank: 3, id: 'u3', display_name: 'Оля', avatar: null, role_prefix: null, wins: 2, draws: 0, losses: 1 },
+      ],
+      me: { rank: 2, wins: 5, draws: 1, losses: 6 },
+    };
+
+    // ── Поддельный сервер ────────────────────────────────────────────────────
+    // Повторяет backend/src/checkers/games.js настолько, насколько это нужно
+    // окну: хранит позицию, применяет присланный прыжок теми же правилами и
+    // отвечает за соперника ботом.
+    const FOE = { id: 'u1', name: 'Костя' };
+    const games = new Map();
+    let nextId = 1;
+
+    function present(row, full = true) {
+      const state = deserialize(row.state);
+      return {
+        id: row.id, status: row.status, seat: row.seat, seq: row.seq,
+        players: row.seat === 0
+          ? [{ id: USER.id, name: USER.display_name }, { id: FOE.id, name: FOE.name }]
+          : [{ id: FOE.id, name: FOE.name }, { id: USER.id, name: USER.display_name }],
+        color: colorOfSeat(state, row.seat),
+        my_turn: row.status === 'live' && awaited(state) === row.seat,
+        left: counts(state).map(s => s.men + s.kings),
+        winner: row.winner, reason: row.reason,
+        draw_offer: row.draw_offer, can_claim: false,
+        created_at: row.created_at, moved_at: Date.now(),
+        ...(full ? { state: row.state } : {}),
+      };
+    }
+
+    /** Ход соперника-бота: он тоже играет по одному прыжку, как человек. */
+    function botTurn(row) {
+      const state = deserialize(row.state);
+      let guard = 0;
+      while (state.phase === 'play' && awaited(state) !== row.seat && guard++ < 12) {
+        const hop = pickMove(state, { level: 'club' });
+        if (!hop || !applyMove(state, state.turn, hop).ok) break;
+        row.seq++;
+      }
+      finishIfOver(row, state);
+    }
+
+    function finishIfOver(row, state) {
+      row.state = serialize(state);
+      if (state.phase === 'over') {
+        row.status = 'done';
+        row.winner = state.winner == null ? null : seatOfColor(state, state.winner);
+        row.reason = state.reason;
+      }
+    }
+
+    async function stubFetch(path, { method = 'GET', body } = {}) {
+      const game = id => games.get(id);
+      let m;
+      if (path === '/api/checkers/lobby') {
+        const mine = [...games.values()].filter(g => g.status === 'live').map(g => present(g, false));
+        // Один вызов в лобби висит всегда — иначе принимать нечего.
+        return { open: [{ id: 'call-1', players: [{ id: FOE.id, name: FOE.name }], seat: -1, status: 'open' }], mine, top };
+      }
+      if (path === '/api/checkers/top') return top;
+      if (path === '/api/checkers/challenge' && method === 'POST') return { ok: true, id: 'call-1' };
+      if ((m = path.match(/^\/api\/checkers\/challenge\/([^/]+)\/join$/))) {
+        // Партии здесь НАРОЧНО даётся новый id, хотя настоящий сервер оставляет
+        // тот же (принять вызов — это дописать себя в ту же строку): окно обязано
+        // садиться за партию по id из ответа, а не по тому, на что нажали.
+        const id = 'g' + nextId++;
+        const state = createGame({});
+        const row = {
+          id, seat: 1, seq: 0, status: 'live', state: serialize(state),
+          winner: null, reason: '', draw_offer: null, created_at: Date.now(),
+        };
+        games.set(id, row);
+        botTurn(row);   // белые могли достаться сопернику — тогда он и начинает
+        return { ok: true, id };
+      }
+      if ((m = path.match(/^\/api\/checkers\/game\/([^/?]+)/))) {
+        const row = game(m[1]);
+        if (!row) throw new Error('dev: нет такой партии');
+        if (path.endsWith('/move')) {
+          if (body.seq !== row.seq) return { ok: false, reason: 'stale' };
+          const state = deserialize(row.state);
+          const played = applyMove(state, colorOfSeat(state, row.seat), body);
+          if (!played.ok) return { ok: false, reason: played.reason };
+          row.seq++;
+          finishIfOver(row, state);
+          if (row.status === 'live') botTurn(row);
+          return { ok: true, ...present(row) };
+        }
+        if (path.endsWith('/resign')) {
+          const state = deserialize(row.state);
+          state.phase = 'over'; state.winner = 1 - colorOfSeat(state, row.seat); state.reason = 'resign';
+          row.seq++; finishIfOver(row, state);
+          return { ok: true, ...present(row) };
+        }
+        if (path.endsWith('/draw')) {
+          if (method === 'DELETE') { row.draw_offer = null; return { ok: true, ...present(row) }; }
+          // Бот на ничью не соглашается — проверять надо вид «вы предложили».
+          row.draw_offer = row.seat;
+          return { ok: true, ...present(row) };
+        }
+        if (path.endsWith('/claim')) return { ok: false, reason: 'too_early' };
+        // Как на сервере: без ?since отдаём позицию целиком, с ним — только
+        // если она ушла вперёд (см. getGame в backend/src/checkers/games.js).
+        const asked = new URL(path, location.origin).searchParams.get('since');
+        const since = asked == null ? -1 : Number(asked);
+        return present(row, !(since >= 0 && since === row.seq));
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    const realFetch = async (path, { method = 'GET', body } = {}) => {
+      const res = await fetch(path, {
+        method,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return res.json();
+    };
+    const apiFetch = location.search.includes('api') ? realFetch : stubFetch;
+
+    // ── Учебная позиция ──────────────────────────────────────────────────────
+    // Кладём её в то же хранилище, куда окно складывает отложенную партию с
+    // ботом, и открываем игру: в лобби появится «Продолжить». Так проверяется
+    // разом и сохранение партии, и то, ради чего позиция нужна, — ЦЕПОЧКА и
+    // ТУРЕЦКИЙ УДАР: побитые шашки остаются на доске погашенными до конца хода.
+    const DRILL = [
+      '........',
+      '..b.....',
+      '........',
+      '..b.b...',
+      '...w....',
+      '........',
+      '........',
+      'w.w.....',
+    ];
+    document.getElementById('dev-drill').onclick = () => {
+      const game = createGame({ seed: 1 });
+      game.seats = [0, 1];          // мы за белых
+      game.turn = 0;
+      game.board = game.board.map(() => 0);
+      DRILL.forEach((row, y) => [...row].forEach((ch, x) => {
+        const piece = { w: 1, W: 2, b: 3, B: 4 }[ch];
+        if (piece) game.board[y * 8 + x] = piece;
+      }));
+      localStorage.setItem('cars_db_checkers:' + USER.id,
+        JSON.stringify({ level: 'club', pos: serialize(game) }));
+      openCheckers({ apiFetch, user: USER });
+    };
+
+    document.getElementById('dev-open').onclick = () => openCheckers({ apiFetch, user: USER });
+    document.getElementById('dev-forget').onclick = () => {
+      localStorage.removeItem('cars_db_checkers:' + USER.id);
+      console.log('dev: отложенная партия с ботом забыта');
+    };
+  </script>
+</body>
+</html>
