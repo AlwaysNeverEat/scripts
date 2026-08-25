@@ -25,6 +25,7 @@ import roguelikeRouter from './routes/roguelike.js';
 import poolRouter from './routes/pool.js';
 import durakRouter from './routes/durak.js';
 import battleshipRouter from './routes/battleship.js';
+import checkersRouter from './routes/checkers.js';
 import facultyRouter from './routes/faculty.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
@@ -131,6 +132,10 @@ app.use('/api/durak', requireSession, durakRouter);
 // Морской бой — та же причина, что у дурака, только сильнее: закрыта не рука, а
 // вся чужая расстановка, то есть игра целиком (см. routes/battleship.js).
 app.use('/api/battleship', requireSession, battleshipRouter);
+// Шашки — партию тоже ведёт сервер, но НЕ из-за закрытой информации: в шашках
+// её нет вовсе, доска на виду у обоих. Причина та же, что в бильярде: игра
+// парная, и очко отнято у живого человека (см. routes/checkers.js).
+app.use('/api/checkers', requireSession, checkersRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются

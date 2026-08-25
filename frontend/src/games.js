@@ -50,6 +50,11 @@ const GAMES = [
     { name: 'Рогалик',    icon: iconRoguelike,   open: () => import('./roguelike.js').then(m => m.openRoguelike) },
     { name: 'Морской бой', icon: iconBattleship, open: () => import('./battleship.js').then(m => m.openBattleship) },
     { name: 'Маджонг',    icon: iconMahjong,     open: () => import('./mahjong.js').then(m => m.openMahjong) },
+    // Иконка шашкам ещё рисуется, поэтому пока blank (см. ниже). Когда
+    // frontend/src/assets/game-checkers.png ляжет на место, здесь меняются две
+    // строки: сверху добавляется import iconCheckers, а blank превращается в
+    // icon: iconCheckers.
+    { name: 'Шашки',      blank: ['○', '●'],     open: () => import('./checkers.js').then(m => m.openCheckers) },
 ];
 
 let openModal = null;   // одно окно за раз
@@ -111,9 +116,9 @@ export function openGames(ctx) {
 }
 
 function shellHtml() {
-    // Ветка с blank осталась для игры, которая уже работает, а иконка ей ещё
-    // рисуется: пустое место на плитке читалось бы как «меню сломалось».
-    // Сейчас иконки есть у всех, но путь этот проходили пять игр подряд.
+    // Ветка с blank — для игры, которая уже работает, а иконка ей ещё рисуется:
+    // пустое место на плитке читалось бы как «меню сломалось». Этим путём прошли
+    // пять игр подряд, и сейчас по нему идут шашки.
     const tiles = GAMES.map(g => `
         <button type="button" class="games-tile">
             ${g.icon
