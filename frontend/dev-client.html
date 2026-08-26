@@ -35,13 +35,16 @@
       <option value="auth">Нет сессии CRM</option>
       <option value="down">CRM недоступна</option>
       <option value="flaky">Часть чеков не отдалась</option>
+      <option value="long">Много чеков и длинные адреса</option>
     </select>
     <label style="font-size:12.5px; display:inline-flex; gap:6px; align-items:center">
       <input type="checkbox" id="dev-slow" checked/> медленная CRM (видно плейсхолдеры)
     </label>
     <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
   </div>
-  <div class="page-body" style="max-width:900px">
+  <!-- Ширина ровно как у .search-wrap на главной (560px): песочница на 900px
+       врала — в ней помещалось то, что на сайте не помещается. -->
+  <div class="page-body" style="max-width:560px">
     <div id="client-search" class="client-search"></div>
   </div>
 
@@ -167,6 +170,37 @@
     const CLIENT = FIXTURE.client;
     const SALE = FIXTURE.sale;
 
+    // Случай «long» — тот, на котором карточка и посыпалась: два десятка чеков
+    // (страница поиска не прокручивается, и всё лишнее просто обрезалось) и
+    // станции, записанные полным адресом. Держать его в песочнице обязательно:
+    // на пяти коротких строках любая вёрстка выглядит хорошо.
+    const LONG_STATIONS = [
+      'деревня Новосаратовка Свердловское городское поселение 267А',
+      'Выборгское ш. 212к8',
+      'Солидарности 22',
+      'посёлок Мурино улица Шоссе в Лаврики 74к2',
+    ];
+    const LONG_CLIENT = {
+      ...CLIENT,
+      name: 'Александр',
+      bonus: 0,
+      sales: Array.from({ length: 23 }, (_, i) => ({
+        ...CLIENT.sales[i % CLIENT.sales.length],
+        id: String(4000000 + i),
+        station: LONG_STATIONS[i % LONG_STATIONS.length],
+        sum: 1400 + i * 317,
+        createdAt: `0${(i % 9) + 1}.0${(i % 9) + 1}.${2026 - Math.floor(i / 6)} 09:4${i % 10}`,
+        closedAt: `0${(i % 9) + 1}.0${(i % 9) + 1}.${2026 - Math.floor(i / 6)} 09:5${i % 10}`,
+      })),
+    };
+
+    const MIXED_ITEMS = [
+      { id: '1', name: 'Услуги SPOT Замена масла и фильтра', price: 500, count: 1, sum: 500, total: 500 },
+      { id: '2', name: 'Услуги SPOT замена простого воздушного фильтра', price: 150, count: 1, sum: 150, total: 150 },
+      { id: '3', name: '3711 Моторное масло Liqui Moly 5W-30 Top Tec 205l', price: 240, count: 5, sum: 1200, total: 1200 },
+      { id: '4', name: '25010 Фильтр масляный MANN W 712/95', price: 640, count: 1, sum: 640, total: 640 },
+    ];
+
     const wait = (ms) => new Promise(r => setTimeout(r, document.getElementById('dev-slow').checked ? ms : 0));
     const kase = () => document.getElementById('dev-case').value;
 
@@ -185,6 +219,7 @@
       if (path.startsWith('/api/crm/clients?')) {
         await wait(700);
         if (kase() === 'empty') return { clients: [] };
+        if (kase() === 'long') return { clients: [{ id: LONG_CLIENT.id, name: LONG_CLIENT.name }] };
         if (kase() === 'many') {
           return { clients: [
             { id: '151465', name: 'Георгий' },
@@ -194,7 +229,10 @@
         }
         return { clients: [{ id: CLIENT.id, name: CLIENT.name }] };
       }
-      if (path.startsWith('/api/crm/clients/')) { await wait(500); return { client: CLIENT }; }
+      if (path.startsWith('/api/crm/clients/')) {
+        await wait(500);
+        return { client: kase() === 'long' ? LONG_CLIENT : CLIENT };
+      }
       if (path.startsWith('/api/crm/sales/')) {
         const id = path.split('/').pop();
         await wait(600 + Math.random() * 1800);
@@ -203,7 +241,14 @@
         if (kase() === 'flaky' && Number(id) % 2 === 1) throw fail('crm_unavailable', 'CRM ответила HTTP 502');
         // Позиции у всех чеков берём из одного разобранного, меняя суммы:
         // содержимое остальных чеков в снимок CRM не попало.
-        const src = CLIENT.sales.find(s => s.id === id) || {};
+        const src = [...CLIENT.sales, ...LONG_CLIENT.sales].find(s => s.id === id) || {};
+        // Через чек — набор с РАБОТАМИ: только на нём видно деление списка
+        // позиций на работы и товары (в снимке CRM попался чек из одних
+        // товаров, и по нему казалось, что деления нет вовсе).
+        if (Number(id) % 2 === 0) {
+          return { sale: { ...SALE, id, paid: src.sum, date: src.closedAt || SALE.date,
+                           station: src.station || SALE.station, payment: 'cash', items: MIXED_ITEMS } };
+        }
         return { sale: { ...SALE, id, paid: src.sum, date: src.closedAt || SALE.date,
                          station: src.station || SALE.station } };
       }
