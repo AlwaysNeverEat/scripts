@@ -6883,6 +6883,66 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .ck-win { --ck-cell: max(26px, min(48px, calc((100vw - 74px) / 8))); }
 }
 
+/* ── Пасхалка «DOOM» ──────────────────────────────────────────────
+   Вёрстки тут ровно столько, сколько нужно, чтобы не мешать: вся игра —
+   один холст, который рисует wasm, а не разметка. Размер холста задаёт
+   сама игра (640×480), поэтому пропорции держатся его собственными
+   width/height, а CSS только вписывает его в окно: height и width auto
+   при двух максимумах — единственный способ ужать картинку, не сплющив
+   её (см. frontend/src/doom.js). */
+.modal-win.doom-win { max-width: 900px; }
+.doom-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; }
+/* Чёрная рамка вокруг холста — не украшение: DOOM 4:3, окно шире, и без
+   подложки по бокам от картинки светился бы фон карточки. */
+.doom-screen {
+  position: relative;
+  /* Ширину задаёт высота, а не наоборот: экран обязан поместиться в окно
+     целиком (доигрывать со скроллом нельзя), а пропорция у DOOM 4:3. */
+  width: min(100%, calc(min(62vh, 600px) * 4 / 3));
+  aspect-ratio: 4 / 3;
+  margin: 0 auto;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.doom-canvas {
+  display: block;
+  width: 100%; height: 100%;
+  /* Холст у игры свой, 640×480, и растягивать его до размеров рамки нужно
+     с сохранением пропорции: contain оставит поля, если игра почему-то
+     выберет другое разрешение, а не сплющит картинку. */
+  object-fit: contain;
+  /* Игра 1993 года: сглаживать её нечестно, пиксель должен остаться
+     пикселем. */
+  image-rendering: pixelated;
+  outline: none;
+  /* Курсор виден, только пока указатель не захвачен: захват его прячет
+     сам. Прицел вместо стрелки — приглашение кликнуть. */
+  cursor: crosshair;
+}
+/* Надпись поверх холста: проценты загрузки, приглашение включить мышь,
+   отказ. Кликов НЕ ЛОВИТ — именно клик по холсту и захватывает
+   указатель, и подложка, съевшая его, означала бы «нажал, ничего не
+   произошло». */
+.doom-over {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 12px;
+  pointer-events: none;
+  background: color-mix(in srgb, #000 45%, transparent);
+  text-align: center;
+}
+.doom-over > span {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 70%, transparent);
+  color: #fff; font-size: 13px; font-weight: 600;
+}
+.doom-over.is-error > span { color: var(--red); }
+.doom-hint { color: var(--sub); font-size: 12px; line-height: 1.5; }
+.doom-hint b { color: var(--text); font-weight: 600; }
+
 /* ── Строка топа, ведущая в профиль ───────────────────────────────
    Помечает её JS (data-profile, см. frontend/src/topProfile.js), и
    правило тут одно на все списки сразу: месячный топ на вкладке

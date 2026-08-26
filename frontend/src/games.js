@@ -14,6 +14,8 @@
 // Модули игр грузятся ПО КЛИКУ, а не при открытии меню: каждая игра — это свой
 // чанк со своими правилами, словарём, спрайтом, колодой или физикой, и качать их
 // все ради того, что откроют один, незачем. Само меню тянет только иконки.
+// С появлением DOOM это перестало быть вопросом вкуса: у него в чанке лежит
+// движок, собранный в wasm, и весит он больше всего остального сайта.
 //
 // Меню закрывается, когда игра открылась. Держать его под окном игры нельзя:
 // окна игр снимают с <body> класс modal-open, когда закрываются, и два окна
@@ -34,6 +36,7 @@ import iconRoguelike from './assets/game-roguelike.png';
 import iconBattleship from './assets/game-battleship.png';
 import iconMahjong from './assets/game-mahjong.png';
 import iconCheckers from './assets/game-checkers.png';
+import { crosshairIcon, skullIcon, blastIcon, boltIcon } from './icons.js';
 
 const MODAL_ID = 'games-modal';
 
@@ -52,6 +55,11 @@ const GAMES = [
     { name: 'Морской бой', icon: iconBattleship, open: () => import('./battleship.js').then(m => m.openBattleship) },
     { name: 'Маджонг',    icon: iconMahjong,     open: () => import('./mahjong.js').then(m => m.openMahjong) },
     { name: 'Шашки',      icon: iconCheckers,    open: () => import('./checkers.js').then(m => m.openCheckers) },
+    // Чужая игра в wasm, и иконки у неё пока нет — плитка идёт знаками (см.
+    // ветку с blank ниже). Чанк у неё тяжелее всех остальных вместе взятых,
+    // поэтому грузиться по клику ей важнее, чем кому-либо.
+    { name: 'DOOM',       blank: [crosshairIcon(26), skullIcon(26), blastIcon(26), boltIcon(26)],
+      open: () => import('./doom.js').then(m => m.openDoom) },
 ];
 
 let openModal = null;   // одно окно за раз
@@ -113,9 +121,9 @@ export function openGames(ctx) {
 }
 
 function shellHtml() {
-    // Ветка с blank осталась для игры, которая уже работает, а иконка ей ещё
+    // Ветка с blank — для игры, которая уже работает, а иконка ей ещё
     // рисуется: пустое место на плитке читалось бы как «меню сломалось».
-    // Сейчас иконки есть у всех, но путь этот проходили шесть игр подряд.
+    // Этим путём прошли шесть игр подряд, сейчас по нему идёт DOOM.
     const tiles = GAMES.map(g => `
         <button type="button" class="games-tile">
             ${g.icon
