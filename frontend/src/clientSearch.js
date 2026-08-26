@@ -9,11 +9,14 @@
 // показывает на их месте плейсхолдеры: список обслуживаний виден сразу, а
 // содержимое дозаполняется на глазах.
 //
+// Обходятся при этом только ПОКАЗАННЫЕ обслуживания (SALES_PAGE): у постоянного
+// клиента чеков под полсотни, очередь к CRM последовательная, и «прочекать
+// всё» — это минута ожидания ради строк, до которых разговор не дойдёт.
+//
 // ВСЕ значки тут — SVG (ICON ниже), эмодзи нет ни одного и быть не должно.
 // Причина та же, что в сапёре и морском бое: эмодзи рисует операционная
 // система, в каждой по-своему, и подогнать его под размер строки, под тему и
-// под цвет (звезда баллов золотая в шапке и зелёная у начисления — это один и
-// тот же значок с currentColor) нельзя никак.
+// под цвет (значок оплаты берёт цвет строки через currentColor) нельзя никак.
 //
 // Разбор страниц CRM и маски ввода — shared/crmClients.js (там же тесты).
 // Сеть — backend/src/routes/crm.js под персональной сессией работника, поэтому
@@ -33,6 +36,12 @@ import {
 const PREFETCH_WORKERS = 3;
 // Пауза перед автопоиском по набранному номеру.
 const AUTO_SEARCH_DELAY_MS = 350;
+// Сколько обслуживаний показываем сразу и сколько добавляет «показать ещё».
+// Ограничение не про длину списка, а про походы в CRM: у постоянного клиента
+// чеков бывает под полсотни, очередь к CRM последовательная, и обход всех
+// занимал минуту — при том, что разговор идёт про последний визит. Чеки
+// добираются только у ПОКАЗАННЫХ строк, и «показать ещё» дозаказывает их.
+const SALES_PAGE = 8;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -95,12 +104,48 @@ function plural(n, one, few, many) {
 // Год чека — по нему список обслуживаний делится на группы.
 const yearOf = (stamp) => (String(stamp || '').match(/\.(\d{4})\b/) || [])[1] || '';
 
+// Станция в CRM — это адрес, вписанный руками, и у части точек он записан
+// полным административным именем: «деревня Новосаратовка Свердловское
+// городское поселение 267А». В строку обслуживания это не помещается никак —
+// а узнают точку по названию улицы и дому, а не по типу поселения. Выкидываем
+// СЛУЖЕБНЫЕ слова, не трогая имена: полный адрес остаётся в подсказке (title),
+// и если после чистки не осталось ничего — показываем как есть.
+// Слова выкидываются ПОТОКЕНОВО, а не регуляркой с \b: границы слова в JS
+// считаются по латинице, и /\bдеревня\b/ не совпадает вовсе.
+const STATION_NOISE = new Set([
+    'деревня', 'дер', 'село', 'посёлок', 'поселок', 'пос', 'город', 'г',
+    'городское', 'сельское', 'поселение', 'округ', 'микрорайон', 'мкр',
+    'улица', 'ул', 'проспект', 'пр-т', 'переулок', 'пер',
+]);
+
+function shortStation(name) {
+    const raw = String(name || '').trim();
+    const cut = raw.split(/\s+/)
+        .filter(w => !STATION_NOISE.has(w.toLowerCase().replace(/\.$/, '')))
+        .join(' ')
+        .trim();
+    return cut || raw;
+}
+
+// То же самое с названием позиции, но только в ОДНОЙ строке обслуживания:
+// «3711 Моторное масло …» и «Услуги SPOT Замена масла» — это артикул и название
+// прайса, одинаковые у всех строк, и в свёрнутом виде они съедают место у того
+// единственного, что отличает чеки друг от друга. В раскрытом чеке позиции
+// остаются как есть: артикул оператору иногда нужен вслух.
+function shortItem(name) {
+    const cut = String(name || '')
+        .replace(/^\s*\d{3,7}\s+/, '')
+        .replace(/^\s*услуги\s+spot\s+/i, '')
+        .trim();
+    if (!cut) return String(name || '');
+    return cut[0].toUpperCase() + cut.slice(1);
+}
+
 // ── Иконки ───────────────────────────────────────────────────────────────────
 
 const ICON = {
     chevron: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
     back: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
-    star: '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.45 6.2 20.5l1.1-6.45-4.7-4.6 6.5-.95z"/></svg>',
     card: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
     cash: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg>',
     retry: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 5 21 11 15 11"/><path d="M20 15a8 8 0 1 1-2.2-8.3L21 9"/></svg>',
@@ -147,6 +192,7 @@ export function initClientSearch({ apiFetch }) {
         client: null,       // разобранная карточка
         sales: new Map(),   // saleId → { status: 'load'|'ok'|'error', sale, message }
         open: new Set(),    // раскрытые чеки
+        shown: SALES_PAGE,  // сколько обслуживаний показано (и, значит, заказано в CRM)
     };
     // Каждый новый поиск/клиент отменяет предыдущий: ответы старого запроса
     // приходят и после ухода с карточки, и рисовать их нельзя.
@@ -276,6 +322,7 @@ export function initClientSearch({ apiFetch }) {
         state.clients = [];
         state.sales = new Map();
         state.open = new Set();
+        state.shown = SALES_PAGE;
         render();
         const q = state.kind === 'phone' ? 'phone' : 'plate';
         try {
@@ -305,13 +352,13 @@ export function initClientSearch({ apiFetch }) {
         state.client = null;
         state.sales = new Map();
         state.open = new Set();
+        state.shown = SALES_PAGE;
         render();
         try {
             const resp = await apiFetch('/api/crm/clients/' + encodeURIComponent(id));
             if (mine !== token) return;
             state.client = resp.client;
             state.stage = 'client';
-            for (const s of state.client.sales) state.sales.set(s.id, { status: 'load' });
             render();
             prefetchSales(mine);
         } catch (e) {
@@ -322,8 +369,13 @@ export function initClientSearch({ apiFetch }) {
 
     // Обход чеков: тот самый «сайт сам всё прочекал». Идёт фоном и НЕ мешает
     // смотреть карточку — список уже нарисован, приезжает только содержимое.
+    //
+    // Заказываем ТОЛЬКО показанные строки: обойти полсотни чеков через
+    // последовательную очередь CRM — это минута, за которую оператор уже
+    // положил трубку. «Показать ещё» вызывает этот же обход для добавленных.
     async function prefetchSales(mine) {
-        const queue = state.client.sales.map(s => s.id);
+        const queue = visibleSales().map(s => s.id).filter(id => !state.sales.has(id));
+        for (const id of queue) state.sales.set(id, { status: 'load' });
         const worker = async () => {
             while (queue.length) {
                 if (mine !== token) return;
@@ -417,7 +469,9 @@ export function initClientSearch({ apiFetch }) {
                         <span class="sk sk-line sk-wide"></span>
                         <span class="sk sk-line sk-narrow"></span>
                     </div>
-                    <span class="sk cs-bonus-sk"></span>
+                </div>
+                <div class="cs-stats">
+                    ${'<div class="cs-stat"><span class="sk sk-line cs-stat-sk"></span></div>'.repeat(4)}
                 </div>
                 <div class="cs-svc-list">${skeletonSale()}${skeletonSale()}${skeletonSale()}</div>
             </div>`;
@@ -474,8 +528,17 @@ export function initClientSearch({ apiFetch }) {
             </div>`;
     }
 
-    // Карточка клиента: шапка (кто, сколько баллов, на чём ездит), полоска
-    // итогов и список обслуживаний. Всё, ради чего открывали, — в первом экране.
+    // Показанная часть списка. Чеки уже отсортированы от свежих к старым
+    // (shared/crmClients.js), поэтому «показать ещё» просто отодвигает границу.
+    const visibleSales = () => (state.client ? state.client.sales.slice(0, state.shown) : []);
+
+    // Карточка клиента: шапка (кто и на чём ездит), полоска итогов и список
+    // обслуживаний. Всё, ради чего открывали, — в первом экране.
+    //
+    // Баллы стоят В ПОЛОСКЕ ИТОГОВ, а не отдельной плашкой в шапке: это такое
+    // же число про клиента, как сумма чеков и дата последнего визита, и
+    // золотая коробка сбоку от имени спорила с ним за взгляд — тем сильнее,
+    // чем меньше в ней было написано («0 баллов» в рамке выглядит наградой).
     function viewClient() {
         const c = state.client;
         const sales = c.sales;
@@ -490,6 +553,8 @@ export function initClientSearch({ apiFetch }) {
         const back = state.clients.length > 1
             ? `<button type="button" class="cs-back" data-act="back">${ICON.back}<span>К списку</span></button>`
             : '';
+        const rest = sales.length - visibleSales().length;
+        const bonus = Number(c.bonus) || 0;
 
         return `
             <div class="cs-card">
@@ -506,22 +571,22 @@ export function initClientSearch({ apiFetch }) {
                                 : ''}
                             ${c.birthday ? `<span class="cs-bday">др ${esc(c.birthday)}</span>` : ''}
                         </div>
-                        ${plates.length ? `<div class="cs-plates">${plates.map(plateHtml).join('')}</div>` : ''}
                     </div>
-                    <div class="cs-bonus" title="Бонусный счёт в CRM">
-                        <span class="cs-bonus-val">${ICON.star}${points(c.bonus)}</span>
-                        <span class="cs-bonus-cap">${plural(Math.round(c.bonus || 0), 'балл', 'балла', 'баллов')}</span>
-                    </div>
+                    ${plates.length ? `<div class="cs-plates">${plates.map(plateHtml).join('')}</div>` : ''}
                 </div>
 
                 <div class="cs-stats">
+                    <div class="cs-stat" title="Бонусный счёт в CRM">
+                        <span class="cs-stat-val">${points(bonus)}</span>
+                        <span class="cs-stat-cap">баллы</span>
+                    </div>
                     <div class="cs-stat">
                         <span class="cs-stat-val">${sales.length}</span>
                         <span class="cs-stat-cap">${plural(sales.length, 'обслуживание', 'обслуживания', 'обслуживаний')}</span>
                     </div>
                     <div class="cs-stat">
                         <span class="cs-stat-val">${money(total)}</span>
-                        <span class="cs-stat-cap">сумма всех чеков</span>
+                        <span class="cs-stat-cap">сумма чеков</span>
                     </div>
                     <div class="cs-stat">
                         <span class="cs-stat-val">${esc(splitStamp(last).date || '—')}</span>
@@ -530,14 +595,21 @@ export function initClientSearch({ apiFetch }) {
                 </div>
 
                 ${sales.length
-                    ? `<div class="cs-svc-list">${renderSales(sales)}</div>`
+                    ? `<div class="cs-svc-list" id="cs-svc-list">${renderSales(visibleSales(), plates.length > 1)}</div>`
                     : '<div class="cs-svc-none">Обслуживаний в CRM нет — клиент заведён, но ещё не приезжал.</div>'}
+                ${rest > 0
+                    ? `<button type="button" class="cs-more" data-act="more">
+                           Показать ещё ${Math.min(rest, SALES_PAGE)}
+                           <span class="cs-more-rest">осталось ${rest}</span>
+                       </button>`
+                    : ''}
             </div>`;
     }
 
     // Чеки сгруппированы по годам: у постоянного клиента их два десятка, и
-    // сплошной лентой «когда это было» не читается.
-    function renderSales(sales) {
+    // сплошной лентой «когда это было» не читается. Заголовок года прилипает к
+    // верху списка при прокрутке — потому в строке и стоит дата без года.
+    function renderSales(sales, showPlate) {
         let out = '';
         let year = null;
         for (const s of sales) {
@@ -546,37 +618,51 @@ export function initClientSearch({ apiFetch }) {
                 year = y;
                 out += `<div class="cs-year">${esc(y)}</div>`;
             }
-            out += saleRowHtml(s);
+            out += saleRowHtml(s, showPlate);
         }
         return out;
     }
 
-    function saleRowHtml(s) {
+    // Строка обслуживания: слева дата, дальше ЧТО ДЕЛАЛИ (главное, ради чего
+    // строку и читают), под ним станция мелким, справа сумма.
+    //
+    // Раньше первой строкой стояла станция, потому что она известна сразу, а
+    // содержимое чека ещё едет. Но станция — это адрес из CRM, и на длинном
+    // («деревня Новосаратовка Свердловское городское поселение 267А») строка
+    // разъезжалась на четыре ряда, а список переставал читаться столбцом.
+    // Теперь у станции своя строка с многоточием, а место главной занимает
+    // плейсхолдер чека — он ровно той же высоты, и список не прыгает.
+    //
+    // Номер машины показываем, ТОЛЬКО если машин у клиента несколько: один и
+    // тот же знак в каждой из двадцати строк — это шум, а не сведения.
+    function saleRowHtml(s, showPlate) {
         const stamp = splitStamp(s.closedAt || s.createdAt);
         const opened = state.open.has(s.id);
+        const station = String(s.station || '').trim();
         return `
             <div class="cs-svc${opened ? ' open' : ''}" data-sale="${esc(s.id)}">
                 <button type="button" class="cs-svc-head" data-toggle="${esc(s.id)}" aria-expanded="${opened}">
                     <span class="cs-svc-when">
-                        <span class="cs-svc-date">${esc(stamp.date)}</span>
+                        <span class="cs-svc-date">${esc(stamp.date.slice(0, 5))}</span>
                         <span class="cs-svc-time">${esc(stamp.time)}</span>
                     </span>
                     <span class="cs-svc-mid">
-                        <span class="cs-svc-station">${esc(s.station || 'Станция не указана')}</span>
                         <span class="cs-svc-what" data-what="${esc(s.id)}">${saleSummaryHtml(s)}</span>
+                        <span class="cs-svc-where">
+                            ${showPlate && s.plate ? plateHtml(s.plate) : ''}
+                            <span class="cs-svc-station"${station ? ` title="${esc(station)}"` : ''}>${
+                                esc(shortStation(station) || 'станция не указана')}</span>
+                        </span>
                     </span>
-                    <span class="cs-svc-right">
-                        ${s.plate ? plateHtml(s.plate) : ''}
-                        <span class="cs-svc-sum">${money(s.sum)}</span>
-                    </span>
+                    <span class="cs-svc-sum">${money(s.sum)}</span>
                     <span class="cs-svc-chevron">${ICON.chevron}</span>
                 </button>
                 <div class="cs-svc-body" data-body="${esc(s.id)}">${opened ? saleBodyHtml(s) : ''}</div>
             </div>`;
     }
 
-    // Строка под станцией: пока чек едет — бегущий плейсхолдер, потом главная
-    // позиция чека (обычно это масло) и сколько было остальных.
+    // Главная строка обслуживания: пока чек едет — бегущий плейсхолдер, потом
+    // главная позиция чека (обычно это масло) и сколько было остальных.
     function saleSummaryHtml(s) {
         const st = state.sales.get(s.id);
         if (!st || st.status === 'load') return '<span class="sk sk-line cs-what-sk"></span>';
@@ -584,7 +670,7 @@ export function initClientSearch({ apiFetch }) {
         const items = st.sale.items || [];
         if (!items.length) return '<span class="cs-svc-dim">позиций в чеке нет</span>';
         const rest = items.length - 1;
-        return `<span class="cs-svc-main-item">${esc(items[0].name)}</span>`
+        return `<span class="cs-svc-main-item">${esc(shortItem(items[0].name))}</span>`
             + (rest > 0 ? `<span class="cs-svc-more">+${rest} ${plural(rest, 'позиция', 'позиции', 'позиций')}</span>` : '');
     }
 
@@ -604,25 +690,59 @@ export function initClientSearch({ apiFetch }) {
         const payIcon = sale.payment === 'cash' ? ICON.cash : sale.payment === 'cashless' ? ICON.card : '';
         const payText = sale.payment === 'cash' ? 'наличными' : sale.payment === 'cashless' ? 'картой' : '';
         return `
-            <div class="cs-items">
-                ${(sale.items || []).map(it => `
-                    <div class="cs-item">
-                        <span class="cs-item-name">${esc(it.name)}</span>
-                        <span class="cs-item-count">${it.count == null ? '' : '×' + esc(it.count)}</span>
-                        <span class="cs-item-sum">${money(it.total ?? it.sum)}</span>
-                    </div>`).join('')}
-            </div>
-            <div class="cs-svc-foot">
-                <span class="cs-svc-meta">
-                    ${payIcon ? `<span class="cs-pay">${payIcon}${esc(payText)}</span>` : ''}
-                    ${s.seller ? `<span class="cs-seller">${esc(s.seller)}</span>` : ''}
-                    ${s.mileage ? `<span class="cs-mileage">${esc(km(s.mileage))}</span>` : ''}
-                    ${s.receivedBonus ? `<span class="cs-earned">+${points(s.receivedBonus)} ${ICON.star}</span>` : ''}
-                    ${s.paidBonus ? `<span class="cs-spent">−${points(s.paidBonus)} ${ICON.star}</span>` : ''}
+            <div class="cs-receipt">
+                <div class="cs-items">${itemsHtml(sale.items || [])}</div>
+                <div class="cs-svc-foot">
+                    <span class="cs-svc-meta">
+                        ${payIcon ? `<span class="cs-chip cs-pay">${payIcon}${esc(payText)}</span>` : ''}
+                        ${s.seller ? `<span class="cs-chip cs-seller">${esc(s.seller)}</span>` : ''}
+                        ${s.mileage ? `<span class="cs-chip cs-mileage">${esc(km(s.mileage))}</span>` : ''}
+                        ${s.receivedBonus ? `<span class="cs-chip cs-earned">+${points(s.receivedBonus)} ${plural(Math.round(s.receivedBonus), 'балл', 'балла', 'баллов')}</span>` : ''}
+                        ${s.paidBonus ? `<span class="cs-chip cs-spent">−${points(s.paidBonus)} ${plural(Math.round(s.paidBonus), 'балл', 'балла', 'баллов')}</span>` : ''}
+                    </span>
+                    <span class="cs-svc-paid">Оплачено <b>${money(sale.paid ?? s.sum)}</b></span>
+                </div>
+                ${s.comment ? `<div class="cs-comment">${esc(s.comment)}</div>` : ''}
+            </div>`;
+    }
+
+    // Позиции чека — не сплошной столбец текста: в CRM работа и товар видны по
+    // названию («Услуги SPOT …» — работа), и оператору нужно разное — что
+    // ДЕЛАЛИ и что при этом ЗАЛИЛИ или поставили. Заголовки ставим, только
+    // когда в чеке есть и то, и другое: над однородным списком это лишняя
+    // строка, а лишних строк в чеке и так хватало.
+    // «Расходники» из-под этого правила выведены нарочно: в прайсе они заведены
+    // с той же приставкой «Услуги SPOT», но бутылка и воронка — это материал, а
+    // не работа, и в списке работ они выглядят как выполненная услуга.
+    const isWork = (name) => /^\s*услуги\s+spot\s+(?!расходники)/i.test(String(name || ''));
+
+    function itemsHtml(items) {
+        const works = items.filter(it => isWork(it.name));
+        const goods = items.filter(it => !isWork(it.name));
+        const both = works.length > 0 && goods.length > 0;
+        const group = (title, list) => (list.length
+            ? (both ? `<div class="cs-item-group">${title}</div>` : '') + list.map(itemRowHtml).join('')
+            : '');
+        return group('Работы', works) + group('Товары', goods);
+    }
+
+    // Артикул («3711 Моторное масло …») уезжает в отдельную бледную метку: он
+    // бывает нужен вслух, но в начале названия читается как часть названия — и
+    // столбец позиций перестаёт начинаться с того, ЧТО это.
+    function itemRowHtml(it) {
+        const m = String(it.name || '').match(/^\s*(\d{3,7})\s+(.*)$/);
+        const art = m ? m[1] : '';
+        const name = m ? m[2] : String(it.name || '');
+        const count = it.count == null ? '' : '×' + it.count;
+        return `
+            <div class="cs-item">
+                <span class="cs-item-main">
+                    ${art ? `<span class="cs-item-art">${esc(art)}</span>` : ''}
+                    <span class="cs-item-name">${esc(shortItem(name))}</span>
                 </span>
-                <span class="cs-svc-paid">Оплачено ${money(sale.paid ?? s.sum)}</span>
-            </div>
-            ${s.comment ? `<div class="cs-comment">${esc(s.comment)}</div>` : ''}`;
+                ${count ? `<span class="cs-item-count">${esc(count)}</span>` : ''}
+                <span class="cs-item-sum">${money(it.total ?? it.sum)}</span>
+            </div>`;
     }
 
     // Точечное обновление одной строки: перерисовывать всю карточку на каждый
@@ -637,6 +757,20 @@ export function initClientSearch({ apiFetch }) {
             const holder = body.querySelector(`[data-body="${CSS.escape(id)}"]`);
             if (holder) holder.innerHTML = saleBodyHtml(sale);
         }
+    }
+
+    // «Показать ещё»: список перерисовывается целиком (год-заголовки считаются
+    // по всей показанной части), но прокрутку возвращаем на место — иначе она
+    // прыгала бы в начало на каждом нажатии.
+    function showMore() {
+        if (!state.client) return;
+        state.shown = Math.min(state.shown + SALES_PAGE, state.client.sales.length);
+        const list = body.querySelector('#cs-svc-list');
+        const top = list ? list.scrollTop : 0;
+        render();
+        const next = body.querySelector('#cs-svc-list');
+        if (next) next.scrollTop = top;
+        prefetchSales(token);
     }
 
     function toggleSale(id) {
@@ -668,6 +802,8 @@ export function initClientSearch({ apiFetch }) {
         });
         const backBtn = body.querySelector('[data-act="back"]');
         if (backBtn) backBtn.onclick = () => { state.stage = 'list'; render(); };
+        const more = body.querySelector('[data-act="more"]');
+        if (more) more.onclick = () => showMore();
         const again = body.querySelector('[data-act="research"]');
         if (again) again.onclick = () => runSearch();
         const loginForm = body.querySelector('#cs-login');
