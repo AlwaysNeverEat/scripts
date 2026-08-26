@@ -80,6 +80,60 @@ export function plateComplete(value) {
     return PLATE_RE.test(formatPlateInput(value));
 }
 
+// ── Правка поля под маской ───────────────────────────────────────────────────
+
+// Позиции пользовательских цифр в «+7 (000) 000-00-00»: маска дорисовывает
+// скобки, пробел и дефисы, поэтому «пятый символ строки» и «пятая цифра
+// номера» — разные места, и каретку надо возвращать по второму, а не первому.
+const PHONE_SLOTS = [4, 5, 6, 9, 10, 11, 13, 14, 16, 17];
+
+// Сколько ЗНАЧАЩИХ символов (цифр номера, символов знака) стоит левее каретки.
+function coreBefore(kind, raw, caret) {
+    const head = String(raw).slice(0, caret);
+    if (kind === 'plate') return formatPlateInput(head).length;
+    const all = String(raw).replace(/\D/g, '');
+    const left = head.replace(/\D/g, '').length;
+    // Ведущая 7/8 — это код страны, его дорисовывает маска, а не человек.
+    return all[0] === '7' || all[0] === '8' ? Math.max(0, left - 1) : left;
+}
+
+// Куда поставить каретку, чтобы она оказалась после n-го значащего символа.
+function caretAfter(kind, masked, n) {
+    if (kind === 'plate') return Math.min(n, masked.length);
+    if (n <= 0) return Math.min(4, masked.length);
+    return Math.min(PHONE_SLOTS[Math.min(n, PHONE_SLOTS.length) - 1] + 1, masked.length);
+}
+
+// Одна правка поля с маской: что показать и куда поставить каретку.
+//
+// Существует эта функция ради ОДНОГО случая — Backspace по разделителю. Человек
+// видит «+7 (921)», жмёт стереть, браузер убирает скобку, маска дорисовывает её
+// обратно, и поле выглядит намертво застрявшим: жмёшь — ничего не происходит.
+// Значащих символов при этом не убавилось, по этому признаку такое удаление и
+// ловится: догрызаем в сторону удаления, пока не уйдёт цифра.
+//
+// deleting: 'back' (Backspace), 'forward' (Delete) или null (обычный ввод).
+export function maskedFieldEdit(kind, { value, caret, deleting = null, previous = '' } = {}) {
+    const format = kind === 'plate' ? formatPlateInput : formatPhoneInput;
+    let raw = String(value ?? '');
+    let pos = Math.max(0, Math.min(Number(caret) ?? raw.length, raw.length));
+
+    if (deleting === 'back') {
+        while (pos > 0 && format(raw) === previous) {
+            raw = raw.slice(0, pos - 1) + raw.slice(pos);
+            pos--;
+        }
+    } else if (deleting === 'forward') {
+        while (pos < raw.length && format(raw) === previous) {
+            raw = raw.slice(0, pos) + raw.slice(pos + 1);
+        }
+    }
+
+    const n = coreBefore(kind, raw, pos);
+    const masked = format(raw);
+    return { value: masked, caret: caretAfter(kind, masked, n) };
+}
+
 // ── Адреса страниц CRM ───────────────────────────────────────────────────────
 
 // Дата в форме «Обзвона» отвечает за таблицу продаж за день, а не за поиск,

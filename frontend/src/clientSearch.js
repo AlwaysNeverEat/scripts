@@ -24,12 +24,15 @@
 import './clientSearch.css';
 import {
     formatPhoneInput, formatPlateInput, phoneComplete, plateComplete, phoneDigits,
+    maskedFieldEdit,
 } from '../../shared/crmClients.js';
 
 // Чеки добираются по одному, но не по очереди из одного соединения: очередь к
 // CRM всё равно последовательная (backend/src/crm/client.js), а три запроса в
 // полёте прячут накладные расходы HTTP и заполняют список заметно ровнее.
 const PREFETCH_WORKERS = 3;
+// Пауза перед автопоиском по набранному номеру.
+const AUTO_SEARCH_DELAY_MS = 350;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -95,7 +98,6 @@ const yearOf = (stamp) => (String(stamp || '').match(/\.(\d{4})\b/) || [])[1] ||
 // ── Иконки ───────────────────────────────────────────────────────────────────
 
 const ICON = {
-    search: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
     back: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
     star: '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.45 6.2 20.5l1.1-6.45-4.7-4.6 6.5-.95z"/></svg>',
@@ -150,22 +152,24 @@ export function initClientSearch({ apiFetch }) {
     // приходят и после ухода с карточки, и рисовать их нельзя.
     let token = 0;
 
+    // Поле — та же «таблетка» с лупой слева, что и главный поиск (.search-box в
+    // style.css): режимы одной строки поиска не должны выглядеть как разные
+    // сайты. Кнопки «найти» тут поэтому нет — как и там, ищем сами, едва номер
+    // набран целиком.
     root.innerHTML = `
         <div class="cs-bar">
+            <input class="cs-input" id="cs-input" type="text" autocomplete="off" spellcheck="false"
+                   inputmode="tel" aria-label="Что ищем">
             <div class="cs-kind" id="cs-kind">
                 <button type="button" class="cs-kind-btn" id="cs-kind-btn"></button>
                 <div class="cs-kind-list hidden" id="cs-kind-list"></div>
             </div>
-            <input class="cs-input" id="cs-input" type="text" autocomplete="off" spellcheck="false"
-                   inputmode="tel" aria-label="Что ищем">
-            <button type="button" class="cs-go" id="cs-go" aria-label="Найти">${ICON.search}</button>
         </div>
         <div class="cs-body" id="cs-body"></div>`;
 
     const kindBtn = root.querySelector('#cs-kind-btn');
     const kindList = root.querySelector('#cs-kind-list');
     const input = root.querySelector('#cs-input');
-    const goBtn = root.querySelector('#cs-go');
     const body = root.querySelector('#cs-body');
 
     // ── Строка поиска ─────────────────────────────────────────────────────────
@@ -186,7 +190,6 @@ export function initClientSearch({ apiFetch }) {
         input.placeholder = kind.placeholder;
         input.inputMode = kind.id === 'phone' ? 'tel' : 'text';
         input.classList.toggle('cs-input-plate', kind.id === 'plate');
-        goBtn.disabled = !complete();
     }
 
     function setKind(id) {
@@ -221,18 +224,43 @@ export function initClientSearch({ apiFetch }) {
         if (e.key === 'Escape' && state.kindOpen) { state.kindOpen = false; renderBar(); }
     });
 
-    // Маска ставится на КАЖДЫЙ ввод, включая вставку из буфера: номер телефона
-    // копируют из CRM и из мессенджера в самых разных видах.
-    input.addEventListener('input', () => {
-        const masked = state.kind === 'phone' ? formatPhoneInput(input.value) : formatPlateInput(input.value);
-        // Курсор в конец только если маска что-то изменила — иначе правка
-        // середины номера прыгала бы в хвост на каждой букве.
-        if (masked !== input.value) input.value = masked;
-        state.value = masked;
-        goBtn.disabled = !complete();
+    // Маска ставится на КАЖДУЮ правку, включая вставку из буфера и удаление:
+    // номер копируют из CRM и из мессенджера в самых разных видах, а Backspace
+    // по дорисованной скобке иначе выглядит как «поле не стирается»
+    // (maskedFieldEdit в shared/crmClients.js — там же и тесты).
+    input.addEventListener('input', (e) => {
+        const type = String(e.inputType || '');
+        const next = maskedFieldEdit(state.kind, {
+            value: input.value,
+            caret: input.selectionStart,
+            deleting: type.startsWith('deleteContent')
+                ? (type.endsWith('Forward') ? 'forward' : 'back')
+                : null,
+            previous: state.value,
+        });
+        input.value = next.value;
+        input.setSelectionRange(next.caret, next.caret);
+        state.value = next.value;
+        autoSearch();
     });
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
-    goBtn.onclick = () => runSearch();
+
+    // Кнопки «найти» нет — ищем, как только номер набран целиком. Пауза нужна
+    // не для красоты: последнюю цифру часто исправляют сразу же, а каждый заход
+    // — это поход в CRM через общую очередь.
+    let autoTimer = null;
+    let lastAuto = '';
+    function autoSearch() {
+        clearTimeout(autoTimer);
+        if (!complete()) { lastAuto = ''; return; }
+        if (state.value === lastAuto) return; // уже искали ровно это
+        const value = state.value;
+        autoTimer = setTimeout(() => {
+            if (state.value !== value) return;
+            lastAuto = value;
+            runSearch();
+        }, AUTO_SEARCH_DELAY_MS);
+    }
 
     // ── Поиск ─────────────────────────────────────────────────────────────────
 
@@ -375,16 +403,10 @@ export function initClientSearch({ apiFetch }) {
         bind();
     }
 
-    function viewIdle() {
-        return `
-            <div class="cs-idle">
-                <div class="cs-idle-title">Карточка клиента из CRM</div>
-                <p class="cs-idle-note">
-                    Телефон или гос. номер — и на одном экране имя, баллы, машины
-                    и все обслуживания с содержимым чеков. Чеки сайт обойдёт сам.
-                </p>
-            </div>`;
-    }
+    // Пустой экран до поиска — это и есть «ничего не найдено ещё»: плашка с
+    // объяснением, что тут делать, висела бы под полем всё время, а прочитали
+    // бы её один раз. Что вводить, написано в самом поле подсказкой.
+    const viewIdle = () => '';
 
     function viewSearching() {
         return `

@@ -5,6 +5,7 @@ import {
     formatPhoneInput, phoneDigits, phoneComplete,
     formatPlateInput, plateComplete,
     clientSearchPath, parseClientSearch, parseClientCard, parseSale, crmStampValue,
+    maskedFieldEdit,
 } from './crmClients.js';
 
 // Разметка в фикстурах снята с реальных страниц CRM (обрезана до нужных мест).
@@ -251,4 +252,114 @@ test('обслуживания в карточке идут от свежих к
     const html = `<table id="clients">${row(1, '07.02.2024 19:10:40')}`
         + `${row(2, '28.07.2026 19:35:32')}${row(3, '18.09.2024 19:10:52')}</table>`;
     assert.deepEqual(parseClientCard(html, 1).sales.map(s => s.id), ['2', '3', '1']);
+});
+
+// ── Правка поля под маской ───────────────────────────────────────────────────
+// Тут проверяется РЕДАКТИРОВАНИЕ, а не форматирование: набрать номер мало,
+// его ещё стирают, правят в середине и вставляют из буфера.
+
+// Модель поля ввода: держит значение и каретку и умеет то, что делает браузер
+// (напечатать символ, нажать Backspace/Delete), прогоняя правку через маску.
+function field(kind, value = '', caret = null) {
+    let state = { value, caret: caret ?? value.length };
+    const edit = (raw, pos, deleting) => {
+        state = maskedFieldEdit(kind, { value: raw, caret: pos, deleting, previous: state.value });
+        return api;
+    };
+    const api = {
+        type(text) {
+            for (const ch of text) {
+                const { value: v, caret: c } = state;
+                edit(v.slice(0, c) + ch + v.slice(c), c + 1, null);
+            }
+            return api;
+        },
+        // Браузер сначала убирает символ сам, и только потом зовёт обработчик.
+        backspace(times = 1) {
+            for (let i = 0; i < times; i++) {
+                const { value: v, caret: c } = state;
+                if (!c) break;
+                edit(v.slice(0, c - 1) + v.slice(c), c - 1, 'back');
+            }
+            return api;
+        },
+        del(times = 1) {
+            for (let i = 0; i < times; i++) {
+                const { value: v, caret: c } = state;
+                if (c >= v.length) break;
+                edit(v.slice(0, c) + v.slice(c + 1), c, 'forward');
+            }
+            return api;
+        },
+        paste(text) {  // вставка поверх выделенного всего поля
+            return edit(text, text.length, null);
+        },
+        at(pos) { state.caret = pos; return api; },
+        get value() { return state.value; },
+        get caret() { return state.caret; },
+    };
+    return api;
+}
+
+test('телефон набирается посимвольно, каретка идёт следом', () => {
+    const f = field('phone').type('9819651916');
+    assert.equal(f.value, '+7 (981) 965-19-16');
+    assert.equal(f.caret, 18);
+});
+
+test('Backspace по дорисованной скобке всё-таки стирает', () => {
+    // Из-за этого и написан maskedFieldEdit: человек видит «+7 (921)», жмёт
+    // стереть, браузер убирает «)», маска возвращает её на место — и поле
+    // выглядит намертво застрявшим.
+    const f = field('phone').type('921');
+    assert.equal(f.value, '+7 (921)');
+    f.backspace();
+    assert.equal(f.value, '+7 (92)'.replace(')', ''));  // «+7 (92»
+    f.backspace();
+    assert.equal(f.value, '+7 (9');
+    f.backspace();
+    assert.equal(f.value, '');
+});
+
+test('стирание длинного номера доходит до пустого поля, а не застревает', () => {
+    const f = field('phone').type('9819651916');
+    f.backspace(10);
+    assert.equal(f.value, '');
+    assert.equal(f.caret, 0);
+});
+
+test('правка середины номера не выкидывает каретку в хвост', () => {
+    const f = field('phone').type('9819651916');
+    // Каретка после «8» в коде 981; Backspace убирает именно «8», а хвост
+    // номера подтягивается влево — так же, как это делает сама CRM.
+    f.at(6).backspace();
+    assert.equal(f.value, '+7 (919) 651-91-6');
+    // Каретка осталась между «9» и «1», а не уехала в конец строки.
+    assert.equal(f.caret, 5);
+    f.type('8');
+    assert.equal(f.value, '+7 (981) 965-19-16');
+    assert.equal(f.caret, 6);
+});
+
+test('вставка номера из буфера в любом виде даёт один и тот же результат', () => {
+    for (const raw of ['89819651916', '+7 981 965 19 16', '7(981)965-19-16', '9819651916']) {
+        assert.equal(field('phone').paste(raw).value, '+7 (981) 965-19-16', raw);
+    }
+});
+
+test('гос. номер: набор, стирание и чужая раскладка', () => {
+    const f = field('plate').type('k926aa147');
+    assert.equal(f.value, 'К926АА147');
+    assert.equal(f.caret, 9);
+    f.backspace(3);
+    assert.equal(f.value, 'К926АА');
+    // Разделителей на знаке нет — застревать нечему, но проверяем до конца.
+    f.backspace(6);
+    assert.equal(f.value, '');
+});
+
+test('Delete вперёд по разделителю тоже стирает, а не топчется', () => {
+    const f = field('phone').type('9819651916');
+    f.at(8).del();               // каретка перед пробелом после «)»
+    assert.equal(f.value, '+7 (981) 651-91-6');
 });
