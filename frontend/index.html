@@ -190,6 +190,7 @@
             <div class="search-mode-toggle" id="search-mode-toggle">
               <button type="button" class="chip active" id="mode-btn-search">Поиск</button>
               <button type="button" class="chip" id="mode-btn-tags">Теги</button>
+              <button type="button" class="chip" id="mode-btn-client">Клиент</button>
             </div>
             <button type="button" class="add-car-btn" id="btn-add-car" title="Добавить машину" aria-label="Добавить машину">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -221,6 +222,10 @@
             </div>
             <div id="tag-results" class="search-results tag-results"></div>
           </div>
+
+          <!-- Режим «Клиент»: поиск человека в CRM по телефону или гос. номеру.
+               Содержимое собирает clientSearch.js — тут только место под него. -->
+          <div id="client-search" class="client-search hidden"></div>
         </div>
       </div>
     </div>

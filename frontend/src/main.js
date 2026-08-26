@@ -9,6 +9,7 @@ import { showTopPage, resetTopCache } from './top.js';
 import { initAdminPage, isModerator } from './admin.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
+import { initClientSearch } from './clientSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
 import { initNewsFeed, markNewsSeen, unseenNewsCount } from './newsFeed.js';
 import { openCarCreator } from './carEditor.js';
@@ -339,8 +340,9 @@ async function renderRoute() {
     } else {
         showPage(pageSearch);
         // Запрос и выдача не чистятся при уходе — возвращаемся к тому же экрану,
-        // курсор ставим в строку, только если открыт режим «Поиск», а не «Теги».
-        if (tagSearchEl.classList.contains('hidden')) searchInput.focus();
+        // курсор ставим в строку, только если открыт режим «Поиск»: в «Тегах» и
+        // «Клиенте» её на экране нет вовсе, а фокус увёл бы прокрутку.
+        if (!searchBoxEl.classList.contains('hidden')) searchInput.focus();
     }
     restoreScroll(hash);
 }
@@ -658,11 +660,16 @@ async function loadSphere() {
     } catch { /* сфера — украшение, без неё страшного нет */ }
 }
 
-// ── Переключатель «Поиск / Теги» ────────────────────────────────────────────
+// ── Переключатель «Поиск / Теги / Клиент» ───────────────────────────────────
+// Три режима одной строки поиска: по названию машины, по тегам и по человеку
+// из CRM. Режимы взаимоисключающие — включённый прячет чужую разметку целиком,
+// а не мешает её со своей.
 const modeBtnSearch = document.getElementById('mode-btn-search');
 const modeBtnTags   = document.getElementById('mode-btn-tags');
+const modeBtnClient = document.getElementById('mode-btn-client');
 const searchBoxEl   = document.querySelector('.search-box');
 const tagSearchEl   = document.getElementById('tag-search');
+const clientSearchEl = document.getElementById('client-search');
 
 const tagSearch = initTagSearch({
     getCars: () => loadSnapshot().then(s => s.cars),
@@ -677,22 +684,26 @@ const tagSearch = initTagSearch({
     },
 });
 
+const clientSearch = initClientSearch({ apiFetch });
+
 function setSearchMode(mode) {
     const isTags = mode === 'tags';
-    modeBtnSearch.classList.toggle('active', !isTags);
+    const isClient = mode === 'client';
+    const isCars = !isTags && !isClient;
+    modeBtnSearch.classList.toggle('active', isCars);
     modeBtnTags.classList.toggle('active', isTags);
-    searchBoxEl.classList.toggle('hidden', isTags);
-    searchResults.classList.toggle('hidden', isTags);
+    modeBtnClient.classList.toggle('active', isClient);
+    searchBoxEl.classList.toggle('hidden', !isCars);
+    searchResults.classList.toggle('hidden', !isCars);
     tagSearchEl.classList.toggle('hidden', !isTags);
-    if (isTags) {
-        tagSearch.activate();
-    } else {
-        tagSearch.deactivate();
-    }
+    clientSearchEl.classList.toggle('hidden', !isClient);
+    if (isTags) tagSearch.activate(); else tagSearch.deactivate();
+    if (isClient) clientSearch.activate(); else clientSearch.deactivate();
 }
 
 modeBtnSearch.onclick = () => setSearchMode('search');
 modeBtnTags.onclick = () => setSearchMode('tags');
+modeBtnClient.onclick = () => setSearchMode('client');
 
 // ── «Добавить машину» ─────────────────────────────────────────────────────────
 // Та же форма, что и правка машины (carEditor.js), только пустая: держать

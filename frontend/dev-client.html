@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<!-- Дев-песочница режима «Клиент»: строка поиска и карточка клиента без входа,
+     без CRM и без базы.
+     Открыть: npx vite → /dev-client.html
+
+     Данные тут — снимок РЕАЛЬНЫХ страниц CRM, прогнанный через
+     shared/crmClients.js, то есть ровно те поля, что приедут с прокси. Ответы
+     отдаются с задержкой нарочно: главное, что проверяется на этой странице, —
+     как выглядит список обслуживаний, ПОКА чеки ещё едут. Разбор HTML проверяет
+     shared/crmClients.test.js, здесь — вёрстка и поведение окна.
+
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: клиент</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Клиент — песочница</h2>
+    <p class="page-sub">Поиск по телефону или гос. номеру и карточка клиента из CRM.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+    <select class="btn btn-sec" id="dev-case">
+      <option value="ok">Клиент найден</option>
+      <option value="empty">Ничего не найдено</option>
+      <option value="many">Найдено несколько</option>
+      <option value="auth">Нет сессии CRM</option>
+      <option value="down">CRM недоступна</option>
+      <option value="flaky">Часть чеков не отдалась</option>
+    </select>
+    <label style="font-size:12.5px; display:inline-flex; gap:6px; align-items:center">
+      <input type="checkbox" id="dev-slow" checked/> медленная CRM (видно плейсхолдеры)
+    </label>
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+  </div>
+  <div class="page-body" style="max-width:900px">
+    <div id="client-search" class="client-search"></div>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initClientSearch } from './src/clientSearch.js';
+
+    const FIXTURE = {
+          "client": {
+                "id": "151465",
+                "name": "Георгий",
+                "phone": "79819651916",
+                "bonus": 334.5,
+                "birthday": null,
+                "plates": [
+                      "К926АА147",
+                      "К926АА14"
+                ],
+                "sales": [
+                      {
+                            "id": "3606371",
+                            "seller": "Забродин Николай Николаевич",
+                            "station": "Руставели 69",
+                            "count": 11,
+                            "paidBonus": 0,
+                            "sum": 2416,
+                            "receivedBonus": 96,
+                            "mileage": 0,
+                            "plate": "К926АА147",
+                            "createdAt": "28.07.2026 19:34:32",
+                            "closedAt": "28.07.2026 19:35:32",
+                            "comment": "только покупка"
+                      },
+                      {
+                            "id": "3535363",
+                            "seller": "Репкин Андрей Анатольевич",
+                            "station": "Руставели 69",
+                            "count": 2,
+                            "paidBonus": 0,
+                            "sum": 1930,
+                            "receivedBonus": 0,
+                            "mileage": 120000,
+                            "plate": "К926АА147",
+                            "createdAt": "27.03.2026 19:07:18",
+                            "closedAt": "27.03.2026 19:17:18",
+                            "comment": "все хорошо, 2000, рекомендует"
+                      },
+                      {
+                            "id": "3169465",
+                            "seller": "Иванов Владимир Александрович",
+                            "station": "Руставели 69",
+                            "count": 45,
+                            "paidBonus": 0,
+                            "sum": 6750,
+                            "receivedBonus": 202.5,
+                            "mileage": 99000,
+                            "plate": "К926АА147",
+                            "createdAt": "18.09.2024 18:57:06",
+                            "closedAt": "18.09.2024 19:10:52",
+                            "comment": ""
+                      },
+                      {
+                            "id": "3031595",
+                            "seller": "Кардасов Максим Михайлович",
+                            "station": "Руставели 69",
+                            "count": 1,
+                            "paidBonus": 0,
+                            "sum": 1400,
+                            "receivedBonus": 0,
+                            "mileage": 0,
+                            "plate": "К926АА14",
+                            "createdAt": "02.04.2024 17:27:42",
+                            "closedAt": "02.04.2024 17:28:08",
+                            "comment": "не удобно разговаривать, все хорошо"
+                      },
+                      {
+                            "id": "2993555",
+                            "seller": "Кардасов Максим Михайлович",
+                            "station": "Руставели 69",
+                            "count": 12,
+                            "paidBonus": 0,
+                            "sum": 2600,
+                            "receivedBonus": 36,
+                            "mileage": 0,
+                            "plate": "К926АА147",
+                            "createdAt": "07.02.2024 18:55:04",
+                            "closedAt": "07.02.2024 19:10:40",
+                            "comment": "все хорошо, 2600"
+                      }
+                ]
+          },
+          "sale": {
+                "id": "3606371",
+                "title": "Продажа №3606371 от 28.07.2026 19:35 Руставели 69",
+                "date": "28.07.2026 19:35",
+                "station": "Руставели 69",
+                "paid": 2416,
+                "payment": "cashless",
+                "items": [
+                      {
+                            "id": "2817648",
+                            "name": "3711 Моторное масло Liqui Moly 5W-30 Top Tec 205l",
+                            "price": 240,
+                            "count": 10,
+                            "sum": 2400,
+                            "discount": "0%",
+                            "total": 2399.6,
+                            "minutes": null
+                      },
+                      {
+                            "id": "2818289",
+                            "name": "Услуги SPOT Расходники: Бутылка 1 литр",
+                            "price": 16.4,
+                            "count": 1,
+                            "sum": 16.4,
+                            "discount": "0%",
+                            "total": 16.4,
+                            "minutes": null
+                      }
+                ]
+          }
+    };
+    const CLIENT = FIXTURE.client;
+    const SALE = FIXTURE.sale;
+
+    const wait = (ms) => new Promise(r => setTimeout(r, document.getElementById('dev-slow').checked ? ms : 0));
+    const kase = () => document.getElementById('dev-case').value;
+
+    function fail(code, message) {
+      const e = new Error(message);
+      e.code = code;
+      return e;
+    }
+
+    // Тот же контракт, что у backend/src/routes/crm.js: ошибка — Error с .code.
+    async function stubFetch(path) {
+      if (path === '/api/crm/login') { await wait(600); return { ok: true, linked: true }; }
+      if (kase() === 'auth') throw fail('crm_auth_required', 'нет сессии CRM — войдите');
+      if (kase() === 'down') throw fail('crm_unavailable', 'CRM недоступна (crm.zamena-masla-spot.ru): таймаут 15 с');
+
+      if (path.startsWith('/api/crm/clients?')) {
+        await wait(700);
+        if (kase() === 'empty') return { clients: [] };
+        if (kase() === 'many') {
+          return { clients: [
+            { id: '151465', name: 'Георгий' },
+            { id: '151466', name: 'Георгий Русланович' },
+            { id: '151467', name: 'Без имени' },
+          ] };
+        }
+        return { clients: [{ id: CLIENT.id, name: CLIENT.name }] };
+      }
+      if (path.startsWith('/api/crm/clients/')) { await wait(500); return { client: CLIENT }; }
+      if (path.startsWith('/api/crm/sales/')) {
+        const id = path.split('/').pop();
+        await wait(600 + Math.random() * 1800);
+        // Один чек падает нарочно: строка «чек не загрузился» с повтором — такая
+        // же часть экрана, как и удачная.
+        if (kase() === 'flaky' && Number(id) % 2 === 1) throw fail('crm_unavailable', 'CRM ответила HTTP 502');
+        // Позиции у всех чеков берём из одного разобранного, меняя суммы:
+        // содержимое остальных чеков в снимок CRM не попало.
+        const src = CLIENT.sales.find(s => s.id === id) || {};
+        return { sale: { ...SALE, id, paid: src.sum, date: src.closedAt || SALE.date,
+                         station: src.station || SALE.station } };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    initClientSearch({ apiFetch: stubFetch });
+
+    document.getElementById('dev-theme').onclick = () => {
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+      document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+    };
+    console.log('dev: телефон 9819651916, гос. номер К926АА147');
+  </script>
+</body>
+</html>

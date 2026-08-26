@@ -1,0 +1,513 @@
+/* Режим «Клиент»: строка поиска и карточка клиента из CRM.
+   Логика — clientSearch.js, там же объяснено, зачем это на главной.
+
+   Правило вёрстки тут одно и держит весь экран: карточка должна читаться
+   ВЗГЛЯДОМ, а не чтением. Оператор говорит по телефону и ищет глазами три
+   вещи — имя, баллы и последнее обслуживание, — поэтому они самые крупные, а
+   продавец, пробег и способ оплаты живут в раскрытом чеке. Ровно поэтому же
+   тут нет таблицы: таблица из CRM — это и есть «тонна инфы», от которой
+   уходили. */
+
+#client-search {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Строка поиска ─────────────────────────────────────────────────────────
+   Тот же стеклянный вид, что у главного поиска (.search-box), — переключение
+   режима не должно выглядеть как переход на другую страницу. */
+.cs-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+}
+
+.cs-bar:focus-within { box-shadow: var(--glass-shadow-focus), var(--glass-inset); }
+
+.cs-kind { position: relative; flex: none; }
+
+.cs-kind-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 10px 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--glass-fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cs-kind-btn:hover { background: var(--glass-hover); }
+.cs-kind-btn svg { opacity: .7; transition: transform .15s ease; }
+.cs-kind-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.cs-kind-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 230px;
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+.cs-kind-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cs-kind-opt:hover { background: var(--bg2); }
+.cs-kind-opt.active { background: var(--accent-dim); }
+.cs-kind-opt-label { font-size: 13.5px; font-weight: 600; }
+.cs-kind-opt-hint { font-size: 11.5px; color: var(--sub); }
+
+.cs-input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 4px;
+  border: 0;
+  background: none;
+  color: var(--glass-fg);
+  font: inherit;
+  font-size: 16px;          /* меньше 16 — и iOS зумит страницу на фокусе */
+  letter-spacing: .01em;
+  outline: none;
+}
+
+.cs-input::placeholder { color: var(--glass-ph); }
+
+/* Гос. номер набирают вперемешку с цифрами — моноширинный шрифт и разрядка
+   не дают «К926АА147» слипнуться в кашу. */
+.cs-input-plate {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.cs-go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  cursor: pointer;
+  transition: opacity .15s ease, background .15s ease;
+}
+
+.cs-go:hover:not(:disabled) { background: var(--accent-hover); }
+.cs-go:disabled { opacity: .35; cursor: default; }
+
+/* ── Заглушки и сообщения ─────────────────────────────────────────────────── */
+
+.cs-idle, .cs-note {
+  padding: 22px 20px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.cs-idle { text-align: center; }
+.cs-idle-title, .cs-note-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.cs-idle-note { margin: 8px auto 0; max-width: 420px; font-size: 12.5px; line-height: 1.55; color: var(--sub); }
+.cs-note p { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--sub); }
+.cs-note-sub { font-size: 12px !important; opacity: .85; }
+.cs-note-empty { border-color: var(--border-strong); }
+.cs-note-error { border-color: var(--red); }
+.cs-note-error .cs-note-title { color: var(--red); }
+.cs-retry { margin-top: 12px; }
+
+/* Вход в CRM прямо тут: иначе за сессией пришлось бы идти на страницу машины,
+   к панели наличия, — а человек искал клиента. */
+.cs-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) max-content;
+  gap: 8px;
+  margin-top: 12px;
+  max-width: 560px;
+}
+
+.cs-login-input {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.cs-login-input:focus { outline: none; border-color: var(--accent); }
+.cs-login-go { white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .cs-login { grid-template-columns: 1fr; }
+}
+
+/* Выбор из нескольких найденных: на один телефон в CRM бывает записано
+   несколько человек (машину продали, номер остался). */
+.cs-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+.cs-pick-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px 7px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cs-pick-item:hover { border-color: var(--accent); }
+
+/* ── Карточка ─────────────────────────────────────────────────────────────── */
+
+.cs-card {
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.cs-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 -4px 16px;
+  padding: 5px 10px 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--sub);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cs-back:hover { color: var(--text); border-color: var(--border-strong); }
+
+.cs-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.cs-ava {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cs-ava-big { width: 54px; height: 54px; font-size: 24px; }
+.cs-ava-sk { width: 54px; height: 54px; border-radius: 50%; flex: none; }
+.cs-bonus-sk { width: 92px; height: 44px; border-radius: 12px; flex: none; }
+
+.cs-head-main { flex: 1; min-width: 0; }
+.cs-name { font-size: 21px; font-weight: 700; line-height: 1.2; color: var(--text); }
+
+.cs-contacts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 3px; }
+.cs-phone { font-size: 14px; font-weight: 600; color: var(--blue); text-decoration: none; }
+.cs-phone:hover { text-decoration: underline; }
+.cs-bday { font-size: 12px; color: var(--sub); }
+
+.cs-plates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+
+/* Номер — не строка текста, а знак: буквы и цифры в одном поле, регион в
+   отдельном справа, как на настоящем. Оператор сверяет его с тем, что ему
+   диктуют в трубку, и привычная форма читается быстрее любого шрифта. */
+.cs-plate {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #1c1c1c;
+  background: #f2f2f2;
+  color: #16181c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+
+.cs-plate-main { padding: 4px 6px; }
+
+.cs-plate-region {
+  padding: 4px 5px;
+  border-left: 1px solid #1c1c1c;
+  font-size: 10.5px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+/* Баллы — вторая по важности цифра на экране после имени, поэтому они
+   вынесены в отдельный блок, а не в строку с телефоном. */
+.cs-bonus {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--accent-dim);
+  border: 1px solid var(--gold-card-border);
+}
+
+.cs-bonus-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.cs-bonus-cap { font-size: 10.5px; color: var(--sub); text-transform: lowercase; }
+
+.cs-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+
+.cs-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 11px 20px;
+  min-width: 0;
+}
+
+.cs-stat + .cs-stat { border-left: 1px solid var(--border); }
+.cs-stat-val { font-size: 16px; font-weight: 700; color: var(--text); }
+.cs-stat-cap { font-size: 11px; color: var(--sub); }
+
+/* ── Обслуживания ─────────────────────────────────────────────────────────── */
+
+.cs-svc-list { display: flex; flex-direction: column; }
+.cs-svc-none { padding: 22px 20px; font-size: 13px; color: var(--sub); }
+
+.cs-year {
+  padding: 12px 20px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--sub);
+}
+
+.cs-svc { border-top: 1px solid var(--border); }
+.cs-svc:first-child { border-top: 0; }
+.cs-year + .cs-svc { border-top: 0; }
+
+.cs-svc-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 20px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cs-svc-head:hover { background: var(--bg2); }
+.cs-svc.open .cs-svc-head { background: var(--bg2); }
+
+.cs-svc-when { flex: none; display: flex; flex-direction: column; width: 86px; }
+.cs-svc-date { font-size: 13px; font-weight: 600; }
+.cs-svc-time { font-size: 11px; color: var(--sub); }
+
+.cs-svc-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cs-svc-station { font-size: 13px; font-weight: 600; }
+
+/* Одна строка — что именно делали. Обрезается многоточием сознательно:
+   развёрнутый чек ниже покажет позиции целиком, а в свёрнутом виде важнее,
+   чтобы все строки были одной высоты и список читался столбцом. */
+.cs-svc-what {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.cs-svc-main-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-svc-more { flex: none; opacity: .75; }
+.cs-svc-dim { opacity: .7; }
+.cs-svc-failed { color: var(--red); }
+.cs-what-sk { display: block; width: 190px; max-width: 60%; height: 11px; }
+
+.cs-svc-right { flex: none; display: flex; align-items: center; gap: 10px; }
+.cs-svc-sum { font-size: 14px; font-weight: 700; min-width: 84px; text-align: right; }
+
+.cs-svc-chevron { flex: none; display: grid; place-items: center; color: var(--sub); transition: transform .18s ease; }
+.cs-svc.open .cs-svc-chevron { transform: rotate(180deg); }
+
+.cs-svc-body:not(:empty) { padding: 2px 20px 16px; }
+
+.cs-items { display: flex; flex-direction: column; }
+
+.cs-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+}
+
+.cs-item:last-child { border-bottom: 0; }
+.cs-item-name { flex: 1; min-width: 0; }
+.cs-item-count { flex: none; color: var(--sub); font-size: 12px; }
+.cs-item-sum { flex: none; min-width: 84px; text-align: right; font-weight: 600; }
+
+.cs-svc-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--sub);
+}
+
+.cs-svc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.cs-pay { display: inline-flex; align-items: center; gap: 5px; }
+.cs-earned { display: inline-flex; align-items: center; gap: 3px; color: var(--green); }
+.cs-spent { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
+.cs-svc-paid { font-weight: 700; color: var(--text); }
+
+/* Комментарий колл-центра — это то, что человеку УЖЕ говорили. Показываем
+   цитатой, чтобы не спутать с позициями чека. */
+.cs-comment {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--bg2);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--sub);
+}
+
+.cs-svc-err {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 2px;
+  font-size: 12.5px;
+  color: var(--red);
+}
+
+.cs-svc-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cs-svc-retry:hover { border-color: var(--accent); }
+
+/* Плейсхолдер обслуживания повторяет форму строки: место, куда приедет чек,
+   видно заранее, и список не прыгает при загрузке. Блик — общий .sk. */
+.cs-svc-skel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.cs-svc-skel:first-child { border-top: 0; }
+.cs-svc-skel .sk-line { height: 12px; }
+.cs-card-skel .cs-head { align-items: center; }
+.cs-items-skel .cs-svc-skel { padding: 10px 0; }
+
+@media (max-width: 720px) {
+  .cs-head { flex-wrap: wrap; }
+  .cs-bonus { order: 3; width: 100%; flex-direction: row; justify-content: center; gap: 7px; align-items: baseline; }
+  .cs-stats { grid-template-columns: 1fr; }
+  .cs-stat + .cs-stat { border-left: 0; border-top: 1px solid var(--border); }
+  .cs-svc-head { flex-wrap: wrap; gap: 8px 12px; padding: 12px 14px; }
+  .cs-svc-when { width: auto; flex-direction: row; align-items: baseline; gap: 6px; }
+  .cs-svc-mid { flex-basis: 100%; order: 3; }
+  .cs-svc-right { margin-left: auto; }
+  .cs-svc-sum { min-width: 0; }
+  /* Стрелка остаётся в ПЕРВОЙ строке, рядом с суммой: уехав под неё, она
+     занимала бы отдельную строку в каждом обслуживании. */
+  .cs-svc-chevron { order: 2; }
+  .cs-svc-body:not(:empty) { padding: 2px 14px 14px; }
+  .cs-item { flex-wrap: wrap; gap: 4px 10px; }
+  .cs-item-name { flex-basis: 100%; }
+  .cs-item-sum { margin-left: auto; }
+}
+
+/* Неполный или городской номер — не ссылка: по нему всё равно не позвонить. */
+.cs-phone-raw { color: var(--text); }
