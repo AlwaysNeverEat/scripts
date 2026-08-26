@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
     formatPhoneInput, phoneDigits, phoneComplete,
-    formatPlateInput, plateComplete,
+    formatPlateInput, plateComplete, plateFull, searchValueFull,
     clientSearchPath, parseClientSearch, parseClientCard, parseSale, crmStampValue,
     maskedFieldEdit,
 } from './crmClients.js';
@@ -45,6 +45,26 @@ test('гос. номер полон и с двузначным, и с трёхз
     assert.equal(plateComplete('К926АА147'), true);
     assert.equal(plateComplete('К926АА'), false);
     assert.equal(plateComplete('К926А147'), false);
+});
+
+test('«номер валиден» и «номер добран» у гос. номера — РАЗНЫЕ вопросы', () => {
+    // Регион бывает и двузначным, и трёхзначным, поэтому на восьми символах
+    // номер уже валиден, но человек, скорее всего, ещё печатает третью цифру.
+    // Тот, кто решает «пора идти в CRM», обязан их различать — иначе поиск
+    // уходит за несуществующим номером ровно в момент набора.
+    assert.equal(plateComplete('К926АА14'), true);
+    assert.equal(plateFull('К926АА14'), false);
+
+    assert.equal(plateComplete('К926АА147'), true);
+    assert.equal(plateFull('К926АА147'), true);
+
+    assert.equal(plateFull('К926АА'), false);
+
+    // У телефона длина одна, поэтому «набран» и «добран» — это одно и то же.
+    assert.equal(searchValueFull('phone', '+7 (981) 965-19-1'), false);
+    assert.equal(searchValueFull('phone', '+7 (981) 965-19-16'), true);
+    assert.equal(searchValueFull('plate', 'К926АА14'), false);
+    assert.equal(searchValueFull('plate', 'К926АА147'), true);
 });
 
 test('адрес поиска повторяет форму CRM: телефон в маске, номер нормализован', () => {

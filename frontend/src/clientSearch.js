@@ -24,15 +24,25 @@
 import './clientSearch.css';
 import {
     formatPhoneInput, formatPlateInput, phoneComplete, plateComplete, phoneDigits,
-    maskedFieldEdit,
+    maskedFieldEdit, searchValueFull,
 } from '../../shared/crmClients.js';
 
 // Чеки добираются по одному, но не по очереди из одного соединения: очередь к
 // CRM всё равно последовательная (backend/src/crm/client.js), а три запроса в
 // полёте прячут накладные расходы HTTP и заполняют список заметно ровнее.
 const PREFETCH_WORKERS = 3;
-// Пауза перед автопоиском по набранному номеру.
-const AUTO_SEARCH_DELAY_MS = 350;
+
+// Паузы перед автопоиском. Их две, и вторая — не перестраховка.
+//
+// Телефон фиксированной длины: набрал десять цифр — вводить больше нечего, и
+// ждать незачем. У гос. номера регион бывает двузначным И трёхзначным, поэтому
+// «К926АА14» уже валиден, но человек, скорее всего, ещё печатает третью цифру.
+// Уйти в CRM в этот момент — значит поискать несуществующий номер и мигнуть
+// «ничего не найдено» ровно тогда, когда его ещё набирают. На таком номере
+// ждём заметно дольше — примерно паузу между двумя нажатиями, — а на добранном
+// до конца (девять символов, больше не влезет) идём сразу.
+const AUTO_SEARCH_DELAY_MS = 300;
+const AUTO_SEARCH_GROWABLE_MS = 1200;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -245,9 +255,9 @@ export function initClientSearch({ apiFetch }) {
     });
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
 
-    // Кнопки «найти» нет — ищем, как только номер набран целиком. Пауза нужна
-    // не для красоты: последнюю цифру часто исправляют сразу же, а каждый заход
-    // — это поход в CRM через общую очередь.
+    // Кнопки «найти» нет — ищем, как только номер набран. Пауза нужна не для
+    // красоты: каждый заход — это поход в CRM через общую очередь, а номер
+    // ещё дописывают и правят.
     let autoTimer = null;
     let lastAuto = '';
     function autoSearch() {
@@ -255,20 +265,24 @@ export function initClientSearch({ apiFetch }) {
         if (!complete()) { lastAuto = ''; return; }
         if (state.value === lastAuto) return; // уже искали ровно это
         const value = state.value;
+        const wait = searchValueFull(state.kind, value)
+            ? AUTO_SEARCH_DELAY_MS
+            : AUTO_SEARCH_GROWABLE_MS;
         autoTimer = setTimeout(() => {
             if (state.value !== value) return;
-            lastAuto = value;
             runSearch();
-        }, AUTO_SEARCH_DELAY_MS);
+        }, wait);
     }
 
     // ── Поиск ─────────────────────────────────────────────────────────────────
 
     async function runSearch() {
+        clearTimeout(autoTimer); // Enter не должен продублироваться автопоиском
         if (!complete()) {
             input.focus();
             return;
         }
+        lastAuto = state.value;
         const mine = ++token;
         state.stage = 'searching';
         state.error = '';
