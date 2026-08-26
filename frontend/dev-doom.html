@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<!-- Дев-песочница пасхалки «DOOM»: окно игры без входа.
+     Открыть: npx vite → /dev-doom.html
+     Заглушек тут нет и быть не может: у DOOM нет ни топа, ни единого запроса к
+     серверу — игра целиком в wasm (см. frontend/src/doom.js).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: doom</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">DOOM — песочница</h2>
+    <p class="page-sub">Тот самый, 1993 года. Управление: WASD, мышь, левая кнопка — огонь.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-pri" id="dev-open">Открыть игру</button>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { openDoom } from './src/doom.js';
+
+    initTheme();
+    // Закрыть и открыть заново — проверка того, что экземпляр игры переживает
+    // окно: партия должна продолжиться с того же места, а не с заставки.
+    document.getElementById('dev-open').onclick = () => openDoom();
+  </script>
+</body>
+</html>
