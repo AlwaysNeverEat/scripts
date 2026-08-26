@@ -554,10 +554,19 @@ export async function crmGetHtml(userId, path) {
 }
 
 // Страница или '' — если CRM вместо неё показала логин (сессии больше нет).
-async function fetchPage(jar, path) {
+//
+// «Это логин» узнаётся ПО САМОЙ ФОРМЕ ЛОГИНА (parseLoginForm), и это важно:
+// раньше тут стоял parseAnalyseFree(...).loginPage, а он считает логином всё,
+// где нет ни фильтра станций, ни таблицы товаров. Приметы у него от
+// /analyse/free, ради которой прокси и писался, — но crmGetHtml ходит и на
+// другие страницы CRM, а на /dial_clients/ (поиск клиента) нет ни того, ни
+// другого. Живая сессия объявлялась мёртвой, куки стирались (dropJar), и поиск
+// клиента отвечал «войдите в CRM» — в том числе сразу после успешного входа,
+// потому что следующий же запрос повторял тот же вывод.
+export async function fetchPage(jar, path) {
     const res = await followRedirects(await rawFetch(path, jar), jar);
     const html = res.status >= 300 ? '' : await res.text();
-    return !html || parseAnalyseFree(html).loginPage ? '' : html;
+    return !html || parseLoginForm(html) ? '' : html;
 }
 
 // Последовательная очередь + троттлинг: одна на процесс, чтобы N работников

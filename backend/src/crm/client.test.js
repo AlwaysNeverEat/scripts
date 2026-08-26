@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     parseLoginForm, buildAnalyseFreePath, resolveCrmUrl, findLogoutLink, closeCrmSession,
+    fetchPage,
 } from './client.js';
 
 // ── Заглушка CRM для проверки выхода ────────────────────────────────────────
@@ -68,6 +69,57 @@ test('parseLoginForm: игнорирует формы без пароля, те�
     assert.equal(form.loginField, 'email');
     assert.equal(form.passwordField, 'pw');
     assert.equal(parseLoginForm('<html>нет форм</html>'), null);
+});
+
+// ── Какая страница «это логин» ──────────────────────────────────────────────
+// Прокси ходит не только на /analyse/free, ради которой писался, а на любую
+// страницу CRM, и решает по ответу, жива ли сессия. Решать это по приметам
+// одной конкретной страницы нельзя: у страниц клиента их нет, и живая сессия
+// объявлялась мёртвой — куки стирались, а поиск клиента отвечал «войдите в
+// CRM» даже сразу после успешного входа.
+
+// Страницы CRM без единой приметы /analyse/free: ни фильтра станций, ни
+// таблицы товаров. Разметка обрезана до сути с реальных страниц.
+const DIAL_CLIENTS_PAGE = '<html><h3>Найденные клиенты</h3>'
+    + '<div class="found-clients-list"><div><a href="/clients/151465">Георгий</a></div></div>'
+    + '<form class="form" action="/dial_clients/"><input name="phone"></form></html>';
+const DIAL_CLIENTS_EMPTY = '<html><h3>Ничего не найдено</h3>'
+    + '<div class="found-clients-list"></div></html>';
+
+function stubPages(pages) {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+        const html = pages[new URL(url).pathname];
+        return new Response(html ?? '', { status: html === undefined ? 404 : 200 });
+    };
+    return () => { globalThis.fetch = realFetch; };
+}
+
+test('страница поиска клиентов НЕ считается логином — иначе сессию рвёт на ровном месте', async () => {
+    const restore = stubPages({
+        '/dial_clients/': DIAL_CLIENTS_PAGE,
+        '/clients/151465': '<html><p>Имя: Георгий</p><p>Бонусный счет: 334.50</p></html>',
+    });
+    try {
+        assert.equal(await fetchPage(new Map(), '/dial_clients/'), DIAL_CLIENTS_PAGE);
+        // Пустая выдача — тоже нормальная страница, а не «сессия кончилась».
+        const restoreEmpty = stubPages({ '/dial_clients/': DIAL_CLIENTS_EMPTY });
+        assert.equal(await fetchPage(new Map(), '/dial_clients/'), DIAL_CLIENTS_EMPTY);
+        restoreEmpty();
+        assert.match(await fetchPage(new Map(), '/clients/151465'), /Георгий/);
+    } finally {
+        restore();
+    }
+});
+
+test('форма логина вместо запрошенной страницы — это «сессии нет»', async () => {
+    const restore = stubPages({ '/dial_clients/': LOGIN_PAGE, '/clients/1': '' });
+    try {
+        assert.equal(await fetchPage(new Map(), '/dial_clients/'), '');
+        assert.equal(await fetchPage(new Map(), '/clients/1'), '');
+    } finally {
+        restore();
+    }
 });
 
 test('resolveCrmUrl корректно обрабатывает относительные и абсолютные URL CRM', () => {
