@@ -15,12 +15,12 @@ const ENTITIES = {
     '&#039;': "'", '&#39;': "'", '&nbsp;': ' ',
 };
 
-function decodeEntities(s) {
+export function decodeEntities(s) {
     return s.replace(/&(?:amp|lt|gt|quot|#0?39|nbsp);/g, m => ENTITIES[m] || m);
 }
 
 // Текст ячейки/опции: убрать теги, схлопнуть пробелы.
-function stripTags(html) {
+export function stripTags(html) {
     return decodeEntities(String(html || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
