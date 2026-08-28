@@ -1,8 +1,8 @@
-// Карта станций для страницы «Записи»: Leaflet + бесплатные тайлы CARTO
-// (подход перенесён с лендинга SPOT), но вместо голых булавок — плашки с
-// кодом перевода звонка, названием станции, цветом линии метро, снежинкой
-// «есть заправка кондиционера» и счётчиком СВОБОДНЫХ слотов (цвет счётчика
-// отвечает на главный вопрос — куда ещё можно записать).
+// Карта станций для страницы «Записи»: Leaflet + тайлы OpenStreetMap, но
+// вместо голых булавок — плашки с кодом перевода звонка, названием станции,
+// цветом линии метро, снежинкой «есть заправка кондиционера» и счётчиком
+// СВОБОДНЫХ слотов (цвет счётчика отвечает на главный вопрос — куда ещё
+// можно записать).
 // Плюс поиск по улице через Nominatim (OSM) с подсказкой ближайших станций.
 //
 // Leaflet вендорен через npm (а не CDN, как на лендинге) — страница работает
@@ -14,13 +14,20 @@ import { stationsMeta, LINE_COLORS, nearestStations } from '../../../shared/stat
 import { currentTheme } from '../theme.js';
 import { icons } from './icons.js';
 
-// Тайлы под тему сайта: на светлой теме тёмная карта была бы чёрным пятном
-// посреди белой страницы. У CARTO это те же тайлы в двух вариантах, так что
-// смена темы меняет только слой — вид, зум и маркеры остаются на месте.
-const TILE_URL = {
-    dark:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-};
+// Тайлы — OpenStreetMap. Раньше тут был CARTO (light_all/dark_all): он
+// раздавал тайлы без ключа, а летом 2026 ключ потребовал и до его появления
+// печатает поверх карты «API KEY REQUIRED». Ключ бесплатный, но выдаётся по
+// заявке на конкретный домен и всё равно уезжает в бандл на виду у всех, —
+// а OSM отдаёт тайлы вовсе без ключа, и просит взамен только ссылку на себя
+// (её и вешает attributionControl ниже).
+//
+// Субдоменов a/b/c в адресе нет сознательно: OSM раздаёт тайлы с одного хоста
+// по HTTP/2 и просит по старым субдоменам не ходить. Ретины ({r}, @2x) у него
+// тоже нет — были только у CARTO.
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+const OSM_CREDIT = '© <a href="https://www.openstreetmap.org/copyright"'
+    + ' target="_blank" rel="noopener">OpenStreetMap</a>';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -66,10 +73,14 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
     // станции жмутся в середину, оставляя половину карты пустой.
     const map = L.map(container, {
         zoomControl: true,
+        // Свой контрол вместо стандартного: у стандартного в углу висит ещё и
+        // «Leaflet», к источнику карты отношения не имеющий, а ссылка на OSM —
+        // условие, на котором тайлы бесплатны, и она обязана быть видимой.
         attributionControl: false,
         zoomSnap: ZOOM_SNAP,
         zoomDelta: 1,
     }).setView(start[0], start[1]);
+    L.control.attribution({ prefix: false }).addTo(map);
 
     // ── Жизненный цикл ───────────────────────────────────────────────────────
     // Карта пересобирается на КАЖДОЙ перерисовке (см. initModalMap в
@@ -87,8 +98,14 @@ export function createStationsMap(container, { onPick, view, fit, onUserMove } =
         timers.add(id);
         return id;
     };
-    const makeTiles = (theme) => L.tileLayer(TILE_URL[theme] || TILE_URL.dark, {
-        subdomains: 'abcd',
+    // У CARTO было два готовых стиля, у OSM он один и цветной: под пёстрой
+    // подложкой плашки станций читаются плохо, а на светлой теме тёмной карты
+    // нет вовсе. Поэтому тему делает CSS-фильтр на слое тайлов (см. .rc-tiles
+    // в records.css), а слой и его адрес одни и те же — смена темы по-прежнему
+    // меняет только картинку, вид и маркеры остаются на месте.
+    const makeTiles = (theme) => L.tileLayer(TILE_URL, {
+        className: `rc-tiles rc-tiles-${theme === 'light' ? 'light' : 'dark'}`,
+        attribution: OSM_CREDIT,
         maxZoom: 19,
     });
     let tiles = makeTiles(currentTheme()).addTo(map);
