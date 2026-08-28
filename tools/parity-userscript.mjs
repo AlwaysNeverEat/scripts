@@ -243,6 +243,11 @@ const CASES = [
             oilOverride: { engine_mid: 'Motul_5W-30 8100 X-Clean+' },
             totals: [{ engine: 0 }, { engine: 1 }],
         }),
+        // Интенциональное расхождение с базой: правленый объём теперь виден и
+        // в шапке блока. База печатала там объём ИЗ ДАННЫХ Motul (4.3 + 0.3),
+        // хотя цену считала по правленому оператором (5л), — в лид уезжало
+        // «двс (4.6л)» рядом с ценой за пять литров.
+        origFixups: [[/^двс \(4\.6л\)$/m, 'двс (5л)']],
     },
 ];
 
@@ -297,10 +302,14 @@ for (const c of CASES) {
     // печатает более ранние варианты той же строки («с\у\з\к», потом «картер»);
     // приводим их к нынешнему тексту, чтобы паритет продолжал стеречь остальной
     // формат отчёта, а не спотыкался о переименование.
-    const originalNorm = normOilOrder(original
+    let originalText = original
         .replace(/ \+ 550р \(с\\у\\з\\к\)/g, ` + 550₽ (${SUMP_WORK})`)
         .replace(/ \+ 550₽ \(картер\)/g, ` + 550₽ (${SUMP_WORK})`)
-        .replace(/ \+ 550\(картер\)/g, ` + 550(${SUMP_WORK})`));
+        .replace(/ \+ 550\(картер\)/g, ` + 550(${SUMP_WORK})`);
+    // Точечные правки базы по кейсу (origFixups) — там, где расхождение
+    // интенционально и касается одного этого случая.
+    for (const [re, to] of (c.origFixups || [])) originalText = originalText.replace(re, to);
+    const originalNorm = normOilOrder(originalText);
     const modernNorm = normOilOrder(modern);
 
     if (originalNorm === modernNorm) {

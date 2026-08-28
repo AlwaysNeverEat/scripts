@@ -18,9 +18,11 @@ export function formatAggText(agg, calc, calcState) {
     const is0w20        = mileage === '0w20' || mileage === '0w30';
 
     if (agg.group === 'engine') {
-        const v0       = roundL(parseFloat(agg.volume || 0));
-        const vFilter  = roundL(parseFloat(agg.filterVolume || 0));
-        const vService = roundL(v0 + vFilter);
+        // Объём берём из расчёта (calc.vService), а НЕ из данных агрегата:
+        // оператор правит объём прямо в калькуляторе, стоимость сразу считается
+        // по исправленному, и текст для Битрикса обязан говорить то же число —
+        // иначе в лид уезжает «двс (4.6л)» с ценой за 5.2л.
+        const vService = roundL(calc.vService);
         lines.push(`двс (${vService || calc.vCalc}л)`);
 
         const f = calcState.filters;
@@ -70,10 +72,9 @@ export function formatAggText(agg, calc, calcState) {
         const isPartial = calcState.atpType === 'partial';
         const typeTxt  = isPartial ? 'част' : 'полн';
         const pct      = !isPartial ? '150%' : (isCvt ? '80%' : '60%');
-        const vService = roundL(parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0))
-            || roundL((calcState.volumeOverride || {})[agg.key])
-            || roundL(calcState.atpVolumeManual)
-            || 0;
+        // calc.vService уже учитывает и правку объёма, и ручной ввод для АКПП
+        // (см. calcForAggregate), поэтому пересчитывать его тут не нужно.
+        const vService = roundL(calc.vService) || 0;
         const label = isCvt ? 'вариатор' : 'акпп';
         const sp3Note = isCvt && calcState.cvtAtfSp3 ? ', ATF SP-III' : '';
         lines.push(`${label} (серв ${vService}л${sp3Note})`);
@@ -90,7 +91,7 @@ export function formatAggText(agg, calc, calcState) {
         if (!isCvt && agg.atfWarn) lines.push('подходящих масел в наличии нет — перевести на мастера');
         calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
     } else {
-        const vService = (parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)).toFixed(1);
+        const vService = roundL(calc.vService).toFixed(1);
         lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
         if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
         calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
