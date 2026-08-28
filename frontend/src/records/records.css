@@ -1782,14 +1782,42 @@
 .rc-creds-note { color: var(--sub); font-size: 12px; line-height: 1.6; margin-bottom: 14px; }
 .rc-creds-form .edit-field { margin-bottom: 10px; }
 
-/* Leaflet под тему сайта: подложка под тайлами и кнопки зума.
-   Сами тайлы переключает map.js — тёмные CARTO на тёмной теме, светлые на
-   светлой, иначе карта осталась бы чёрным пятном посреди белой страницы.
+/* Leaflet под тему сайта: подложка под тайлами, цвет самих тайлов и кнопки
+   зума.
+
+   Тайлы OSM — одна и та же цветная карта на обе темы (у CARTO, с которого мы
+   ушли, стилей было два), поэтому цвет ей меняет фильтр, а класс вешает
+   map.js. На светлой теме карта обесцвечивается: пёстрые парки, шоссе и вода
+   спорили бы с плашками станций, а весь смысл плашки — счётчик свободных
+   получасов, который читают с одного взгляда. На тёмной она вдобавок
+   инвертируется — фон уходит в тёмный, подписи и дороги остаются светлыми,
+   иначе карта была бы белым пятном посреди тёмной страницы. Числа подобраны
+   сравнением со старыми тайлами CARTO.
 
    Селекторы намеренно удвоены (.leaflet-container.leaflet-container и т.п.):
    свой CSS Leaflet тянет из пакета, и в бандле он оказывается ПОСЛЕ этого
    файла — при равной специфичности выигрывали его #ddd и белые кнопки зума. */
 .leaflet-container.leaflet-container { background: var(--map-bg); font: inherit; }
+.rc-tiles-light { filter: grayscale(1) brightness(1.05) contrast(0.92); }
+.rc-tiles-dark { filter: grayscale(1) invert(1) brightness(0.85) contrast(0.9); }
+
+/* Ссылка на OpenStreetMap — условие, на котором тайлы бесплатны, поэтому она
+   висит на КАЖДОЙ карте (у карт в формах создания и переноса легенды нет
+   вовсе, деть ссылку больше некуда). Мелкая и полупрозрачная: это сноска, а не
+   средство управления. */
+.leaflet-control-attribution.leaflet-control-attribution {
+    background: color-mix(in oklab, var(--card) 82%, transparent);
+    color: var(--sub);
+    font-size: 9.5px;
+    line-height: 1.5;
+    padding: 1px 6px;
+    border-radius: 6px 0 0 0;
+}
+.leaflet-control-attribution.leaflet-control-attribution a { color: var(--sub); }
+
+/* В боковой карте правый нижний угол занят кнопками зума (см. выше) — сноска
+   встаёт над ними, иначе легла бы прямо на «плюс». */
+.rc-side-map .leaflet-bottom.leaflet-right { bottom: 58px; }
 .leaflet-bar.leaflet-bar { border-color: var(--border); box-shadow: var(--shadow-1); }
 .leaflet-bar a.leaflet-control-zoom-in,
 .leaflet-bar a.leaflet-control-zoom-out {
