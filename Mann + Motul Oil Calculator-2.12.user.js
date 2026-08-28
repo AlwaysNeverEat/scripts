@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.701
+// @version      2.23.710
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -3591,9 +3591,7 @@
     const isFixedSingle = mileage === ">=200";
     const is0w20 = mileage === "0w20" || mileage === "0w30";
     if (agg.group === "engine") {
-      const v0 = roundL(parseFloat(agg.volume || 0));
-      const vFilter = roundL(parseFloat(agg.filterVolume || 0));
-      const vService = roundL(v0 + vFilter);
+      const vService = roundL(calc.vService);
       lines.push(`двс (${vService || calc.vCalc}л)`);
       const f = calcState2.filters;
       if (f.vf.enabled && f.vf.name && f.vf.price) {
@@ -3637,7 +3635,7 @@
       const isPartial = calcState2.atpType === "partial";
       const typeTxt = isPartial ? "част" : "полн";
       const pct = !isPartial ? "150%" : isCvt ? "80%" : "60%";
-      const vService = roundL(parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)) || roundL((calcState2.volumeOverride || {})[agg.key]) || roundL(calcState2.atpVolumeManual) || 0;
+      const vService = roundL(calc.vService) || 0;
       const label = isCvt ? "вариатор" : "акпп";
       const sp3Note = isCvt && calcState2.cvtAtfSp3 ? ", ATF SP-III" : "";
       lines.push(`${label} (серв ${vService}л${sp3Note})`);
@@ -3654,7 +3652,7 @@
       if (!isCvt && agg.atfWarn) lines.push("подходящих масел в наличии нет — перевести на мастера");
       calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
     } else {
-      const vService = (parseFloat(agg.volume || 0) + parseFloat(agg.filterVolume || 0)).toFixed(1);
+      const vService = roundL(calc.vService).toFixed(1);
       lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
       if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
       calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
