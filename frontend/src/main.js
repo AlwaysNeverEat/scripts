@@ -14,7 +14,7 @@ import { initScriptsFeed } from './scriptsFeed.js';
 import { initNewsFeed, markNewsSeen, unseenNewsCount } from './newsFeed.js';
 import { openCarCreator } from './carEditor.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
-import { carCardInner } from './carCard.js';
+import { renderCarList } from './carList.js';
 import { initTheme } from './theme.js';
 // «Лиды» (панель Битрикса) отложены — см. docs/BITRIX.md. Сам модуль
 // frontend/src/leads.js на месте, выключена только проводка.
@@ -589,22 +589,18 @@ async function runLocalSearch(q) {
         preparedFallback = prepareCars(snapshot.cars);
         preparedFallbackVersion = snapshot.version;
     }
-    renderResults(rankCars(q, preparedFallback));
+    renderResults(rankCars(q, preparedFallback, { limit: Infinity }));
 }
 
+// Ранкер отдаёт ВСЮ подходящую выдачу, а по 20 строк её показывает carList.js:
+// у популярной модели исполнений куда больше двадцати, и раньше лишние просто
+// пропадали — молча, так что было не понять, ищешь ты плохо или их нет в базе.
 function renderResults(cars) {
-    if (!cars.length) {
-        searchResults.innerHTML = '<div class="search-empty">К сожалению, такой машины ещё нет в базе</div>';
-        return;
-    }
-    searchResults.innerHTML = cars.map(car => `
-        <div class="car-card" data-id="${car.id}">${carCardInner(car)}</div>
-    `).join('');
-
     // Запрос и выдачу не стираем: вернувшись на вкладку «Калькулятор», человек
     // видит тот же список, из которого уходил, и может открыть соседнюю машину.
-    searchResults.querySelectorAll('.car-card').forEach(card => {
-        card.onclick = () => { location.hash = '#/car/' + card.dataset.id; };
+    renderCarList(searchResults, cars, {
+        onPick: (id) => { location.hash = '#/car/' + id; },
+        empty: 'К сожалению, такой машины ещё нет в базе',
     });
 }
 

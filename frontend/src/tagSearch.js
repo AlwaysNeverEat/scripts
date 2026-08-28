@@ -6,10 +6,11 @@
 // Когда подходящих машин остаётся меньше SPHERE_HIDE_THRESHOLD — сфера
 // прячется, дальше уточнять смысла нет, снизу и так виден весь результат.
 
-import { carCardInner } from './carCard.js';
+import { renderCarList } from './carList.js';
 
 const SPHERE_HIDE_THRESHOLD = 5;
-const RESULTS_LIMIT = 60;
+// Сколько машин выдачи вообще предлагать сфере (сама она берёт ещё меньше).
+const SPHERE_NODES_MAX = 60;
 // Маркер «объём не указан у машины» — отдельно от '' (означающего «объём ещё не выбран»)
 const NULL_VOLUME = '__null__';
 // Пока input в фокусе, blur от клика по опции срабатывает раньше mousedown,
@@ -288,20 +289,14 @@ export function initTagSearch({ getCars, onPick, sphere }) {
         }));
     }
 
-    function renderResults(cars, total) {
-        if (!cars.length) {
-            resultsEl.innerHTML = '<div class="search-empty">Ничего не найдено по этим тегам</div>';
-            return;
-        }
-        const more = total > cars.length
-            ? `<div class="search-empty">…и ещё ${total - cars.length} — уточните теги</div>`
-            : '';
-        resultsEl.innerHTML = cars.map(car => `
-            <div class="car-card" data-id="${car.id}">${carCardInner(car)}</div>
-        `).join('') + more;
-
-        resultsEl.querySelectorAll('.car-card').forEach(card => {
-            card.onclick = () => onPick(card.dataset.id);
+    // Раньше выдача резалась шестьюдесятью машинами, а на месте отрезанного
+    // стояло «…и ещё N — уточните теги». Уточнять при этом нечем: теги тут и
+    // так все выбраны, а исполнений у популярной модели больше — теперь список
+    // дорисовывается кнопкой (carList.js).
+    function renderResults(cars) {
+        renderCarList(resultsEl, cars, {
+            onPick,
+            empty: 'Ничего не найдено по этим тегам',
         });
     }
 
@@ -313,15 +308,16 @@ export function initTagSearch({ getCars, onPick, sphere }) {
             return;
         }
 
-        const all = computeResults();
-        const total = all.length;
-        const cars = all.slice(0, RESULTS_LIMIT);
+        const cars = computeResults();
 
-        renderResults(cars, total);
-        if (total > 0 && total < SPHERE_HIDE_THRESHOLD) {
+        renderResults(cars);
+        if (cars.length > 0 && cars.length < SPHERE_HIDE_THRESHOLD) {
             sphere.setVisible(false);
         } else if (cars.length) {
-            sphere.setNodes(cars.map(carNode));
+            // Сфере хватает начала списка: она всё равно оставит из него
+            // SPHERE_NODE_LIMIT узлов (main.js), а строить объекты на всю
+            // выдачу — работа в никуда.
+            sphere.setNodes(cars.slice(0, SPHERE_NODES_MAX).map(carNode));
             sphere.setVisible(true);
         } else {
             sphere.setVisible(false);

@@ -33,7 +33,13 @@ self.onmessage = (e) => {
     } else if (msg.type === 'query') {
         // _search (словарь + типизированные массивы) наружу не отдаём —
         // карточкам он не нужен, а клонировать его через postMessage дорого.
-        const cars = rankCars(msg.q, prepared)
+        // Без потолка: выдачу режет на страницы уже окно («Показать ещё» в
+        // frontend/src/carList.js), и потолок здесь снова прятал бы машины, до
+        // которых человек не смог бы добраться никак. Дороже это не стало:
+        // скоринг и сортировка всё равно идут по всей базе, а самый широкий
+        // запрос («bmw» на 13к машин) даёт 2175 строк — около 400 КБ на
+        // клонирование через postMessage против 40 мс самого скоринга.
+        const cars = rankCars(msg.q, prepared, { limit: Infinity })
             .map(({ _search, search_text, ...car }) => car);
         self.postMessage({ type: 'results', gen: msg.gen, q: msg.q, cars });
     }

@@ -669,7 +669,7 @@ router.get('/exact', async (req, res) => {
 
 const INDEX_ROWS_SQL = `
   SELECT id, brand, model, generation, engine_code, engine_volume,
-         kw, bhp, year_from, year_to, name_normalized
+         kw, bhp, year_from, year_to, fuel_type, name_normalized
     FROM cars
    ORDER BY brand, model, year_from`;
 
