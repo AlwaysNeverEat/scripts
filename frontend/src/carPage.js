@@ -15,6 +15,8 @@ import { crmQuirksFor, SEVERITY_LABELS } from '../../shared/crmQuirks.js';
 import { fuelLabel } from '../../shared/fuel.js';
 import { SOURCE_SITES, SOURCE_LABELS } from '../../shared/sourceLinks.js';
 import { namePrefixHtml } from './namePrefix.js';
+import { arrowRightIcon } from './icons.js';
+import { describeCarChanges, changedFieldLabels } from '../../shared/carDiff.js';
 
 // К какому агрегату относится особенность из CRM — подпись перед текстом,
 // чтобы «полную не делаем» не путали с правилом для механики.
@@ -300,7 +302,9 @@ function confirmDeleteCar(record, ctx) {
 // растягивать страницу. Кнопка разворачивает всю историю в компактном скролле.
 const EVENTS_COLLAPSED = 3;
 
-async function renderEvents(carId, ctx) {
+// Экспортируется ради песочницы frontend/dev-diff.html: ленту и окно разбора
+// нужно уметь смотреть без бэкенда.
+export async function renderEvents(carId, ctx) {
     const box = document.getElementById('car-events');
     if (!box) return;
     box.innerHTML = '';
@@ -384,60 +388,176 @@ function renderEventCard(ev, i) {
         : isReassigned ? 'event-card-reassigned' : 'event-card-edited';
     const clickable = ev.type === 'edited';
 
+    // Что именно правили, видно НЕ ОТКРЫВАЯ карточку: у машины правят по одному
+    // полю, и ради «мощность» открывать окно незачем. Больше трёх подписей в
+    // строку не влезает — остальные считаются числом.
+    const fieldNames = clickable ? changedFieldLabels(ev.changed_fields) : [];
+    const shownNames = fieldNames.slice(0, 3);
+    const restCount = fieldNames.length - shownNames.length;
+    const fieldsHtml = shownNames.length ? `
+        <div class="event-fields">
+            ${shownNames.map(n => `<span class="event-field">${esc(n)}</span>`).join('')}
+            ${restCount > 0 ? `<span class="event-field event-field-more">ещё ${restCount}</span>` : ''}
+        </div>` : '';
+
     return `
         <div class="event-card ${cardClass}"
-             data-event-idx="${i}" ${clickable ? 'role="button" tabindex="0"' : ''}>
+             data-event-idx="${i}" ${clickable ? 'role="button" tabindex="0"' : ''}
+             ${clickable ? 'title="Открыть: что именно изменили"' : ''}>
             <div class="event-avatar" ${avatarLinkAttr}>${avatarHtml}</div>
             <div class="event-body">
                 <div class="event-text">${text}</div>
+                ${fieldsHtml}
                 <div class="event-date">${when}</div>
             </div>
         </div>
     `;
 }
 
+// ── Окно «Что изменили» ───────────────────────────────────────────────────────
+// Разбор события в человеческий список живёт в shared/carDiff.js, здесь только
+// вёрстка. Раньше окно показывало сырьё changed_fields как есть — два JSON'а,
+// зачёркнутый и зелёный, — и увидеть в них, что поменялся ОДИН салонный фильтр,
+// было нельзя: приходилось сравнивать глазами две простыни символов.
+//
+// Теперь у каждого изменения три вещи, которые и отвечают на «что случилось»:
+// бейдж «добавили / изменили / убрали», русская подпись поля и пара «было →
+// стало» с подписанными сторонами. Составные поля (фильтры, ссылки, агрегаты)
+// разворачиваются в строки по частям, и в списке остаются ТОЛЬКО изменившиеся:
+// неизменившийся масляный фильтр из окна пропадает совсем.
+
+const OP_LABELS = { added: 'добавили', removed: 'убрали', changed: 'изменили' };
+
 function openEventDetails(ev) {
     const old = document.getElementById('event-details-modal');
     if (old) old.remove();
 
-    const fields = Object.entries(ev.changed_fields || {});
-    const fieldsHtml = fields.length
-        ? fields.map(([key, diff]) => `
-            <div class="event-diff-row">
-                <span class="event-diff-field">${esc(key)}</span>
-                <span class="event-diff-from">${esc(formatDiffValue(diff.from))}</span>
-                <span class="event-diff-arrow">→</span>
-                <span class="event-diff-to">${esc(formatDiffValue(diff.to))}</span>
-            </div>`).join('')
-        : '<div class="search-empty">Изменённые поля не записаны</div>';
+    const { total, same, groups } = describeCarChanges(ev.changed_fields);
+    const when = new Date(ev.created_at).toLocaleString('ru-RU', { dateStyle: 'long', timeStyle: 'short' });
+    const who = ev.user ? ev.user.display_name : 'неизвестный пользователь';
+    const count = total ? ` · ${total} ${plural(total, 'поле', 'поля', 'полей')}` : '';
+
+    // Поля, у которых значение совпало (число из формы против строки из базы),
+    // в список не идут — но и пропадать молча не должны: иначе «правка есть, а
+    // изменений нет» выглядит как потерянные данные.
+    const sameNote = same
+        ? `<div class="diff-same">Ещё ${same} ${plural(same, 'поле записано', 'поля записаны', 'полей записаны')} в правку, но значение осталось прежним.</div>`
+        : '';
+    const bodyHtml = total
+        ? groups.map(diffGroupHtml).join('') + sameNote
+        : (same
+            ? `<div class="search-empty">Правка ничего не изменила: все ${same} ${plural(same, 'записанное поле совпало', 'записанных поля совпали', 'записанных полей совпали')} с прежним значением.</div>`
+            : '<div class="search-empty">Изменённые поля не записаны</div>');
 
     const modal = document.createElement('div');
     modal.id = 'event-details-modal';
     modal.className = 'modal';
     modal.innerHTML = `
         <div class="modal-backdrop"></div>
-        <div class="modal-win">
-            <div class="modal-head">
-                <span>Что изменили</span>
-                <button class="btn btn-sec" id="event-details-close">✕</button>
+        <div class="modal-win diff-win">
+            <div class="modal-head diff-head">
+                <div class="diff-head-txt">
+                    <span>Что изменили</span>
+                    <span class="diff-head-sub">${esc(who)} · ${esc(when)}${count}</span>
+                </div>
+                <button class="btn btn-sec" id="event-details-close" title="Закрыть">✕</button>
             </div>
-            <div class="modal-body">
-                ${ev.comment ? `<div class="head-notes">${esc(ev.comment)}</div>` : ''}
-                <div class="event-diff-list">${fieldsHtml}</div>
+            <div class="modal-body diff-body">
+                ${ev.comment ? `<div class="diff-comment"><span class="diff-comment-lbl">Комментарий к правке</span>${esc(ev.comment)}</div>` : ''}
+                ${bodyHtml}
             </div>
         </div>
     `;
     document.body.appendChild(modal);
 
-    const close = () => modal.remove();
+    const close = () => {
+        document.removeEventListener('keydown', onKey);
+        modal.remove();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
     modal.querySelector('.modal-backdrop').onclick = close;
     modal.querySelector('#event-details-close').onclick = close;
 }
 
-function formatDiffValue(v) {
-    if (v === null || v === undefined) return '—';
-    if (typeof v === 'object') return JSON.stringify(v);
-    return String(v);
+// Группа = вкладка окна правки: человек правил «Фильтры ДВС» и ищет здесь ту же
+// самую «Фильтры ДВС».
+function diffGroupHtml(group) {
+    return `
+        <div class="diff-group">
+            <div class="diff-group-head">
+                <span class="diff-group-name">${esc(group.label)}</span>
+                <span class="diff-group-count">${group.rows.length}</span>
+            </div>
+            ${group.rows.map(diffRowHtml).join('')}
+        </div>`;
+}
+
+function diffRowHtml(row) {
+    let body;
+    if (row.kind === 'items') body = `<div class="diff-items">${row.items.map(diffItemHtml).join('')}</div>`;
+    else if (row.kind === 'list') body = diffChipsHtml(row);
+    else body = diffPairHtml(row.from, row.to, { raw: row.raw });
+
+    return `
+        <div class="diff-row diff-row-${row.op}">
+            <div class="diff-row-head">
+                <span class="diff-badge diff-badge-${row.op}">${OP_LABELS[row.op]}</span>
+                <span class="diff-row-name">${esc(row.label)}</span>
+            </div>
+            ${body}
+        </div>`;
+}
+
+// Строка составного поля: слева — что именно внутри поля («Салонный (сф)»,
+// «ДВС · объём частичной, л»), справа — что с ним стало.
+function diffItemHtml(item) {
+    const value = item.text
+        ? `<span class="diff-note diff-note-${item.op}">${esc(item.text)}</span>`
+        : diffPairHtml(item.from, item.to, { href: item.href, titleTo: item.fullTo, titleFrom: item.fullFrom });
+    return `
+        <div class="diff-item">
+            <span class="diff-item-name">${esc(item.label)}</span>
+            ${value}
+        </div>`;
+}
+
+// Пара «было → стало». Стороны подписаны всегда: без подписей одинокое зелёное
+// значение у добавленного поля читается как «а что было-то?».
+function diffPairHtml(from, to, { raw = false, href = null, titleFrom = null, titleTo = null } = {}) {
+    const side = (cap, text, cls, link, title) => {
+        const empty = text == null || text === '';
+        const inner = empty
+            ? '<span class="diff-val diff-val-empty">не заполнено</span>'
+            : (link && /^https?:\/\//i.test(link)
+                ? `<a class="diff-val ${cls}" href="${esc(link)}" target="_blank" rel="noopener"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</a>`
+                : `<span class="diff-val ${cls}${raw ? ' diff-val-raw' : ''}"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>`);
+        return `<div class="diff-side"><span class="diff-cap">${cap}</span>${inner}</div>`;
+    };
+    return `
+        <div class="diff-pair">
+            ${side('было', from, 'diff-val-old', null, titleFrom)}
+            <span class="diff-arrow">${arrowRightIcon(14)}</span>
+            ${side('стало', to, 'diff-val-new', href, titleTo)}
+        </div>`;
+}
+
+// Теги и допуска — список: «было → стало» на нём врало бы, там меняются
+// отдельные строки, а не значение целиком.
+function diffChipsHtml(row) {
+    const chips = [
+        ...row.removed.map(t => `<span class="diff-chip diff-chip-del">−&nbsp;${esc(t)}</span>`),
+        ...row.added.map(t => `<span class="diff-chip diff-chip-add">+&nbsp;${esc(t)}</span>`),
+    ].join('');
+    return `<div class="diff-chips">${chips}</div>`;
+}
+
+function plural(n, one, few, many) {
+    const a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return many;
+    if (b > 1 && b < 5) return few;
+    if (b === 1) return one;
+    return many;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
