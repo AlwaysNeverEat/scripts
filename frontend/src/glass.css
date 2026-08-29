@@ -417,8 +417,8 @@
   pointer-events: none;
   z-index: 1;
 }
-/* ::before кромки лежит поверх фона окна, поэтому самому окну нужен свой
-   контекст — иначе кромка окажется под содержимым или под соседней панелью. */
-:root[data-glass] .modal-win,
-:root[data-glass] .theme-menu,
+/* ::before кромки лежит поверх фона панели, поэтому панели нужен свой контекст.
+   Окну (.modal-win) и меню его добавлять НЕЛЬЗЯ: у первого position: relative
+   уже стоит в style.css, а второе позиционируется fixed по координатам кнопки
+   (см. theme.js), и relative отсюда отправлял бы меню в конец страницы. */
 :root[data-glass] .app-tabs-inner { position: relative; }
