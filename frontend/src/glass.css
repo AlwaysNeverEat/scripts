@@ -160,12 +160,17 @@
 :root[data-glass] {
   --g-radius: 22px;
   --g-radius-sm: 14px;
-  --g-surface: rgba(255, 255, 255, .13);
-  --g-surface-2: rgba(255, 255, 255, .2);
-  --g-edge: rgba(255, 255, 255, .18);
-  --g-edge-strong: rgba(255, 255, 255, .34);
-  --g-hi: rgba(255, 255, 255, .42);
-  --g-gloss: linear-gradient(180deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, .03) 42%, rgba(255, 255, 255, 0) 70%);
+  /* Тёмное стекло красится ТЁМНЫМ, а не белой вуалью поверх фона. Белая
+     полупрозрачная заливка на тёмной теме высветляет панель — и панель
+     выглядит светлой на тёмном сайте, то есть тема сама себя выворачивает.
+     Светлым остаётся только срез и блик: свет ложится на кромку, а не
+     разливается по всей пластине. */
+  --g-surface: rgba(14, 18, 27, .55);
+  --g-surface-2: rgba(24, 30, 43, .62);
+  --g-edge: rgba(255, 255, 255, .14);
+  --g-edge-strong: rgba(255, 255, 255, .28);
+  --g-hi: rgba(255, 255, 255, .22);
+  --g-gloss: linear-gradient(180deg, rgba(255, 255, 255, .07) 0%, rgba(255, 255, 255, .02) 42%, rgba(255, 255, 255, 0) 70%);
   --g-shadow: 0 14px 36px rgba(0, 0, 0, .40);
   --g-shadow-sm: 0 4px 14px rgba(0, 0, 0, .3);
   --g-field: rgba(0, 0, 0, .24);
@@ -471,6 +476,56 @@
   background-color: color-mix(in oklab, var(--house) 14%, var(--g-surface));
   background-image: var(--g-gloss);
   border-color: color-mix(in oklab, var(--house) 30%, var(--g-edge));
+}
+
+/* ── Отступы ─────────────────────────────────────────────────────────────
+   На плоской теме блоки разделялись линиями и фоном страницы, и прижатая к
+   краю панель выглядела нормально. У стекла границы видны сами, и панели без
+   зазоров превращаются в одну слипшуюся простыню: между пластинами обязан
+   быть воздух, иначе не видно, что их несколько. */
+:root[data-glass] .rc-shell { padding: 16px 18px 48px; }
+:root[data-glass] .rc-top { padding: 10px 14px; }
+:root[data-glass] .rc-banner,
+:root[data-glass] .rc-warn { padding: 12px 14px; margin: 12px 0; }
+:root[data-glass] .rc-station-head { padding: 16px 18px; margin-bottom: 14px; }
+:root[data-glass] .page-head { padding: 18px 20px; margin-top: 14px; }
+:root[data-glass] .rc-overview { padding: 12px; }
+
+/* Строка «обновлено N минут назад» — подпись, а не панель. Растянутая во всю
+   ширину, она читалась как пустая полоса непонятного назначения; на стекле
+   ей место каплей по содержимому. */
+:root[data-glass] .rc-statusline {
+  width: fit-content;
+  padding: 5px 12px;
+  border-radius: 999px;
+  margin: 12px 0 0;
+}
+
+/* ── Переключатель «Поиск / Теги / Клиент» ───────────────────────────────
+   Делаем его тем же, чем стал ряд вкладок: капсула-подложка, а внутри —
+   светлая пластина на выбранном. Раньше выбранный красился сплошным акцентом
+   и выпадал из языка темы: в шапке активное показывается стеклом, а тут
+   заливкой. */
+:root[data-glass] .search-mode-toggle {
+  background: var(--g-surface-2);
+  background-image: var(--g-gloss);
+  border-color: var(--g-edge);
+  box-shadow: var(--g-shadow-sm), inset 0 1px 0 var(--g-hi);
+  padding: 4px;
+}
+:root[data-glass] .search-mode-toggle .chip {
+  background: none;
+  border: 1px solid transparent;
+  box-shadow: none;
+  color: var(--sub);
+}
+:root[data-glass] .search-mode-toggle .chip:hover { color: var(--text); }
+:root[data-glass] .search-mode-toggle .chip.active {
+  background-color: var(--g-surface-2);
+  background-image: var(--g-gloss);
+  border-color: var(--g-edge-strong);
+  color: var(--accent);
+  box-shadow: var(--g-shadow-sm), inset 0 1px 0 var(--g-hi);
 }
 
 /* ── Разделы: калькулятор, записи, лента ─────────────────────────────────
