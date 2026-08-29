@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!-- Дев-песочница ленты событий и окна «Что изменили»: события выдуманные,
+     без бэкенда и без базы.
+     Открыть: npx vite → /dev-diff.html
+
+     Здесь проверяется ВЁРСТКА разбора: что бейдж и подпись поля отвечают на
+     «что случилось», что из фильтров в окно попадает только изменившийся, что
+     длинная ссылка не растягивает окно, а «не заполнено» видно как отсутствие
+     значения. За сам разбор отвечает shared/carDiff.test.js.
+
+     Первое событие — ровно то, что было на скриншотах жалобы: правка фильтров
+     и правка «мощность + ссылки + фильтры» одним махом.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: что изменили</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Что изменили — песочница</h2>
+    <p class="page-sub">Кликните карточку правки: она откроет разбор изменений.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+  </div>
+  <div id="car-events" class="car-events"></div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, toggleTheme } from './src/theme.js';
+    import { renderEvents } from './src/carPage.js';
+
+    initTheme();
+    document.getElementById('dev-theme').onclick = () => toggleTheme();
+
+    const kolya = { id: 'u1', display_name: 'Коля Ершов', role: 'user', avatar: null };
+    const mod   = { id: 'u2', display_name: 'Аня Смирнова', role: 'mod', avatar: null };
+
+    const MANN = 'https://www.mann-filter.com/ru-ru/catalog/search-results.html?mode=application'
+        + '&vehicleMake=LADA+%28SHIGULI%29&vehicleModel=Kalina&vehicleModelId=000000011721'
+        + '&vehicleTypeId=00000000230499&modelTypeId=00000000230499&ccm=1596&kw=72';
+
+    const EVENTS = [
+      {
+        id: 'e1', type: 'edited', user: kolya, created_at: '2026-08-28T09:12:00Z',
+        comment: 'Салонный сверил по каталогу, воздушного на этой машине нет вовсе.',
+        changed_fields: {
+          filter_part_numbers: {
+            from: { mf: { part: 'LO-1901', absent: false }, sf: { part: '', absent: false }, vf: { part: '', absent: false } },
+            to:   { mf: { part: 'LO-1901', absent: false }, sf: { part: 'CU 2434', absent: false }, vf: { part: null, absent: true } },
+          },
+        },
+      },
+      {
+        id: 'e2', type: 'edited', user: mod, created_at: '2026-08-27T14:30:00Z',
+        comment: 'Фильтры подобраны автоматически (MANN-FILTER)',
+        changed_fields: {
+          kw:  { from: null, to: 72 },
+          bhp: { from: null, to: 98 },
+          fuel_type: { from: '01', to: '05' },
+          // Записано в правку, но значение то же: numeric из базы приходит
+          // строкой. В окне такие поля считаются числом внизу.
+          engine_volume: { from: '1.60', to: 1.6 },
+          year_to: { from: '2019', to: 2019 },
+          source_links: {
+            from: { motul: 'https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus' },
+            to:   { motul: 'https://motul.lubricantadvisor.com/advice.aspx?data=1&lang=rus', mann: MANN },
+          },
+          filter_part_numbers: {
+            from: {},
+            to: { mf: { part: 'W 914/2(10)' }, sf: { part: 'CU 26 004' }, vf: { part: 'C 22 117' } },
+          },
+          fluid_capacities: {
+            from: { engine: { volumeService: 3.2 }, automatic: { volumeTotal: 8, isCvt: true } },
+            to:   { engine: { volumeService: 3.5, motulProducts: ['MOTUL 8100 X-clean 5W-30'] },
+                    automatic: { volumeTotal: 7.6, isCvt: true },
+                    custom: [{ label: 'Раздатка', volumeTotal: 0.9 }] },
+          },
+          service_flags: { from: { atNoFull: true }, to: { atNoFull: false, noSumpFilter: true } },
+          tags: { from: ['пенсия', 'такси'], to: ['пенсия', 'редкая'] },
+          car_approvals: { from: [], to: ['ACEA C3', 'VW 504 00'] },
+          notes: { from: null, to: 'Поддон снимается только со снятием подрамника.' },
+        },
+      },
+      { id: 'e3', type: 'reassigned', user: mod, target_user: kolya, created_at: '2026-08-26T10:00:00Z' },
+      { id: 'e4', type: 'added', user: kolya, created_at: '2026-08-25T08:00:00Z' },
+    ];
+
+    renderEvents('dev-car', {
+      // Сервер отдаёт события по возрастанию, лента их разворачивает сама.
+      apiFetch: async () => EVENTS.slice().reverse(),
+      user: { role: 'mod' },
+    });
+  </script>
+</body>
+</html>
