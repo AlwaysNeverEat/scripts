@@ -18,6 +18,11 @@
 // кладутся в style элемента <html>. Что в них можно класть, решает не этот
 // файл, а shared/supporterTheme.js: там же, где сервер проверяет пришедшее.
 //
+// САМО СТЕКЛО РИСУЕТ НЕ CSS, А WEBGL (liquidGlass.js): размытие фона — это
+// матовое стекло, а настоящее СМЕЩАЕТ то, что за ним. Библиотека грузится
+// только при включении темы, поэтому здесь она вызывается из applyTheme, а не
+// импортируется в чанк сайта.
+//
 // СТЕКЛО — НЕ ТРЕТЬЕ ЗНАЧЕНИЕ data-theme, А НАДСТРОЙКА НАД ПЕРВЫМИ ДВУМЯ.
 // На <html> оно ставит `data-glass` рядом с обычным data-theme="dark|light".
 // Причина простая: в style.css полторы тысячи правил уже разведены по светлой и
@@ -29,6 +34,7 @@
 
 import './glass.css';
 import { GLASS_THEME, themeStyleText, normalizeTheme } from '../../shared/supporterTheme.js';
+import { enableGlass, disableGlass, updateGlassSettings } from './liquidGlass.js';
 
 export const THEME_KEY = 'cars_db_theme';
 // Кэш настроек стекла — чтобы после перезагрузки фон и цвет были на месте
@@ -59,6 +65,8 @@ let onLocked = () => {};
 // Основа, поверх которой лежит стекло: dark или light. Хранится тут же, потому
 // что при переключении на стекло её надо знать до того, как приедут настройки.
 let glassBase = 'dark';
+// Последние применённые настройки — из них линзы берут матовость.
+let lastSettings = null;
 
 export function currentTheme() {
     if (document.documentElement.dataset.glass !== undefined) return GLASS_THEME;
@@ -96,6 +104,12 @@ export function applyTheme(theme, { persist = true } = {}) {
         try { localStorage.setItem(THEME_KEY, next); } catch { /* приватный режим */ }
     }
 
+    // Линзы живут ровно столько, сколько включена тема: и растеризация
+    // страницы, и кадровый цикл стоят денег, а платить их должен только тот,
+    // кто стекло включил.
+    if (glass) enableGlass(lastSettings);
+    else disableGlass();
+
     syncToggles(next);
     document.dispatchEvent(new CustomEvent('themechange', { detail: { theme: next } }));
     return next;
@@ -118,10 +132,20 @@ export function applyGlassSettings(rawTheme) {
         if (!name.startsWith('--supp-')) continue;
         root.style.setProperty(name, pair.slice(i + 1).trim());
     }
+    lastSettings = theme;
+    updateGlassSettings(theme);
+
     // Светлое стекло — не отдельная тема, а та же тема на светлой основе.
     // Меняем основу под уже включённым стеклом, если оно включено.
+    const baseChanged = glassBase !== theme.base;
     glassBase = theme.base;
-    if (currentTheme() === GLASS_THEME) applyTheme(GLASS_THEME, { persist: false });
+    if (currentTheme() === GLASS_THEME) {
+        applyTheme(GLASS_THEME, { persist: false });
+        // Оттенок стекла линза запоминает при создании — сменилась основа,
+        // значит линзы надо пересоздать, иначе светлое стекло останется с
+        // подложкой тёмного.
+        if (baseChanged) { disableGlass(); enableGlass(theme); }
+    }
     try {
         // base и css — для inline-скрипта в <head>: он применяет их до первой
         // отрисовки и не может импортировать shared. theme — для соседней
