@@ -1,9 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Плашки перед ником — одно место на весь сайт.
 //
-// Их две: роль («mod») и факультет («гриф»), и порядок у них ЖЁСТКИЙ — сначала
-// роль, потом факультет. Роль говорит о правах, факультет о человеке, и права
-// важнее: у модератора всегда «mod гриф Вася», а не наоборот.
+// Их три: роль («mod»), подписка («supp») и факультет («гриф»), и порядок у них
+// ЖЁСТКИЙ — роль, подписка, факультет. Роль говорит о правах, подписка о том,
+// что человек платит за этот сервер, факультет — о характере; сортировка идёт
+// от «что можно» к «кто ты»: у модератора-подписчика всегда
+// «mod supp гриф Вася», а не наоборот.
 //
 // Раньше маленькая функция rolePrefixHtml была скопирована в девять файлов —
 // топ, оба профиля, страница машины, админка и четыре окна игр. Пока плашка
@@ -34,9 +36,41 @@ export function facultyPrefixHtml(faculty) {
     return `<span class="faculty-prefix faculty-${esc(faculty.id)}" title="Факультет: ${esc(faculty.name)}">${esc(faculty.prefix)}</span> `;
 }
 
+// Цвет подписчика уезжает в атрибут style, поэтому сверяем его с шаблоном, а
+// не просто экранируем: экранирование спасает от разметки, но не от лишней
+// точки с запятой, дописывающей соседнее правило. Сервер отдаёт только hex
+// (shared/supporterTheme.js), и здесь мы это же и требуем.
+function safeColor(value) {
+    return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : 'currentColor';
+}
+
+// Плашка подписчика. Цвет у каждого свой (его же он выбрал темой), поэтому он
+// приезжает С ПЛАШКОЙ и кладётся переменной: в glass.css нет ни одного цвета
+// supp, есть только форма. Срок в подсказке — чтобы подписчик видел, сколько
+// осталось, не заходя в профиль.
+export function suppPrefixHtml(supporter) {
+    if (!supporter) return '';
+    const until = supporter.forever
+        ? 'бессрочно'
+        : `до ${new Date(supporter.until).toLocaleDateString('ru-RU')}`;
+    return `<span class="supp-prefix" style="--supp-badge: ${safeColor(supporter.color)}"`
+        + ` title="Подписка supp — ${esc(until)}">supp</span> `;
+}
+
 export function namePrefixHtml(user) {
     if (!user) return '';
-    return rolePrefixHtml(user.role_prefix) + facultyPrefixHtml(user.faculty);
+    return rolePrefixHtml(user.role_prefix)
+        + suppPrefixHtml(user.supporter)
+        + facultyPrefixHtml(user.faculty);
+}
+
+// Цвет строки подписчика для топа. Возвращает и класс, и переменную с цветом:
+// в отличие от факультета, где цвета дома лежат в CSS, тут цвет у каждого свой.
+// Пустая строка, если подписчик не захотел красить свою строку (glow: false), —
+// это его выбор, а не поломка.
+export function suppRowAttrs(supporter) {
+    if (!supporter || !supporter.glow) return { cls: '', style: '' };
+    return { cls: ' supp-tint', style: `--supp-row: ${safeColor(supporter.color)}` };
 }
 
 // CSS-класс с цветами дома — для «подложки» профиля и строки топа.

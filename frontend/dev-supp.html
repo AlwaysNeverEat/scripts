@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<!-- Дев-песочница подписки supp: окно (витрина, настройки темы, выдача),
+     панель профиля и сама тема «Жидкое стекло» — без входа и без базы.
+     Открыть: npx vite → /dev-supp.html
+
+     apiFetch здесь поддельный: он держит состояние подписки в памяти страницы
+     и отвечает на те же пути, что и настоящий бэкенд
+     (backend/src/routes/supporter.js). Переключатели сверху — то, ради чего
+     страница и нужна: посмотреть окно глазами подписчика, «истёкшего» и
+     владельца, не заводя три учётки и не двигая часы на сервере.
+
+     Загрузка своей картинки тут не работает по-настоящему (сервера нет) —
+     в витрине она подставляется прямо из браузера, как и на проде до оплаты.
+     В прод-сборку страница не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: подписка supp</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+
+  <div class="glass-layer" aria-hidden="true"></div>
+
+  <div class="page-head">
+    <h2 class="page-title">Подписка supp — песочница</h2>
+    <p class="page-sub">Окно, панель профиля и тема «Жидкое стекло». Данные поддельные, состояние живёт в памяти вкладки.</p>
+  </div>
+
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+    <button class="btn btn-pri" id="dev-open">Открыть окно</button>
+    <label class="btn btn-sec"><input type="checkbox" id="dev-active"/> подписка активна</label>
+    <label class="btn btn-sec"><input type="checkbox" id="dev-owner"/> я владелец</label>
+    <label class="btn btn-sec"><input type="checkbox" id="dev-over"/> была и кончилась</label>
+    <button class="btn btn-sec" data-theme-toggle title="Тема">Тема</button>
+  </div>
+
+  <div class="page-body profile-page" style="max-width:760px">
+    <section class="profile-sec profile-sec-supp" id="dev-panel"></section>
+
+    <!-- Наполнение страницы нужно не для красоты: стекло преломляет то, что
+         ЗА ним, и на пустой странице проверять нечего — окно выглядело бы
+         одинаково при любых настройках. -->
+    <section class="profile-sec">
+      <div class="profile-sec-head"><h3 class="profile-sec-title">Что под стеклом</h3></div>
+      <div class="profile-sec-body">
+        <p style="margin-bottom:10px">Строки, цифры и кнопки — то, на чём видно преломление: у края панели прямая линия ломается, в середине только мутнеет.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-pri">Кнопка</button>
+          <button class="btn btn-sec">Ещё одна</button>
+          <button class="btn btn-sec">И третья</button>
+        </div>
+      </div>
+    </section>
+    <section class="profile-sec">
+      <div class="profile-sec-head"><h3 class="profile-sec-title">Ещё немного текста</h3></div>
+      <div class="profile-sec-body">
+        <p>Toyota Camry 2.5 2019 · 5W-30 · допуски API SN/CF · масляный фильтр W 712/95 · воздушный C 25 114 · салонный CU 26 010.</p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, setGlassAccess, setLockedHandler, applyGlassSettings } from './src/theme.js';
+    import { openSupporter, supporterSectionHtml, bindSupporterSection, supporterStatusText } from './src/supporter.js';
+    import { DEFAULT_THEME, normalizeTheme, nextExpiry } from '../shared/supporterTheme.js';
+
+    initTheme();
+
+    // Состояние «сервера» на время жизни вкладки.
+    const db = {
+      active: false,
+      owner: false,
+      over: false,
+      theme: { ...DEFAULT_THEME },
+      people: [
+        { id: 'u1', display_name: 'Коля Механик', login: 'kolya' },
+        { id: 'u2', display_name: 'Лена Приёмка', login: 'lena' },
+        { id: 'u3', display_name: 'Дима Мастер',  login: 'dima' },
+      ],
+      grants: [],
+    };
+
+    function state() {
+      const expires = db.active ? nextExpiry(null) : (db.over ? new Date(Date.now() - 3 * 86400000) : null);
+      return {
+        active: db.active,
+        forever: false,
+        expires_at: expires,
+        theme: db.theme,
+        canGrant: db.owner,
+        price: 350,
+        days: 30,
+        bg: { width: 2560, height: 1440, minWidth: 1920, maxBytes: 6 * 1024 * 1024 },
+      };
+    }
+
+    // Тот же интерфейс, что у настоящего apiFetch в main.js.
+    async function apiFetch(path, { method = 'GET', body } = {}) {
+      await new Promise(r => setTimeout(r, 80));   // чтобы видеть «Загрузка…»
+      if (path === '/api/supporter/me') return state();
+      if (path === '/api/supporter/theme' && method === 'PUT') {
+        if (!db.active) throw new Error('нужна действующая подписка supp');
+        db.theme = normalizeTheme(body.theme);
+        return { theme: db.theme };
+      }
+      if (path.startsWith('/api/supporter/users')) {
+        const q = decodeURIComponent(new URL('http://x' + path).searchParams.get('q') || '').toLowerCase();
+        return { users: db.people.filter(p => (p.display_name + p.login).toLowerCase().includes(q)) };
+      }
+      if (path === '/api/supporter/list') {
+        return { supporters: db.grants };
+      }
+      if (path === '/api/supporter/grant') {
+        const who = db.people.find(p => p.id === body.user_id);
+        const row = db.grants.find(g => g.id === body.user_id);
+        const until = nextExpiry(row?.expires_at || null);
+        if (row) Object.assign(row, { expires_at: until, active: true });
+        else db.grants.push({
+          id: who.id, display_name: who.display_name, login: who.login,
+          expires_at: until, active: true, forever: false, color: '#3aa7ff', grants: 1,
+        });
+        return { supporter: { active: true } };
+      }
+      if (path === '/api/supporter/revoke') {
+        const row = db.grants.find(g => g.id === body.user_id);
+        if (!row) throw new Error('у этого человека нет действующей подписки');
+        Object.assign(row, { active: false, expires_at: new Date() });
+        return { supporter: { active: false } };
+      }
+      throw new Error(`dev: ручка ${path} не подделана`);
+    }
+
+    setLockedHandler(() => openSupporter({ apiFetch, onChanged: renderPanel }));
+
+    function sync() {
+      setGlassAccess(db.active);
+      applyGlassSettings(db.theme);
+      renderPanel();
+    }
+
+    async function renderPanel() {
+      const s = await apiFetch('/api/supporter/me');
+      const box = document.getElementById('dev-panel');
+      box.innerHTML = `
+        <div class="profile-sec-head">
+          <h3 class="profile-sec-title">Подписка supp</h3>
+          <span class="profile-sec-meta">${supporterStatusText(s)}</span>
+        </div>
+        <div class="profile-sec-body">${supporterSectionHtml(s)}</div>`;
+      box.classList.toggle('is-on', s.active);
+      bindSupporterSection({ apiFetch, onChanged: renderPanel });
+    }
+
+    document.getElementById('dev-open').onclick = () => openSupporter({ apiFetch, onChanged: renderPanel });
+    document.getElementById('dev-active').onchange = (e) => { db.active = e.target.checked; sync(); };
+    document.getElementById('dev-owner').onchange = (e) => { db.owner = e.target.checked; renderPanel(); };
+    document.getElementById('dev-over').onchange = (e) => { db.over = e.target.checked; renderPanel(); };
+
+    sync();
+  </script>
+</body>
+</html>

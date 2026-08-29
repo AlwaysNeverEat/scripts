@@ -27,6 +27,7 @@ import durakRouter from './routes/durak.js';
 import battleshipRouter from './routes/battleship.js';
 import checkersRouter from './routes/checkers.js';
 import facultyRouter from './routes/faculty.js';
+import supporterRouter from './routes/supporter.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
@@ -100,6 +101,10 @@ app.use('/api/crm', requireSession, crmRouter);
 // Распределяющая шляпа: тест на факультет. Строго именной — и прогресс, и
 // результат привязаны к аккаунту, а пройти его можно один раз (routes/faculty.js).
 app.use('/api/faculty', requireSession, facultyRouter);
+// Подписка «supp»: тема «Жидкое стекло», плашка у ника и цвет своей строки в
+// топе. Выдаёт её руками владелец (деньги через сайт не ходят), а замок на
+// выдаче — по логину, внутри роутера: см. routes/supporter.js.
+app.use('/api/supporter', requireSession, supporterRouter);
 // Пасхалки «Вордле» и «Контекстно» — слово дня считается от id аккаунта, без
 // сессии его и загадать не для кого (см. routes/wordle.js, routes/kontekst.js).
 app.use('/api/wordle', requireSession, wordleRouter);

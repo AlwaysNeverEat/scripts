@@ -1,6 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Вкладка «Топ»: рейтинг по числу СДЕЛАННЫХ ЗАПИСЕЙ за текущий месяц.
 // Эмодзи запрещены — только инлайновые SVG из records/icons.js.
+// Подложка факультета на первом месте не рисуется (золото ни с чем не
+// делится), а цвет подписчика — рисуется: он ложится кромкой и свечением,
+// не трогая саму золотую плашку (см. suppRowAttrs и glass.css).
 // 1-е место — золотая плашка, по которой раз в 5.5 с проходит блик: и по
 // фону строки, и по буквам номера/имени/счёта (.top-row-gold, .gold-text
 // в style.css).
@@ -18,7 +21,7 @@ import { icons } from './records/icons.js';
 // Склонение «запись/записи/записей» общее с лентой активности в профиле —
 // цифры там и тут считаются по одному источнику (record_credits).
 import { recordsWord } from '../../shared/activityHeatmap.js';
-import { namePrefixHtml, facultyClass } from './namePrefix.js';
+import { namePrefixHtml, facultyClass, suppRowAttrs } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 function esc(s) {
@@ -102,11 +105,16 @@ function render(body, data) {
         ? rows.map(row => {
             const gold = row.rank === 1;
             const t = gold ? ' gold-text' : '';
+            // Цвет подписчика — единственное, что рисуется и на первом месте
+            // тоже. Золото при этом остаётся золотом: его заработали записями,
+            // а не подпиской, поэтому supp даёт не подложку, а кромку и
+            // свечение вокруг плашки (см. .top-row.supp-tint в glass.css).
+            const supp = suppRowAttrs(row.supporter);
             // Подложка строки — цвета факультета, но ТОЛЬКО не у первого места:
             // золото ни с чем не делится (правило .top-row.faculty-tint в
             // style.css отключено на .top-row-gold, класс тут не мешает).
             return `
-            <div class="top-row ${gold ? 'top-row-gold' : ''}${facultyClass(row.faculty, 'faculty-tint')}"${profileRowAttrs(row)}>
+            <div class="top-row ${gold ? 'top-row-gold' : ''}${facultyClass(row.faculty, 'faculty-tint')}${supp.cls}" style="${supp.style}"${profileRowAttrs(row)}>
                 <span class="top-rank${t}">${row.rank}</span>
                 <div class="top-avatar">${avatarHtml(row)}</div>
                 <div class="top-name">${namePrefixHtml(row)}<span class="${t.trim()}">${esc(row.display_name)}</span></div>
