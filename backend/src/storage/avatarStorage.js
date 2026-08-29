@@ -18,9 +18,11 @@ import {
     isStorageConfigured as isSupabaseConfigured,
     uploadAvatarOriginal as uploadOriginalToSupabase,
     uploadAvatarCropped as uploadCroppedToSupabase,
+    uploadSupporterBackground as uploadSupporterBgToSupabase,
 } from './supabaseStorage.js';
 import {
     isDiskStorageConfigured, uploadAvatarOriginalToDisk, uploadAvatarCroppedToDisk,
+    uploadSupporterBackgroundToDisk, removeSupporterBackgroundFromDisk,
 } from './diskStorage.js';
 
 export { avatarDir, avatarPublicBase } from './diskStorage.js';
@@ -54,4 +56,24 @@ export function uploadAvatarCropped(userId, buffer) {
     if (isDiskStorageConfigured()) return uploadAvatarCroppedToDisk(userId, buffer);
     if (isSupabaseConfigured()) return uploadCroppedToSupabase(userId, buffer);
     return notConfigured();
+}
+
+// ── Фон темы подписчика ──────────────────────────────────────────────────────
+// Тот же выбор драйвера и тот же каталог, что у аватарок (см. diskStorage.js):
+// это такая же пользовательская картинка, только показывается она не в кружке,
+// а на весь экран. Отсюда и потолок больше — фон на 2560×1440 весит заметно
+// больше квадратика 256×256 (границы и совет по разрешению —
+// shared/supporterTheme.js).
+
+export function uploadSupporterBackground(userId, buffer, mime) {
+    if (isDiskStorageConfigured()) return uploadSupporterBackgroundToDisk(userId, buffer, mime);
+    if (isSupabaseConfigured()) return uploadSupporterBgToSupabase(userId, buffer, mime);
+    return notConfigured();
+}
+
+// Убрать фон. На Supabase объект остаётся лежать: удалять его нечем (в
+// драйвере есть только upload), а следующая загрузка перезапишет его тем же
+// путём. На диске файл удаляется по-настоящему.
+export async function removeSupporterBackground(userId) {
+    if (isDiskStorageConfigured()) await removeSupporterBackgroundFromDisk(userId);
 }

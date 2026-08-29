@@ -15,7 +15,8 @@ import { initNewsFeed, markNewsSeen, unseenNewsCount } from './newsFeed.js';
 import { openCarCreator } from './carEditor.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { renderCarList } from './carList.js';
-import { initTheme } from './theme.js';
+import { initTheme, setGlassAccess, setLockedHandler, applyGlassSettings } from './theme.js';
+import { openSupporter } from './supporter.js';
 // «Лиды» (панель Битрикса) отложены — см. docs/BITRIX.md. Сам модуль
 // frontend/src/leads.js на месте, выключена только проводка.
 // import { initLeadsPage, startCallWatch } from './leads.js';
@@ -23,6 +24,11 @@ import { initTheme } from './theme.js';
 // Тема уже применена inline-скриптом из <head> (иначе страница мигнула бы
 // тёмной перед светлой) — здесь только вешаем обработчики на переключатели.
 initTheme();
+// Третья тема — «Жидкое стекло» — входит в подписку supp. Пока не вошли в
+// аккаунт, доступа к ней нет ни у кого: подписка именная, а на экране входа
+// имени ещё нет. Выбор стекла в меню в этот момент открывает витрину — это и
+// есть единственное, что может сделать незалогиненный.
+setLockedHandler(() => openSupporter({ apiFetch }));
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
@@ -134,6 +140,7 @@ function enterApp() {
     renderAdminTab();
     renderNewsBadge();
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
+    loadSupporterTheme();
     warmCrmSession();
     // Звонки ловили ГЛОБАЛЬНО, а не на вкладке «Лиды»: входящий приходит,
     // когда оператор считает масло в калькуляторе, и уведомление должно
@@ -161,6 +168,24 @@ function resetTabsState() {
     scrollByRoute.clear();
     Object.assign(lastRoute, DEFAULT_TAB_ROUTE);
     renderAdminTab(); // currentUser уже сброшен — вкладка прячется до входа
+    // Подписка именная: за чужим компьютером не должно остаться чужое стекло.
+    setGlassAccess(false);
+}
+
+// Подписка supp: доступ к теме «Жидкое стекло» и настройки этой темы (цвет,
+// фон, размытие). Спрашиваем ОДИН раз за вход — дальше окно подписки само
+// сообщает об изменениях. Настройки применяем даже тому, у кого подписка
+// кончилась: сама тема при этом не включится (setGlassAccess её погасит), но
+// когда её продлят, вид вернётся тот же, а не сбросится на золотой.
+function loadSupporterTheme() {
+    apiFetch('/api/supporter/me').then(state => {
+        applyGlassSettings(state.theme);
+        setGlassAccess(state.active);
+    }).catch(() => {
+        // Ручка не ответила — считаем, что подписки нет: показать стекло тому,
+        // у кого его нет, хуже, чем не показать тому, у кого оно есть.
+        setGlassAccess(false);
+    });
 }
 
 // Учётка CRM привязана к аккаунту (см. backend/src/crm/client.js): этот запрос

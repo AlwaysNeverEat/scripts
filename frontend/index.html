@@ -25,10 +25,33 @@
     (function () {
       try {
         var t = localStorage.getItem('cars_db_theme');
-        if (t !== 'light' && t !== 'dark') t = 'dark';
-        document.documentElement.setAttribute('data-theme', t);
+        if (t !== 'light' && t !== 'dark' && t !== 'glass') t = 'dark';
+        var glass = t === 'glass', base = glass ? 'dark' : t;
+        if (glass) {
+          // «Жидкое стекло» лежит НАДСТРОЙКОЙ над светлой или тёмной основой
+          // (почему — в шапке src/theme.js), а его настройки — цвет, фон,
+          // размытие — кэшируются здесь же. Без кэша подписчик первые полсекунды
+          // видел бы обычную тёмную тему, пока не ответит сервер.
+          var saved = null;
+          try { saved = JSON.parse(localStorage.getItem('cars_db_supp_theme') || 'null'); } catch (e2) {}
+          if (saved && saved.base === 'light') base = 'light';
+          document.documentElement.setAttribute('data-glass', '');
+          // Переменные ставим ПО ОДНОЙ и только свои: в localStorage мог
+          // оказаться мусор, и он не должен превратиться в произвольные стили.
+          var css = saved && typeof saved.css === 'string' ? saved.css : '';
+          css.split(';').forEach(function (pair) {
+            var i = pair.indexOf(':');
+            if (i < 0) return;
+            var name = pair.slice(0, i).trim();
+            if (name.indexOf('--supp-') !== 0) return;
+            document.documentElement.style.setProperty(name, pair.slice(i + 1).trim());
+          });
+        }
+        document.documentElement.setAttribute('data-theme', base);
         var m = document.querySelector('meta[name="theme-color"]');
-        if (m) m.content = t === 'light' ? '#f6f7f9' : '#0f0f12';
+        if (m) m.content = glass
+          ? (base === 'light' ? '#e8ecf4' : '#0b0f16')
+          : (base === 'light' ? '#f6f7f9' : '#0f0f12');
       } catch (e) {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
@@ -37,6 +60,36 @@
   <link rel="stylesheet" href="/src/style.css"/>
 </head>
 <body>
+  <!-- Фильтр преломления для темы «Жидкое стекло». Он живёт в разметке, а не в
+       CSS, потому что backdrop-filter умеет ссылаться только на SVG-фильтр,
+       лежащий в документе. Идея подсмотрена у samasante/liquid-glass (MIT):
+       настоящее стекло не просто размывает фон, а СМЕЩАЕТ его — поэтому здесь
+       шум (feTurbulence) работает картой смещения (feDisplacementMap), а не
+       рисуется поверх. Кода оттуда не взято ни строчки: там React-компонент со
+       своей картой смещения на каждый элемент, а нам нужен один общий фильтр
+       на четыре панели.
+
+       Смещение слабое (scale 9): на большем фон под панелью начинает «плыть»
+       заметно, и панель читается как поломка рендера, а не как стекло.
+       Показывается фильтр только там, где браузер умеет url() в
+       backdrop-filter (сегодня это Chrome и Edge); остальным достаётся то же
+       матовое стекло без преломления — см. glass.css. -->
+  <svg class="glass-filter-defs" aria-hidden="true" focusable="false" width="0" height="0">
+    <filter id="supp-glass-refract" x="-12%" y="-12%" width="124%" height="124%"
+            color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="7" result="noise"/>
+      <feGaussianBlur in="noise" stdDeviation="1.4" result="soft"/>
+      <feDisplacementMap in="SourceGraphic" in2="soft" scale="9"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </svg>
+
+  <!-- Фон темы «Жидкое стекло» (подписка supp). Отдельным слоем, а не фоном
+       body, потому что его надо РАЗМЫВАТЬ: filter на body размыл бы вместе с
+       картинкой весь текст страницы. В остальных темах слой не показывается
+       вовсе (см. src/glass.css). -->
+  <div class="glass-layer" aria-hidden="true"></div>
+
   <!-- Boot screen: показывается, пока сервер на Render просыпается (src/bootScreen.js) -->
   <div id="boot-screen">
     <div class="boot-card">
@@ -127,6 +180,7 @@
         <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Светлая тема" title="Светлая тема">
           <svg class="theme-icon-sun" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M6 18l-1.4 1.4M19.4 4.6 18 6"/></svg>
           <svg class="theme-icon-moon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+          <svg class="theme-icon-glass" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="4"/><path d="M6.6 15.6c2.2-2.7 4.3-4 6.3-4 1.9 0 3.5 1 4.6 3"/><circle cx="9.1" cy="9.3" r="1.15"/></svg>
         </button>
       </div>
     </nav>
@@ -138,6 +192,7 @@
       <button type="button" class="theme-toggle auth-theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Светлая тема" title="Светлая тема">
         <svg class="theme-icon-sun" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M6 18l-1.4 1.4M19.4 4.6 18 6"/></svg>
         <svg class="theme-icon-moon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+          <svg class="theme-icon-glass" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="4"/><path d="M6.6 15.6c2.2-2.7 4.3-4 6.3-4 1.9 0 3.5 1 4.6 3"/><circle cx="9.1" cy="9.3" r="1.15"/></svg>
       </button>
       <div class="auth-card">
         <div class="auth-title">
