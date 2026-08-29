@@ -5,8 +5,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    DEFAULT_THEME, PRESET_IDS, normalizeTheme, themeStyleText, themeVars,
+    DEFAULT_THEME, PRESET_IDS, PRESETS, normalizeTheme, themeStyleText, themeVars,
     accentInk, hexToRgbTriplet, nextExpiry, daysLeft, SUPP_DAYS,
+    presetIsLight, baseForLuminance,
 } from './supporterTheme.js';
 
 test('мусор вместо настроек даёт настройки по умолчанию', () => {
@@ -49,6 +50,29 @@ test('ползунки зажимаются в свои границы, а не 
     assert.equal(t.blur, 0);
     assert.equal(t.accent, '#112233', 'сломанный ползунок не должен стоить человеку цвета');
     assert.equal(normalizeTheme({ dim: 'много' }).dim, DEFAULT_THEME.dim);
+});
+
+test('у каждого фона отмечено, светлый он или тёмный', () => {
+    // От этой отметки зависит цвет текста: под тёмным фоном буквы светлые,
+    // под светлым — тёмные. Забытое поле означает нечитаемый сайт.
+    for (const p of PRESETS) {
+        assert.equal(typeof p.light, 'boolean', p.id);
+        assert.equal(presetIsLight(p.id), p.light);
+    }
+    // Неизвестный фон считаем светлым: тёмные буквы на светлом стекле
+    // читаются хуже, чем наоборот, но не пропадают совсем.
+    assert.equal(presetIsLight('нет-такого'), true);
+});
+
+test('основа выбирается по яркости картинки', () => {
+    assert.equal(baseForLuminance(0.9), 'light');
+    assert.equal(baseForLuminance(0.12), 'dark');
+    assert.equal(baseForLuminance(0.55), 'light', 'на границе выбираем светлую');
+});
+
+test('по умолчанию тема светлая — стекло это про свет', () => {
+    assert.equal(DEFAULT_THEME.base, 'light');
+    assert.ok(presetIsLight(DEFAULT_THEME.preset));
 });
 
 test('неизвестный пресет заменяется первым, известный сохраняется', () => {

@@ -23,6 +23,7 @@
 import './supporter.css';
 import {
     PRESETS, DEFAULT_THEME, normalizeTheme, themeStyleText, daysLeft,
+    presetIsLight, baseForLuminance,
 } from '../../shared/supporterTheme.js';
 import { applyGlassSettings, applyTheme, setGlassAccess, currentTheme } from './theme.js';
 
@@ -475,6 +476,11 @@ export async function openSupporter({ apiFetch, tab = null, onChanged = () => {}
                 // Выбрали готовый фон — своя картинка уходит с экрана, но с
                 // сервера НЕ удаляется: вернуться к ней можно тем же выбором.
                 draft.background = null;
+                // Фон решает, какой быть основе, а значит и цвету текста:
+                // тёмные буквы на ночном фоне не читаются, светлые на дневном —
+                // тоже. Человек может переключить основу обратно кнопками
+                // выше, но по умолчанию она идёт за фоном.
+                draft.base = presetIsLight(draft.preset) ? 'light' : 'dark';
                 applyAndRedraw();
             };
         });
@@ -504,17 +510,45 @@ export async function openSupporter({ apiFetch, tab = null, onChanged = () => {}
         if (clear) clear.onclick = () => clearBackground({ live });
     }
 
-    // Картинку меряем ДО отправки: 800×600, растянутая на весь экран, выглядит
-    // как поломка сайта, а не как фон, и объяснить это надо до загрузки, а не
-    // после. Но не запрещаем — это вкус, а не ошибка.
+    // Картинку меряем ДО отправки, и меряем две вещи.
+    //
+    // Размер: 800×600, растянутая на весь экран, выглядит как поломка сайта, а
+    // не как фон, и сказать об этом надо до загрузки. Но не запрещаем — это
+    // вкус, а не ошибка.
+    //
+    // Яркость: по ней сама выбирается основа темы, то есть цвет текста. Считаем
+    // по уменьшенной до 32×32 копии — этого хватает для средней яркости, а
+    // читать миллионы пикселей ради одного числа незачем.
     function measure(fileObj) {
         return new Promise(resolve => {
             const url = URL.createObjectURL(fileObj);
             const img = new Image();
-            img.onload = () => { URL.revokeObjectURL(url); resolve({ w: img.naturalWidth, h: img.naturalHeight }); };
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                resolve({ w: img.naturalWidth, h: img.naturalHeight, luma: averageLuma(img) });
+            };
             img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
             img.src = url;
         });
+    }
+
+    function averageLuma(img) {
+        try {
+            const c = document.createElement('canvas');
+            c.width = 32; c.height = 32;
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, 32, 32);
+            const { data } = ctx.getImageData(0, 0, 32, 32);
+            let sum = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                sum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+            }
+            return sum / (data.length / 4);
+        } catch {
+            // Картинка с чужого домена без CORS — холст «пачкается» и читать
+            // его нельзя. Не беда: основу человек переключит сам.
+            return null;
+        }
     }
 
     async function uploadBackground(fileObj, { live }) {
@@ -525,20 +559,35 @@ export async function openSupporter({ apiFetch, tab = null, onChanged = () => {}
                 + ` Советуем от ${state.bg?.minWidth || 1920} px по ширине.`;
             note.classList.remove('hidden');
         }
+        // Тёмная картинка требует светлых букв, светлая — тёмных. Решаем это
+        // за человека: он и так увидит результат, а гадать, почему текст
+        // пропал, не должен.
+        const base = size && size.luma !== null ? baseForLuminance(size.luma) : draft.base;
+
         if (!live) {
             // Без подписки грузить некуда: показываем картинку в макете прямо
             // из браузера, чтобы человек увидел свой фон под стеклом.
             const localUrl = URL.createObjectURL(fileObj);
+            draft.base = base;
             const preview = body.querySelector('#supp-preview');
-            if (preview) preview.style.setProperty('--supp-bg', `url("${localUrl}")`);
-            if (preview) preview.style.setProperty('--supp-bg-size', 'cover');
+            if (preview) {
+                preview.style.setProperty('--supp-bg', `url("${localUrl}")`);
+                preview.style.setProperty('--supp-bg-size', 'cover');
+                preview.dataset.previewBase = base;
+            }
             return;
         }
         const fd = new FormData();
         fd.append('background', fileObj);
         try {
             const res = await apiFetch('/api/supporter/background', { method: 'POST', body: fd, isMultipart: true });
-            saved = normalizeTheme(res.theme);
+            // Сервер сохранил ссылку на файл; основу дописываем вторым
+            // запросом — он знает про картинку, но не про её яркость.
+            const withBase = await apiFetch('/api/supporter/theme', {
+                method: 'PUT',
+                body: { theme: { ...normalizeTheme(res.theme), base } },
+            });
+            saved = normalizeTheme(withBase.theme);
             draft = { ...saved };
             dirty = false;
             applyGlassSettings(saved);
