@@ -23,7 +23,7 @@
 import './supporter.css';
 import {
     PRESETS, DEFAULT_THEME, normalizeTheme, themeStyleText, daysLeft,
-    presetIsLight, baseForLuminance,
+    presetIsLight, baseForLuminance, pairedPreset,
 } from '../../shared/supporterTheme.js';
 import { applyGlassSettings, applyTheme, setGlassAccess, currentTheme } from './theme.js';
 
@@ -122,6 +122,9 @@ function controlsHtml(theme, bg) {
                     <button type="button" class="supp-seg-btn${theme.base === 'dark' ? ' is-on' : ''}" data-base="dark">Тёмное стекло</button>
                     <button type="button" class="supp-seg-btn${theme.base === 'light' ? ' is-on' : ''}" data-base="light">Светлое стекло</button>
                 </div>
+                <div class="supp-hint">Фон меняется вместе с основой: светлая тема на тёмных обоях
+                    выглядит не светлее, а грязнее. Своя картинка остаётся на месте — у неё
+                    основу выбираешь ты.</div>
             </div>
 
             <div class="supp-ctl">
@@ -463,7 +466,18 @@ export async function openSupporter({ apiFetch, tab = null, onChanged = () => {}
         const applyAndRedraw = () => { apply(); render(); };
 
         body.querySelectorAll('#supp-base [data-base]').forEach(btn => {
-            btn.onclick = () => { draft.base = btn.dataset.base; applyAndRedraw(); };
+            btn.onclick = () => {
+                const next = btn.dataset.base;
+                draft.base = next;
+                // Нажимая «Светлое стекло», человек говорит «хочу светлее», а
+                // не «поменяй цвет букв»: вместе с основой меняется и фон, на
+                // парный той же гаммы. Без этого светлая основа оставалась
+                // поверх тёмных обоев, и сайт выглядел грязным, а не светлым.
+                if (!draft.background && presetIsLight(draft.preset) !== (next === 'light')) {
+                    draft.preset = pairedPreset(draft.preset);
+                }
+                applyAndRedraw();
+            };
         });
         body.querySelectorAll('#supp-colors [data-color]').forEach(btn => {
             btn.onclick = () => { draft.accent = btn.dataset.color; applyAndRedraw(); };

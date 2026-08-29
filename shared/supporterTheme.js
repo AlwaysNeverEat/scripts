@@ -61,6 +61,7 @@ export const PRESETS = [
         id: 'daylight',
         name: 'Дневной',
         light: true,
+        pair: 'aurora',
         css: 'radial-gradient(120% 90% at 12% 8%, #dfe7f5 0%, transparent 55%),'
             + ' radial-gradient(110% 80% at 88% 18%, #e9e2f6 0%, transparent 52%),'
             + ' radial-gradient(120% 120% at 50% 100%, #e2f0ef 0%, transparent 60%),'
@@ -70,14 +71,25 @@ export const PRESETS = [
         id: 'pearl',
         name: 'Жемчуг',
         light: true,
+        pair: 'bloom',
         css: 'radial-gradient(100% 80% at 20% 10%, #ffffff 0%, transparent 60%),'
             + ' radial-gradient(120% 90% at 85% 25%, #f2e8ef 0%, transparent 55%),'
             + ' linear-gradient(165deg, #f7f7fa 0%, #e6e8ef 100%)',
     },
     {
+        id: 'sand',
+        name: 'Песок',
+        light: true,
+        pair: 'amber',
+        css: 'radial-gradient(110% 85% at 15% 10%, #fbeedd 0%, transparent 58%),'
+            + ' radial-gradient(120% 90% at 88% 25%, #f6e7cf 0%, transparent 55%),'
+            + ' linear-gradient(160deg, #fbf6ef 0%, #efe6d9 100%)',
+    },
+    {
         id: 'sky',
         name: 'Небо',
         light: true,
+        pair: 'graphite',
         css: 'radial-gradient(110% 85% at 15% 5%, #d8e9ff 0%, transparent 58%),'
             + ' radial-gradient(120% 90% at 90% 30%, #e6f6ff 0%, transparent 55%),'
             + ' linear-gradient(160deg, #eef5fd 0%, #dfe9f5 100%)',
@@ -86,6 +98,7 @@ export const PRESETS = [
         id: 'aurora',
         name: 'Аврора',
         light: false,
+        pair: 'daylight',
         css: 'radial-gradient(120% 90% at 12% 8%, #1b3a6b 0%, transparent 55%),'
             + ' radial-gradient(110% 80% at 88% 18%, #6d2a7a 0%, transparent 52%),'
             + ' radial-gradient(120% 120% at 50% 100%, #0d5c63 0%, transparent 60%),'
@@ -95,6 +108,7 @@ export const PRESETS = [
         id: 'amber',
         name: 'Янтарь',
         light: false,
+        pair: 'sand',
         css: 'radial-gradient(100% 80% at 15% 12%, #6b4310 0%, transparent 55%),'
             + ' radial-gradient(120% 90% at 85% 20%, #8a5a12 0%, transparent 50%),'
             + ' linear-gradient(165deg, #100c07 0%, #1b1610 100%)',
@@ -103,6 +117,7 @@ export const PRESETS = [
         id: 'graphite',
         name: 'Графит',
         light: false,
+        pair: 'sky',
         css: 'radial-gradient(120% 90% at 30% 0%, #2a3140 0%, transparent 60%),'
             + ' linear-gradient(170deg, #0c0e13 0%, #171b23 100%)',
     },
@@ -110,6 +125,7 @@ export const PRESETS = [
         id: 'bloom',
         name: 'Цветение',
         light: false,
+        pair: 'pearl',
         css: 'radial-gradient(90% 70% at 20% 15%, #7a1f4b 0%, transparent 55%),'
             + ' radial-gradient(100% 80% at 80% 25%, #2b3f8f 0%, transparent 55%),'
             + ' radial-gradient(120% 100% at 50% 95%, #1c6f5e 0%, transparent 60%),'
@@ -172,10 +188,20 @@ export function normalizeTheme(raw) {
     const background = typeof src.background === 'string' && URL_RE.test(src.background.trim())
         ? src.background.trim()
         : null;
+    // ФОН И ОСНОВА — ОДНО РЕШЕНИЕ, а не две независимые настройки.
+    //
+    // Светлая основа поверх тёмного фона выглядит не «светлой темой», а мутью:
+    // панели светлые, буквы тёмные, а сам экран остаётся тёмно-коричневым. Так
+    // и вышло на проде: человек выбрал «Светлое стекло», фон остался «Янтарём»,
+    // и сайт стал грязным. Поэтому у ГОТОВОГО фона основу решает сам фон —
+    // его видно целиком, а основа это лишь цвет текста на нём. У своей
+    // картинки основа остаётся за человеком (её яркость мы считаем при
+    // загрузке, но переопределить решение он вправе).
+    const askedBase = src.base === 'light' || src.base === 'dark' ? src.base : DEFAULT_THEME.base;
+    const base = background ? askedBase : (presetIsLight(preset) ? 'light' : 'dark');
+
     return {
-        // Основа читается строго: 'dark' и 'light' — всё остальное (пусто,
-        // мусор, старый формат) значит «как по умолчанию», а не «тёмная».
-        base: src.base === 'light' || src.base === 'dark' ? src.base : DEFAULT_THEME.base,
+        base,
         accent,
         preset,
         background,
@@ -212,6 +238,20 @@ export function presetCss(id) {
     return (found || PRESETS[0]).css;
 }
 
+/**
+ * Пара к фону: тот же фон в другой светлоте.
+ *
+ * Нужна для кнопок «Тёмное / Светлое стекло»: нажимая их, человек говорит «хочу
+ * светлее», а не «поменяй цвет букв», — и вместе с основой должен меняться фон.
+ * Пары подобраны по настроению, а не по алфавиту: «Янтарь» ↔ «Песок» (оба
+ * тёплые), «Аврора» ↔ «Дневной» (холодные), «Цветение» ↔ «Жемчуг» (розовые),
+ * «Графит» ↔ «Небо» (нейтральные).
+ */
+export function pairedPreset(id) {
+    const found = PRESETS.find(p => p.id === id);
+    return found?.pair || DEFAULT_THEME.preset;
+}
+
 /** Светлый ли фон — по нему выбирается основа темы, а значит и цвет текста. */
 export function presetIsLight(id) {
     const found = PRESETS.find(p => p.id === id);
@@ -246,6 +286,13 @@ export function themeVars(theme) {
         // «размера», и cover заставил бы браузер пересчитывать его на каждом
         // кадре прокрутки.
         '--supp-bg-size': t.background ? 'cover' : 'auto',
+        // Цвет вуали поверх обоев — ОТДЕЛЬНОЙ переменной, а не по атрибуту
+        // data-theme в CSS. Атрибут ставится в другом месте и в другой момент,
+        // и стоило ему разойтись с выбранной основой — поверх светлых обоев
+        // ложилась чёрная вуаль в 45%, то есть светлая тема выглядела бурой.
+        // Здесь основа и цвет вуали приезжают одной строкой и разойтись не
+        // могут по построению.
+        '--supp-veil': t.base === 'light' ? '255, 255, 255' : '0, 0, 0',
         '--supp-dim': String(t.dim / 100),
         '--supp-blur': `${t.blur}px`,
     };

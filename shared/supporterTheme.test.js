@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
     DEFAULT_THEME, PRESET_IDS, PRESETS, normalizeTheme, themeStyleText, themeVars,
     accentInk, hexToRgbTriplet, nextExpiry, daysLeft, SUPP_DAYS,
-    presetIsLight, baseForLuminance,
+    presetIsLight, baseForLuminance, pairedPreset,
 } from './supporterTheme.js';
 
 test('мусор вместо настроек даёт настройки по умолчанию', () => {
@@ -62,6 +62,31 @@ test('у каждого фона отмечено, светлый он или т
     // Неизвестный фон считаем светлым: тёмные буквы на светлом стекле
     // читаются хуже, чем наоборот, но не пропадают совсем.
     assert.equal(presetIsLight('нет-такого'), true);
+});
+
+test('у готового фона основу решает сам фон', () => {
+    // Светлая основа поверх тёмных обоев — это не светлая тема, а муть:
+    // панели светлые, буквы тёмные, экран тёмно-коричневый. Ровно так и
+    // сломалось на проде, поэтому пара «фон + основа» приводится к согласию.
+    assert.equal(normalizeTheme({ base: 'light', preset: 'amber' }).base, 'dark');
+    assert.equal(normalizeTheme({ base: 'dark', preset: 'daylight' }).base, 'light');
+});
+
+test('у своей картинки основа остаётся за человеком', () => {
+    // Картинку мы не знаем наперёд: её яркость считается при загрузке, но
+    // последнее слово за тем, кто на неё смотрит.
+    const t = normalizeTheme({ base: 'dark', preset: 'daylight', background: '/avatars/u-supp-bg.jpg' });
+    assert.equal(t.base, 'dark');
+});
+
+test('у каждого фона есть пара в другой светлоте', () => {
+    for (const p of PRESETS) {
+        const pair = pairedPreset(p.id);
+        assert.ok(PRESET_IDS.includes(pair), `${p.id} → ${pair}`);
+        assert.notEqual(presetIsLight(pair), p.light, `${p.id} и ${pair} одной светлоты`);
+        // Пары взаимны: нажал «светлее», потом «темнее» — вернулся туда же.
+        assert.equal(pairedPreset(pair), p.id, `${p.id} ↔ ${pair} не взаимны`);
+    }
 });
 
 test('основа выбирается по яркости картинки', () => {
