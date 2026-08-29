@@ -160,8 +160,8 @@
 :root[data-glass] {
   --g-radius: 22px;
   --g-radius-sm: 14px;
-  --g-surface: rgba(255, 255, 255, .08);
-  --g-surface-2: rgba(255, 255, 255, .14);
+  --g-surface: rgba(255, 255, 255, .13);
+  --g-surface-2: rgba(255, 255, 255, .2);
   --g-edge: rgba(255, 255, 255, .18);
   --g-edge-strong: rgba(255, 255, 255, .34);
   --g-hi: rgba(255, 255, 255, .42);
@@ -212,11 +212,48 @@
 :root[data-glass] .tag-results,
 :root[data-glass] .oil-picker,
 :root[data-glass] .modal-win,
-:root[data-glass] .theme-menu {
+:root[data-glass] .theme-menu,
+/* Ниже — блоки, где текст иначе лёг бы прямо на обои. Правило темы простое:
+   НИ ОДНОЙ строки на голом фоне. Заголовок раздела, шапка записей, шапка
+   станции, подписи боксов, карточка входа — всё это тоже поверхности, просто
+   раньше им хватало фона страницы. */
+:root[data-glass] .page-head,
+:root[data-glass] .rc-top,
+:root[data-glass] .rc-station-head,
+:root[data-glass] .rc-side-map-stick,
+:root[data-glass] .auth-card,
+:root[data-glass] .search-empty,
+:root[data-glass] .top-month {
   border-radius: var(--g-radius);
   background-color: var(--g-surface);
   border: 1px solid var(--g-edge);
   box-shadow: var(--g-shadow), inset 0 1px 0 var(--g-hi);
+}
+
+/* Настоящее матовое стекло: размываем то, что за панелью. Без этого
+   полупрозрачная панель — просто выцветшее пятно, а не стекло.
+   Список нарочно КОРОЧЕ списка поверхностей: backdrop-filter считается на
+   каждый кадр прокрутки, и вешать его на сетку из тридцати карточек станций
+   значит купить красоту ценой рывков. Там, где панелей много и они мелкие,
+   хватает заливки с бликом. */
+:root[data-glass] .profile-sec,
+:root[data-glass] .profile-hero,
+:root[data-glass] .agg-card,
+:root[data-glass] .ctrl-section,
+:root[data-glass] .filters-section,
+:root[data-glass] .totals-section,
+:root[data-glass] .report-panel,
+:root[data-glass] .page-head,
+:root[data-glass] .rc-top,
+:root[data-glass] .rc-station-head,
+:root[data-glass] .rc-side-map-stick,
+:root[data-glass] .auth-card,
+:root[data-glass] .top-prev,
+:root[data-glass] .faculty-card,
+:root[data-glass] .crm-panel,
+:root[data-glass] .calc-topbar {
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
 }
 
 /* Блик кладём отдельным правилом: у части блоков (золотая строка топа,
@@ -231,8 +268,23 @@
 :root[data-glass] .rc-card,
 :root[data-glass] .modal-win,
 :root[data-glass] .theme-menu,
-:root[data-glass] .car-card {
+:root[data-glass] .car-card,
+:root[data-glass] .page-head,
+:root[data-glass] .rc-top,
+:root[data-glass] .rc-station-head,
+:root[data-glass] .auth-card {
   background-image: var(--g-gloss);
+}
+
+/* Мелкие подписи (месяц над топом, «ничего не найдено») — не полноценные
+   панели, а капли стекла под строкой: с рамкой и тенью они выглядели бы
+   пустыми карточками. */
+:root[data-glass] .search-empty,
+:root[data-glass] .top-month {
+  border-radius: 999px;
+  padding: 8px 16px;
+  box-shadow: none;
+  display: inline-block;
 }
 
 /* Вложенные поверхности (шапка карточки агрегата, строка масла, панель
@@ -412,6 +464,15 @@
 :root[data-glass] .supp-tabs,
 :root[data-glass] .head-sec { border-color: var(--g-edge); }
 
+/* Карточка факультета красится цветом дома. На стекле сплошная заливка
+   выглядит наклейкой поверх темы, поэтому цвет дома остаётся, но становится
+   подмесом к стеклу — как акцент подписчика в остальных панелях. */
+:root[data-glass] .faculty-card {
+  background-color: color-mix(in oklab, var(--house) 14%, var(--g-surface));
+  background-image: var(--g-gloss);
+  border-color: color-mix(in oklab, var(--house) 30%, var(--g-edge));
+}
+
 /* ── Разделы: калькулятор, записи, лента ─────────────────────────────────
    Те же три роли, но у блоков, которые встречаются только в своих разделах.
    Держим их отдельным списком, чтобы было видно: тема покрывает не «главную и
@@ -429,7 +490,13 @@
   border: 1px solid var(--g-edge);
   box-shadow: var(--g-shadow-sm), inset 0 1px 0 var(--g-hi);
 }
-:root[data-glass] .calc-topbar { border-radius: 0 0 var(--g-radius) var(--g-radius); }
+:root[data-glass] .calc-topbar {
+  border-radius: 0 0 var(--g-radius) var(--g-radius);
+  /* Выше холста со стеклом (499) и ниже ряда вкладок (520). Со своим прежним
+     z-index: 10 шапка оказалась бы ПОД стеклом соседних панелей — то есть
+     пропадала бы под ними при прокрутке. */
+  z-index: 505;
+}
 
 /* Карточку под курсором приподнимаем. На плоской теме это лишнее украшение, а
    на стекле — единственный способ показать, что предмет лежит НА поверхности,
