@@ -157,6 +157,46 @@
       </div>
     </section>
 
+    <!-- Записи: шапка раздела, статусная строка и шапка станции -->
+    <div class="rc-shell" style="padding:0">
+      <div class="rc-top">
+        <span class="rc-brand">Записи</span>
+        <div class="rc-tabs">
+          <button class="chip active">Сегодня</button>
+          <button class="chip">Завтра</button>
+          <button class="chip">Дата</button>
+        </div>
+        <input class="supp-input" style="max-width:320px" placeholder="Имя, телефон или адрес…"/>
+        <div class="rc-topbtns">
+          <button class="btn btn-sec">Карта</button>
+          <button class="btn btn-sec">Очередь</button>
+        </div>
+      </div>
+      <div class="rc-statusline"><span class="rc-dot rc-dot-ok"></span>обновлено 1 мин назад</div>
+      <div class="rc-station-head">
+        <div class="rc-station-headline">
+          <span class="rc-station-title">Выб. шоссе 212к8</span>
+          <span class="rc-station-code">##19</span>
+        </div>
+        <div class="rc-station-chips">
+          <span class="rc-pill">Парнас · Кировско-Выборгская</span>
+          <span class="rc-pill rc-pill-boxes">1 бокс / 1 яма</span>
+          <span class="rc-pill rc-pill-gate">ворота 2 м</span>
+        </div>
+        <div class="rc-station-btns">
+          <button class="btn btn-sec">Изменить</button>
+          <button class="btn btn-sec">← Все станции</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Переключатель режима поиска (главная) -->
+    <div class="search-mode-toggle">
+      <button class="chip active">Поиск</button>
+      <button class="chip">Теги</button>
+      <button class="chip">Клиент</button>
+    </div>
+
     <!-- Записи: карточки станций -->
     <div class="rc-overview" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
       <button class="rc-card">
