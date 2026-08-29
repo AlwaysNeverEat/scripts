@@ -29,6 +29,10 @@
           try { saved = JSON.parse(localStorage.getItem('cars_db_supp_theme') || 'null'); } catch (e2) {}
           if (saved && saved.base === 'light') base = 'light';
           document.documentElement.setAttribute('data-glass', '');
+          // Основа стекла — своим атрибутом: палитра панелей смотрит на него, а
+          // не на data-theme (см. src/glass.css). Ставим до первой отрисовки,
+          // иначе светлое стекло мигнёт тёмным.
+          document.documentElement.setAttribute('data-glass-base', base);
           var css = saved && typeof saved.css === 'string' ? saved.css : '';
           css.split(';').forEach(function (pair) {
             var i = pair.indexOf(':');

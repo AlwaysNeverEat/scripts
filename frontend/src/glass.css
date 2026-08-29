@@ -64,7 +64,7 @@
 
 /* Светлое стекло: те же слои, но светлые. Текст, золото, карта и boot-экран
    уже светлые — их даёт data-theme="light" из style.css. */
-:root[data-glass][data-theme="light"] {
+:root[data-glass][data-glass-base="light"] {
   --bg:            rgba(255, 255, 255, 0.34);
   --card:          rgba(255, 255, 255, 0.62);
   --bg2:           rgba(255, 255, 255, 0.5);
@@ -119,12 +119,11 @@
   background:
     radial-gradient(120% 90% at 15% 10%, rgba(var(--supp-accent-rgb, 212, 160, 23), 0.14) 0%, transparent 55%),
     radial-gradient(100% 80% at 85% 90%, rgba(var(--supp-accent-rgb, 212, 160, 23), 0.1) 0%, transparent 55%),
-    rgba(0, 0, 0, var(--supp-dim, 0.45));
-}
-:root[data-glass][data-theme="light"] .glass-layer::after {
-  background:
-    radial-gradient(120% 90% at 15% 10%, rgba(var(--supp-accent-rgb, 212, 160, 23), 0.12) 0%, transparent 55%),
-    rgba(255, 255, 255, var(--supp-dim, 0.45));
+    /* Цвет вуали приходит переменной вместе с основой (--supp-veil в
+       shared/supporterTheme.js). По атрибуту data-theme его брать нельзя:
+       атрибут ставится отдельно, и стоило ему отстать — поверх светлых обоев
+       ложилась чёрная вуаль, и «светлая» тема выглядела бурой. */
+    rgba(var(--supp-veil, 0, 0, 0), var(--supp-dim, 0.45));
 }
 
 @keyframes glass-drift {
@@ -175,11 +174,26 @@
   --g-shadow-sm: 0 4px 14px rgba(0, 0, 0, .3);
   --g-field: rgba(0, 0, 0, .24);
   --g-ink-dim: rgba(255, 255, 255, .62);
+
+  /* Цвет текста тоже объявляем ЗДЕСЬ, а не оставляем на data-theme. Правило
+     темы простое: что бы ни случилось с остальными атрибутами, буквы обязаны
+     читаться на том стекле, которое сейчас нарисовано. Один раз они уже
+     разошлись — светлые панели с почти белым текстом, — и весь сайт стал
+     нечитаемым. */
+  color-scheme: dark;
+  --text: oklch(0.95 0.01 252);
+  --sub:  oklch(0.68 0.02 252);
 }
 
 /* Светлая основа — та самая «стеклянная» подача, ради которой тему и берут:
-   белые полупрозрачные пластины с ярким срезом и мягкой синеватой тенью. */
-:root[data-glass][data-theme="light"] {
+   белые полупрозрачные пластины с ярким срезом и мягкой синеватой тенью.
+ 
+   Ключ здесь — data-glass-base, а НЕ data-theme, и это не мелочь. data-theme
+   ставится отдельно (им же красится сайт вне стекла), и стоило ему отстать от
+   настроек — палитра стекла бралась тёмная поверх светлых обоев: обои светлые,
+   панели чёрные, сайт выглядит бурым. Теперь основу стекла объявляет один
+   атрибут, который ставится ВМЕСТЕ с настройками (см. applyGlassSettings). */
+:root[data-glass][data-glass-base="light"] {
   --g-surface: rgba(255, 255, 255, .55);
   --g-surface-2: rgba(255, 255, 255, .72);
   --g-edge: rgba(255, 255, 255, .85);
@@ -190,6 +204,10 @@
   --g-shadow-sm: 0 4px 14px rgba(31, 45, 80, .1);
   --g-field: rgba(255, 255, 255, .6);
   --g-ink-dim: rgba(15, 23, 42, .6);
+
+  color-scheme: light;
+  --text: oklch(0.25 0.018 252);
+  --sub:  oklch(0.47 0.015 252);
 }
 
 /* ── Поверхности ─────────────────────────────────────────────────────────── */
@@ -867,9 +885,9 @@
 :root[data-glass-live] .modal-win     { background: rgba(16, 21, 31, .88); }
 :root[data-glass-live] .theme-menu    { background: rgba(16, 21, 31, .85); }
 :root[data-glass-live] .app-tabs-inner { background: rgba(16, 21, 31, .62); }
-:root[data-glass-live][data-theme="light"] .modal-win  { background: rgba(255, 255, 255, .88); }
-:root[data-glass-live][data-theme="light"] .theme-menu     { background: rgba(255, 255, 255, .88); }
-:root[data-glass-live][data-theme="light"] .app-tabs-inner { background: rgba(255, 255, 255, .68); }
+:root[data-glass-live][data-glass-base="light"] .modal-win  { background: rgba(255, 255, 255, .88); }
+:root[data-glass-live][data-glass-base="light"] .theme-menu     { background: rgba(255, 255, 255, .88); }
+:root[data-glass-live][data-glass-base="light"] .app-tabs-inner { background: rgba(255, 255, 255, .68); }
 
 /* Кромка остаётся только в матовом режиме: в WebGL фаску и блик рисует сам
    шейдер, и вторая светлая линия поверх делает панель обведённой, а не
@@ -914,6 +932,9 @@
      затемнения нет вовсе (оно лежит поверх страницы, а снимок делается с
      самой страницы), и чем оно гуще, тем сильнее расходятся яркость страницы
      под стеклом и вокруг него. */
-  background: rgba(0, 0, 0, .42);
+  background: rgba(0, 0, 0, .45);
   pointer-events: none;
 }
+/* На светлой основе затемнение чёрным делает из светлой темы грязную: под
+   окном должно оставаться светло, просто приглушённо. */
+:root[data-glass][data-glass-base="light"] .glass-modal-dim { background: rgba(28, 36, 54, .22); }
