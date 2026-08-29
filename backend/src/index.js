@@ -31,6 +31,7 @@ import supporterRouter from './routes/supporter.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
+import { warnAboutMissingSupporters } from './supporter/store.js';
 import { startRecordsSync } from './records/sync.js';
 
 const app = express();
@@ -173,6 +174,12 @@ app.use((err, req, res, next) => {
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3001');
 app.listen(PORT, '0.0.0.0', () => console.log(`cars-db backend listening on :${PORT}`));
+
+// Миграции в этом проекте накатываются руками (см. CLAUDE.md), а значит
+// возможен порядок «код уже новый, база ещё старая». Молча это выглядит как
+// сломанные страницы, поэтому про недостающую таблицу подписок кричим в лог
+// сразу при старте — с командой, которой её лечат.
+warnAboutMissingSupporters();
 
 // Telegram-воркер — логически отдельный модуль (backend/src/bot/), но
 // запускается в этом же процессе, чтобы не заводить второй сервис на

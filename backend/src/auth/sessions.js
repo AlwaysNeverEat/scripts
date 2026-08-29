@@ -5,7 +5,6 @@
 import crypto from 'node:crypto';
 import { query } from '../db/client.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
-import { SUPPORTER_JOIN, SUPPORTER_COLUMNS, supporterBadge } from '../supporter/badge.js';
 import { isSessionAlive } from './midnightMsk.js';
 
 function hashToken(token) {
@@ -51,14 +50,25 @@ export async function createSession(userId) {
 // Публичная форма юзера (то, что можно отдавать клиенту) + расширяемый
 // префикс роли из role_labels (см. db/migrations/009_role_labels.sql) —
 // новые роли/префиксы не требуют правок кода, только строку в БД.
+//
+// ЗДЕСЬ НЕТ ПОДПИСКИ, И ЭТО ПРАВИЛО, А НЕ НЕДОДЕЛКА. Этот запрос лежит на пути
+// ПРОВЕРКИ СЕССИИ: он выполняется на каждый /api/*, и всё, чего он касается,
+// становится условием входа на сайт. Плашка supp через него уже проехала —
+// таблицы supporters на сервере ещё не было (миграцию накатывают руками), и
+// вместо неработающей подписки перестал работать вход: всех выкинуло.
+//
+// Поэтому правило простое: в loadPublicUser попадает только то, без чего
+// человек не может быть собой — имя, роль, аватарка, бан. Подписка,
+// достижения и прочее необязательное спрашиваются своими ручками
+// (GET /api/supporter/me), и их падение стоит ровно одной панели.
 export async function loadPublicUser(userId) {
   const r = await query(
     `SELECT u.id, u.display_name, u.login, u.role, u.avatar,
             u.avatar_original, u.avatar_crop, u.banned_at,
-            rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}, ${SUPPORTER_COLUMNS}
+            rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}
        FROM users u
        LEFT JOIN role_labels rl ON rl.role = u.role
-       ${FACULTY_JOIN}${SUPPORTER_JOIN}
+       ${FACULTY_JOIN}
       WHERE u.id = $1`,
     [userId],
   );
@@ -80,8 +90,10 @@ export async function loadPublicUser(userId) {
       ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
       : null,
     // Плашка факультета — рядом с ролью, но после неё (см. shared/faculties.js).
+    // Она тут по праву: faculty_results существует с миграции 029, и без неё
+    // сайт всё равно не поднимется — тест на факультет часть входа не трогает,
+    // но таблица едет вместе с базой, а не отдельной свежей миграцией.
     faculty: facultyBadge(row.faculty),
-    supporter: supporterBadge(row),
   };
 }
 

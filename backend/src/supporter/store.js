@@ -170,6 +170,31 @@ function logGrant(userId, { by, action, expires, note }) {
     );
 }
 
+/**
+ * Предупредить в лог, если миграция 039 ещё не накатана.
+ *
+ * Нужно ровно потому, что однажды было: код уехал на сервер раньше миграции,
+ * а плашка подписки в тот момент ещё лежала в проверке сессии — и вместо
+ * неработающей подписки перестал работать вход, всех выкинуло. Проверку из
+ * входа убрали (auth/sessions.js), но остались страницы, которые без таблицы
+ * ответят ошибкой, и молча гадать, почему топ пустой, никто не должен.
+ */
+export async function warnAboutMissingSupporters() {
+    try {
+        const r = await query(`SELECT to_regclass('public.supporters') AS t`);
+        if (r.rows[0]?.t) return;
+        console.warn(
+            '\n!!! Таблицы supporters нет — подписка supp и всё, что её показывает, работать не будет.\n'
+            + '    Накатите миграцию:\n'
+            + '    docker compose -f deploy/docker-compose.prod.yml exec -T postgres \\\n'
+            + '        psql -U carsdb -d carsdb -v ON_ERROR_STOP=1 < db/migrations/039_supporter.sql\n',
+        );
+    } catch (err) {
+        // База может быть ещё не поднята — это не повод падать при старте.
+        console.warn('Проверка таблицы supporters не удалась:', err.message);
+    }
+}
+
 // ── Список для владельца ─────────────────────────────────────────────────────
 
 /**

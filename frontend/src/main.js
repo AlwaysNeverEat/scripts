@@ -181,6 +181,22 @@ function loadSupporterTheme() {
     apiFetch('/api/supporter/me').then(state => {
         applyGlassSettings(state.theme);
         setGlassAccess(state.active);
+        // Плашку supp у СВОЕГО ника вешаем здесь, а не тянем вместе с
+        // пользователем при проверке сессии: тот запрос лежит на пути входа, и
+        // всё, чего он касается, становится условием «пустят ли на сайт»
+        // (см. auth/sessions.js — на этом уже один раз выкинуло всех). В чужих
+        // списках плашка приезжает со строкой списка, там она безопасна.
+        if (currentUser) {
+            currentUser.supporter = state.active
+                ? {
+                    label: 'supp',
+                    color: state.theme?.accent,
+                    glow: state.theme?.glow !== false,
+                    until: state.expires_at,
+                    forever: state.forever,
+                }
+                : null;
+        }
     }).catch(() => {
         // Ручка не ответила — считаем, что подписки нет: показать стекло тому,
         // у кого его нет, хуже, чем не показать тому, у кого оно есть.
