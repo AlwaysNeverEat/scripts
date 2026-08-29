@@ -138,6 +138,326 @@
   :root[data-glass] .glass-layer { animation: none; transform: scale(1.08); }
 }
 
+/* ── Оформление: ВЕСЬ САЙТ, а не три панели ──────────────────────────────────
+   Тема — это не размытая шапка над обычным сайтом. Под стеклом меняются все
+   поверхности разом: карточки калькулятора, строки записей, топ, профиль,
+   поля и кнопки. Иначе выходит заплатка: одна панель стеклянная, а под ней
+   те же прямоугольники с плоской заливкой.
+
+   Правила ниже сгруппированы НЕ по разделам сайта, а по РОЛИ элемента:
+   поверхность (карточка, панель, окно), контрол (кнопка, чип, вкладка) и поле
+   ввода. Новый блок входит в тему одной строкой — его селектор дописывается в
+   нужный список, а не копируется набор теней. Списки длинные потому, что
+   вёрстка разделов писалась в разное время и общего класса «карточка» в
+   проекте нет; заводить его сейчас — это переписать половину сайта ради темы,
+   которой пользуется часть людей.
+
+   Стекло собрано из четырёх слоёв, и все четыре обязательны: полупрозрачная
+   заливка (сквозь неё видно фон), СВЕТЛАЯ КРОМКА сверху (свет ложится на срез
+   — без неё панель выглядит вырезанной дырой), внутренний блик по верхней
+   грани и мягкая тень наружу (иначе панель не «лежит», а вклеена). */
+
+:root[data-glass] {
+  --g-radius: 22px;
+  --g-radius-sm: 14px;
+  --g-surface: rgba(255, 255, 255, .08);
+  --g-surface-2: rgba(255, 255, 255, .14);
+  --g-edge: rgba(255, 255, 255, .18);
+  --g-edge-strong: rgba(255, 255, 255, .34);
+  --g-hi: rgba(255, 255, 255, .42);
+  --g-gloss: linear-gradient(180deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, .03) 42%, rgba(255, 255, 255, 0) 70%);
+  --g-shadow: 0 14px 36px rgba(0, 0, 0, .40);
+  --g-shadow-sm: 0 4px 14px rgba(0, 0, 0, .3);
+  --g-field: rgba(0, 0, 0, .24);
+  --g-ink-dim: rgba(255, 255, 255, .62);
+}
+
+/* Светлая основа — та самая «стеклянная» подача, ради которой тему и берут:
+   белые полупрозрачные пластины с ярким срезом и мягкой синеватой тенью. */
+:root[data-glass][data-theme="light"] {
+  --g-surface: rgba(255, 255, 255, .55);
+  --g-surface-2: rgba(255, 255, 255, .72);
+  --g-edge: rgba(255, 255, 255, .85);
+  --g-edge-strong: rgba(255, 255, 255, 1);
+  --g-hi: rgba(255, 255, 255, .95);
+  --g-gloss: linear-gradient(180deg, rgba(255, 255, 255, .7) 0%, rgba(255, 255, 255, .22) 42%, rgba(255, 255, 255, 0) 72%);
+  --g-shadow: 0 14px 34px rgba(31, 45, 80, .13);
+  --g-shadow-sm: 0 4px 14px rgba(31, 45, 80, .1);
+  --g-field: rgba(255, 255, 255, .6);
+  --g-ink-dim: rgba(15, 23, 42, .6);
+}
+
+/* ── Поверхности ─────────────────────────────────────────────────────────── */
+:root[data-glass] .profile-sec,
+:root[data-glass] .profile-hero,
+:root[data-glass] .agg-card,
+:root[data-glass] .ctrl-section,
+:root[data-glass] .filters-section,
+:root[data-glass] .totals-section,
+:root[data-glass] .report-panel,
+:root[data-glass] .car-card,
+:root[data-glass] .top-prev,
+:root[data-glass] .achievement-card,
+:root[data-glass] .faculty-card,
+:root[data-glass] .supp-terms,
+:root[data-glass] .supp-preview,
+:root[data-glass] .rc-card,
+:root[data-glass] .rc-overview,
+:root[data-glass] .rc-banner,
+:root[data-glass] .rc-warn,
+:root[data-glass] .crm-panel,
+:root[data-glass] .news-card,
+:root[data-glass] .scr-card,
+:root[data-glass] .search-results,
+:root[data-glass] .tag-results,
+:root[data-glass] .oil-picker,
+:root[data-glass] .modal-win,
+:root[data-glass] .theme-menu {
+  border-radius: var(--g-radius);
+  background-color: var(--g-surface);
+  border: 1px solid var(--g-edge);
+  box-shadow: var(--g-shadow), inset 0 1px 0 var(--g-hi);
+}
+
+/* Блик кладём отдельным правилом: у части блоков (золотая строка топа,
+   плитки фонов) свой background-image, и общий градиент затёр бы его. */
+:root[data-glass] .profile-sec,
+:root[data-glass] .profile-hero,
+:root[data-glass] .agg-card,
+:root[data-glass] .ctrl-section,
+:root[data-glass] .filters-section,
+:root[data-glass] .totals-section,
+:root[data-glass] .report-panel,
+:root[data-glass] .rc-card,
+:root[data-glass] .modal-win,
+:root[data-glass] .theme-menu,
+:root[data-glass] .car-card {
+  background-image: var(--g-gloss);
+}
+
+/* Вложенные поверхности (шапка карточки агрегата, строка масла, панель
+   внутри панели) — на тон светлее и без собственной рамки: две рамки подряд
+   на стекле читаются как трещина. */
+:root[data-glass] .agg-header,
+:root[data-glass] .oil-option,
+:root[data-glass] .oil-pick-opt,
+:root[data-glass] .supp-status-top,
+:root[data-glass] .rc-overview .rc-card,
+:root[data-glass] .achievement-card {
+  background-color: var(--g-surface-2);
+  border-color: var(--g-edge);
+}
+:root[data-glass] .oil-option,
+:root[data-glass] .oil-pick-opt { border-radius: var(--g-radius-sm); }
+:root[data-glass] .agg-header { border-bottom: 1px solid var(--g-edge); }
+
+/* ── Контролы: кнопки, чипы, вкладки, плашки ─────────────────────────────
+   Всё, что нажимают, становится капсулой с бликом по верхней грани. Это не
+   мода: на стекле прямоугольная кнопка с плоской заливкой выглядит наклейкой,
+   а капсула с бликом — предметом, лежащим НА стекле. */
+:root[data-glass] .btn,
+:root[data-glass] .chip,
+:root[data-glass] .head-chip,
+:root[data-glass] .rc-pill,
+:root[data-glass] .theme-toggle,
+:root[data-glass] .app-tab,
+:root[data-glass] .supp-seg-btn,
+:root[data-glass] .btn-reset-vol,
+:root[data-glass] .oil-ad-pill,
+:root[data-glass] .appr-tag,
+:root[data-glass] .tag-chip {
+  border-radius: 999px;
+  background-color: var(--g-surface-2);
+  border: 1px solid var(--g-edge);
+  box-shadow: var(--g-shadow-sm), inset 0 1px 0 var(--g-hi);
+  background-image: var(--g-gloss);
+}
+:root[data-glass] .btn:hover,
+:root[data-glass] .chip:hover,
+:root[data-glass] .theme-toggle:hover {
+  border-color: var(--g-edge-strong);
+  background-color: var(--g-surface-2);
+  filter: brightness(1.06);
+}
+
+/* Главная кнопка и выбранный чип — сплошной акцент с бликом: единственное
+   цветное пятно на стекле, и оно должно читаться как выпуклое. */
+:root[data-glass] .btn-pri,
+:root[data-glass] .chip.active,
+:root[data-glass] .supp-seg-btn.is-on {
+  background-color: var(--accent);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .32), rgba(255, 255, 255, 0) 55%);
+  border-color: color-mix(in oklab, var(--accent) 70%, white);
+  color: var(--accent-fg);
+  box-shadow:
+    0 8px 20px color-mix(in oklab, var(--accent) 45%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .5);
+}
+
+/* Сегмент-контрол: общая капсула, внутри — кнопки без своих рамок. */
+:root[data-glass] .seg {
+  border-radius: 999px;
+  padding: 3px;
+  background-color: var(--g-field);
+  border: 1px solid var(--g-edge);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .18);
+  overflow: visible;
+}
+:root[data-glass] .seg .chip {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  box-shadow: none;
+  background-image: none;
+  background-color: transparent;
+}
+:root[data-glass] .seg .chip.active {
+  background-color: var(--accent);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .32), rgba(255, 255, 255, 0) 55%);
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--accent) 40%, transparent), inset 0 1px 0 rgba(255, 255, 255, .5);
+}
+
+/* ── Поля ввода ──────────────────────────────────────────────────────────
+   Поле — единственное, что на стекле должно быть ВДАВЛЕНО: внутренняя тень
+   вместо блика. Иначе поле и кнопка выглядят одинаково, и непонятно, куда
+   печатать, а куда нажимать. */
+:root[data-glass] .vol-input,
+:root[data-glass] .supp-input,
+:root[data-glass] .edit-field input,
+:root[data-glass] .edit-field select,
+:root[data-glass] .edit-field textarea,
+:root[data-glass] .rc-date-input,
+:root[data-glass] .rc-searchbox input,
+:root[data-glass] .search-box input,
+:root[data-glass] .tag-combo-input {
+  border-radius: var(--g-radius-sm);
+  background-color: var(--g-field);
+  border: 1px solid var(--g-edge);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .16);
+}
+:root[data-glass] .vol-input:focus,
+:root[data-glass] .supp-input:focus,
+:root[data-glass] .edit-field input:focus,
+:root[data-glass] .tag-combo-input:focus {
+  border-color: var(--accent);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .16), 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+/* ── Ряд вкладок: плавающая капсула ──────────────────────────────────────
+   Самое заметное изменение темы, и оно же самое дешёвое: полоса во всю ширину
+   с нижней границей — язык обычного интерфейса, а плавающая капсула по центру
+   — язык стекла. Высоту ряда (--tabs-h) НЕ трогаем: от неё считаются отступы
+   sticky-шапок внутри разделов и верхний отступ модалок. */
+:root[data-glass] .app-tabs {
+  background: transparent;
+  border-bottom: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-glass] .app-tabs-inner {
+  height: calc(var(--tabs-h) - 10px);
+  width: fit-content;
+  max-width: calc(100% - 20px);
+  margin: 5px auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background-color: var(--g-surface-2);
+  background-image: var(--g-gloss);
+  border: 1px solid var(--g-edge);
+  box-shadow: var(--g-shadow), inset 0 1px 0 var(--g-hi);
+}
+:root[data-glass] .app-tabs-row { gap: 2px; }
+:root[data-glass] .app-tab {
+  height: calc(100% - 8px);
+  margin: 4px 0;
+  border: 1px solid transparent;
+  background: none;
+  box-shadow: none;
+}
+/* Активная вкладка — светлая капсула, а не подчёркивание: подчёркивание
+   рассчитано на сплошную полосу и на капсуле висит в воздухе. */
+:root[data-glass] .app-tab::after { display: none; }
+:root[data-glass] .app-tab.active {
+  background-color: var(--g-surface-2);
+  background-image: var(--g-gloss);
+  border-color: var(--g-edge-strong);
+  box-shadow: var(--g-shadow-sm), inset 0 1px 0 var(--g-hi);
+}
+/* Под открытым окном ряд вкладок и так лежит поверх затемнения — сплошной
+   фон ему тут не нужен, у капсулы он свой. */
+:root[data-glass] body.modal-open .app-tabs { background: transparent; box-shadow: none; }
+
+/* ── Списки и строки ─────────────────────────────────────────────────────
+   Строка топа и карточка машины — это тоже поверхности, только частые.
+   Тяжёлых теней им не даём (сотня строк с тенью — это сотня слоёв), но форму
+   и кромку они получают ту же. */
+:root[data-glass] .top-row {
+  border-radius: var(--g-radius-sm);
+  border-bottom: none;
+  margin-bottom: 4px;
+  background-color: var(--g-surface);
+  border: 1px solid var(--g-edge);
+}
+:root[data-glass] .top-row.top-row-gold { border-color: var(--gold-plate-border); }
+:root[data-glass] .top-avatar,
+:root[data-glass] .profile-avatar,
+:root[data-glass] .event-avatar {
+  border-color: var(--g-edge-strong);
+  box-shadow: var(--g-shadow-sm), inset 0 1px 0 var(--g-hi);
+}
+
+/* Разделители на стекле — светлые, а не тёмные: тёмная линия на прозрачной
+   панели читается как царапина. */
+:root[data-glass] .profile-sec-head,
+:root[data-glass] .modal-head,
+:root[data-glass] .supp-tabs,
+:root[data-glass] .head-sec { border-color: var(--g-edge); }
+
+/* ── Разделы: калькулятор, записи, лента ─────────────────────────────────
+   Те же три роли, но у блоков, которые встречаются только в своих разделах.
+   Держим их отдельным списком, чтобы было видно: тема покрывает не «главную и
+   профиль», а рабочие экраны — за ними и сидят весь день. */
+:root[data-glass] .calc-topbar,
+:root[data-glass] .total-block,
+:root[data-glass] .event-card,
+:root[data-glass] .scr-card,
+:root[data-glass] .profile-stat,
+:root[data-glass] .rc-sortbar,
+:root[data-glass] .rc-statusline {
+  border-radius: var(--g-radius-sm);
+  background-color: var(--g-surface);
+  background-image: var(--g-gloss);
+  border: 1px solid var(--g-edge);
+  box-shadow: var(--g-shadow-sm), inset 0 1px 0 var(--g-hi);
+}
+:root[data-glass] .calc-topbar { border-radius: 0 0 var(--g-radius) var(--g-radius); }
+
+/* Карточку под курсором приподнимаем. На плоской теме это лишнее украшение, а
+   на стекле — единственный способ показать, что предмет лежит НА поверхности,
+   а не нарисован в ней. */
+:root[data-glass] .rc-card,
+:root[data-glass] .car-card,
+:root[data-glass] .scr-card,
+:root[data-glass] .achievement-card {
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+}
+:root[data-glass] .rc-card:hover,
+:root[data-glass] .car-card:hover,
+:root[data-glass] .scr-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--g-edge-strong);
+  box-shadow: var(--g-shadow), inset 0 1px 0 var(--g-hi);
+}
+
+/* Плашка supp на золотой строке топа: цвет подписчика на золоте выцветает,
+   поэтому там она пишется той же тёмной краской, что и остальной текст
+   плашки первого места. */
+:root[data-glass] .top-row-gold .supp-prefix {
+  color: var(--gold-ink);
+  border-color: var(--gold-hair);
+  background: rgba(255, 255, 255, .28);
+  box-shadow: none;
+}
+
 /* ── Стеклянные поверхности ──────────────────────────────────────────────────
    backdrop-filter вешаем ТОЧЕЧНО, а не на все карточки подряд: он считается
    каждый кадр прокрутки, и сотня размывающих панелей в списке машин кладёт
