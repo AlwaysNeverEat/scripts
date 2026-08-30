@@ -63,7 +63,15 @@ function place(group, animate) {
     const a = active.getBoundingClientRect();
     if (!a.width) { pill.style.opacity = '0'; return; }   // группа ещё скрыта
 
-    const box = { w: a.width, h: a.height, x: a.left - g.left, y: a.top - g.top };
+    // БОРДЮР ДОРОЖКИ ВЫЧИТАЕТСЯ, и это не мелочь. getBoundingClientRect()
+    // возвращает border-box, а `position: absolute; top: 0` отсчитывается от
+    // PADDING-box — то есть от внутреннего края рамки. Без поправки пилюля
+    // уезжает вниз и вправо ровно на толщину рамки; при отступе дорожки в
+    // три пикселя этот один читается как «подсветка съехала».
+    const cs = getComputedStyle(group);
+    const bl = parseFloat(cs.borderLeftWidth) || 0;
+    const bt = parseFloat(cs.borderTopWidth) || 0;
+    const box = { w: a.width, h: a.height, x: a.left - g.left - bl, y: a.top - g.top - bt };
     put(pill, box, animate);
     const name = nameOf(group);
     if (name) lastPlace.set(name, box);
