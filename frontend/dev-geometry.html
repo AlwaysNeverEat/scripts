@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<!-- Дев-песочница ШКАЛЫ СКРУГЛЕНИЙ. Без бэкенда и без базы.
+     Открыть: npx vite → /dev-geometry.html
+
+     Зачем она. До шкалы в проекте было 25 разных значений border-radius на
+     385 объявлений, и токен --radius использовался десять раз из них — то
+     есть радиус каждый раз выбирался заново на глаз. Свести их в четыре
+     ступени можно скриптом, а вот УВИДЕТЬ, что получилось, на живом сайте
+     нельзя: он за входом и за базой, а разъезжается геометрия именно в
+     мелочах — там, где карточка стоит рядом с кнопкой, а бейдж внутри неё.
+
+     Поэтому здесь настоящие классы сайта (.btn, .chip, .head-card, .agg-card,
+     .modal-win, .visc-pill, .role-prefix, тумблер, аватарка), разложенные по
+     ступеням, и ЖИВЫЕ ползунки токенов. Спорить о том, 10 карточке или 12,
+     удобнее движком, чем словами: подвинул — посмотрел на всё сразу.
+
+     Кнопка «как было» возвращает прежние значения ступеней (5/9/10/14), то
+     есть показывает, что именно поменяла шкала.
+
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: геометрия</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+  <style>
+    /* Вёрстка САМОЙ песочницы. Намеренно не использует токены шкалы: если
+       ползунок увести в ноль, страница вокруг должна остаться читаемой. */
+    .g-wrap { max-width: 1100px; margin: 0 auto; padding: 16px 20px 80px; }
+    .g-panel {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end;
+      padding: 12px 20px; margin: 0 -20px 24px;
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+    }
+    .g-ctl { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--sub); }
+    .g-ctl b { font-size: 12px; color: var(--text); font-family: ui-monospace, monospace; }
+    .g-ctl input[type=range] { width: 130px; }
+    .g-ctl output { font-variant-numeric: tabular-nums; }
+    .g-sec { margin: 34px 0 0; }
+    .g-sec > h3 {
+      margin: 0 0 4px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--sub); font-weight: 800;
+    }
+    .g-sec > p { margin: 0 0 14px; font-size: 12px; color: var(--sub); max-width: 620px; }
+    .g-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .g-note { font-size: 11px; color: var(--sub); margin-top: 8px; }
+    .g-moved { border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    .g-moved td { padding: 3px 14px 3px 0; vertical-align: top; }
+    .g-moved td:first-child { font-family: ui-monospace, monospace; white-space: nowrap; color: var(--text); }
+    .g-moved td:last-child { color: var(--sub); }
+    .g-swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
+    .g-swatch > i {
+      width: 96px; height: 64px;
+      background: var(--bg3); border: 1px solid var(--border-strong);
+    }
+    .g-swatch > span { font-size: 11px; color: var(--sub); font-family: ui-monospace, monospace; }
+    .g-fake-avatar { width: 44px; height: 44px; background: var(--accent); flex: none; }
+    .g-card-demo { padding: 16px 18px; background: var(--card); border: 1px solid var(--border); max-width: 340px; }
+    .g-card-demo h4 { margin: 0 0 6px; font-size: 14px; }
+    .g-card-demo p { margin: 0; font-size: 12px; color: var(--sub); }
+  </style>
+</head>
+<body>
+  <div class="g-wrap">
+    <div class="g-panel" id="g-panel">
+      <div class="g-ctl">
+        <b>--r-1</b><span>метка</span>
+        <input type="range" id="r1" min="0" max="24" step="1"><output id="o1"></output>
+      </div>
+      <div class="g-ctl">
+        <b>--r-2</b><span>контрол</span>
+        <input type="range" id="r2" min="0" max="24" step="1"><output id="o2"></output>
+      </div>
+      <div class="g-ctl">
+        <b>--r-3</b><span>карточка</span>
+        <input type="range" id="r3" min="0" max="32" step="1"><output id="o3"></output>
+      </div>
+      <div class="g-ctl">
+        <b>--r-4</b><span>поверхность</span>
+        <input type="range" id="r4" min="0" max="40" step="1"><output id="o4"></output>
+      </div>
+      <button class="btn" id="g-was">Как было</button>
+      <button class="btn" id="g-now">Как сейчас</button>
+      <button class="btn" id="g-theme">Сменить тему</button>
+    </div>
+
+    <div class="page-head">
+      <h2 class="page-title">Геометрия — песочница</h2>
+      <p class="page-sub">
+        Четыре ступени по сетке 4px и две формы. Ступень выбирается по РОЛИ элемента,
+        а не по его размеру на глаз.
+      </p>
+    </div>
+
+    <div class="g-sec">
+      <h3>Шкала</h3>
+      <p>
+        Пятой ступени быть не должно: как только их становится больше, чем помещается
+        в голове, начинается прежнее «тут поставлю 11, а тут смотрится лучше 13».
+      </p>
+      <div class="g-row">
+        <div class="g-swatch"><i style="border-radius: var(--r-1)"></i><span>--r-1</span></div>
+        <div class="g-swatch"><i style="border-radius: var(--r-2)"></i><span>--r-2</span></div>
+        <div class="g-swatch"><i style="border-radius: var(--r-3)"></i><span>--r-3</span></div>
+        <div class="g-swatch"><i style="border-radius: var(--r-4)"></i><span>--r-4</span></div>
+        <div class="g-swatch"><i style="border-radius: var(--r-round)"></i><span>--r-round</span></div>
+        <div class="g-swatch"><i style="width:64px; border-radius: var(--r-circle)"></i><span>--r-circle</span></div>
+      </div>
+      <p class="g-note">
+        Капсула и круг — не ступени и от ползунков не зависят: капсула это всегда
+        половина высоты, круг — половина стороны.
+      </p>
+    </div>
+
+    <div class="g-sec">
+      <h3>--r-1 · метка</h3>
+      <p>Мелкое, что лежит ВНУТРИ строки текста и никогда не бывает самостоятельным блоком.</p>
+      <div class="g-row">
+        <span class="role-prefix" style="background: var(--accent); color: var(--accent-fg)">MOD</span>
+        <span class="visc-pill">5W-30</span>
+        <span class="visc-pill">API SN</span>
+        <span class="appr-chip appr-important">VW 504 00</span>
+      </div>
+    </div>
+
+    <div class="g-sec">
+      <h3>--r-2 · контрол</h3>
+      <p>Всё, на что нажимают или во что пишут. Самая населённая ступень — 76 объявлений.</p>
+      <div class="g-row">
+        <button class="btn">Кнопка</button>
+        <button class="btn btn-pri">Основная</button>
+        <button class="chip">Чип</button>
+        <button class="chip active">Активный чип</button>
+        <input type="text" placeholder="Поле ввода" style="padding:8px 12px; background:var(--bg2); border:1px solid var(--border); color:var(--text)"/>
+        <label class="chk-label"><input type="checkbox" checked/> Тумблер — капсула</label>
+      </div>
+    </div>
+
+    <div class="g-sec">
+      <h3>--r-3 · карточка</h3>
+      <p>
+        Блок со своим фоном внутри страницы. Сюда переехало прежнее 10px —
+        это самый заметный сдвиг шкалы, 21 место.
+      </p>
+      <div class="g-row" style="align-items: stretch">
+        <div class="g-card-demo" style="border-radius: var(--r-3)">
+          <h4>Карточка машины</h4>
+          <p>Lada Kalina 1.6 · 2011 · бензин</p>
+        </div>
+        <div class="g-card-demo" style="border-radius: var(--r-3)">
+          <h4>Блок списка</h4>
+          <p>Строка записи, панель фильтров, вывод отчёта.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="g-sec">
+      <h3>--r-4 · поверхность</h3>
+      <p>Крупное и самостоятельное: модальное окно, карточка входа, плитка игры, hero профиля.</p>
+      <div class="g-row" style="align-items: stretch">
+        <div class="agg-card" style="padding:18px 20px; margin:0; max-width:360px">
+          <h4 style="margin:0 0 6px; font-size:14px">Модальное окно</h4>
+          <p style="margin:0; font-size:12px; color:var(--sub)">
+            У окна и у карточки внутри него ступени должны быть РАЗНЫЕ, иначе
+            вложенность перестаёт читаться.
+          </p>
+        </div>
+        <div class="agg-card" style="padding:18px 20px; margin:0; max-width:300px">
+          <h4 style="margin:0 0 10px; font-size:14px">Вложенность</h4>
+          <div class="g-card-demo" style="border-radius: var(--r-3); padding:10px 12px">
+            <p style="font-size:12px">Карточка внутри окна</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="g-sec">
+      <h3>Формы</h3>
+      <p>Не зависят от шкалы и не должны в неё втягиваться.</p>
+      <div class="g-row">
+        <div class="g-fake-avatar" style="border-radius: var(--r-circle)"></div>
+        <span class="head-chip" style="border-radius: var(--r-round); padding: 4px 14px; background: var(--bg3); border: 1px solid var(--border)">Капсула-пилюля</span>
+        <div style="width:180px; height:6px; background:var(--bg3); border-radius: var(--r-round); overflow:hidden">
+          <span style="display:block; height:100%; width:62%; background:var(--accent)"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="g-sec">
+      <h3>Что именно сдвинулось</h3>
+      <p>231 объявление уехало под токены, из них 70 реально поменяли значение:</p>
+      <table class="g-moved">
+        <tr><td>10px → 12px ×21</td><td>карточки и панели: .seg, .report-output, .sg-list, .filter-priced-row</td></tr>
+        <tr><td>14px → 16px ×12</td><td>поверхности: .modal-win, .head-card, .agg-card, .report-panel, .profile-sec</td></tr>
+        <tr><td>5px → 4px&nbsp; ×11</td><td>метки: .visc-pill, .spot-pill, .appr-*, .role-prefix</td></tr>
+        <tr><td>9px → 8px&nbsp; ×10</td><td>контролы: .theme-toggle, .car-ed-tab, .lead-icon-btn</td></tr>
+        <tr><td>6px → 8px&nbsp; ×9</td><td>контролы: .cc-chip, .head-chip, .head-quirk, .filter-badge</td></tr>
+        <tr><td>7px → 8px&nbsp; ×8</td><td>контролы: .appr-summary, .appr-warn, .diff-val, .activity-tip</td></tr>
+        <tr><td>19px → капсула</td><td>.chk-label input[type=checkbox] — это тумблер 34×19, а не «очень круглый угол»</td></tr>
+        <tr><td>3px → капсула</td><td>.faculty-progress-bar — высота 6px, радиус был ровно в половину</td></tr>
+        <tr><td>11px → 12px ×2</td><td>.rc-add, .rc-cap</td></tr>
+        <tr><td>18px → 16px ×1</td><td>.profile-hero</td></tr>
+      </table>
+      <p class="g-note">
+        Не тронуты: игры (клетка сапёра, карта пасьянса, фишка маджонга подогнаны
+        под спрайт и сетку), boot-экран (резкие углы там — стиль), теплокарта
+        активности и полоски загрузки боксов (клетка в 2–3 пикселя), виджеты leaflet
+        и три «хвостатые» фигуры, у которых скруглены не все углы.
+      </p>
+    </div>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, toggleTheme } from './src/theme.js';
+
+    initTheme();
+    document.getElementById('g-theme').onclick = () => toggleTheme();
+
+    // Ступени шкалы и то, что стояло на их местах до неё. «Как было» — это не
+    // ровно прежний сайт (значений было 25, а не 4), а самое частое из тех,
+    // что съехались в каждую ступень: 5 → метка, 9 → контрол, 10 → карточка,
+    // 14 → поверхность. Для глаза этого хватает, чтобы увидеть сдвиг.
+    const NOW = { r1: 4, r2: 8, r3: 12, r4: 16 };
+    const WAS = { r1: 5, r2: 9, r3: 10, r4: 14 };
+
+    const apply = (v) => {
+      for (const [k, px] of Object.entries(v)) {
+        document.documentElement.style.setProperty(`--${k}`, `${px}px`);
+        const input = document.getElementById(k);
+        input.value = px;
+        document.getElementById(`o${k[1]}`).textContent = `${px}px`;
+      }
+    };
+
+    for (const k of Object.keys(NOW)) {
+      document.getElementById(k).addEventListener('input', (e) => {
+        const px = e.target.value;
+        document.documentElement.style.setProperty(`--${k}`, `${px}px`);
+        document.getElementById(`o${k[1]}`).textContent = `${px}px`;
+      });
+    }
+
+    document.getElementById('g-was').onclick = () => apply(WAS);
+    document.getElementById('g-now').onclick = () => apply(NOW);
+    apply(NOW);
+  </script>
+</body>
+</html>
