@@ -41,32 +41,89 @@ function buildEdges(positions, maxEdges) {
 }
 
 // Палитра узлов: цвет плывёт от «дальнего» (GRAY) к «ближнему» (GOLD),
-// HIGHLIGHT добавляется под курсором. Канвас не знает про CSS-переменные,
-// поэтому у каждой темы свой набор.
+// HIGHLIGHT добавляется под курсором.
 //
 // В светлой теме логика зеркальная: дальние узлы уходят в светло-серый (почти
 // сливаются с белым фоном), ближние — в тёмную бронзу, а подложка карточки
 // становится белой с тёмным текстом. Тот же золотой, что на чёрном, на белом
 // был бы нечитаемым пятном.
-const PALETTES = {
+//
+// ЦВЕТ СЧИТАЕТСЯ ОТ ТОНА АКЦЕНТА, а не задан числами: тон крутит пользователь
+// (accent.js), и сфера — первое, что он видит на главной. Оставить её жёлтой,
+// когда весь сайт стал синим, значит показать поломку на первом же экране.
+// Числа ниже — прежние цвета сферы, переведённые в oklch: при значении по
+// умолчанию (83°) она выглядит ровно как выглядела.
+//
+// Светлота и насыщенность тут свои, а не взятые у --accent: узлы должны
+// уходить в глубину, и «ближний» узел заметно темнее кнопки того же тона.
+const RECIPES = {
     dark: {
-        gold: { r: 212, g: 160, b: 23 },
+        gold: (h) => `oklch(0.735 0.146 ${h})`,
+        highlight: (h) => `oklch(0.91 0.116 ${h + 9})`,
         gray: { r: 107, g: 114, b: 128 },
-        highlight: { r: 253, g: 224, b: 132 },
         // Подложка карточки — затемнённый вариант её же цвета
         card: (r, g, b) => `rgba(${Math.round(r * 0.15)},${Math.round(g * 0.18)},${Math.round(b * 0.12)},0.92)`,
     },
     light: {
-        gold: { r: 148, g: 100, b: 12 },
+        gold: (h) => `oklch(0.54 0.11 ${h + 13})`,
+        highlight: (h) => `oklch(0.43 0.103 ${h - 4})`,
         gray: { r: 158, g: 165, b: 176 },
-        highlight: { r: 120, g: 62, b: 0 },
         card: () => 'rgba(255,255,255,0.92)',
     },
 };
 
+// Запасные цвета на случай браузера без oklch в канвасе: те же самые числа,
+// но жёстко в rgb. Не «на всякий случай» — без них сфера просто не нарисуется.
+const FALLBACK = {
+    dark: { gold: { r: 212, g: 160, b: 23 }, highlight: { r: 253, g: 224, b: 132 } },
+    light: { gold: { r: 148, g: 100, b: 12 }, highlight: { r: 120, g: 62, b: 0 } },
+};
+
 const themeName = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
-let pal = PALETTES[themeName()];
-document.addEventListener('themechange', () => { pal = PALETTES[themeName()]; });
+
+// Тон акцента ЭТОЙ темы: --accent-hh, где смещение светлой темы уже учтено
+// (его считает accent.js), — чтобы не повторять смещение здесь вторым числом.
+function accentHue() {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--accent-hh').trim();
+    const n = Number(v);
+    return Number.isFinite(n) && v !== '' ? n : 83;
+}
+
+// Канвасу нужны ЧИСЛА, а oklch мы считать не умеем — но умеет браузер.
+// Красим пиксель и читаем, что получилось: заодно даром достаётся приведение
+// в охват sRGB (синий и красный на нашей светлоте просто не бывают такими
+// насыщенными, и браузер сам убавит насыщенность, сохранив светлоту).
+//
+// Ни fillStyle, ни getComputedStyle для этого не годятся: оба отдают oklch()
+// обратно той же строкой, а не цветом.
+const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+function toRgb(css, fallback) {
+    try {
+        probe.clearRect(0, 0, 1, 1);
+        probe.fillStyle = css;
+        probe.fillRect(0, 0, 1, 1);
+        const d = probe.getImageData(0, 0, 1, 1).data;
+        if (!d[3]) return fallback;              // цвет не разобрался — пиксель пуст
+        return { r: d[0], g: d[1], b: d[2] };
+    } catch { return fallback; }
+}
+
+function buildPalette() {
+    const name = themeName();
+    const r = RECIPES[name];
+    const h = accentHue();
+    return {
+        gold: toRgb(r.gold(h), FALLBACK[name].gold),
+        highlight: toRgb(r.highlight(h), FALLBACK[name].highlight),
+        gray: r.gray,
+        card: r.card,
+    };
+}
+
+let pal = buildPalette();
+const repaint = () => { pal = buildPalette(); };
+document.addEventListener('themechange', repaint);
+document.addEventListener('accentchange', repaint);
 
 function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();

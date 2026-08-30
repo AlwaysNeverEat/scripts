@@ -16,6 +16,7 @@ import { openCarCreator } from './carEditor.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { renderCarList } from './carList.js';
 import { initTheme } from './theme.js';
+import { initAccent } from './accent.js';
 import { initSegmented } from './segmented.js';
 import { initSelects } from './select.js';
 // «Лиды» (панель Битрикса) отложены — см. docs/BITRIX.md. Сам модуль
@@ -25,6 +26,9 @@ import { initSelects } from './select.js';
 // Тема уже применена inline-скриптом из <head> (иначе страница мигнула бы
 // тёмной перед светлой) — здесь только вешаем обработчики на переключатели.
 initTheme();
+// Акцент уже применён инлайновым скриптом в <head>; здесь — только
+// подсветка выбранной плашки и синхронизация между вкладками.
+initAccent();
 // Капсулы-переключатели: один раз на страницу, дальше следят за собой сами
 // (записи и калькулятор перерисовывают свои куски через innerHTML).
 initSegmented();

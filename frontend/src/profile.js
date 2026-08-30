@@ -18,6 +18,7 @@ import { openAvatarCropper } from './avatarCropper.js';
 import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
+import { accentPickerHtml, bindAccentPicker } from './accent.js';
 import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml } from './namePrefix.js';
@@ -137,6 +138,12 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 }) : ''}
 
                 ${profileSectionHtml({
+                    title: 'Оформление',
+                    meta: 'только на этом устройстве',
+                    body: accentPickerHtml(),
+                })}
+
+                ${profileSectionHtml({
                     title: 'Аккаунт',
                     body: `
                         <button class="btn btn-sec profile-logout" id="btn-logout">Выйти</button>
@@ -147,6 +154,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             </div>
         `;
         bind();
+        bindAccentPicker(box);
         attachFeedParticles(box);
         attachActivityFeed(box);
     }

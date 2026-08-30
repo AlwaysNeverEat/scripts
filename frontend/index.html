@@ -29,6 +29,17 @@
         document.documentElement.setAttribute('data-theme', t);
         var m = document.querySelector('meta[name="theme-color"]');
         if (m) m.content = t === 'light' ? '#f6f7f9' : '#0f0f12';
+        // Акцент — по той же причине и в том же месте: он тоже читается из
+        // localStorage и тоже обязан встать ДО первого кадра, иначе сайт
+        // вспыхивает жёлтым и только потом становится выбранным цветом.
+        var raw = localStorage.getItem('cars_db_accent');
+        var a = Number(raw);
+        if (raw !== null && isFinite(a)) {
+          var deg = function (x) { return String(((Math.round(x) % 360) + 360) % 360); };
+          // Два числа, а не одно с calc(): см. applyAccent в src/accent.js.
+          document.documentElement.style.setProperty('--accent-h', deg(a));
+          document.documentElement.style.setProperty('--accent-h-light', deg(a - 21));
+        }
       } catch (e) {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
