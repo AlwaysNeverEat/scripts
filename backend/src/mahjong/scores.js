@@ -10,7 +10,6 @@
 
 import { query } from '../db/client.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
-import { SUPPORTER_JOIN, SUPPORTER_COLUMNS, supporterBadge } from '../supporter/badge.js';
 
 // Сколько строк показываем в окне игры. Больше десяти в модалку не влезает, а
 // свою строку игрок увидит отдельно, даже если он двадцать пятый.
@@ -21,12 +20,12 @@ export const TOP_LIMIT = 10;
 // уезжает в ответ — по нему строка топа открывает профиль.
 const TOP_QUERY = `
   SELECT u.id, u.display_name, u.avatar,
-         rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}, ${SUPPORTER_COLUMNS},
+         rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS},
          s.seconds, s.shuffles, s.wins, s.played_at
     FROM mahjong_scores s
     JOIN users u ON u.id = s.user_id
     LEFT JOIN role_labels rl ON rl.role = u.role
-    ${FACULTY_JOIN}${SUPPORTER_JOIN}
+    ${FACULTY_JOIN}
    ORDER BY s.seconds, s.played_at
    LIMIT $1`;
 
@@ -39,7 +38,6 @@ function presentRow(row) {
             ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
             : null,
         faculty: facultyBadge(row.faculty),
-        supporter: supporterBadge(row),
         seconds: row.seconds,
         shuffles: row.shuffles,
         wins: row.wins,

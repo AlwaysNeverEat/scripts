@@ -428,10 +428,8 @@ body.modal-open .app-tabs {
 .app-tab.active .app-tab-avatar { border-color: var(--accent); }
 
 /* ── Переключатель темы ─────────────────────────────────────────────
-   Кнопка открывает МЕНЮ (стилями оно живёт в glass.css): тем стало три, и
-   перебирать их по кругу, чтобы вернуться к своей, — это тыкать вслепую.
-   Поэтому и иконка теперь показывает ТЕКУЩУЮ тему, а не «что будет по клику»:
-   у меню нет одного следующего шага, зато есть состояние. */
+   Показываем иконку того, что получится по клику: в тёмной теме — солнце
+   («включить светлую»), в светлой — луну. */
 .theme-toggle {
   flex: none;
   width: 32px; height: 32px;
@@ -447,13 +445,8 @@ body.modal-open .app-tabs {
 .theme-toggle:hover { color: var(--accent); border-color: var(--accent); background: var(--bg3); }
 .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .theme-toggle svg { flex: none; }
-/* Видна ровно одна иконка — та, что соответствует включённой теме. Стекло
-   (data-glass) лежит поверх светлой или тёмной основы, поэтому проверяется
-   первым (см. шапку theme.js). */
-.theme-icon-sun, .theme-icon-moon, .theme-icon-glass { display: none; }
-:root[data-theme="light"]:not([data-glass]) .theme-icon-sun { display: block; }
-:root:not([data-theme="light"]):not([data-glass]) .theme-icon-moon { display: block; }
-:root[data-glass] .theme-icon-glass { display: block; }
+:root[data-theme="light"] .theme-icon-sun,
+:root:not([data-theme="light"]) .theme-icon-moon { display: none; }
 
 /* На гейте ряда вкладок нет — кнопка живёт в углу самого экрана входа. */
 .auth-theme-toggle { position: absolute; top: 14px; right: 14px; z-index: 2; }

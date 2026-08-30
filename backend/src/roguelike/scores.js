@@ -9,7 +9,6 @@
 
 import { query } from '../db/client.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
-import { SUPPORTER_JOIN, SUPPORTER_COLUMNS, supporterBadge } from '../supporter/badge.js';
 
 // Сколько строк показываем в окне игры. Больше десяти в модалку не влезает, а
 // свою строку игрок увидит отдельно, даже если он двадцать пятый.
@@ -19,13 +18,13 @@ export const TOP_LIMIT = 10;
 // остальных пасхалок: человек должен узнавать коллег одинаково везде.
 const TOP_QUERY = `
   SELECT u.id, u.display_name, u.avatar,
-         rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}, ${SUPPORTER_COLUMNS},
+         rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS},
          r.loops, r.floor, r.kills, r.elites, r.bosses,
          r.cards, r.best_level, r.mutations, r.runs, r.played_at
     FROM roguelike_scores r
     JOIN users u ON u.id = r.user_id
     LEFT JOIN role_labels rl ON rl.role = u.role
-    ${FACULTY_JOIN}${SUPPORTER_JOIN}
+    ${FACULTY_JOIN}
    ORDER BY r.loops DESC, r.floor DESC, r.played_at
    LIMIT $1`;
 
@@ -38,7 +37,6 @@ function presentRow(row) {
             ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
             : null,
         faculty: facultyBadge(row.faculty),
-        supporter: supporterBadge(row),
         loops: row.loops,
         floor: row.floor,
         kills: row.kills,
