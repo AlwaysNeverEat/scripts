@@ -14,7 +14,7 @@
 
 | Что | Где |
 |---|---|
-| PostgreSQL 16 | контейнер `postgres` (`deploy/docker-compose.prod.yml`), порт только на `127.0.0.1` |
+| PostgreSQL 17 | контейнер `postgres` (`deploy/docker-compose.prod.yml`), порт только на `127.0.0.1` |
 | Backend | контейнер `backend`, слушает `127.0.0.1:3001` |
 | Сайт | статика в `/var/www/k-spot`, собирается `deploy/build-site.sh` |
 | TLS и раздача | системный nginx на хосте + certbot (`deploy/nginx.conf`) |
