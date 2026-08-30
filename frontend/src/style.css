@@ -22,10 +22,36 @@
   --bg3:      oklch(0.27 0.03 252);
   --border:   oklch(0.36 0.03 252 / 0.8);
   --border-strong: oklch(0.5 0.03 252);
-  --accent:   oklch(0.80 0.17 83);
-  --accent-dim: oklch(0.80 0.17 83 / 0.2);
+  /* ── АКЦЕНТ: пользователь крутит ТОН, а не цвет ──────────────────────
+     --accent-h — единственная ручка, которую пользователь двигает (accent.js
+     кладёт её сюда инлайном, как тему). Всё остальное считается от неё, и
+     СВЕТЛОТА С НАСЫЩЕННОСТЬЮ ОСТАЮТСЯ НАШИМИ. Это не жадность: от светлоты
+     зависит, каким цветом читается текст ПОВЕРХ акцента (--accent-fg), и
+     стоит отдать её пользователю — половина выбранных цветов даст кнопку с
+     нечитаемой надписью. Тон на контраст не влияет вовсе, поэтому его можно
+     отдать целиком.
+
+     Из фиксированной светлоты следует и то, что синий с красным выйдут
+     бледнее жёлтого: на L=0.80 они просто не бывают такими насыщенными, и
+     браузер сам приведёт цвет в охват, УМЕНЬШИВ насыщенность и сохранив
+     светлоту. Это ровно то, что нам нужно, — контраст надписи не поедет.
+
+     --accent-hh — тон акцента В ЭТОЙ ТЕМЕ. В светлой он на 21° ниже: тот же
+     тон на низкой светлоте читается не «оранжевым», а болотным, и светлая
+     тема с самого начала жила на 62°, а не на 83°. Смещение сохраняет
+     сегодняшний вид обеих тем при значении по умолчанию.
+
+     Смещение считает accent.js и кладёт готовым числом в --accent-h-light, а
+     не calc() здесь. Причина не в красоте: пользовательские свойства — поток
+     токенов, а не числа, calc внутри них НЕ вычисляется, и сфера на главной
+     (канвас, ей нужно настоящее число) получала бы строку «calc(83 - 21)». */
+  --accent-h: 83;
+  --accent-h-light: 62;
+  --accent-hh: var(--accent-h);
+  --accent:   oklch(0.80 0.17 var(--accent-hh));
+  --accent-dim: oklch(0.80 0.17 var(--accent-hh) / 0.2);
   --accent-fg: oklch(0.12 0.02 252);
-  --accent-hover: oklch(0.7 0.18 78);
+  --accent-hover: oklch(0.7 0.18 calc(var(--accent-hh) - 5));
   --text:     oklch(0.95 0.01 252);
   --sub:      oklch(0.68 0.02 252);
   --green:    oklch(0.76 0.17 148);
@@ -121,16 +147,20 @@
 
   /* Стеклянные контролы экрана поиска (поверх канваса со сферой) */
   --search-bg: #07090d;
-  --search-glow: rgba(212, 160, 23, 0.07);
+  /* Стекло тоже красится акцентом — иначе экран поиска остаётся жёлтым,
+     когда весь остальной сайт стал синим. Числа — прежние цвета, переведённые
+     из rgb в oklch (212,160,23 → 0.735 0.146 84; 253,235,180 → 0.94 0.073 92),
+     чтобы при значении по умолчанию не поехал ни один пиксель. */
+  --search-glow: oklch(0.735 0.146 var(--accent-hh) / 0.07);
   --glass-bg: rgba(10, 14, 20, 0.82);
-  --glass-border: rgba(212, 160, 23, 0.25);
-  --glass-fg: rgba(253, 235, 180, 0.9);
-  --glass-fg-dim: rgba(253, 235, 180, 0.7);
-  --glass-fg-faint: rgba(253, 235, 180, 0.5);
+  --glass-border: oklch(0.735 0.146 var(--accent-hh) / 0.25);
+  --glass-fg: oklch(0.94 0.073 calc(var(--accent-hh) + 8) / 0.9);
+  --glass-fg-dim: oklch(0.94 0.073 calc(var(--accent-hh) + 8) / 0.7);
+  --glass-fg-faint: oklch(0.94 0.073 calc(var(--accent-hh) + 8) / 0.5);
   --glass-ph: rgba(148, 163, 184, 0.75);
-  --glass-hover: rgba(212, 160, 23, 0.12);
-  --glass-shadow: 0 0 0 1px rgba(212, 160, 23, 0.08), 0 8px 32px rgba(0, 0, 0, 0.55);
-  --glass-shadow-focus: 0 0 0 3px oklch(0.76 0.18 83 / 0.18), 0 8px 32px rgba(0, 0, 0, 0.55);
+  --glass-hover: oklch(0.735 0.146 var(--accent-hh) / 0.12);
+  --glass-shadow: 0 0 0 1px oklch(0.735 0.146 var(--accent-hh) / 0.08), 0 8px 32px rgba(0, 0, 0, 0.55);
+  --glass-shadow-focus: 0 0 0 3px oklch(0.76 0.18 var(--accent-hh) / 0.18), 0 8px 32px rgba(0, 0, 0, 0.55);
   --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
   /* Золото топа (карточка прошлого месяца, первая строка) */
@@ -221,10 +251,12 @@
   --bg3:      oklch(0.912 0.007 250);
   --border:   oklch(0.87 0.01 250);
   --border-strong: oklch(0.72 0.02 250);
-  --accent:   oklch(0.52 0.125 62);
-  --accent-dim: oklch(0.52 0.125 62 / 0.12);
+  /* Тот же пользовательский тон, опущенный на 21° — см. --accent-hh выше. */
+  --accent-hh: var(--accent-h-light);
+  --accent:   oklch(0.52 0.125 var(--accent-hh));
+  --accent-dim: oklch(0.52 0.125 var(--accent-hh) / 0.12);
   --accent-fg: oklch(1 0 0);
-  --accent-hover: oklch(0.44 0.115 55);
+  --accent-hover: oklch(0.44 0.115 calc(var(--accent-hh) - 7));
   --text:     oklch(0.25 0.018 252);
   --sub:      oklch(0.47 0.015 252);
   --green:    oklch(0.47 0.13 150);
@@ -254,16 +286,16 @@
   --ava-c: 0.13;
 
   --search-bg: oklch(0.978 0.003 250);
-  --search-glow: oklch(0.52 0.125 62 / 0.07);
+  --search-glow: oklch(0.52 0.125 var(--accent-hh) / 0.07);
   --glass-bg: rgba(255, 255, 255, 0.86);
-  --glass-border: oklch(0.52 0.125 62 / 0.3);
+  --glass-border: oklch(0.52 0.125 var(--accent-hh) / 0.3);
   --glass-fg: var(--text);
   --glass-fg-dim: var(--sub);
   --glass-fg-faint: oklch(0.55 0.02 252);
   --glass-ph: oklch(0.6 0.015 252);
-  --glass-hover: oklch(0.52 0.125 62 / 0.1);
-  --glass-shadow: 0 0 0 1px oklch(0.52 0.125 62 / 0.07), 0 8px 28px rgba(15, 23, 42, 0.1);
-  --glass-shadow-focus: 0 0 0 3px oklch(0.52 0.125 62 / 0.18), 0 8px 28px rgba(15, 23, 42, 0.1);
+  --glass-hover: oklch(0.52 0.125 var(--accent-hh) / 0.1);
+  --glass-shadow: 0 0 0 1px oklch(0.52 0.125 var(--accent-hh) / 0.07), 0 8px 28px rgba(15, 23, 42, 0.1);
+  --glass-shadow-focus: 0 0 0 3px oklch(0.52 0.125 var(--accent-hh) / 0.18), 0 8px 28px rgba(15, 23, 42, 0.1);
   --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
   --gold: oklch(0.55 0.13 70);
@@ -533,6 +565,71 @@ body.modal-open .app-tabs {
   margin: 0 auto;
   padding: 0 var(--s-4) var(--s-7);
 }
+
+/* ── Выбор акцентного цвета (accent.js) ─────────────────────────────────
+   Плашка красится ТОЙ ЖЕ ФОРМУЛОЙ, что и кнопки сайта, только тон берётся не
+   из --accent-h, а из собственного --sw-h. Поэтому в светлой теме образцы
+   сами становятся бронзовыми: человек выбирает цвет, который получит, а не
+   смотрит на образец из другой темы. Считать их в JS значило бы держать
+   формулу в двух местах и однажды развести их. */
+.accent-picker { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.accent-swatches { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+.accent-swatch {
+  width: 28px; height: 28px;
+  border-radius: var(--r-circle);
+  border: 1px solid var(--border);
+  background: oklch(0.80 0.17 var(--sw-h));
+  cursor: pointer;
+  padding: 0;
+  /* Обводка выбранного рисуется тенью, а не рамкой: рамка съедает 2px самого
+     цвета, и выбранный образец становится меньше соседних. */
+  transition: box-shadow .12s, transform .12s;
+}
+.accent-swatch:hover { transform: scale(1.08); }
+.accent-swatch.is-current {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px oklch(0.80 0.17 var(--sw-h));
+}
+
+:root[data-theme="light"] .accent-swatch {
+  background: oklch(0.52 0.125 calc(var(--sw-h) - 21));
+}
+:root[data-theme="light"] .accent-swatch.is-current {
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px oklch(0.52 0.125 calc(var(--sw-h) - 21));
+}
+
+.accent-slider-row { display: flex; align-items: center; gap: var(--s-3); }
+
+/* Дорожка — радуга ИЗ ТЕХ ЖЕ светлоты и насыщенности, что у акцента: обычный
+   яркий hue-градиент обещал бы цвета, которых сайт не даёт.
+   Красим ТОЛЬКО ДОРОЖКУ: сам бегунок (размер, ручка цветом акцента, ховер)
+   уже описан выше для input[type="range"] и рисуется поверх нашего фона —
+   второй набор правил здесь только разошёлся бы с ним при первой правке. */
+.accent-slider { flex: 1; min-width: 0; }
+
+/* Правила РАЗВЕДЕНЫ ПО БРАУЗЕРАМ, а не собраны в один список селекторов:
+   селектор с незнакомым псевдоэлементом браузер считает недействительным
+   ЦЕЛИКОМ, и «-webkit-… , -moz-…» одной строкой не срабатывает нигде. */
+:root { --accent-track: linear-gradient(to right,
+    oklch(0.80 0.17 0), oklch(0.80 0.17 60), oklch(0.80 0.17 120),
+    oklch(0.80 0.17 180), oklch(0.80 0.17 240), oklch(0.80 0.17 300),
+    oklch(0.80 0.17 360)); }
+:root[data-theme="light"] { --accent-track: linear-gradient(to right,
+    oklch(0.52 0.125 0), oklch(0.52 0.125 60), oklch(0.52 0.125 120),
+    oklch(0.52 0.125 180), oklch(0.52 0.125 240), oklch(0.52 0.125 300),
+    oklch(0.52 0.125 360)); }
+
+/* Селектор с `input[type="range"]` — не для красоты: базовое правило дорожки
+   выше написано именно так, и одного класса ему не хватает по весу
+   (атрибут считается наравне с классом). */
+input[type="range"].accent-slider::-webkit-slider-runnable-track { background: var(--accent-track); }
+input[type="range"].accent-slider::-moz-range-track { background: var(--accent-track); }
+/* Firefox закрашивает пройденную часть дорожки поверх неё — под радугой это
+   сплошная полоса вместо цветов. */
+input[type="range"].accent-slider::-moz-range-progress { background: transparent; }
+
+.accent-note { font-size: 11.5px; color: var(--sub); line-height: 1.5; }
 
 /* ── Подложка секции ────────────────────────────────────────────────────
    СОДЕРЖИМОЕ ЛЕЖИТ НА ПОВЕРХНОСТИ, А ЗАГОЛОВОК — НА ОБОЯХ. Это не вкус, а

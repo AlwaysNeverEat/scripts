@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Акцент — песочница</title>
+  <!--
+     Открыть: npx vite → /dev-accent.html
+
+     Здесь смотрят, ЧТО ИМЕННО КРАСИТСЯ акцентом, а что нет. Настоящий выбор
+     живёт в профиле, а профиль за входом и за базой — глазами его не
+     посмотреть. Поэтому рядом с ползунком лежат живые контролы сайта: кнопки,
+     чипы, переключатель, ссылки, поле в фокусе — и золото топа, которое
+     акцентом НЕ красится и краситься не должно (медаль за первое место).
+  -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('cars_db_theme');
+        if (t !== 'light' && t !== 'dark') t = 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+        var raw = localStorage.getItem('cars_db_accent');
+        var a = Number(raw);
+        if (raw !== null && isFinite(a)) {
+          var deg = function (x) { return String(((Math.round(x) % 360) + 360) % 360); };
+          document.documentElement.style.setProperty('--accent-h', deg(a));
+          document.documentElement.style.setProperty('--accent-h-light', deg(a - 21));
+        }
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/src/style.css"/>
+  <style>
+    body { padding: var(--s-5) var(--s-4) var(--s-7); }
+    .wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s-5); }
+    .demo { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h2 class="page-title">Акцент — песочница</h2>
+      <p class="page-sub">Тон крутится, светлота остаётся нашей. Смыслы и золото не красятся.</p>
+    </div>
+
+    <button type="button" class="btn btn-sec" id="toggle-theme">Сменить тему</button>
+
+    <section class="sec-card">
+      <div id="picker"></div>
+    </section>
+
+    <div>
+      <div class="sec-title" style="padding-left:0">Красится акцентом</div>
+      <section class="sec-card">
+        <div class="demo">
+          <button class="btn btn-pri">Основная кнопка</button>
+          <button class="btn btn-sec">Обычная</button>
+          <button class="chip active">Выбранный чип</button>
+          <button class="chip">Обычный чип</button>
+        </div>
+        <div class="demo" style="margin-top:var(--s-3)">
+          <nav data-seg="demo" style="display:inline-flex">
+            <button class="chip active">Сегодня</button>
+            <button class="chip">Завтра</button>
+            <button class="chip">Дата</button>
+          </nav>
+        </div>
+        <div class="demo" style="margin-top:var(--s-3)">
+          <input class="admin-search-probe" type="text" placeholder="Поле в фокусе — рамка акцентная"
+                 style="background:var(--bg2);border:1px solid var(--accent);color:var(--text);
+                        border-radius:var(--r-2);padding:var(--s-2) var(--s-3);font:inherit;font-size:13px"/>
+        </div>
+      </section>
+    </div>
+
+    <div>
+      <div class="sec-title" style="padding-left:0">НЕ красится — и это нарочно</div>
+      <section class="sec-card">
+        <div class="demo">
+          <span class="admin-banned">заблокирован</span>
+          <span class="rc-pill rc-pill-ok" style="padding:1px var(--s-2);border-radius:var(--r-1)">24 свободно</span>
+        </div>
+        <div class="top-row top-row-gold" style="margin-top:var(--s-3)">
+          <span class="top-rank gold-text">1</span>
+          <div class="top-name"><span class="gold-text">Золото топа — это медаль</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module">
+    import { accentPickerHtml, bindAccentPicker, initAccent } from '/src/accent.js';
+    import { initSegmented } from '/src/segmented.js';
+    import { applyTheme, currentTheme } from '/src/theme.js';
+
+    document.getElementById('picker').innerHTML = accentPickerHtml();
+    initAccent();
+    bindAccentPicker(document);
+    initSegmented();
+    document.getElementById('toggle-theme').addEventListener('click', () => {
+      applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+    });
+  </script>
+</body>
+</html>
