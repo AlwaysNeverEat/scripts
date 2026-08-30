@@ -414,6 +414,39 @@ function pendingOps() {
     return state.ops.filter(o => o.status === 'pending');
 }
 
+// Подсказка последних имён в поле «Имя клиента» — как в оригинальной админке,
+// где обычная HTML-форма с native submit, и браузер сам запоминал введённое.
+// Здесь раздел — SPA: форма не сабмитится, значит браузеру запоминать нечего, и
+// автозаполнение молчит. Поэтому список ведём мы, а ПОКАЗЫВАЕТ его всё равно
+// браузер — обычный <datalist>: своего выпадающего списка тут нет ни строчки,
+// и выглядит подсказка ровно так, как человек привык в остальных полях.
+// Имена лежат в localStorage, потому что это память РАБОЧЕГО МЕСТА (сегодня
+// «Виктор двс» набирают на этом компьютере), а не свойство записи в базе.
+const NAMES_KEY = 'zm_records_names';
+const NAMES_MAX = 40;
+
+function readClientNames() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(NAMES_KEY) || '[]');
+        return Array.isArray(raw) ? raw.filter(v => typeof v === 'string' && v.trim()) : [];
+    } catch { return []; } // приватный режим или мусор в ключе
+}
+
+// Свежее имя встаёт первым, повтор не задваивается: в подсказке первыми должны
+// стоять те, кого записывали только что.
+function rememberClientName(name) {
+    const val = String(name || '').trim();
+    if (!val) return;
+    const next = [val, ...readClientNames().filter(v => v.toLowerCase() !== val.toLowerCase())]
+        .slice(0, NAMES_MAX);
+    try { localStorage.setItem(NAMES_KEY, JSON.stringify(next)); } catch { /* приватный режим */ }
+}
+
+function nameHistoryHtml() {
+    return `<datalist id="rc-name-history">${
+        readClientNames().map(v => `<option value="${esc(v)}"></option>`).join('')}</datalist>`;
+}
+
 // Бейдж на «Очереди» считает только то, чего пользователь ещё не видел:
 // после открытия окна счётчик гаснет, а новые операции снова его зажигают.
 // Отметка живёт в localStorage — переживает перезагрузку страницы.
@@ -1277,8 +1310,6 @@ function renderModal() {
     const m = state.modal;
     const inner = m.kind === 'create' ? modalCreate(m)
         : m.kind === 'chain' ? modalChain(m)
-        : m.kind === 'move' ? modalMove(m)
-        : m.kind === 'extend' ? modalExtend(m)
         : m.kind === 'delete' ? modalDelete(m)
         : m.kind === 'edit' ? modalEdit(m)
         : m.kind === 'queue' ? modalQueue(m)
@@ -1330,22 +1361,7 @@ function createBoard(m) {
 // показываем отдельным цветом — это ориентир, а не помеха.
 function pickCtx(m) {
     if (!m) return null;
-    if (m.kind === 'extend') {
-        const found = chainByHead(m.headId);
-        if (!found) return null;
-        return {
-            kind: 'extend',
-            board: state.board,
-            date: state.date,
-            addrId: found.addr.id,
-            ownTimes: new Set(found.chain.parts.map(p => p.timeStart)),
-            ownIds: new Set(found.chain.parts.map(p => String(p.id))),
-            start: found.chain.timeEnd,
-            fixedStart: true,
-            duration: m.extendMinutes || SLOT_MINUTES,
-        };
-    }
-    if (m.kind === 'move') {
+    if (m.kind === 'edit') {
         const found = chainByHead(m.headId);
         if (!found) return null;
         const addrId = m.targetAddressId || found.addr.id;
@@ -1354,14 +1370,13 @@ function pickCtx(m) {
         const sameSpot = m.targetDate === state.date && String(addrId) === String(found.addr.id);
         const n = found.chain.parts.length;
         return {
-            kind: 'move',
+            kind: 'edit',
             board: m.targetDate === state.date ? state.board : m.targetBoard,
             date: m.targetDate,
             addrId,
             ownTimes: sameSpot ? new Set(found.chain.parts.map(p => p.timeStart)) : new Set(),
             ownIds: sameSpot ? new Set(found.chain.parts.map(p => String(p.id))) : new Set(),
             start: m.targetTime,
-            fixedStart: false,
             duration: m.durationMinutes ?? n * SLOT_MINUTES,
             // Барабан не должен молча укорачивать запись: её нынешняя длина
             // доступна всегда, а не влезет — окно подсветится конфликтом.
@@ -1378,7 +1393,6 @@ function pickCtx(m) {
             ownTimes: new Set(),
             ownIds: new Set(),
             start: m.time,
-            fixedStart: false,
             duration: m.durationMinutes,
         };
     }
@@ -1463,9 +1477,9 @@ function timelineHtml(ctx) {
         const freeN = cell ? cell.free : 0;
         const recs = (cell?.records || []).filter(r => !del.has(String(r.id)));
         const ghost = ghostAt.get(t);
-        // Начало выбирают только в свободном слоте; при продлении начало
-        // фиксировано, поэтому строки кликать вообще нельзя.
-        const pickable = !ctx.fixedStart && (slotFree(ctx.addrId, t, ctx.board) || ctx.ownTimes.has(t));
+        // Начало выбирают только в свободном слоте — либо в своём же, который
+        // запись сейчас занимает: она с него и уедет.
+        const pickable = slotFree(ctx.addrId, t, ctx.board) || ctx.ownTimes.has(t);
 
         const chips = recs.map(r => {
             const mine = ctx.ownIds.has(String(r.id));
@@ -1530,9 +1544,7 @@ function pickNoteHtml(ctx, dur, max) {
         if (ctx.start && !isBookableTime(ctx.start)) {
             return `${icons.alert(12)} рабочий день кончился — станции работают до 21:00`;
         }
-        return ctx.kind === 'extend'
-            ? `${icons.alert(12)} сразу после записи занято — продлить некуда`
-            : `${icons.alert(12)} с этого времени свободного окна нет`;
+        return `${icons.alert(12)} с этого времени свободного окна нет`;
     }
     if (!ctx.start) {
         const anyFree = ctx.board.timeSlots.some(t => slotFree(ctx.addrId, t, ctx.board));
@@ -1542,9 +1554,7 @@ function pickNoteHtml(ctx, dur, max) {
     }
     const slots = dur / SLOT_MINUTES;
     const till = addMinutes(ctx.start, dur);
-    const head = ctx.kind === 'extend'
-        ? `+${fmtDuration(dur)} · запись до <b>${esc(till)}</b>`
-        : `<b>${esc(ctx.start)}–${esc(till)}</b> · ${plSlots(slots)} по 30 минут`;
+    const head = `<b>${esc(ctx.start)}–${esc(till)}</b> · ${plSlots(slots)} по 30 минут`;
 
     // Окно длиннее свободного промежутка — так переносить нельзя.
     const run = freeRunFrom(ctx, ctx.start);
@@ -1570,10 +1580,12 @@ function modalCreate(m) {
     const otherDate = m.date && m.date !== today && m.date !== tomorrow;
     const body = `
     <div class="rc-create">
+        ${nameHistoryHtml()}
         <div class="rc-create-form">
             <div class="rc-field-row">
                 <label class="edit-field rc-grow"><span>Имя клиента</span>
-                    <input id="rc-f-name" type="text" value="${esc(m.name || '')}" placeholder="Иван двс"/></label>
+                    <input id="rc-f-name" type="text" name="rc-client-name" list="rc-name-history"
+                        autocomplete="on" value="${esc(m.name || '')}" placeholder="Иван двс"/></label>
                 <label class="edit-field rc-grow"><span>Телефон</span>
                     <input id="rc-f-phone" type="tel" value="${esc(m.phone || '')}" placeholder="+7 (9__) ___-__-__"/></label>
             </div>
@@ -1679,6 +1691,11 @@ function detailsHtml(det) {
     return rows.length ? rows.join('') : `<div class="rc-chain-row rc-dim">госномера и комментария нет</div>`;
 }
 
+// Кнопок в карточке ровно три: правка, копирование, удаление. Раньше их было
+// пять, и три из них вели в одно и то же: «Продлить» — это длина записи,
+// «Время и длина» — она же вместе с началом, «Изменить данные» — поля той же
+// записи. Деление было выдумкой интерфейса: клиент по телефону переносит время
+// и заодно диктует госномер, а оператор ходил по двум окнам подряд.
 function modalChain(m) {
     const found = chainByHead(m.headId);
     if (!found) return modalShell('Запись', '<div class="rc-empty-note">Запись уже исчезла с доски (обновите)</div>');
@@ -1695,9 +1712,7 @@ function modalChain(m) {
             ${detailsHtml(detailsOf(chain.head.id))}
         </div>
         <div class="rc-chain-actions">
-            <button class="btn btn-sec" data-action="open-move" data-head="${esc(chain.head.id)}">${icons.move(14)} Время и длина${n > 1 ? ' (вся запись)' : ''}</button>
-            <button class="btn btn-sec" data-action="open-extend" data-head="${esc(chain.head.id)}">${icons.clock(14)} Продлить</button>
-            <button class="btn btn-sec" data-action="open-edit" data-head="${esc(chain.head.id)}">${icons.edit(14)} Изменить данные</button>
+            <button class="btn btn-sec" data-action="open-edit" data-head="${esc(chain.head.id)}">${icons.edit(14)} Редактировать</button>
             <button class="btn btn-sec" data-action="copy-chain" data-head="${esc(chain.head.id)}">${icons.copy(14)} Копировать</button>
             <button class="btn btn-sec rc-btn-danger" data-action="open-delete" data-head="${esc(chain.head.id)}">${icons.trash(14)} Удалить</button>
         </div>
@@ -1706,39 +1721,20 @@ function modalChain(m) {
     return modalShell('Запись', body);
 }
 
-function modalExtend(m) {
-    const found = chainByHead(m.headId);
-    if (!found) return modalShell('Продлить', '<div class="rc-empty-note">Запись уже исчезла с доски</div>');
-    const { chain } = found;
-    const ctx = pickCtx(m);
-    const max = maxDurationFor(ctx); // непрерывные свободные слоты после хвоста
-    const body = `
-    <div>
-        <div class="rc-chain-row"><b>${esc(chain.head.name)}</b> · сейчас ${esc(chain.timeStart)}–${esc(chain.timeEnd)}</div>
-        ${max ? `
-            <div class="rc-pick">
-                ${timelineHtml(ctx)}
-                <div class="rc-pick-side">
-                    <div class="rc-pick-h">Продлить на</div>
-                    ${durationHtml(clampDuration(ctx, ctx.duration), maxDurationFor(ctx))}
-                    <div class="rc-pick-note"></div>
-                    <div class="rc-pick-hint">Продолжения создаются отдельными слотами с телефоном-заглушкой — SMS клиенту не уйдёт (как в оригинальном скрипте).</div>
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button class="btn btn-pri" data-action="submit-extend">${icons.clock(14)} Продлить${isDown() ? ' (в очередь)' : ''}</button>
-            </div>`
-            : `<div class="rc-empty-note">${isBookableTime(chain.timeEnd)
-                ? 'Сразу после записи свободных слотов нет — продлить некуда.'
-                : 'Запись упирается в закрытие: станции работают до 21:00.'}</div>`}
-    </div>`;
-    return modalShell('Продлить запись', body, { wide: true });
-}
-
+// Одно окно на всю правку записи: данные клиента, дата, станция, время и
+// длина. Раньше это были три окна («Продлить», «Время и длина», «Изменить
+// данные»), и граница между ними ничего не значила: продление — это длина,
+// перенос — то же окно расписания, а поля клиента правят заодно с ними.
+// Отсюда и устройство сабмита: одна кнопка, но операций по-прежнему до трёх
+// (снять хвост, подвинуть слоты с новыми полями, дописать недостающие).
 function modalEdit(m) {
     const found = chainByHead(m.headId);
     if (!found) return modalShell('Изменить', '<div class="rc-empty-note">Запись уже исчезла с доски</div>');
-    const { chain } = found;
+    const { chain, addr } = found;
+    const n = chain.parts.length;
+    const ctx = pickCtx(m);
+    const targetAddrId = ctx?.addrId ?? addr.id;
+    const board = ctx?.board || state.board;
     // Госномер с комментарием приезжают отдельно (их нет на доске). Пока их не
     // знаем, пустое поле означает «не менять» — иначе правка имени затёрла бы
     // комментарий. Когда карточка доехала, поля показывают текущие значения и
@@ -1746,25 +1742,82 @@ function modalEdit(m) {
     const det = detailsOf(chain.head.id);
     const known = Boolean(det?.record);
     const hint = known ? '' : ' <small class="rc-dim">(пусто = не менять)</small>';
+    const today = state.status?.today;
+    const tomorrow = state.status?.tomorrow;
+    const otherDate = m.targetDate && m.targetDate !== today && m.targetDate !== tomorrow;
+    const meta = metaFor(stationById(targetAddrId, board));
     const body = `
-    <div class="rc-create-form">
-        <label class="edit-field"><span>Имя</span>
-            <input id="rc-e-name" type="text" value="${esc(m.name ?? chain.head.name)}"/></label>
-        <label class="edit-field"><span>Телефон</span>
-            <input id="rc-e-phone" type="tel" value="${esc(m.phone ?? (chain.head.isStub ? '' : chain.head.phone))}"/></label>
-        <label class="edit-field"><span>Госномер${hint}</span>
-            <input id="rc-e-car" type="text" value="${esc(m.carNumber ?? det?.record?.carNumber ?? '')}"/></label>
-        <label class="edit-field"><span>Комментарий${hint}</span>
-            <textarea id="rc-e-comment" rows="2">${esc(m.comment ?? det?.record?.comment ?? '')}</textarea></label>
-        ${known || det?.error ? '' : `<div class="rc-prev-note rc-dim">${icons.clock(12)} подтягиваю нынешние госномер и комментарий…</div>`}
-        ${det?.error ? `<div class="rc-prev-note rc-chain-bad">${icons.alert(12)} нынешние госномер и комментарий не подгрузились — пустые поля оставлю как есть</div>` : ''}
-        <div class="rc-prev-note">Имя меняется у всех ${chain.parts.length} слотов записи, остальное — только у первого.</div>
-        ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
-        <div class="modal-actions">
-            <button class="btn btn-pri" data-action="submit-edit">${icons.check(14)} Сохранить${isDown() ? ' (в очередь)' : ''}</button>
+    <div class="rc-create">
+        ${nameHistoryHtml()}
+        <div class="rc-create-form">
+            <div class="rc-chain-row">${statusIcon(chain.head.status)} сейчас ${esc(state.date || '')}
+                ${esc(chain.timeStart)}–${esc(chain.timeEnd)}${n > 1 ? ` (${plSlots(n)})` : ''}</div>
+
+            <div class="rc-field-row">
+                <label class="edit-field rc-grow"><span>Имя</span>
+                    <input id="rc-e-name" type="text" name="rc-client-name" list="rc-name-history"
+                        autocomplete="on" value="${esc(m.name ?? chain.head.name)}"/></label>
+                <label class="edit-field rc-grow"><span>Телефон</span>
+                    <input id="rc-e-phone" type="tel" value="${esc(m.phone ?? (chain.head.isStub ? '' : chain.head.phone))}"/></label>
+            </div>
+            <div class="rc-field-row">
+                <label class="edit-field rc-grow"><span>Госномер${hint}</span>
+                    <input id="rc-e-car" type="text" value="${esc(m.carNumber ?? det?.record?.carNumber ?? '')}"/></label>
+            </div>
+            <label class="edit-field"><span>Комментарий${hint}</span>
+                <textarea id="rc-e-comment" rows="3">${esc(m.comment ?? det?.record?.comment ?? '')}</textarea></label>
+            ${known || det?.error ? '' : `<div class="rc-prev-note rc-dim">${icons.clock(12)} подтягиваю нынешние госномер и комментарий…</div>`}
+            ${det?.error ? `<div class="rc-prev-note rc-chain-bad">${icons.alert(12)} нынешние госномер и комментарий не подгрузились — пустые поля оставлю как есть</div>` : ''}
+            <div class="rc-prev-note">Имя меняется у всех ${n} слотов записи, остальное — только у первого.</div>
+
+            <div class="rc-sub">Станция — ${boxCodeHtml(meta)}<b>${esc(meta?.short || stationById(targetAddrId, board)?.title || '')}</b>${acHtml(meta, 10)}
+                <button class="btn btn-sec rc-mini-btn" data-action="toggle-edit-map">${icons.map(13)} сменить на карте</button>
+            </div>
+            ${warnBannerHtml(stationById(targetAddrId, board))}
+            <div class="rc-station-select">
+                <select id="rc-e-station">
+                    ${(board?.addresses || state.board.addresses).map(a => {
+                        const am = metaFor(a);
+                        return `<option value="${esc(a.id)}" ${String(a.id) === String(targetAddrId) ? 'selected' : ''}>${esc(stationLabel(a, am))}</option>`;
+                    }).join('')}
+                </select>
+            </div>
+            <div id="rc-edit-map" class="rc-create-map ${m.showMap ? '' : 'hidden'}"></div>
+
+            <div class="rc-sub">Дата</div>
+            <div class="rc-times" data-seg="rc-edit-date">
+                <button class="chip ${m.targetDate === today ? 'active' : ''}" data-action="edit-date" data-date="${esc(today)}">Сегодня</button>
+                <button class="chip ${m.targetDate === tomorrow ? 'active' : ''}" data-action="edit-date" data-date="${esc(tomorrow)}">Завтра</button>
+                <button class="chip rc-date-pick ${otherDate ? 'active' : ''}" data-action="pick-edit-date">
+                    ${icons.calendar(13)}<span>${otherDate ? esc(m.targetDate) : 'Другая дата'}</span>
+                </button>
+                <input type="date" id="rc-e-date" class="rc-date-input" value="${esc(ddmmToIso(m.targetDate))}" tabindex="-1" aria-hidden="true"/>
+            </div>
+
+            <div class="rc-sub">Расписание ${esc(m.targetDate || '')} — время и длина</div>
+            <div class="rc-pick">
+                ${timelineHtml(ctx)}
+                <div class="rc-pick-side">
+                    <div class="rc-pick-h">Длина записи</div>
+                    ${durationHtml(clampDuration(ctx, ctx?.duration), maxDurationFor(ctx))}
+                    <div class="rc-pick-note"></div>
+                    <div class="rc-pick-hint">Клик по свободному получасу — новое начало, длина записи едет следом.
+                        Длину меняют кнопками ±, вводом или Shift+кликом по концу окна:
+                        лишние слоты снимутся, недостающие допишутся продолжением.
+                        Продолжения создаются слотами с телефоном-заглушкой — SMS клиенту не уйдёт.</div>
+                </div>
+            </div>
+
+            ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
+            <div class="modal-actions">
+                <span class="rc-copy-note" id="rc-copy-note"></span>
+                <button class="btn btn-sec" data-action="copy-edit"
+                    title="Строка для Битрикса: дата, время и адрес">${icons.copy(14)} В Битрикс</button>
+                <button class="btn btn-pri" data-action="submit-edit">${icons.check(14)} Сохранить${isDown() ? ' (в очередь)' : ''}</button>
+            </div>
         </div>
     </div>`;
-    return modalShell('Изменить данные', body);
+    return modalShell('Запись — правка', body, { wide: true });
 }
 
 function modalDelete(m) {
@@ -1789,64 +1842,6 @@ function modalDelete(m) {
         </div>
     </div>`;
     return modalShell('Удаление', body);
-}
-
-function modalMove(m) {
-    const found = chainByHead(m.headId);
-    if (!found) return modalShell('Перенести', '<div class="rc-empty-note">Запись уже исчезла с доски</div>');
-    const { chain, addr } = found;
-    const n = chain.parts.length;
-    const ctx = pickCtx(m);
-    const targetAddrId = ctx.addrId;
-    const today = state.status?.today;
-    const tomorrow = state.status?.tomorrow;
-    const otherDate = m.targetDate && m.targetDate !== today && m.targetDate !== tomorrow;
-    const body = `
-    <div class="rc-move">
-        <div class="rc-chain-row"><b>${esc(chain.head.name)}</b> · сейчас ${esc(state.date || '')}
-            ${esc(chain.timeStart)}–${esc(chain.timeEnd)}${n > 1 ? ` (${plSlots(n)})` : ''}</div>
-        <div class="rc-sub">Куда</div>
-        <div class="rc-times" data-seg="rc-move-date">
-            <button class="chip ${m.targetDate === today ? 'active' : ''}" data-action="move-date" data-date="${esc(today)}">Сегодня</button>
-            <button class="chip ${m.targetDate === tomorrow ? 'active' : ''}" data-action="move-date" data-date="${esc(tomorrow)}">Завтра</button>
-            <button class="chip rc-date-pick ${otherDate ? 'active' : ''}" data-action="pick-move-date">
-                ${icons.calendar(13)}<span>${otherDate ? esc(m.targetDate) : 'Другая дата'}</span>
-            </button>
-            <input type="date" id="rc-mv-date" class="rc-date-input" value="${esc(ddmmToIso(m.targetDate))}" tabindex="-1" aria-hidden="true"/>
-        </div>
-        <div class="rc-station-select">
-            <select id="rc-move-station">
-                ${(ctx.board?.addresses || state.board.addresses).map(a => {
-                    const am = findStationMeta(a.title);
-                    return `<option value="${esc(a.id)}" ${String(a.id) === String(targetAddrId) ? 'selected' : ''}>${esc(am?.short || a.title)}</option>`;
-                }).join('')}
-            </select>
-            <button class="btn btn-sec rc-mini-btn" data-action="toggle-move-map">${icons.map(13)} карта</button>
-        </div>
-        <div id="rc-move-map" class="rc-create-map ${m.showMap ? '' : 'hidden'}"></div>
-        ${warnBannerHtml(stationById(targetAddrId, ctx.board))}
-        <div class="rc-sub">Расписание ${esc(m.targetDate || '')} — выберите окно</div>
-        <div class="rc-pick">
-            ${timelineHtml(ctx)}
-            <div class="rc-pick-side">
-                <div class="rc-pick-h">Длина записи</div>
-                ${durationHtml(clampDuration(ctx, ctx.duration), maxDurationFor(ctx))}
-                <div class="rc-pick-note"></div>
-                <div class="rc-pick-hint">Клик по свободному получасу — новое начало, длина записи едет следом.
-                    Длину меняют кнопками ±, вводом или Shift+кликом по концу окна:
-                    лишние слоты снимутся, недостающие добавятся продолжением.</div>
-            </div>
-        </div>
-        ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
-        <div class="modal-actions">
-            <span class="rc-copy-note" id="rc-copy-note"></span>
-            <button class="btn btn-sec" data-action="copy-move"
-                title="Строка для Битрикса: новые дата, время и адрес">${icons.copy(14)} В Битрикс</button>
-            <button class="btn btn-pri" data-action="submit-move">
-                ${icons.move(14)} Сохранить${isDown() ? ' (в очередь)' : ''}</button>
-        </div>
-    </div>`;
-    return modalShell('Время записи', body, { wide: true });
 }
 
 // Перенос ли это (у слотов есть адрес назначения) или правка полей.
@@ -2400,10 +2395,8 @@ function paintPick() {
 
     paintDurationFields(dur, max);
 
-    const extendBtn = root.querySelector('[data-action="submit-extend"]');
-    if (extendBtn) extendBtn.disabled = !max;
-    const moveBtn = root.querySelector('[data-action="submit-move"]');
-    if (moveBtn) moveBtn.disabled = !ctx.start || !fits;
+    const saveBtn = root.querySelector('[data-action="submit-edit"]');
+    if (saveBtn) saveBtn.disabled = !ctx.start || !fits;
 }
 
 function setPickDuration(min) {
@@ -2411,8 +2404,7 @@ function setPickDuration(min) {
     const ctx = pickCtx(m);
     if (!ctx) return false;
     const val = clampDuration(ctx, min);
-    if (ctx.kind === 'extend') m.extendMinutes = val;
-    else m.durationMinutes = val;
+    m.durationMinutes = val;
     return val !== min;
 }
 
@@ -2563,34 +2555,35 @@ function bind() {
             render();
         };
     }
-    const mvSel = document.getElementById('rc-move-station');
-    if (mvSel) {
-        mvSel.onchange = () => {
-            state.modal.targetAddressId = mvSel.value;
+    const edSel = document.getElementById('rc-e-station');
+    if (edSel) {
+        edSel.onchange = () => {
+            keepEditFields();
+            state.modal.targetAddressId = edSel.value;
             // На другой станции прежнее время может быть занято — не тащим его.
             const ctx = pickCtx(state.modal);
-            if (state.modal.targetTime && !slotFree(mvSel.value, state.modal.targetTime, ctx?.board)) {
+            if (state.modal.targetTime && !slotFree(edSel.value, state.modal.targetTime, ctx?.board)) {
                 state.modal.targetTime = null;
             }
-            const meta = metaFor(stationById(mvSel.value, ctx?.board));
+            const meta = metaFor(stationById(edSel.value, ctx?.board));
             if (meta) focusPickedStation(meta);
             render();
         };
     }
-    // Произвольная дата в окне переноса
-    const moveDate = document.getElementById('rc-mv-date');
-    if (moveDate) {
-        moveDate.onchange = () => {
-            const date = isoToDdmm(moveDate.value);
-            if (date) setMoveDate(date);
+    // Произвольная дата в окне правки
+    const editDate = document.getElementById('rc-e-date');
+    if (editDate) {
+        editDate.onchange = () => {
+            const date = isoToDdmm(editDate.value);
+            if (date) setEditDate(date);
         };
     }
     bindCredsForm();
     // Карта станции — часть страницы, а не модалки: собирается при каждой
     // перерисовке вида станции.
     if (state.view === 'station' && state.board) bindStationMap();
-    // Расписание и длительность (окна записи, продления и переноса)
-    if (state.modal?.kind === 'create' || state.modal?.kind === 'extend' || state.modal?.kind === 'move') bindPick();
+    // Расписание и длительность (окна новой записи и её правки)
+    if (state.modal?.kind === 'create' || state.modal?.kind === 'edit') bindPick();
 
     // Карты в модалках
     if (state.modal?.kind === 'map') {
@@ -2653,12 +2646,13 @@ function bind() {
         }, metaFor(stationById(state.modal.addressId, createBoard(state.modal)))?.short,
         createBoard(state.modal));
     }
-    if (state.modal?.kind === 'move' && state.modal.showMap) {
+    if (state.modal?.kind === 'edit' && state.modal.showMap) {
         const ctx = pickCtx(state.modal);
         const board = ctx?.board || state.board;
-        initModalMap('rc-move-map', (meta) => {
+        initModalMap('rc-edit-map', (meta) => {
             const id = addrIdByMeta(meta, board);
             if (!id) return;
+            keepEditFields();
             focusPickedStation(meta);
             state.modal.targetAddressId = id;
             // Время на новой станции своё — пусть выберут по её расписанию.
@@ -2692,11 +2686,16 @@ function keepCreateFields() {
 function keepEditFields() {
     const m = state.modal;
     if (m?.kind !== 'edit') return;
+    // Пока карточка не доехала, пустое поле не запоминаем: там нечего беречь, а
+    // подставится в него как раз подгруженное значение. Когда доехала —
+    // запоминаем и пустое: окно перерисовывается на каждую смену дня, станции и
+    // карты, и осознанно стёртый комментарий не должен возвращаться сам.
+    const known = Boolean(detailsOf(m.headId)?.record);
     for (const [key, id] of [['name', 'rc-e-name'], ['phone', 'rc-e-phone'],
         ['carNumber', 'rc-e-car'], ['comment', 'rc-e-comment']]) {
         const val = document.getElementById(id)?.value;
         if (val == null) continue;
-        if (val.trim()) m[key] = val;
+        if (val.trim() || known) m[key] = val;
         else delete m[key];
     }
 }
@@ -2830,14 +2829,15 @@ async function handleAction(btn, ev) {
     if (a === 'tl-pick') {
         const m = state.modal;
         const ctx = pickCtx(m);
-        if (!ctx || ctx.fixedStart) return;
+        if (!ctx) return;
         keepCreateFields();
+        keepEditFields();
         const t = btn.dataset.time;
-        const cur = ctx.kind === 'move' ? m.targetTime : m.time;
+        const cur = ctx.kind === 'edit' ? m.targetTime : m.time;
         const span = cur ? timeToMin(t) - timeToMin(cur) + SLOT_MINUTES : 0;
         if (ev?.shiftKey && span > SLOT_MINUTES && span <= freeRunFrom(ctx, cur)) {
             m.durationMinutes = span; // Shift+клик ниже — это конец окна
-        } else if (ctx.kind === 'move') {
+        } else if (ctx.kind === 'edit') {
             m.targetTime = t;
             setPickDuration(m.durationMinutes ?? ctx.duration);
         } else {
@@ -2859,24 +2859,26 @@ async function handleAction(btn, ev) {
         loadDetails(btn.dataset.head); // окно открываем сразу, карточка доедет
         return render();
     }
-    if (a === 'open-move') {
+    if (a === 'open-edit') {
         const found = chainByHead(btn.dataset.head);
         if (!found) return;
-        // Открываемся на нынешнем месте записи: сразу видно, где она стоит,
-        // и можно поменять только длину, ничего не перенося.
+        // Открываемся на нынешнем месте записи: сразу видно, где она стоит, и
+        // можно поменять только имя или только длину, ничего не перенося.
         state.modal = {
-            kind: 'move',
+            kind: 'edit',
             headId: btn.dataset.head,
             targetDate: state.date,
             targetTime: found.chain.timeStart,
             targetAddressId: found.addr.id,
             durationMinutes: found.chain.parts.length * SLOT_MINUTES,
         };
+        loadDetails(btn.dataset.head); // без неё поля правки не знают, что там сейчас
         return render();
     }
-    if (a === 'move-date') return setMoveDate(btn.dataset.date);
-    if (a === 'pick-move-date') {
-        const input = document.getElementById('rc-mv-date');
+    if (a === 'edit-date') return setEditDate(btn.dataset.date);
+    if (a === 'pick-edit-date') {
+        keepEditFields();
+        const input = document.getElementById('rc-e-date');
         if (!input) return;
         if (typeof input.showPicker === 'function') {
             try { input.showPicker(); return; } catch { /* ниже — запасной путь */ }
@@ -2885,22 +2887,10 @@ async function handleAction(btn, ev) {
         input.click();
         return;
     }
-    if (a === 'toggle-move-map') {
+    if (a === 'toggle-edit-map') {
+        keepEditFields();
         state.modal.showMap = !state.modal.showMap;
         ensureMapViewFor(state.modal.targetAddressId || chainByHead(state.modal.headId)?.addr.id);
-        return render();
-    }
-    if (a === 'submit-move') return submitMove();
-
-    if (a === 'open-extend') {
-        state.modal = { kind: 'extend', headId: btn.dataset.head, extendMinutes: SLOT_MINUTES };
-        return render();
-    }
-    if (a === 'submit-extend') return submitExtend();
-
-    if (a === 'open-edit') {
-        state.modal = { kind: 'edit', headId: btn.dataset.head };
-        loadDetails(btn.dataset.head); // без неё поля правки не знают, что там сейчас
         return render();
     }
     if (a === 'submit-edit') return submitEdit();
@@ -2917,7 +2907,7 @@ async function handleAction(btn, ev) {
     }
     if (a === 'submit-delete') return submitDelete();
 
-    if (a === 'copy-new' || a === 'copy-move') return copyBitrixLine(a === 'copy-move' ? 'move' : 'create');
+    if (a === 'copy-new' || a === 'copy-edit') return copyBitrixLine(a === 'copy-edit' ? 'edit' : 'create');
     if (a === 'copy-chain') {
         const found = chainByHead(btn.dataset.head);
         if (!found) return;
@@ -2948,7 +2938,14 @@ async function handleAction(btn, ev) {
         else await loadBoard({ silent: true });
         const found = chainByPart(first.id);
         state.modal = found
-            ? { kind: 'move', headId: found.chain.head.id, targetDate: state.date, targetTime: null }
+            ? {
+                kind: 'edit',
+                headId: found.chain.head.id,
+                targetDate: state.date,
+                targetTime: null,
+                targetAddressId: found.addr.id,
+                durationMinutes: found.chain.parts.length * SLOT_MINUTES,
+            }
             : { kind: 'queue', error: 'запись не нашлась на доске — обновите день и перенесите её вручную' };
         return render();
     }
@@ -2983,11 +2980,12 @@ async function setCreateDate(date) {
     render();
 }
 
-// Смена дня в окне переноса: расписание чужого дня подтягиваем так же, как в
+// Смена дня в окне правки: расписание чужого дня подтягиваем так же, как в
 // окне записи, и сбрасываем выбранное время — на новом дне оно своё.
-async function setMoveDate(date) {
+async function setEditDate(date) {
     const m = state.modal;
-    if (!date || m?.kind !== 'move' || m.targetDate === date) return;
+    if (!date || m?.kind !== 'edit' || m.targetDate === date) return;
+    keepEditFields(); // перерисовка не должна стереть набранные поля
     m.targetDate = date;
     m.targetTime = null;
     m.targetBoard = null;
@@ -3052,10 +3050,11 @@ async function copyBitrixLine(kind) {
     let date = '';
     let time = '';
     let title = '';
-    if (kind === 'move') {
+    if (kind === 'edit') {
         const found = chainByHead(m.headId);
         if (!found) return;
-        name = found.chain.head.name;
+        keepEditFields();
+        name = m.name ?? found.chain.head.name;
         date = m.targetDate;
         time = m.targetTime;
         title = stationById(m.targetAddressId || found.addr.id, pickCtx(m)?.board)?.title || '';
@@ -3104,6 +3103,7 @@ async function submitCreate() {
             comment: m.comment.trim(),
             durationMinutes: m.durationMinutes,
         });
+        rememberClientName(m.name);
         destroyMapCtl();
         state.modal = null;
         render(); // окно закрываем сразу: дальше день может уехать анимацией
@@ -3123,15 +3123,25 @@ async function submitCreate() {
     }
 }
 
-// Перенос и правка длины — одной кнопкой, но разными операциями очереди:
-// сперва снимаем лишний хвост (иначе перенос упрётся в собственные слоты),
-// потом двигаем оставшиеся слоты, потом дописываем недостающие.
-async function submitMove() {
+// Правка записи — одной кнопкой, но по-прежнему до трёх операций в очереди, и
+// порядок важен: сперва снимаем лишний хвост (иначе перенос упрётся в
+// собственные слоты), потом двигаем оставшиеся слоты вместе с новыми полями,
+// потом дописываем недостающие.
+async function submitEdit() {
+    keepEditFields();
     const m = state.modal;
     const found = chainByHead(m.headId);
     const ctx = pickCtx(m);
-    if (!found || !ctx || !m.targetTime) return;
+    if (!found || !ctx) return;
     const { chain, addr } = found;
+
+    const name = document.getElementById('rc-e-name')?.value.trim() ?? (m.name ?? chain.head.name ?? '').trim();
+    const phone = document.getElementById('rc-e-phone')?.value.trim() || '';
+    const carNumber = document.getElementById('rc-e-car')?.value.trim() || '';
+    const comment = document.getElementById('rc-e-comment')?.value.trim() || '';
+    if (!name) { m.error = 'имя обязательно'; return render(); }
+    if (!m.targetTime) { m.error = 'выберите время в расписании'; return render(); }
+
     const nOld = chain.parts.length;
     const dur = clampDuration(ctx, m.durationMinutes ?? nOld * SLOT_MINUTES);
     if (dur > freeRunFrom(ctx, m.targetTime)) {
@@ -3149,37 +3159,63 @@ async function submitMove() {
         return render();
     }
 
-    // from — где слот лежит сейчас: если перенос не влезет целиком (окно
-    // успели занять, оригинал упал посреди хвостов), бэкенд вернёт по нему
-    // уехавшие слоты на место, а не оставит запись разорванной.
-    const records = keep.map((p, i) => ({
-        id: p.id,
-        addressId,
-        date,
-        time: addMinutes(m.targetTime, i * SLOT_MINUTES),
-        from: { addressId: addr.id, date: state.date, time: p.timeStart },
-    }));
-    // Запись осталась ровно там же (меняли только длину) — двигать нечего.
+    // Запись осталась ровно там же (меняли только поля или только длину) —
+    // двигать нечего, и адрес назначения в операцию не кладём вовсе.
+    const timeAt = (i) => addMinutes(m.targetTime, i * SLOT_MINUTES);
     const moved = date !== state.date
         || String(addressId) !== String(addr.id)
-        || records.some((r, i) => r.time !== keep[i].timeStart);
+        || keep.some((p, i) => timeAt(i) !== p.timeStart);
+
+    // Нынешние госномер и комментарий известны — отправляем их как есть, в том
+    // числе пустыми (это осознанная очистка). Не известны — пустое поле не шлём
+    // вовсе, и бэкенд оставит то, что было в оригинале.
+    const det = detailsOf(chain.head.id);
+    const known = Boolean(det?.record);
+    const headPhone = chain.head.isStub ? '' : (chain.head.phone || '');
+    const fieldsChanged = name !== (chain.head.name || '')
+        || (phone && phone !== headPhone)
+        || (known
+            ? carNumber !== (det.record.carNumber || '') || comment !== (det.record.comment || '')
+            : Boolean(carNumber) || Boolean(comment));
+
+    const records = keep.map((p, i) => {
+        const r = { id: p.id, name };
+        if (i === 0) {
+            if (phone) r.phone = phone;
+            if (known || carNumber) r.carNumber = carNumber;
+            if (known || comment) r.comment = comment;
+        }
+        if (moved) {
+            // from — где слот лежит сейчас: если перенос не влезет целиком (окно
+            // успели занять, оригинал упал посреди хвостов), бэкенд вернёт по
+            // нему уехавшие слоты на место, а не оставит запись разорванной.
+            r.addressId = addressId;
+            r.date = date;
+            r.time = timeAt(i);
+            r.from = { addressId: addr.id, date: state.date, time: p.timeStart };
+        }
+        return r;
+    });
 
     try {
         if (drop.length) await postOp('delete', { records: drop.map(p => ({ id: p.id, deleteUrl: p.deleteUrl })) });
-        if (moved) await postOp('update', { records });
+        if (moved || fieldsChanged) await postOp('update', { records });
         if (nNew > nOld) {
-            // Добавка — те же слоты-продолжения с телефоном-заглушкой, что и в «Продлить».
+            // Добавка — слоты-продолжения с телефоном-заглушкой: SMS клиенту с
+            // них не уйдёт (так же было в «Продлить» оригинального скрипта).
             await postOp('create', {
                 addressId,
                 date,
-                time: addMinutes(m.targetTime, nOld * SLOT_MINUTES),
-                name: chain.head.name,
+                time: timeAt(nOld),
+                name,
                 phone: EXTENSION_STUB_PHONE,
                 carNumber: '',
                 comment: '',
                 durationMinutes: (nNew - nOld) * SLOT_MINUTES,
             });
         }
+        rememberClientName(name);
+        dropDetails(chain.parts.map(p => p.id));
         destroyMapCtl();
         state.modal = null;
         render(); // окно закрываем сразу: дальше день может уехать анимацией
@@ -3190,65 +3226,6 @@ async function submitMove() {
     }
 }
 
-async function submitExtend() {
-    const m = state.modal;
-    const found = chainByHead(m.headId);
-    if (!found) return;
-    setPickDuration(m.extendMinutes); // не даём уехать за свободное окно
-    if (!m.extendMinutes) return;
-    const { chain, addr } = found;
-    try {
-        await postOp('create', {
-            addressId: addr.id,
-            date: state.date,
-            time: chain.timeEnd,
-            name: chain.head.name,
-            phone: EXTENSION_STUB_PHONE,
-            carNumber: '',
-            comment: '',
-            durationMinutes: m.extendMinutes,
-        });
-        state.modal = null;
-        render();
-    } catch (err) {
-        m.error = err.message;
-        render();
-    }
-}
-
-async function submitEdit() {
-    const m = state.modal;
-    const found = chainByHead(m.headId);
-    if (!found) return;
-    const { chain } = found;
-    const name = document.getElementById('rc-e-name')?.value.trim() || '';
-    const phone = document.getElementById('rc-e-phone')?.value.trim() || '';
-    const carNumber = document.getElementById('rc-e-car')?.value.trim() || '';
-    const comment = document.getElementById('rc-e-comment')?.value.trim() || '';
-    if (!name) { m.error = 'имя обязательно'; return render(); }
-    // Нынешние госномер и комментарий известны — отправляем их как есть, в том
-    // числе пустыми (это осознанная очистка). Не известны — пустое поле не шлём
-    // вовсе, и бэкенд оставит то, что было в оригинале.
-    const known = Boolean(detailsOf(chain.head.id)?.record);
-    const records = chain.parts.map((p, i) => {
-        const r = { id: p.id, name };
-        if (i === 0) {
-            if (phone) r.phone = phone;
-            if (known || carNumber) r.carNumber = carNumber;
-            if (known || comment) r.comment = comment;
-        }
-        return r;
-    });
-    try {
-        await postOp('update', { records });
-        dropDetails(chain.parts.map(p => p.id));
-        state.modal = null;
-        render();
-    } catch (err) {
-        m.error = err.message;
-        render();
-    }
-}
 
 async function submitDelete() {
     const m = state.modal;
