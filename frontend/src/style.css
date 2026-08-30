@@ -406,6 +406,8 @@ input, button, select, textarea { font-family: inherit; }
   align-items: stretch;
   gap: 2px;
   overflow-x: auto;
+  /* Полоса тут пряталась ещё до общего правила и теперь ему не нужна —
+     оставлено как есть, чтобы не зависеть от порядка блоков в файле. */
   scrollbar-width: none;
 }
 .app-tabs-row::-webkit-scrollbar { display: none; }
@@ -2250,16 +2252,28 @@ input[data-edit-filter-absent]:checked::after {
 }
 
 /* ── Скроллбары ─────────────────────────────────────────────────── */
-/* Стандартные свойства понимают и Firefox, и Chrome 121+ — вид одинаковый.
-   ::-webkit-* остаются фолбэком для старых Chromium (там scrollbar-color
-   не поддержан, поэтому конфликтовать они не будут). */
-* {
+/* ПОЛОСА ОСТАЁТСЯ ТОЛЬКО У СТРАНИЦЫ ЦЕЛИКОМ. У всего остального — списков,
+   окон, панелей — её нет вовсе, и это не про красоту.
+   Раньше `scrollbar-width: thin` стояло на `*`, то есть на каждом вложенном
+   контейнере. В Chrome это КЛАССИЧЕСКАЯ полоса: она занимает место внутри
+   элемента, а её прямоугольную дорожку браузер не обрезает по border-radius —
+   у скруглённого блока два угла со стороны полосы становились прямыми. Именно
+   это и было видно на карточках и в окнах.
+   Плюс к этому: полосу рисует браузер ПОВЕРХ нашего холста, и внутри будущей
+   стеклянной панели она выглядела бы инородной пластиковой лентой.
+   Цена решения названа честно: во внутренних списках пропадает указание
+   «сколько осталось». Для них это терпимо — они короткие; у страницы целиком,
+   где прокрутка может идти на тысячи строк, полоса поэтому и оставлена. */
+*:not(:is(html, body)) { scrollbar-width: none; }
+*:not(:is(html, body))::-webkit-scrollbar { width: 0; height: 0; }
+
+html {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: var(--r-1); }
-::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar { width: 10px; height: 10px; }
+html::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: var(--r-round); }
+html::-webkit-scrollbar-track { background: transparent; }
 
 /* ── Кроссбраузерная нормализация контролов ─────────────────────── */
 /* Спиннеры у number-инпутов: Firefox показывает их всегда, Chrome — по
