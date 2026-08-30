@@ -1537,7 +1537,9 @@
 .rc-chain-note svg { color: var(--sub); }
 .rc-chain-comment span { white-space: pre-wrap; overflow-wrap: anywhere; }
 
-.rc-chain-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+/* Кнопок ровно три (правка, копия, удаление) — в строку, а на узком экране
+   столбиком: подпись «Редактировать» в 1/3 ширины окна не помещается. */
+.rc-chain-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s-2); }
 .rc-chain-actions .btn { display: inline-flex; align-items: center; gap: var(--s-2); justify-content: flex-start; }
 
 /* Удаление */

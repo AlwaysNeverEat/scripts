@@ -272,6 +272,23 @@ router.put('/stations', modOnly, async (req, res) => {
 
 // ── Операции ─────────────────────────────────────────────────────────────────
 
+// Потолки полей записи. Комментарий был 500, и этого не хватало: в него пишут
+// не «вф+сф», а весь разговор с клиентом («на 5w30 не соглашается, привезёт
+// своё, плюс промывка, машина после ДТП…»), и длинное описание доезжало до
+// оригинала обрезанным ровно посередине фразы. 4000 — с запасом на такой
+// рассказ; ограничение остаётся только чтобы в очередь не улетел мегабайт.
+const FIELD_LIMITS = { name: 200, phone: 32, carNumber: 32, comment: 4000 };
+
+// Обрезка на месте и ТОЛЬКО тех полей, что реально пришли: в операции правки
+// отсутствующее поле означает «не менять», и подставлять ему пустую строку
+// нельзя — она затёрла бы то, что лежит в оригинале.
+function trimFields(target) {
+    for (const [key, max] of Object.entries(FIELD_LIMITS)) {
+        if (target[key] == null) continue;
+        target[key] = String(target[key]).trim().slice(0, max);
+    }
+}
+
 function validateCreate(p) {
     if (!/^\d+$/.test(String(p.addressId || ''))) return 'addressId';
     if (!DATE_RE.test(String(p.date || ''))) return 'date';
@@ -332,12 +349,13 @@ router.post('/ops', async (req, res) => {
     let invalid = null;
     if (type === 'create') {
         invalid = validateCreate(payload);
-        payload.name = String(payload.name).trim().slice(0, 200);
-        payload.phone = String(payload.phone || '').trim().slice(0, 32);
-        payload.carNumber = String(payload.carNumber || '').trim().slice(0, 32);
-        payload.comment = String(payload.comment || '').trim().slice(0, 500);
+        trimFields(payload);
     } else if (type === 'update') {
         invalid = validateRecordsList(payload, { needTarget: true });
+        // Правка шла мимо обрезки вовсе: создание резало комментарий, правка не
+        // резала ничего — одно и то же поле вело себя по-разному. Режем обе,
+        // одним и тем же местом.
+        for (const r of (payload.records || [])) trimFields(r);
     } else if (type === 'delete') {
         invalid = validateRecordsList(payload, { needTarget: false });
     } else {
