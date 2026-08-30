@@ -1122,6 +1122,14 @@ a.btn:visited, a.btn:active { color: var(--text); }
   display: inline-flex;
   align-items: center;
   gap: 0;
+  /* ДОРОЖКА КОНЧАЕТСЯ ТАМ, ГДЕ КОНЧАЕТСЯ ПОСЛЕДНИЙ ПУНКТ, и одного
+     inline-flex для этого мало: у некоторых групп свой `display: flex` в
+     другом файле (у .rc-times, например), он блочный и той же специфичности,
+     а грузится позже — дорожка растягивалась во всю ширину окна, и пилюля
+     ехала в пустоте. fit-content держит ширину по содержимому при любом
+     display; max-width не даёт длинной группе вылезти из узкого окна. */
+  width: fit-content;
+  max-width: 100%;
   padding: 3px;
   background: var(--bg2);
   border: 1px solid var(--border);
