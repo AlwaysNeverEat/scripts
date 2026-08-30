@@ -157,7 +157,7 @@
     display: inline-grid;
     place-items: center;
     padding: 0 4px;
-    border-radius: 999px;
+    border-radius: var(--r-round);
     background: var(--accent);
     color: var(--accent-fg);
     font-size: 10px;
@@ -180,7 +180,7 @@
 .rc-dot {
     width: 9px;
     height: 9px;
-    border-radius: 50%;
+    border-radius: var(--r-circle);
     flex: none;
 }
 
@@ -243,7 +243,7 @@
     gap: 6px;
     margin: 0;
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: var(--r-2);
     font-size: 11px;
     line-height: 1.35;
 }
@@ -299,7 +299,7 @@
 .rc-skel {
     position: relative;
     overflow: hidden;
-    border-radius: 4px;
+    border-radius: var(--r-1);
     background: var(--bg3);
 }
 
@@ -312,7 +312,7 @@
     animation: rc-skel-shine 1.25s ease-in-out infinite;
 }
 
-.rc-skel-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.rc-skel-dot { width: 8px; height: 8px; border-radius: var(--r-circle); flex: none; }
 .rc-skel-name { height: 11px; flex: 1; max-width: 150px; }
 /* Скелет станции: полоски вместо времени в колонке слева и вместо «Бокс N».
    Полоска времени стоит ровно в своей 64-пиксельной колонке, а не по центру
@@ -327,9 +327,9 @@
     width: 280px;
     max-width: 60vw;
     height: calc(var(--row-h-ref) * 0.75);
-    border-radius: 8px;
+    border-radius: var(--r-2);
 }
-.rc-skel-pill { height: 21px; width: 78px; border-radius: 4px; }
+.rc-skel-pill { height: 21px; width: 78px; border-radius: var(--r-1); }
 .rc-skel-pill-s { width: 54px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -419,7 +419,7 @@
     margin-left: auto;
     flex: none;
     padding: 1px 6px;
-    border-radius: 999px;
+    border-radius: var(--r-round);
     background: color-mix(in oklab, var(--line, var(--sub)) 18%, transparent);
     color: var(--line, var(--sub));
     font-size: 10.5px;
@@ -453,7 +453,7 @@
     text-align: left;
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--r-3);
     padding: 13px 14px;
     color: var(--text);
     cursor: pointer;
@@ -498,7 +498,7 @@
 .rc-line-dot {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
+    border-radius: var(--r-circle);
     flex: none;
 }
 
@@ -539,7 +539,7 @@
     align-items: center;
     gap: 4px;
     padding: 3px 7px;
-    border-radius: 4px;
+    border-radius: var(--r-1);
     font-size: 10.5px;
     font-weight: 500;
     line-height: 1.4;
@@ -648,7 +648,7 @@
     font-size: 10.5px;
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--r-1);
     padding: 3px 7px;
     background: var(--bg3);
 }
@@ -684,7 +684,7 @@
     color: var(--text);
     background: var(--bg3);
     border: 1px solid var(--border-strong);
-    border-radius: 4px;
+    border-radius: var(--r-1);
     padding: 0 5px;
     vertical-align: 1px;
 }
@@ -699,7 +699,7 @@
     color: var(--blue);
     background: var(--blue-dim);
     border: 1px solid color-mix(in oklab, var(--blue) 45%, transparent);
-    border-radius: 4px;
+    border-radius: var(--r-1);
     padding: 1px 2px;
     vertical-align: -3px;
 }
@@ -835,7 +835,7 @@
     gap: 5px;
     padding: 0 8px;
     border: 1px dashed color-mix(in oklab, var(--green) 45%, transparent);
-    border-radius: 11px;
+    border-radius: var(--r-3);
     background: color-mix(in oklab, var(--green) 7%, transparent);
     color: var(--green);
     font-size: 10.5px;
@@ -916,7 +916,7 @@
     gap: 3px;
     text-align: left;
     padding: 5px 9px;
-    border-radius: 11px;
+    border-radius: var(--r-3);
     border: 1px solid var(--border);
     background: var(--bg3);
     color: var(--text);
@@ -933,7 +933,7 @@
 
 /* Продлённая запись — «червячок»: насечки на границах слотов показывают,
    что это одна цепочка из 30-минутных сегментов. */
-.rc-cap-worm { border-radius: 14px; }
+.rc-cap-worm { border-radius: var(--r-4); }
 
 .rc-cap-seg {
     position: absolute;
@@ -951,7 +951,7 @@
     font-size: 9.5px;
     color: var(--blue);
     background: var(--blue-dim);
-    border-radius: 999px;
+    border-radius: var(--r-round);
     padding: 1px 6px;
 }
 
@@ -979,7 +979,7 @@
     font-variant-numeric: tabular-nums;
     color: var(--blue);
     background: var(--blue-dim);
-    border-radius: 999px;
+    border-radius: var(--r-round);
     padding: 1px 6px;
 }
 
@@ -1043,7 +1043,7 @@
     50% { outline-color: transparent; }
 }
 
-.rc-st { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; flex: none; }
+.rc-st { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: var(--r-circle); flex: none; }
 .rc-st-ok { background: var(--green-dim); color: var(--green); }
 .rc-st-late { background: var(--red-dim); color: var(--red); }
 .rc-st-new { background: var(--accent-dim); color: var(--accent); }
@@ -1136,7 +1136,7 @@
     padding: 6px;
     background: color-mix(in oklab, var(--card) 80%, transparent);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--r-3);
     box-shadow: var(--shadow-2);
     backdrop-filter: blur(10px);
     pointer-events: auto;
@@ -1152,7 +1152,7 @@
        выглядела бы двойной. */
     background: color-mix(in oklab, var(--bg2) 55%, transparent);
     border: 1px solid transparent;
-    border-radius: 9px;
+    border-radius: var(--r-2);
     color: var(--text);
     font-size: 11.5px;
     text-align: left;
@@ -1181,7 +1181,7 @@
     padding: 7px 9px;
     background: color-mix(in oklab, var(--card) 92%, transparent);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--r-2);
     backdrop-filter: blur(6px);
     pointer-events: none;
 }
@@ -1193,7 +1193,7 @@
     min-width: 22px;
     text-align: center;
     padding: 1px 6px;
-    border-radius: 999px;
+    border-radius: var(--r-round);
     background: var(--bg3);
     color: var(--sub);
     font-size: 10px;
@@ -1250,7 +1250,7 @@
     background: var(--bg2);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--r-2);
     padding: 8px 10px;
     font-size: 12.5px;
 }
@@ -1280,7 +1280,7 @@
     background: var(--bg2);
     border: 1px solid var(--border);
     color: var(--text);
-    border-radius: 8px;
+    border-radius: var(--r-2);
     padding: 8px 10px;
     font-size: 13px;
     width: 100%;
@@ -1359,7 +1359,7 @@
     font-style: normal;
     padding: 2px 8px;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--r-round);
     background: var(--bg3);
     color: var(--text);
 }
@@ -1371,7 +1371,7 @@
 .rc-tl-rec-mine { border-color: var(--blue); background: var(--blue-dim); color: var(--blue); }
 
 .rc-tl-tag { margin-left: auto; flex: none; font-style: normal; font-size: 10px; color: var(--sub); }
-.rc-tl-tag-free { color: var(--green); background: var(--green-dim); border-radius: 7px; padding: 2px 6px; }
+.rc-tl-tag-free { color: var(--green); background: var(--green-dim); border-radius: var(--r-2); padding: 2px 6px; }
 
 .rc-tl-closed { background: repeating-linear-gradient(-45deg, transparent 0 8px, var(--stripe) 8px 16px); }
 .rc-tl-closed .rc-tl-time { opacity: 0.4; }
@@ -1433,7 +1433,7 @@
     width: max-content;
     padding: 5px 6px;
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--r-3);
     background: var(--bg2);
 }
 
@@ -1444,7 +1444,7 @@
     display: grid;
     place-items: center;
     border: 1px solid var(--border);
-    border-radius: 9px;
+    border-radius: var(--r-2);
     background: var(--bg3);
     color: var(--text);
     font-size: 17px;
@@ -1461,7 +1461,7 @@
     width: 40px;
     padding: 4px 2px;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--r-2);
     background: none;
     color: var(--text);
     font-size: 19px;
@@ -1548,7 +1548,7 @@
     gap: 9px;
     padding: 8px 10px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--r-2);
     background: var(--bg2);
     font-size: 12.5px;
     cursor: pointer;
@@ -1562,7 +1562,7 @@
     gap: 10px;
     padding: 9px 11px;
     border: 1px solid var(--border);
-    border-radius: 9px;
+    border-radius: var(--r-2);
     background: var(--bg2);
     font-size: 12.5px;
 }
@@ -1602,7 +1602,7 @@
     gap: 6px;
     background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--r-round);
     padding: 4px 9px 4px 5px;
     font: 10.5px/1 "Unbounded", sans-serif;
     color: var(--text);
@@ -1659,7 +1659,7 @@
     color: var(--accent-fg);
 }
 
-.rc-pin-stripe { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.rc-pin-stripe { width: 8px; height: 8px; border-radius: var(--r-circle); flex: none; }
 
 .rc-pin-code {
     color: var(--text);
@@ -1668,7 +1668,7 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
     background: var(--bg3);
-    border-radius: 3px;
+    border-radius: var(--r-1);
     padding: 1px 3px;
 }
 
@@ -1677,7 +1677,7 @@
     align-items: center;
     color: var(--blue);
     background: var(--blue-dim);
-    border-radius: 3px;
+    border-radius: var(--r-1);
     padding: 1px;
 }
 
@@ -1686,7 +1686,7 @@
 .rc-pin-count {
     background: var(--accent);
     color: var(--accent-fg);
-    border-radius: 999px;
+    border-radius: var(--r-round);
     min-width: 15px;
     height: 15px;
     display: inline-grid;
@@ -1731,7 +1731,7 @@
 .rc-map-legend .rc-lg-ac { color: var(--blue); }
 .rc-map-legend .rc-code { font-weight: 400; }
 
-.rc-lg-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.rc-lg-dot { width: 9px; height: 9px; border-radius: var(--r-circle); flex: none; }
 
 .rc-map-layout { display: grid; grid-template-columns: 260px 1fr; gap: 12px; }
 
@@ -1744,7 +1744,7 @@
     padding: 8px 10px;
     background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: 9px;
+    border-radius: var(--r-2);
     color: var(--text);
     font-size: 12px;
     cursor: pointer;
@@ -1773,7 +1773,7 @@
     width: min(420px, calc(100vw - 32px));
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: var(--r-4);
     padding: 26px;
 }
 
