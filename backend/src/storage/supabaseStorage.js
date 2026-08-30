@@ -62,11 +62,3 @@ export function uploadAvatarOriginal(userId, buffer, mime) {
 export function uploadAvatarCropped(userId, buffer) {
   return uploadObject(`${userId}-cropped.jpg`, buffer, 'image/jpeg');
 }
-
-// Фон темы подписчика — в тот же бакет. Расширение фиксируем в имени, потому
-// что тут, в отличие от диска, старый объект с другим расширением никто не
-// подчищает: путь детерминированный, и upsert перезаписывает ровно его.
-export function uploadSupporterBackground(userId, buffer, mime) {
-  const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
-  return uploadObject(`${userId}-supp-bg.${ext}`, buffer, mime);
-}

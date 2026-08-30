@@ -16,7 +16,6 @@
 import { Router } from 'express';
 import { query } from '../db/client.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
-import { SUPPORTER_JOIN, SUPPORTER_COLUMNS, SUPPORTER_GROUP_BY, supporterBadge } from '../supporter/badge.js';
 
 const router = Router();
 
@@ -26,7 +25,7 @@ const MSK_NOW = `(now() AT TIME ZONE 'Europe/Moscow')`;
 
 const STATS_SELECT = `
   u.id, u.display_name, u.avatar,
-  rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}, ${SUPPORTER_COLUMNS},
+  rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS},
   count(*)::int AS records`;
 
 // Ранжируем по числу записей; при равенстве — по имени, чтобы порядок был
@@ -36,9 +35,9 @@ const RANKED_QUERY = `
     FROM record_credits rc
     JOIN users u ON u.id = rc.user_id
     LEFT JOIN role_labels rl ON rl.role = u.role
-    ${FACULTY_JOIN}${SUPPORTER_JOIN}
+    ${FACULTY_JOIN}
    WHERE rc.month = $1
-   GROUP BY u.id, rl.prefix_label, rl.color, rl.tooltip, fr.faculty, ${SUPPORTER_GROUP_BY}
+   GROUP BY u.id, rl.prefix_label, rl.color, rl.tooltip, fr.faculty
    ORDER BY count(*) DESC, u.display_name
    LIMIT $2`;
 
@@ -51,7 +50,6 @@ function presentRow(row) {
       ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
       : null,
     faculty: facultyBadge(row.faculty),
-    supporter: supporterBadge(row),
     records: row.records || 0,
   };
 }

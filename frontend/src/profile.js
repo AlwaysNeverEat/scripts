@@ -20,7 +20,6 @@ import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
-import { supporterSectionHtml, bindSupporterSection } from './supporter.js';
 import { namePrefixHtml } from './namePrefix.js';
 
 function esc(s) {
@@ -74,16 +73,12 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
     // Распределение грузим отдельным catch: без него профиль показать можно,
     // а вот терять из-за него статистику и медали — нельзя.
     let faculty = null;
-    // Подписка — тем же отдельным catch: она косметическая, и её недоступность
-    // не повод прятать медали и статистику.
-    let supporter = null;
     try {
-        [stats, achievements, activity, faculty, supporter] = await Promise.all([
+        [stats, achievements, activity, faculty] = await Promise.all([
             apiFetch('/api/profile/stats'),
             apiFetch('/api/profile/achievements'),
             apiFetch('/api/profile/activity'),
             apiFetch('/api/faculty/state').catch(() => null),
-            apiFetch('/api/supporter/me').catch(() => null),
         ]);
     } catch { /* покажем то, что есть, без статистики */ }
 
@@ -112,21 +107,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                      обложкой: панелей стало много, и сообщение у нижней кнопки
                      после клика по аватарке осталось бы за экраном. -->
                 <div id="profile-error" class="edit-error hidden"></div>
-
-                <!-- Подписка стоит первой панелью сознательно: подписчику это
-                     статус («до какого числа») и вход в настройки темы, а
-                     остальным — единственное место, где вообще рассказано, что
-                     такое supp. Ниже она затерялась бы между медалями и
-                     активностью. -->
-                ${profileSectionHtml({
-                    title: 'Подписка supp',
-                    // В шапке — короткая метка, точная дата живёт внутри
-                    // панели: одна и та же строка дважды в одном блоке
-                    // читается как ошибка вёрстки.
-                    meta: supporter?.active ? 'активна' : `${supporter?.price || 350} ₽ в месяц`,
-                    cls: `profile-sec-supp${supporter?.active ? ' is-on' : ''}`,
-                    body: supporterSectionHtml(supporter),
-                })}
 
                 ${profileSectionHtml({
                     title: 'Факультет',
@@ -172,16 +152,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
     }
 
     function bind() {
-        // Кнопки панели подписки: окно темы, витрина и выдача (последняя — у
-        // владельца). Что кому показывать, решает сама панель.
-        bindSupporterSection({
-            apiFetch,
-            onChanged: async () => {
-                try { supporter = await apiFetch('/api/supporter/me'); } catch { /* оставим прежнее */ }
-                render();
-            },
-        });
-
         const errBox = document.getElementById('profile-error');
         const showErr = (msg) => {
             errBox.textContent = msg;

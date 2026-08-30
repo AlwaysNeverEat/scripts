@@ -14,7 +14,13 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # СЕМНАДЦАТЫЙ, и менять его на 16 нельзя. Базу наливали дампом через
+    # deploy/_pgcopy.sh, а он поднимает postgres:17-alpine — том pg_data
+    # инициализирован семнадцатым с самого первого дня. Шестнадцатый на
+    # такой каталог не стартует вовсе («database files are incompatible
+    # with server»), и это не «контейнер не поднялся», а сайт без базы:
+    # бэкенд ждёт healthcheck, которого не будет.
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: carsdb

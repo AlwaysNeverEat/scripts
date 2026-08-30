@@ -63,25 +63,6 @@ async function writeAvatar(name, ext, buffer) {
     return `${avatarPublicBase()}/${file}`;
 }
 
-// Фон темы подписчика лежит в том же каталоге и отдаётся тем же /avatars, что
-// и аватарки: это такая же пользовательская картинка на том же диске, и
-// заводить ради неё второй том, второй express.static и второй путь в nginx
-// значило бы удваивать всю проводку ради одного имени файла.
-export function uploadSupporterBackgroundToDisk(userId, buffer, mime) {
-    const ext = MIME_EXT[mime];
-    if (!ext) throw new Error(`неподдерживаемый тип изображения: ${mime}`);
-    return writeAvatar(`${userId}-supp-bg`, ext, buffer);
-}
-
-// Убрать фон совсем. Удаляем ФАЙЛ, а не только ссылку в настройках: картинку
-// на весь экран человек мог и передумать показывать, и оставлять её лежать на
-// диске «на всякий случай» — не наше дело.
-export async function removeSupporterBackgroundFromDisk(userId) {
-    const dir = avatarDir();
-    if (!dir) return;
-    await dropOtherExtensions(dir, `${userId}-supp-bg`, null);
-}
-
 export function uploadAvatarOriginalToDisk(userId, buffer, mime) {
     const ext = MIME_EXT[mime];
     if (!ext) throw new Error(`неподдерживаемый тип изображения: ${mime}`);

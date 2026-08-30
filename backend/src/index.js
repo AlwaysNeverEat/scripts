@@ -27,11 +27,9 @@ import durakRouter from './routes/durak.js';
 import battleshipRouter from './routes/battleship.js';
 import checkersRouter from './routes/checkers.js';
 import facultyRouter from './routes/faculty.js';
-import supporterRouter from './routes/supporter.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
-import { warnAboutMissingSupporters } from './supporter/store.js';
 import { startRecordsSync } from './records/sync.js';
 
 const app = express();
@@ -102,10 +100,6 @@ app.use('/api/crm', requireSession, crmRouter);
 // Распределяющая шляпа: тест на факультет. Строго именной — и прогресс, и
 // результат привязаны к аккаунту, а пройти его можно один раз (routes/faculty.js).
 app.use('/api/faculty', requireSession, facultyRouter);
-// Подписка «supp»: тема «Жидкое стекло», плашка у ника и цвет своей строки в
-// топе. Выдаёт её руками владелец (деньги через сайт не ходят), а замок на
-// выдаче — по логину, внутри роутера: см. routes/supporter.js.
-app.use('/api/supporter', requireSession, supporterRouter);
 // Пасхалки «Вордле» и «Контекстно» — слово дня считается от id аккаунта, без
 // сессии его и загадать не для кого (см. routes/wordle.js, routes/kontekst.js).
 app.use('/api/wordle', requireSession, wordleRouter);
@@ -174,12 +168,6 @@ app.use((err, req, res, next) => {
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3001');
 app.listen(PORT, '0.0.0.0', () => console.log(`cars-db backend listening on :${PORT}`));
-
-// Миграции в этом проекте накатываются руками (см. CLAUDE.md), а значит
-// возможен порядок «код уже новый, база ещё старая». Молча это выглядит как
-// сломанные страницы, поэтому про недостающую таблицу подписок кричим в лог
-// сразу при старте — с командой, которой её лечат.
-warnAboutMissingSupporters();
 
 // Telegram-воркер — логически отдельный модуль (backend/src/bot/), но
 // запускается в этом же процессе, чтобы не заводить второй сервис на
