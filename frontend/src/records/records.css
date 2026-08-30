@@ -1245,7 +1245,7 @@
 
 .rc-station-select { display: flex; gap: var(--s-2); align-items: center; margin-top: var(--s-1); }
 
-.rc-station-select select {
+.rc-station-select select, .rc-station-select .sel-btn {
     flex: 1;
     background: var(--bg2);
     color: var(--text);
@@ -1873,7 +1873,7 @@
     .rc-side-map-search input,
     .rc-map-search input,
     .rc-date-input,
-    .rc-station-select select,
+    .rc-station-select select, .rc-station-select .sel-btn,
     .rc-dur-input,
     input[type="text"], input[type="search"], input[type="tel"],
     input[type="number"], input[type="password"], select, textarea {

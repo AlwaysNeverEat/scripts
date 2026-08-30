@@ -18,6 +18,7 @@ import { namePrefixHtml } from './namePrefix.js';
 import { arrowRightIcon } from './icons.js';
 import { describeCarChanges, changedFieldLabels } from '../../shared/carDiff.js';
 import { initSegmented } from './segmented.js';
+import { initSelects } from './select.js';
 
 // К какому агрегату относится особенность из CRM — подпись перед текстом,
 // чтобы «полную не делаем» не путали с правилом для механики.
@@ -30,6 +31,7 @@ const SCOPE_LABELS = {
 
 export function initCarPage(record, { apiFetch, onChanged, user }) {
     initSegmented();   // пробег, промывка, тип АКПП — см. segmented.js
+initSelects();
     renderHead(record, { apiFetch, onChanged, user });
     initCalculator(record);
     initCrmPanel(record, { apiFetch });

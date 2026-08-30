@@ -25,6 +25,7 @@ import {
 import { changedCarFields } from '../../shared/carPatch.js';
 import { checkAchievementsNow } from './achievements.js';
 import { suggestFieldHtml, attachSuggest } from './suggestInput.js';
+import { initSelects } from './select.js';
 
 // Вкладки и поля, которые в них правятся. Порядок массива = порядок в окне,
 // поля нужны, чтобы у вкладки с изменениями зажигалась метка «изменено».
@@ -107,10 +108,12 @@ function emptyCarRecord() {
  * ctx: { apiFetch, onCreated(car), onOpenCar?(id) }.
  */
 export function openCarCreator(ctx) {
+    initSelects();   // свои выпадающие списки вместо нативных, см. select.js
     return openCarEditor(emptyCarRecord(), ctx, { mode: 'create' });
 }
 
 export function openCarEditor(record, ctx, { tab, mode = 'edit' } = {}) {
+    initSelects();
     const old = document.getElementById('car-editor-modal');
     if (old) old.remove();
 

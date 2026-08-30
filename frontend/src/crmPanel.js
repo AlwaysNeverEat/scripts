@@ -23,6 +23,7 @@ import {
     cleanFilterName, detectFilterType, FILTER_SLOTS, extractViscosity,
     sortFilterRows,
 } from '../../shared/crmAnalyse.js';
+import { initSelects } from './select.js';
 
 const VISCOSITIES = ['0W-20', '0W-30', '5W-30', '5W-40', '10W-40'];
 
@@ -30,6 +31,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function initCrmPanel(record, { apiFetch }) {
+    initSelects();   // свои выпадающие списки вместо нативных, см. select.js
     const root = document.getElementById('crm-panel');
     if (!root) return;
 

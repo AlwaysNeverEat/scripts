@@ -29,6 +29,8 @@ import {
     LAST_START_TIME,
 } from '../../../shared/crmRecords.js';
 import { initSegmented } from '../segmented.js';
+import { initSelects } from '../select.js';
+import { openDateFor } from '../datepicker.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -2733,15 +2735,9 @@ async function handleAction(btn, ev) {
 
     if (a === 'set-date') return switchDate(btn.dataset.date);
     if (a === 'pick-date') {
-        // Нативный календарь: у скрытого input'а клик пикер не открывает,
-        // нужен showPicker() (в старых браузерах — обычный focus+click).
-        const input = document.getElementById('rc-date-input');
-        if (!input) return;
-        if (typeof input.showPicker === 'function') {
-            try { input.showPicker(); return; } catch { /* ниже — запасной путь */ }
-        }
-        input.focus();
-        input.click();
+        // Свой календарь под тему сайта; скрытый input остаётся моделью
+        // значения, а на таче открывается нативный (см. datepicker.js).
+        openDateFor(document.getElementById('rc-date-input'), btn);
         return;
     }
     if (a === 'refresh') {
@@ -2813,13 +2809,7 @@ async function handleAction(btn, ev) {
     if (a === 'set-create-date') return setCreateDate(btn.dataset.date);
     if (a === 'pick-create-date') {
         keepCreateFields();
-        const input = document.getElementById('rc-f-date');
-        if (!input) return;
-        if (typeof input.showPicker === 'function') {
-            try { input.showPicker(); return; } catch { /* ниже — запасной путь */ }
-        }
-        input.focus();
-        input.click();
+        openDateFor(document.getElementById('rc-f-date'), btn);
         return;
     }
     // Клик по расписанию всегда переносит окно целиком: и вверх, и вниз — куда
@@ -2878,13 +2868,7 @@ async function handleAction(btn, ev) {
     if (a === 'edit-date') return setEditDate(btn.dataset.date);
     if (a === 'pick-edit-date') {
         keepEditFields();
-        const input = document.getElementById('rc-e-date');
-        if (!input) return;
-        if (typeof input.showPicker === 'function') {
-            try { input.showPicker(); return; } catch { /* ниже — запасной путь */ }
-        }
-        input.focus();
-        input.click();
+        openDateFor(document.getElementById('rc-e-date'), btn);
         return;
     }
     if (a === 'toggle-edit-map') {
@@ -3308,6 +3292,7 @@ export function startRecords(mount) {
     // здесь, а не только в main.js: дев-песочницы импортируют этот модуль
     // напрямую, мимо главного входа.
     initSegmented();
+    initSelects();
     stopRecords(); // повторный вход — начинаем с чистого листа
     root = mount;
     visible = true;

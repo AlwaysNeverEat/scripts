@@ -406,6 +406,8 @@ input, button, select, textarea { font-family: inherit; }
   align-items: stretch;
   gap: 2px;
   overflow-x: auto;
+  /* Полоса тут пряталась ещё до общего правила и теперь ему не нужна —
+     оставлено как есть, чтобы не зависеть от порядка блоков в файле. */
   scrollbar-width: none;
 }
 .app-tabs-row::-webkit-scrollbar { display: none; }
@@ -1107,6 +1109,125 @@ a.btn:visited, a.btn:active { color: var(--text); }
   font-weight: 700;
 }
 
+/* ── СВОЙ ВЫПАДАЮЩИЙ СПИСОК (см. select.js) ──────────────────────────────
+   Нативный <select> прячется, но остаётся моделью: хранит значение и шлёт
+   change. Видимая кнопка получает ЕГО ЖЕ класс, поэтому все существующие
+   правила (.crm-station-select, .lead-select и прочие) красят её так же, как
+   красили селект, и второго набора стилей заводить не нужно. Здесь — только
+   то, чего у селекта не было: раскладка содержимого и сам попап. */
+.sel-native-hidden { display: none !important; }
+
+.sel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  /* Запас снизу: у селектов в проекте фон, рамка, радиус и отступы заданы
+     своими классами — базу даём только тем, у кого класса нет вовсе. */
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-2);
+  padding: var(--s-2) var(--s-3);
+  font: inherit;
+  font-size: 13px;
+}
+.sel-btn:focus-visible { outline: none; border-color: var(--accent); }
+.sel-btn:disabled { opacity: .55; cursor: default; }
+/* Подпись сжимается, галочка — никогда: длинный адрес станции обязан
+   обрезаться многоточием, а не выдавливать стрелку за край кнопки. */
+.sel-btn-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sel-btn-chevron { flex: none; opacity: .6; }
+.sel-btn.is-empty .sel-btn-text { color: var(--sub); }
+
+/* Попап лежит в <body> и позиционируется от кнопки: селекты стоят внутри окон
+   и панелей с overflow: hidden, и список, нарисованный на месте, обрезался бы
+   их краем. */
+.sel-pop {
+  position: fixed;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+.sel-pop.hidden { display: none; }
+.sel-search {
+  flex: none;
+  background: var(--bg2);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: var(--s-2) var(--s-3);
+}
+.sel-search:focus { outline: none; }
+.sel-list { overflow-y: auto; padding: var(--s-1); }
+.sel-opt {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-2);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sel-opt.is-active { background: var(--bg3); }
+.sel-opt.is-current { color: var(--accent); font-weight: 600; }
+.sel-opt.is-disabled { opacity: .45; cursor: default; }
+.sel-empty { padding: var(--s-3); font-size: 12px; color: var(--sub); }
+
+/* ── КАЛЕНДАРЬ (см. datepicker.js) ───────────────────────────────────────
+   Живёт в <body> и позиционируется от кнопки «Дата» — по той же причине, что
+   и список селекта: кнопка стоит внутри окна с overflow: hidden. */
+.dp-pop {
+  position: fixed;
+  z-index: 900;
+  width: 268px;
+  padding: var(--s-2);
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-2);
+  user-select: none;
+}
+.dp-pop.hidden { display: none; }
+.dp-head { display: flex; align-items: center; gap: var(--s-1); margin-bottom: var(--s-2); }
+.dp-title { flex: 1; text-align: center; font-size: 13px; font-weight: 700; }
+.dp-nav {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex: none;
+  background: none; border: 0; color: var(--sub);
+  border-radius: var(--r-2); cursor: pointer;
+}
+.dp-nav:hover { background: var(--bg3); color: var(--text); }
+.dp-week, .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.dp-week { margin-bottom: var(--s-1); }
+.dp-week span { text-align: center; font-size: 10px; text-transform: uppercase; color: var(--sub); }
+.dp-grid { gap: 2px; }
+.dp-day {
+  aspect-ratio: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--text);
+  font: inherit; font-size: 12.5px;
+  border-radius: var(--r-2); cursor: pointer;
+}
+.dp-day:hover { background: var(--bg3); }
+/* Дни соседних месяцев видны, но приглушены: без них сетка рвётся, а яркими
+   они спорят с текущим месяцем. Кликать по ним можно — это перелистывание. */
+.dp-day.is-out { color: var(--sub); opacity: .5; }
+/* Сегодня — обводка, выбранное — заливка. Разными средствами, потому что
+   сегодняшний день вполне может быть и выбранным. */
+.dp-day.is-today { box-shadow: inset 0 0 0 1px var(--border-strong); }
+.dp-day.is-sel { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.dp-day.is-sel:hover { background: var(--accent); }
+
 /* ── КАПСУЛА С ПИЛЮЛЕЙ (см. segmented.js) ────────────────────────────────
    Группа взаимоисключающих чипов, помеченная data-seg, превращается в один
    переключатель: общая дорожка, а активный пункт подсвечен пилюлей, которая
@@ -1122,6 +1243,14 @@ a.btn:visited, a.btn:active { color: var(--text); }
   display: inline-flex;
   align-items: center;
   gap: 0;
+  /* ДОРОЖКА КОНЧАЕТСЯ ТАМ, ГДЕ КОНЧАЕТСЯ ПОСЛЕДНИЙ ПУНКТ, и одного
+     inline-flex для этого мало: у некоторых групп свой `display: flex` в
+     другом файле (у .rc-times, например), он блочный и той же специфичности,
+     а грузится позже — дорожка растягивалась во всю ширину окна, и пилюля
+     ехала в пустоте. fit-content держит ширину по содержимому при любом
+     display; max-width не даёт длинной группе вылезти из узкого окна. */
+  width: fit-content;
+  max-width: 100%;
   padding: 3px;
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -1243,7 +1372,7 @@ input[data-edit-filter-absent]:checked::after {
   font-family: "JetBrains Mono", Consolas, monospace;
 }
 .filter-row input[type="text"], .filter-row input[type="number"],
-.filter-row select {
+.filter-row select, .filter-row .sel-btn {
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -1252,7 +1381,7 @@ input[data-edit-filter-absent]:checked::after {
   font-size: 13px;
 }
 .filter-row input[type="text"] { font-family: "JetBrains Mono", Consolas, monospace; }
-.filter-row input:focus, .filter-row select:focus { outline: none; border-color: var(--accent); }
+.filter-row input:focus, .filter-row select:focus, .filter-row .sel-btn:focus { outline: none; border-color: var(--accent); }
 
 .filter-badge-row { display: flex; align-items: center; gap: var(--s-3); margin-bottom: var(--s-2); }
 .filter-badge-lbl {
@@ -1621,7 +1750,7 @@ input[data-edit-filter-absent]:checked::after {
 }
 .edit-field { display: flex; flex-direction: column; gap: 3px; }
 .edit-field span { font-size: 10px; color: var(--sub); }
-.edit-field input, .edit-field select,
+.edit-field input, .edit-field select, .edit-field .sel-btn,
 .edit-filter-row input[type="text"], .edit-filter-row input[type="number"],
 .car-ed-pane textarea {
   background: var(--bg2);
@@ -1633,7 +1762,7 @@ input[data-edit-filter-absent]:checked::after {
   width: 100%;
   font-family: inherit;
 }
-.edit-field input:focus, .edit-field select:focus, .car-ed-pane textarea:focus,
+.edit-field input:focus, .edit-field select, .edit-field .sel-btn:focus, .car-ed-pane textarea:focus,
 .edit-filter-row input:focus { outline: none; border-color: var(--accent); }
 .edit-filter-row {
   display: grid;
@@ -1799,8 +1928,8 @@ input[data-edit-filter-absent]:checked::after {
   gap: var(--s-2);
   margin-bottom: var(--s-2);
 }
-.edit-custom-agg-row select { min-width: 0; }
-.edit-custom-agg input, .edit-custom-agg select, .edit-custom-agg textarea {
+.edit-custom-agg-row select, .edit-custom-agg-row .sel-btn { min-width: 0; }
+.edit-custom-agg input, .edit-custom-agg select, .edit-custom-agg .sel-btn, .edit-custom-agg textarea {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
@@ -1809,7 +1938,7 @@ input[data-edit-filter-absent]:checked::after {
   font-size: 13px;
   font-family: inherit;
 }
-.edit-custom-agg input:focus, .edit-custom-agg select:focus, .edit-custom-agg textarea:focus {
+.edit-custom-agg input:focus, .edit-custom-agg select, .edit-custom-agg .sel-btn:focus, .edit-custom-agg textarea:focus {
   outline: none; border-color: var(--accent);
 }
 .edit-custom-agg textarea { width: 100%; min-height: 92px; }
@@ -2123,16 +2252,28 @@ input[data-edit-filter-absent]:checked::after {
 }
 
 /* ── Скроллбары ─────────────────────────────────────────────────── */
-/* Стандартные свойства понимают и Firefox, и Chrome 121+ — вид одинаковый.
-   ::-webkit-* остаются фолбэком для старых Chromium (там scrollbar-color
-   не поддержан, поэтому конфликтовать они не будут). */
-* {
+/* ПОЛОСА ОСТАЁТСЯ ТОЛЬКО У СТРАНИЦЫ ЦЕЛИКОМ. У всего остального — списков,
+   окон, панелей — её нет вовсе, и это не про красоту.
+   Раньше `scrollbar-width: thin` стояло на `*`, то есть на каждом вложенном
+   контейнере. В Chrome это КЛАССИЧЕСКАЯ полоса: она занимает место внутри
+   элемента, а её прямоугольную дорожку браузер не обрезает по border-radius —
+   у скруглённого блока два угла со стороны полосы становились прямыми. Именно
+   это и было видно на карточках и в окнах.
+   Плюс к этому: полосу рисует браузер ПОВЕРХ нашего холста, и внутри будущей
+   стеклянной панели она выглядела бы инородной пластиковой лентой.
+   Цена решения названа честно: во внутренних списках пропадает указание
+   «сколько осталось». Для них это терпимо — они короткие; у страницы целиком,
+   где прокрутка может идти на тысячи строк, полоса поэтому и оставлена. */
+*:not(:is(html, body)) { scrollbar-width: none; }
+*:not(:is(html, body))::-webkit-scrollbar { width: 0; height: 0; }
+
+html {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: var(--r-1); }
-::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar { width: 10px; height: 10px; }
+html::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: var(--r-round); }
+html::-webkit-scrollbar-track { background: transparent; }
 
 /* ── Кроссбраузерная нормализация контролов ─────────────────────── */
 /* Спиннеры у number-инпутов: Firefox показывает их всегда, Chrome — по
@@ -3555,7 +3696,7 @@ a.diff-val-new:hover { border-color: var(--green); }
 @media (pointer: coarse) {
   #search-input,
   .tag-combo-input,
-  .edit-field input, .edit-field select,
+  .edit-field input, .edit-field select, .edit-field .sel-btn,
   .edit-filter-row input[type="text"], .edit-filter-row input[type="number"],
   .car-ed-pane textarea,
   .auth-form input,

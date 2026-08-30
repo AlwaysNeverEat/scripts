@@ -17,6 +17,7 @@ import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { renderCarList } from './carList.js';
 import { initTheme } from './theme.js';
 import { initSegmented } from './segmented.js';
+import { initSelects } from './select.js';
 // «Лиды» (панель Битрикса) отложены — см. docs/BITRIX.md. Сам модуль
 // frontend/src/leads.js на месте, выключена только проводка.
 // import { initLeadsPage, startCallWatch } from './leads.js';
@@ -27,6 +28,7 @@ initTheme();
 // Капсулы-переключатели: один раз на страницу, дальше следят за собой сами
 // (записи и калькулятор перерисовывают свои куски через innerHTML).
 initSegmented();
+initSelects();
 
 // ── API config ────────────────────────────────────────────────────────────────
 // In dev, Vite proxies /api → localhost:3001 so no key needed in the URL.
