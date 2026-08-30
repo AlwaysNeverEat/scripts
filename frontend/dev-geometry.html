@@ -61,6 +61,9 @@
       background: var(--bg3); border: 1px solid var(--border-strong);
     }
     .g-swatch > span { font-size: 11px; color: var(--sub); font-family: ui-monospace, monospace; }
+    .g-sp { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .g-sp > i { display: block; height: 28px; background: var(--accent); }
+    .g-sp > span { font-size: 10px; color: var(--sub); font-family: ui-monospace, monospace; }
     .g-fake-avatar { width: 44px; height: 44px; background: var(--accent); flex: none; }
     .g-card-demo { padding: 16px 18px; background: var(--card); border: 1px solid var(--border); max-width: 340px; }
     .g-card-demo h4 { margin: 0 0 6px; font-size: 14px; }
@@ -85,6 +88,10 @@
       <div class="g-ctl">
         <b>--r-4</b><span>поверхность</span>
         <input type="range" id="r4" min="0" max="40" step="1"><output id="o4"></output>
+      </div>
+      <div class="g-ctl">
+        <b>воздух</b><span>все --s-* разом</span>
+        <input type="range" id="air" min="50" max="200" step="5" value="100"><output id="oair">×1.00</output>
       </div>
       <button class="btn" id="g-was">Как было</button>
       <button class="btn" id="g-now">Как сейчас</button>
@@ -194,6 +201,37 @@
     </div>
 
     <div class="g-sec">
+      <h3>Отступы</h3>
+      <p>
+        Восемь ступеней, и это не противоречит «четырём» у радиусов. Радиус — свойство
+        МАТЕРИАЛА, их должно быть мало, иначе поверхности перестают быть одной. Отступ —
+        РИТМ, ему нужен диапазон от зазора между иконкой и словом до воздуха между секциями.
+      </p>
+      <div class="g-row" style="align-items: flex-end">
+        <div class="g-sp"><i style="width: var(--s-1)"></i><span>--s-1</span></div>
+        <div class="g-sp"><i style="width: var(--s-2)"></i><span>--s-2</span></div>
+        <div class="g-sp"><i style="width: var(--s-3)"></i><span>--s-3</span></div>
+        <div class="g-sp"><i style="width: var(--s-4)"></i><span>--s-4</span></div>
+        <div class="g-sp"><i style="width: var(--s-5)"></i><span>--s-5</span></div>
+        <div class="g-sp"><i style="width: var(--s-6)"></i><span>--s-6</span></div>
+        <div class="g-sp"><i style="width: var(--s-7)"></i><span>--s-7</span></div>
+        <div class="g-sp"><i style="width: var(--s-8)"></i><span>--s-8</span></div>
+      </div>
+      <p class="g-note">
+        Округляли к ближайшей ступени, а на равном расстоянии — ВВЕРХ: 6 → 8, 10 → 12,
+        20 → 24. Сайту не хватает воздуха, а не тесноты. Значения ≤3px не тронуты: это
+        не ритм, а волосяная подгонка (<code>padding: 1px 6px</code> у бейджа).
+      </p>
+      <p class="g-note">
+        Не тронуты и отступы, которые РЕЗЕРВИРУЮТ МЕСТО: <code>padding-left: 46px</code>
+        у строки поиска — это место под лупу, <code>padding-right: 30px</code> у
+        <code>.lead-select</code> — под стрелку, <code>margin-left: 64px</code> у
+        <code>.rc-lanes-heads</code> держит шапки в створе с колонками ленты записей.
+        Это геометрия, а не ритм: сдвинешь — разъедется то, под что оставлено.
+      </p>
+    </div>
+
+    <div class="g-sec">
       <h3>Что именно сдвинулось</h3>
       <p>231 объявление уехало под токены, из них 70 реально поменяли значение:</p>
       <table class="g-moved">
@@ -247,6 +285,17 @@
         document.getElementById(`o${k[1]}`).textContent = `${px}px`;
       });
     }
+
+    // Отступы крутятся ОДНИМ множителем, а не восемью ползунками: ритм —
+    // это соотношение ступеней, и менять их порознь значит его ломать.
+    const SP = { 's-1':4, 's-2':8, 's-3':12, 's-4':16, 's-5':24, 's-6':32, 's-7':48, 's-8':64 };
+    document.getElementById('air').addEventListener('input', (e) => {
+      const k = e.target.value / 100;
+      for (const [name, base] of Object.entries(SP)) {
+        document.documentElement.style.setProperty(`--${name}`, `${Math.round(base * k)}px`);
+      }
+      document.getElementById('oair').textContent = '×' + k.toFixed(2);
+    });
 
     document.getElementById('g-was').onclick = () => apply(WAS);
     document.getElementById('g-now').onclick = () => apply(NOW);

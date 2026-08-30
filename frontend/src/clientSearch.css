@@ -19,7 +19,7 @@
 #client-search {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--s-4);
 }
 
 /* ── Строка поиска ─────────────────────────────────────────────────────────
@@ -91,13 +91,13 @@
 
 /* Тип поиска живёт ВНУТРИ таблетки, у правого края: это часть строки поиска,
    а не отдельный элемент управления рядом с ней. */
-.cs-kind { position: relative; flex: none; margin: 4px 5px 4px 0; }
+.cs-kind { position: relative; flex: none; margin: var(--s-1) var(--s-1) var(--s-1) 0; }
 
 .cs-kind-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 11px;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
   border: 0;
   border-radius: var(--r-round);
   background: none;
@@ -120,7 +120,7 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 230px;
-  padding: 5px;
+  padding: var(--s-1);
   border-radius: var(--r-4);
   background: var(--card);
   border: 1px solid var(--border);
@@ -132,7 +132,7 @@
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--s-2) var(--s-3);
   border: 0;
   border-radius: var(--r-2);
   background: none;
@@ -150,33 +150,33 @@
 /* ── Заглушки и сообщения ─────────────────────────────────────────────────── */
 
 .cs-note {
-  padding: 22px 20px;
+  padding: var(--s-5) var(--s-5);
   border-radius: var(--r-4);
   background: var(--card);
   border: 1px solid var(--border);
 }
 
 .cs-note-title { font-size: 15px; font-weight: 700; color: var(--text); }
-.cs-note p { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--sub); }
+.cs-note p { margin: var(--s-2) 0 0; font-size: 13px; line-height: 1.5; color: var(--sub); }
 .cs-note-sub { font-size: 12px !important; opacity: .85; }
 .cs-note-empty { border-color: var(--border-strong); }
 .cs-note-error { border-color: var(--red); }
 .cs-note-error .cs-note-title { color: var(--red); }
-.cs-retry { margin-top: 12px; }
+.cs-retry { margin-top: var(--s-3); }
 
 /* Вход в CRM прямо тут: иначе за сессией пришлось бы идти на страницу машины,
    к панели наличия, — а человек искал клиента. */
 .cs-login {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) max-content;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
   max-width: 560px;
 }
 
 .cs-login-input {
   min-width: 0;
-  padding: 9px 11px;
+  padding: var(--s-2) var(--s-3);
   border: 1px solid var(--border);
   border-radius: var(--r-2);
   background: var(--bg2);
@@ -194,13 +194,13 @@
 
 /* Выбор из нескольких найденных: на один телефон в CRM бывает записано
    несколько человек (машину продали, номер остался). */
-.cs-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.cs-pick { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
 
 .cs-pick-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 14px 7px 7px;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4) var(--s-2) var(--s-2);
   border: 1px solid var(--border);
   border-radius: var(--r-round);
   background: var(--bg2);
@@ -239,9 +239,9 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 12px 0 -6px 16px;
-  padding: 5px 10px 5px 7px;
+  gap: var(--s-2);
+  margin: var(--s-3) 0 -6px var(--s-4);
+  padding: var(--s-1) var(--s-3) var(--s-1) var(--s-2);
   border: 1px solid var(--border);
   border-radius: var(--r-round);
   background: none;
@@ -257,8 +257,8 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 13px;
-  padding: 15px 18px;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4);
 }
 
 .cs-ava {
@@ -288,7 +288,7 @@
   white-space: nowrap;
 }
 
-.cs-contacts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 1px; }
+.cs-contacts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); margin-top: 1px; }
 .cs-phone { font-size: 14px; font-weight: 600; color: var(--blue); text-decoration: none; }
 .cs-phone:hover { text-decoration: underline; }
 .cs-bday { font-size: 12px; color: var(--sub); }
@@ -300,7 +300,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 5px;
+  gap: var(--s-1);
   max-width: 45%;
 }
 
@@ -323,10 +323,10 @@
   white-space: nowrap;
 }
 
-.cs-plate-main { padding: 4px 6px; }
+.cs-plate-main { padding: var(--s-1) var(--s-2); }
 
 .cs-plate-region {
-  padding: 4px 5px;
+  padding: var(--s-1) var(--s-1);
   border-left: 1px solid #1c1c1c;
   font-size: 10px;
   align-self: stretch;
@@ -352,7 +352,7 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 9px 12px;
+  padding: var(--s-2) var(--s-3);
   min-width: 0;
 }
 
@@ -388,7 +388,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.cs-svc-none { padding: 22px 20px; font-size: 13px; color: var(--sub); }
+.cs-svc-none { padding: var(--s-5) var(--s-5); font-size: 13px; color: var(--sub); }
 
 /* Год прилипает к верху списка: строка показывает дату БЕЗ года (иначе «2026»
    повторяется двадцать раз), и при прокрутке год обязан оставаться на виду. */
@@ -396,7 +396,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 10px 18px 4px;
+  padding: var(--s-3) var(--s-4) var(--s-1);
   background: var(--card);
   font-size: 11px;
   font-weight: 700;
@@ -411,9 +411,9 @@
 .cs-svc-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-3);
   width: 100%;
-  padding: 9px 18px;
+  padding: var(--s-2) var(--s-4);
   border: 0;
   background: none;
   color: var(--text);
@@ -436,7 +436,7 @@
 .cs-svc-what {
   display: flex;
   align-items: baseline;
-  gap: 7px;
+  gap: var(--s-2);
   min-width: 0;
   font-size: 13px;
   color: var(--text);
@@ -450,7 +450,7 @@
 
 .cs-svc-more {
   flex: none;
-  padding: 1px 7px;
+  padding: 1px var(--s-2);
   border-radius: var(--r-round);
   background: var(--bg3);
   font-size: 11px;
@@ -464,7 +464,7 @@
    адресом, и длинный («деревня Новосаратовка Свердловское городское поселение
    267А») раньше разваливал строку на четыре ряда: теперь у неё одна строка с
    многоточием, а полный адрес остаётся в подсказке. */
-.cs-svc-where { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cs-svc-where { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
 
 .cs-svc-station {
   min-width: 0;
@@ -476,7 +476,7 @@
 }
 
 .cs-svc-where .cs-plate { flex: none; font-size: 10px; }
-.cs-svc-where .cs-plate-main { padding: 2px 4px; }
+.cs-svc-where .cs-plate-main { padding: 2px var(--s-1); }
 .cs-svc-where .cs-plate-region { padding: 2px 3px; font-size: 9px; }
 
 .cs-svc-sum {
@@ -499,9 +499,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--s-2);
   width: 100%;
-  padding: 11px 18px;
+  padding: var(--s-3) var(--s-4);
   border: 0;
   border-top: 1px solid var(--border);
   background: var(--bg2);
@@ -515,7 +515,7 @@
 .cs-more:hover { color: var(--accent); }
 .cs-more-rest { font-size: 11.5px; font-weight: 500; color: var(--sub); }
 
-.cs-svc-body:not(:empty) { padding: 0 18px 12px; }
+.cs-svc-body:not(:empty) { padding: 0 var(--s-4) var(--s-3); }
 
 /* Раскрытый чек — ОТДЕЛЬНАЯ карточка внутри подсвеченной строки, а не текст,
    вываленный под неё. Раньше позиции шли сплошным столбцом на том же фоне, и
@@ -524,7 +524,7 @@
   border-radius: var(--r-3);
   border: 1px solid var(--border);
   background: var(--card);
-  padding: 4px 12px 10px;
+  padding: var(--s-1) var(--s-3) var(--s-3);
 }
 
 .cs-items { display: flex; flex-direction: column; }
@@ -532,7 +532,7 @@
 /* «Работы» и «Товары» — их видно по названию позиции в CRM (см. isWork).
    Заголовок появляется, только когда в чеке есть и то, и другое. */
 .cs-item-group {
-  padding: 9px 0 3px;
+  padding: var(--s-2) 0 3px;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: .07em;
@@ -543,8 +543,8 @@
 .cs-item {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 7px 0;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
   border-top: 1px solid var(--border);
   font-size: 13px;
 }
@@ -552,14 +552,14 @@
 .cs-item-group + .cs-item,
 .cs-items > .cs-item:first-child { border-top: 0; }
 
-.cs-item-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 7px; }
+.cs-item-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--s-2); }
 .cs-item-name { min-width: 0; }
 
 /* Артикул — бледная монокнопка перед названием: он бывает нужен вслух, но в
    начале названия читается как часть названия. */
 .cs-item-art {
   flex: none;
-  padding: 1px 5px;
+  padding: 1px var(--s-1);
   border-radius: var(--r-1);
   background: var(--bg3);
   color: var(--sub);
@@ -582,21 +582,21 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 10px;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
   border-top: 1px solid var(--border);
   font-size: 12px;
   color: var(--sub);
 }
 
-.cs-svc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cs-svc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
 
 .cs-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
+  gap: var(--s-1);
+  padding: 3px var(--s-2);
   border-radius: var(--r-round);
   background: var(--bg2);
   font-size: 11.5px;
@@ -611,8 +611,8 @@
 /* Комментарий колл-центра — это то, что человеку УЖЕ говорили. Показываем
    цитатой, чтобы не спутать с позициями чека. */
 .cs-comment {
-  margin-top: 10px;
-  padding: 7px 10px;
+  margin-top: var(--s-3);
+  padding: var(--s-2) var(--s-3);
   border-left: 2px solid var(--accent);
   border-radius: 0 var(--r-2) var(--r-2) 0;
   background: var(--bg2);
@@ -625,8 +625,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0 2px;
+  gap: var(--s-3);
+  padding: var(--s-3) 0 2px;
   font-size: 12.5px;
   color: var(--red);
 }
@@ -634,8 +634,8 @@
 .cs-svc-retry {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-3);
   border: 1px solid var(--border);
   border-radius: var(--r-2);
   background: none;
@@ -652,15 +652,15 @@
 .cs-svc-skel {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 13px 18px;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
   border-top: 1px solid var(--border);
 }
 
 .cs-svc-skel:first-child { border-top: 0; }
 .cs-svc-skel .sk-line { height: 12px; }
 .cs-card-skel .cs-head { align-items: center; }
-.cs-items-skel .cs-svc-skel { padding: 10px 0; }
+.cs-items-skel .cs-svc-skel { padding: var(--s-3) 0; }
 
 @media (max-width: 720px) {
   .cs-head { flex-wrap: wrap; }
@@ -673,13 +673,13 @@
   .cs-stat + .cs-stat { border-left: 0; }
   .cs-stat:nth-child(even) { border-left: 1px solid var(--border); }
   .cs-stat:nth-child(n+3) { border-top: 1px solid var(--border); }
-  .cs-svc-head { gap: 10px; padding: 9px 14px; }
+  .cs-svc-head { gap: var(--s-3); padding: var(--s-2) var(--s-4); }
   .cs-svc-when { width: 38px; }
   .cs-svc-sum { min-width: 0; }
-  .cs-year { padding-left: 14px; padding-right: 14px; }
-  .cs-more { padding-left: 14px; padding-right: 14px; }
-  .cs-svc-body:not(:empty) { padding: 2px 14px 14px; }
-  .cs-item { flex-wrap: wrap; gap: 4px 10px; }
+  .cs-year { padding-left: var(--s-4); padding-right: var(--s-4); }
+  .cs-more { padding-left: var(--s-4); padding-right: var(--s-4); }
+  .cs-svc-body:not(:empty) { padding: 2px var(--s-4) var(--s-4); }
+  .cs-item { flex-wrap: wrap; gap: var(--s-1) var(--s-3); }
   .cs-item-name { flex-basis: 100%; }
   .cs-item-sum { margin-left: auto; }
 }
