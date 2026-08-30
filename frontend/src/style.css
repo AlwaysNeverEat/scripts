@@ -1181,6 +1181,51 @@ a.btn:visited, a.btn:active { color: var(--text); }
 .sel-opt.is-disabled { opacity: .45; cursor: default; }
 .sel-empty { padding: var(--s-3); font-size: 12px; color: var(--sub); }
 
+/* ── КАЛЕНДАРЬ (см. datepicker.js) ───────────────────────────────────────
+   Живёт в <body> и позиционируется от кнопки «Дата» — по той же причине, что
+   и список селекта: кнопка стоит внутри окна с overflow: hidden. */
+.dp-pop {
+  position: fixed;
+  z-index: 900;
+  width: 268px;
+  padding: var(--s-2);
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-2);
+  user-select: none;
+}
+.dp-pop.hidden { display: none; }
+.dp-head { display: flex; align-items: center; gap: var(--s-1); margin-bottom: var(--s-2); }
+.dp-title { flex: 1; text-align: center; font-size: 13px; font-weight: 700; }
+.dp-nav {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex: none;
+  background: none; border: 0; color: var(--sub);
+  border-radius: var(--r-2); cursor: pointer;
+}
+.dp-nav:hover { background: var(--bg3); color: var(--text); }
+.dp-week, .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.dp-week { margin-bottom: var(--s-1); }
+.dp-week span { text-align: center; font-size: 10px; text-transform: uppercase; color: var(--sub); }
+.dp-grid { gap: 2px; }
+.dp-day {
+  aspect-ratio: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; color: var(--text);
+  font: inherit; font-size: 12.5px;
+  border-radius: var(--r-2); cursor: pointer;
+}
+.dp-day:hover { background: var(--bg3); }
+/* Дни соседних месяцев видны, но приглушены: без них сетка рвётся, а яркими
+   они спорят с текущим месяцем. Кликать по ним можно — это перелистывание. */
+.dp-day.is-out { color: var(--sub); opacity: .5; }
+/* Сегодня — обводка, выбранное — заливка. Разными средствами, потому что
+   сегодняшний день вполне может быть и выбранным. */
+.dp-day.is-today { box-shadow: inset 0 0 0 1px var(--border-strong); }
+.dp-day.is-sel { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.dp-day.is-sel:hover { background: var(--accent); }
+
 /* ── КАПСУЛА С ПИЛЮЛЕЙ (см. segmented.js) ────────────────────────────────
    Группа взаимоисключающих чипов, помеченная data-seg, превращается в один
    переключатель: общая дорожка, а активный пункт подсвечен пилюлей, которая
