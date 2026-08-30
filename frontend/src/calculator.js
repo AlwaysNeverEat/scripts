@@ -244,7 +244,7 @@ function renderControls(calcState) {
         <div class="ctrl-section">
             <div class="sec-title">Настройки расчёта</div>
             <div class="ctrl-lbl" style="margin-bottom:6px">Пробег</div>
-            <div class="seg">
+            <div class="seg" data-seg="mileage">
                 ${chip('<100',   'до 100т')}
                 ${chip('>=100',  '100т+')}
                 ${chip('>=200',  '200т+')}
@@ -262,7 +262,7 @@ function renderControls(calcState) {
                 </label>
             </div>
             <div class="ctrl-lbl" style="margin-bottom:6px">Промывка ДВС</div>
-            <div class="seg">
+            <div class="seg" data-seg="flush">
                 ${flushChip('none', 'без промывки')}
                 ${flushChip('5min', '5-минутка')}
                 ${flushChip('full', 'полная')}
@@ -614,7 +614,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
         // (разные комплектации). Но помечаем, что по CRM этой машине её не делают.
         const noFull = crmNoFullAt(calcState.car, calcState.data);
         parts.push(`
-            <div class="atp-ctrl">
+            <div class="atp-ctrl" data-seg="atp">
                 <button class="chip${calcState.atpType === 'partial' ? ' active' : ''}" data-atp="partial">частичная</button>
                 <button class="chip${calcState.atpType === 'full'    ? ' active' : ''}${noFull ? ' chip-nofull' : ''}" data-atp="full"
                     ${noFull ? 'title="по CRM этой машине полную не делаем"' : ''}>полная (150%)</button>

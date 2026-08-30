@@ -1107,6 +1107,73 @@ a.btn:visited, a.btn:active { color: var(--text); }
   font-weight: 700;
 }
 
+/* ── КАПСУЛА С ПИЛЮЛЕЙ (см. segmented.js) ────────────────────────────────
+   Группа взаимоисключающих чипов, помеченная data-seg, превращается в один
+   переключатель: общая дорожка, а активный пункт подсвечен пилюлей, которая
+   ЕДЕТ между пунктами. Цвета не меняются ни на йоту — просто фон активного
+   пункта теперь рисует пилюля, а не сам пункт: только так его и можно
+   двигать.
+
+   Внутри дорожки у чипов НЕТ своих рамок. Рамка на каждом пункте спорит с
+   рамкой дорожки (две линии в двух пикселях друг от друга) и рвёт капсулу на
+   отдельные кнопки — а суть переключателя ровно в том, что он один. */
+[data-seg] {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 3px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-round);
+}
+[data-seg] > .chip {
+  border: none;
+  background: none;
+  border-radius: var(--r-round);
+  /* Над пилюлей: иначе она закрасит собой подпись. */
+  position: relative;
+  z-index: 1;
+  transition: color .18s;
+}
+[data-seg] > .chip:hover { background: color-mix(in oklab, var(--text) 7%, transparent); }
+/* Фон активного забирает пилюля, цвет текста остаётся прежним. */
+[data-seg] > .chip.active { background: none; color: var(--accent-fg); }
+
+.seg-pill {
+  position: absolute;
+  top: 0; left: 0;
+  background: var(--accent);
+  border-radius: var(--r-round);
+  pointer-events: none;   /* клик должен доставаться кнопке под курсором */
+  z-index: 0;
+  transition: transform .28s cubic-bezier(.32, .72, 0, 1),
+              width     .28s cubic-bezier(.32, .72, 0, 1),
+              height    .28s cubic-bezier(.32, .72, 0, 1);
+}
+/* Кому анимация мешает — тому статичная подсветка, а не поездка. */
+@media (prefers-reduced-motion: reduce) {
+  .seg-pill { transition: none; }
+}
+
+/* Плашка режима поиска лежит НА СФЕРЕ, и потому она стеклянная: свои
+   --glass-* вместо обычного фона и размытие подложки. Общее правило [data-seg]
+   имеет ту же специфичность и стоит ниже — то есть перекрасило бы её в обычную
+   панель. Возвращаем: капсулу мы добавляем, цвета не трогаем. */
+.search-mode-toggle[data-seg] {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(18px);
+}
+.search-mode-toggle[data-seg] > .chip:hover { background: var(--glass-hover); }
+
+/* Пробег и промывка в калькуляторе — во всю ширину колонки, и капсула на
+   пять пунктов шириной в пол-экрана выглядит вытянутой каплей. Им дорожка
+   прямоугольная, ступенью карточки, и пилюля повторяет её форму. */
+.seg[data-seg] { display: flex; width: 100%; border-radius: var(--r-3); }
+.seg[data-seg] > .chip { flex: 1; border-radius: var(--r-2); }
+.seg[data-seg] .seg-pill { border-radius: var(--r-2); }
+
 /* Тумблеры-переключатели */
 .chk-label {
   display: inline-flex; align-items: center; gap: var(--s-2);
