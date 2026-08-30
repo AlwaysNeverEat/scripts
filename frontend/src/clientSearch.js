@@ -29,6 +29,7 @@ import {
     formatPhoneInput, formatPlateInput, phoneComplete, plateComplete, phoneDigits,
     maskedFieldEdit,
 } from '../../shared/crmClients.js';
+import { initSelects } from './select.js';
 
 // Чеки добираются по одному, но не по очереди из одного соединения: очередь к
 // CRM всё равно последовательная (backend/src/crm/client.js), а три запроса в
@@ -177,6 +178,7 @@ function skeletonSale() {
 // ── Модуль ───────────────────────────────────────────────────────────────────
 
 export function initClientSearch({ apiFetch }) {
+    initSelects();   // свои выпадающие списки вместо нативных, см. select.js
     const root = document.getElementById('client-search');
     if (!root) return { activate() {}, deactivate() {} };
 

@@ -29,6 +29,7 @@ import {
     LAST_START_TIME,
 } from '../../../shared/crmRecords.js';
 import { initSegmented } from '../segmented.js';
+import { initSelects } from '../select.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -3308,6 +3309,7 @@ export function startRecords(mount) {
     // здесь, а не только в main.js: дев-песочницы импортируют этот модуль
     // напрямую, мимо главного входа.
     initSegmented();
+    initSelects();
     stopRecords(); // повторный вход — начинаем с чистого листа
     root = mount;
     visible = true;
