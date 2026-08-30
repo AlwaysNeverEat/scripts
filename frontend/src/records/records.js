@@ -28,6 +28,7 @@ import {
     EXTENSION_STUB_PHONE, SLOT_MINUTES, MAX_DURATION_MIN, copyOperatorFor,
     LAST_START_TIME,
 } from '../../../shared/crmRecords.js';
+import { initSegmented } from '../segmented.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -751,7 +752,7 @@ function renderHeader() {
         <!-- Возврата к калькулятору тут больше нет: разделы переключает
              общий ряд вкладок сверху (index.html → .app-tabs). -->
         <div class="rc-brand">${icons.pin(18)}<span>Записи</span></div>
-        <nav class="rc-tabs">
+        <nav class="rc-tabs" data-seg="rc-date">
             <button class="chip ${state.date === today ? 'active' : ''}" data-action="set-date" data-date="${esc(today)}">Сегодня</button>
             <button class="chip ${state.date === tomorrow ? 'active' : ''}" data-action="set-date" data-date="${esc(tomorrow)}">Завтра</button>
             <button class="chip rc-date-pick ${state.date && state.date !== today && state.date !== tomorrow ? 'active' : ''}" data-action="pick-date">
@@ -832,9 +833,13 @@ function renderSortBar() {
     return `
     <div class="rc-sortbar">
         <span class="rc-sortbar-label">${icons.filter(13)}Станции</span>
-        ${SORTS.map(s => `
+        <!-- Подпись «Станции» лежит СНАРУЖИ дорожки: она не пункт выбора, и
+             внутри капсулы пилюля однажды приехала бы под неё. -->
+        <div class="rc-sortbar-seg" data-seg="rc-sort">
+            ${SORTS.map(s => `
             <button class="chip chip-sm ${state.sort === s.id ? 'active' : ''}"
                 data-action="set-sort" data-sort="${esc(s.id)}" title="${esc(s.title)}">${esc(s.label)}</button>`).join('')}
+        </div>
     </div>`;
 }
 
@@ -1594,7 +1599,7 @@ function modalCreate(m) {
             <div id="rc-create-map" class="rc-create-map ${m.showMap ? '' : 'hidden'}"></div>
 
             <div class="rc-sub">Дата</div>
-            <div class="rc-times">
+            <div class="rc-times" data-seg="rc-create-date">
                 <button class="chip ${m.date === today ? 'active' : ''}" data-action="set-create-date" data-date="${esc(today)}">Сегодня</button>
                 <button class="chip ${m.date === tomorrow ? 'active' : ''}" data-action="set-create-date" data-date="${esc(tomorrow)}">Завтра</button>
                 <button class="chip rc-date-pick ${otherDate ? 'active' : ''}" data-action="pick-create-date">
@@ -1801,7 +1806,7 @@ function modalMove(m) {
         <div class="rc-chain-row"><b>${esc(chain.head.name)}</b> · сейчас ${esc(state.date || '')}
             ${esc(chain.timeStart)}–${esc(chain.timeEnd)}${n > 1 ? ` (${plSlots(n)})` : ''}</div>
         <div class="rc-sub">Куда</div>
-        <div class="rc-times">
+        <div class="rc-times" data-seg="rc-move-date">
             <button class="chip ${m.targetDate === today ? 'active' : ''}" data-action="move-date" data-date="${esc(today)}">Сегодня</button>
             <button class="chip ${m.targetDate === tomorrow ? 'active' : ''}" data-action="move-date" data-date="${esc(tomorrow)}">Завтра</button>
             <button class="chip rc-date-pick ${otherDate ? 'active' : ''}" data-action="pick-move-date">
@@ -3322,6 +3327,10 @@ function resetState() {
 
 export function startRecords(mount) {
     if (!mount) return;
+    // Капсулы-переключатели (даты, сортировка). Вызов идемпотентный и стоит
+    // здесь, а не только в main.js: дев-песочницы импортируют этот модуль
+    // напрямую, мимо главного входа.
+    initSegmented();
     stopRecords(); // повторный вход — начинаем с чистого листа
     root = mount;
     visible = true;
