@@ -8,9 +8,12 @@ const FP = 'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89'
     + ':AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89';
 const FP_HEX = FP.replace(/:/g, '');
 
-function fakeSocket(fingerprint256) {
+function fakeSocket(fingerprint256, authorized = false) {
     let destroyed = false;
     return {
+        // Node проставляет его и со снятым rejectUnauthorized: цепочка и имя
+        // хоста проверены, отказ только записан, а не выброшен.
+        authorized,
         getPeerCertificate: () => (fingerprint256 ? { fingerprint256 } : {}),
         destroy: () => { destroyed = true; },
         destroyed: () => destroyed,
@@ -60,6 +63,34 @@ test('pinnedConnector: чужой сертификат рвёт соединен
     // пароли работников ушли бы на любой сервер, отозвавшийся по этому адресу.
     const socket = fakeSocket('11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF'
         + ':11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF');
+    const connect = (_opts, cb) => cb(null, socket);
+    let got;
+    pinnedConnector(connect, [FP_HEX])({}, (err, s) => { got = { err, s }; });
+    assert.equal(got.err.code, 'CRM_TLS_FINGERPRINT_MISMATCH');
+    assert.equal(got.s, undefined);
+    assert.equal(socket.destroyed(), true);
+});
+
+test('pinnedConnector: перевыпущенный сертификат проходит и с устаревшим пином', () => {
+    // Главный случай из жизни: на CRM обновили сертификат, отпечаток в
+    // deploy/.env остался прежним. Пин — послабление, и запирать им панель
+    // перед сертификатом, который прошёл бы и без него, нельзя: чинить это
+    // побежит человек, который про переменную не знает вовсе.
+    const socket = fakeSocket('11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF'
+        + ':11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF', true);
+    const connect = (_opts, cb) => cb(null, socket);
+    let got;
+    pinnedConnector(connect, [FP_HEX])({}, (err, s) => { got = { err, s }; });
+    assert.equal(got.err, null);
+    assert.equal(got.s, socket);
+    assert.equal(socket.destroyed(), false);
+});
+
+test('pinnedConnector: непроверяемый чужой сертификат не спасает даже отсутствие пина', () => {
+    // Обратная половина того же правила: послабление осталось послаблением и
+    // чужой просроченный сертификат по-прежнему не пускает.
+    const socket = fakeSocket('11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF'
+        + ':11:22:33:44:55:66:77:88:99:00:AA:BB:CC:DD:EE:FF', false);
     const connect = (_opts, cb) => cb(null, socket);
     let got;
     pinnedConnector(connect, [FP_HEX])({}, (err, s) => { got = { err, s }; });
