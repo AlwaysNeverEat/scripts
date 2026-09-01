@@ -31,13 +31,23 @@
 
 /* ── Шапка ─────────────────────────────────────────────────────── */
 
+/* ВСЕ КОНТРОЛЫ ШАПКИ ОДНОГО РОСТА И ОДНОЙ ФОРМЫ. Раньше поиск и кнопки были
+   ниже переключателя дня на несколько пикселей и со скруглением --r-2: в одном
+   ряду стояли капсулы и прямоугольники разной высоты, и ряд читался как
+   собранный из чужих деталей. Высоту поэтому задаём ОДНИМ числом на всю шапку,
+   а не отступами у каждого: отступы считаются от кегля, а кегль у поля ввода,
+   чипа и кнопки разный — ряд разъехался бы снова при первой же правке. */
 .rc-top {
+    --rc-ctl-h: 40px;
     display: flex;
     align-items: center;
     gap: var(--s-4);
     flex-wrap: wrap;
 }
 
+/* Осталась только у гейта кредов (.rc-gate-brand): там это отдельная карточка
+   на пустом экране, и подписать её надо. В шапке раздела подписи нет — про то,
+   где мы, говорит общий ряд вкладок сверху. */
 .rc-brand {
     display: flex;
     align-items: center;
@@ -49,7 +59,12 @@
 
 .rc-brand svg { color: var(--accent); }
 
+/* Дорожке высота ставится целиком, а чипы тянутся на всё, что от неё осталось
+   после отступов: пилюля меряется по АКТИВНОМУ ЧИПУ (segmented.js), и не
+   растяни мы их — она стояла бы в дорожке с неровными полями сверху и снизу. */
 .rc-tabs { display: flex; align-items: center; gap: var(--s-2); }
+.rc-tabs[data-seg] { height: var(--rc-ctl-h); }
+.rc-tabs[data-seg] > .chip { display: inline-flex; align-items: center; height: 100%; }
 
 .rc-date-pick {
     display: inline-flex;
@@ -79,10 +94,11 @@
     flex: 1 1 220px;
     min-width: 180px;
     max-width: 420px;
+    height: var(--rc-ctl-h);
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-round);
+    padding: 0 var(--s-4);
     color: var(--sub);
 }
 
@@ -149,7 +165,19 @@
 
 .rc-topbtns { display: flex; align-items: center; gap: var(--s-2); }
 
-.rc-topbtns .btn { position: relative; display: inline-flex; align-items: center; gap: var(--s-2); }
+.rc-topbtns .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    height: var(--rc-ctl-h);
+    padding: 0 var(--s-4);
+    border-radius: var(--r-round);
+}
+
+/* Кнопка без подписи — круг, а не вытянутая капсула: у капсулы длина говорит,
+   что внутри есть слово, а тут только значок. */
+.rc-topbtns .rc-icon-btn { width: var(--rc-ctl-h); padding: 0; }
 
 .rc-queue-badge {
     min-width: 17px;
@@ -166,35 +194,7 @@
 
 .rc-queue-badge-err { background: var(--red); color: var(--solid-fg); }
 
-/* ── Строка статуса и баннер ───────────────────────────────────── */
-
-.rc-statusline {
-    display: flex;
-    align-items: center;
-    gap: var(--s-2);
-    margin: var(--s-3) 0 0;
-    color: var(--sub);
-    font-size: 11.5px;
-}
-
-.rc-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: var(--r-circle);
-    flex: none;
-}
-
-.rc-dot-ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
-.rc-dot-warn { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-.rc-dot-down {
-    background: var(--red);
-    box-shadow: 0 0 8px var(--red);
-    animation: rc-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes rc-pulse {
-    50% { opacity: 0.35; }
-}
+/* ── Баннер «оригинал лежит» ───────────────────────────────────── */
 
 .rc-banner {
     display: flex;
@@ -1853,6 +1853,8 @@
 
 @media (max-width: 700px) {
     .rc-btn-label { display: none; }
+    /* Подпись ушла — поля под неё держать незачем, остаётся один значок. */
+    .rc-topbtns .btn { padding: 0 var(--s-3); }
     .rc-searchbox { order: 10; flex-basis: 100%; max-width: none; }
     .rc-field-row { flex-direction: column; gap: 0; }
     .rc-station { --lane-w: 240px; }
@@ -1882,6 +1884,8 @@
     /* Цели касания: строки ленты и кнопки панели были рассчитаны на курсор */
     .rc-tl-row { height: 36px; }
     .rc-btn { min-height: 38px; }
+    /* Одно число на всю шапку — и ряд подрастает целиком, не расслаиваясь. */
+    .rc-top { --rc-ctl-h: 44px; }
 }
 
 /* Высоту карты и списков считаем по dvh: с vh на телефоне в них попадает
