@@ -27,7 +27,9 @@ export function storedTheme() {
 }
 
 // Единственная точка, где меняется тема: правит атрибут на <html>, meta
-// theme-color, подписи кнопок — и сообщает об этом остальным модулям.
+// theme-color, состояние тумблеров — и сообщает об этом остальным модулям.
+// Как выглядит тумблер, тут не решается вовсе: ночь, день, звёзды и облако
+// нарисованы от `:root[data-theme="light"]` в CSS (см. .theme-toggle).
 export function applyTheme(theme, { persist = true } = {}) {
     const next = THEMES.includes(theme) ? theme : 'dark';
     document.documentElement.dataset.theme = next;
@@ -48,14 +50,17 @@ export function toggleTheme() {
     return applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
 }
 
+// ТУМБЛЕР НЕ ПЕРЕИМЕНОВЫВАЕТСЯ НА ХОДУ. Раньше кнопка показывала действие
+// («Светлая тема», когда тема тёмная), и подпись ездила вместе с иконкой.
+// У переключателя название — это то, что он включает, а включён он или нет,
+// говорит aria-checked; меняющаяся подпись рядом с ним читалась бы наоборот
+// («Тёмная тема» во включённом состоянии — что включено-то?). Подсказка,
+// наоборот, про действие: на неё смотрят перед кликом, а не после.
 function syncToggles(theme) {
-    const toLight = theme !== 'light';
-    const label = toLight ? 'Светлая тема' : 'Тёмная тема';
+    const light = theme === 'light';
     document.querySelectorAll('[data-theme-toggle]').forEach(btn => {
-        btn.setAttribute('aria-label', label);
-        btn.setAttribute('title', label);
-        // aria-pressed: «светлая тема включена» — состояние, а не действие.
-        btn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
+        btn.setAttribute('aria-checked', light ? 'true' : 'false');
+        btn.setAttribute('title', light ? 'Включить тёмную тему' : 'Включить светлую тему');
     });
 }
 

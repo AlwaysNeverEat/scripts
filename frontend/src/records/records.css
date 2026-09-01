@@ -91,9 +91,13 @@
     display: flex;
     align-items: center;
     gap: var(--s-2);
+    /* ПОИСК ЗАБИРАЕТ ВСЁ, ЧТО ОСТАЛОСЬ, и потолка ширины у него нет. С
+       потолком ряд шапки кончался посреди страницы, а сетка станций под ним
+       шла до края — два края в разных местах читаются как незакрытая вёрстка.
+       Тянется именно поиск: у переключателя дня и кнопок ширина от их слов, и
+       растягивать их значило бы разводить подписи пустотой. */
     flex: 1 1 220px;
     min-width: 180px;
-    max-width: 420px;
     height: var(--rc-ctl-h);
     background: var(--card);
     border: 1px solid var(--border);
@@ -1855,7 +1859,7 @@
     .rc-btn-label { display: none; }
     /* Подпись ушла — поля под неё держать незачем, остаётся один значок. */
     .rc-topbtns .btn { padding: 0 var(--s-3); }
-    .rc-searchbox { order: 10; flex-basis: 100%; max-width: none; }
+    .rc-searchbox { order: 10; flex-basis: 100%; }
     .rc-field-row { flex-direction: column; gap: 0; }
     .rc-station { --lane-w: 240px; }
     /* Подписи у кнопок спрятаны — растягивать их на ширину сетки незачем. */
