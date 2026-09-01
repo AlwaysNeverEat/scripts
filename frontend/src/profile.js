@@ -22,7 +22,6 @@ import { accentPickerHtml, bindAccentPicker } from './accent.js';
 import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml } from './namePrefix.js';
-import { serverBalanceSectionBody, mountServerBalance } from './serverBalance.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -131,13 +130,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     body: activityFeedHtml(activity),
                 })}
 
-                ${profileSectionHtml({
-                    title: 'Сервер',
-                    meta: 'Рег.облако',
-                    cls: 'profile-sec-server',
-                    body: serverBalanceSectionBody(),
-                })}
-
                 ${isMod ? profileSectionHtml({
                     title: 'Модератор',
                     meta: 'видно только модераторам',
@@ -165,9 +157,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
         bindAccentPicker(box);
         attachFeedParticles(box);
         attachActivityFeed(box);
-        // Баланс сервера дозагружается сам и профиль не задерживает: он
-        // приезжает из Рег.облака, а оно живёт своей жизнью (serverBalance.js).
-        mountServerBalance({ apiFetch, root: box });
     }
 
     function bind() {

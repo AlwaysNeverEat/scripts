@@ -198,6 +198,12 @@
     <div id="page-search" class="hidden">
       <div class="sphere-glow"></div>
       <canvas id="sphere-canvas"></canvas>
+      <!-- Баланс сервера: сколько денег на облачном счёте и на сколько их
+           хватит. Стоит в углу и ничего не требует — заметить её нужно ровно
+           тогда, когда денег осталось на пару дней (см. src/serverBalance.js).
+           Скрыта, пока не приедут цифры: пустая рамка на главной читалась бы
+           как поломка, а без токена Рег.облака её не будет вовсе. -->
+      <aside id="server-card" class="server-card-slot hidden"></aside>
       <div class="search-ui">
         <div class="search-wrap">
           <!-- Ряд над поиском: режим «Поиск/Теги» и кнопка «Добавить машину».

@@ -19,13 +19,13 @@ const router = Router();
 // ── GET /api/server/balance ──────────────────────────────────────────────────
 // { configured: false }                                — токен не задан
 // { configured: true, balance, bonus, hourly, monthly,
-//   hoursLeft, daysLeft, items: [{ label, hourly, monthly }],
+//   hoursLeft, daysLeft, items: [{ kind, name, label, hourly, monthly }],
 //   checkedAt, stale }
 //
 // «Токена нет» — это 200 с configured: false, а не ошибка: на машине
-// разработчика и в чужой копии проекта его и не должно быть, а панель в этом
-// случае просто не показывается. Ошибкой был бы недоступный API при живом
-// токене — вот там 502.
+// разработчика и в чужой копии проекта его и не должно быть, а карточка в этом
+// случае карточки на главной просто не будет. Ошибкой был бы недоступный API
+// при живом токене — вот там 502.
 router.get('/balance', async (req, res) => {
     if (!isConfigured()) return res.json({ configured: false });
     try {

@@ -20,7 +20,7 @@
 
 const API_URL = 'https://api.cloudvps.reg.ru/v1/balance_data';
 
-// Панель видна всем вошедшим, а баланс меняется на два рубля в час: чаще раза
+// Карточку видят все вошедшие, а баланс меняется на два рубля в час: чаще раза
 // в пять минут спрашивать облако незачем, сколько бы человек ни открыло сайт.
 const TTL_MS = 5 * 60 * 1000;
 
@@ -60,6 +60,11 @@ function flatten(rows, parentName = '') {
     for (const row of Array.isArray(rows) ? rows : []) {
         const name = String(row?.name || '').trim() || parentName;
         out.push({
+            // kind и name лежат отдельно от готовой подписи: в карточке на
+            // главной места мало, и там показывается короткое имя ресурса
+            // («Cars DB»), а полная подпись идёт в заголовок строки.
+            kind: TYPE_LABELS[row?.type] || String(row?.type || 'Ресурс'),
+            name,
             label: itemLabel({ ...row, name }),
             hourly: num(row?.price),
             monthly: num(row?.price_month),
@@ -133,8 +138,8 @@ export async function getBalance({ now = Date.now(), fetchImpl } = {}) {
     try {
         const value = fetchImpl
             ? parseBalanceData(await fetchImpl())
-            // Восемь секунд: страница профиля ждёт эту панель, и висеть на
-            // чужом API дольше, чем человек готов смотреть на «Загрузка…»,
+            // Восемь секунд: карточку на главной ждёт живой человек, и висеть
+            // на чужом API дольше, чем он готов смотреть на пустой угол,
             // бессмысленно — покажем прошлый снимок.
             : await request(AbortSignal.timeout(8000));
         cache = { at: now, value };

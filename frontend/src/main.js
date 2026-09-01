@@ -7,6 +7,7 @@ import { initProfilePage } from './profile.js';
 import { initPublicProfilePage } from './publicProfile.js';
 import { showTopPage, resetTopCache } from './top.js';
 import { initAdminPage, isModerator } from './admin.js';
+import { initServerCard } from './serverBalance.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
@@ -144,6 +145,10 @@ function enterApp() {
     renderAdminTab();
     renderNewsBadge();
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
+    // Баланс сервера в углу главной. Заводится один раз на сессию, а не при
+    // каждом заходе на главную: карточка сама обновляется по таймеру и сама
+    // исчезает, если токен Рег.облака не настроен (см. serverBalance.js).
+    initServerCard({ apiFetch });
     warmCrmSession();
     // Звонки ловили ГЛОБАЛЬНО, а не на вкладке «Лиды»: входящий приходит,
     // когда оператор считает масло в калькуляторе, и уведомление должно

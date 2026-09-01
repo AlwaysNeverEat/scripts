@@ -3,18 +3,21 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Баланс сервера — песочница</title>
+  <title>Карточка баланса сервера — песочница</title>
   <!--
      Открыть: npx vite → /dev-server-balance.html
 
-     Панель живёт в профиле, а профиль за входом, за базой И за чужим API
-     Рег.облака — глазами её не посмотреть никак. Здесь она нарисована во всех
-     состояниях сразу: спокойный запас, неделя, двое суток, часы, «расхода нет»
-     и снимок, который не удалось обновить.
+     Карточка живёт в углу главной, а главная за входом, за базой И за чужим
+     API Рег.облака — глазами её не посмотреть никак. Здесь она нарисована во
+     всех состояниях сразу: спокойный запас, неделя, двое суток, последние
+     часы, «расхода нет», много ресурсов и снимок, который не удалось обновить.
 
-     Смотреть тут стоит на одно: в каком состоянии панель ПУГАЕТ. Цифра рядом с
-     полосой должна тревожить ровно тогда, когда пора идти пополнять счёт, и
-     ни минутой раньше — иначе её перестанут замечать вовсе.
+     Фон нарочно тёмный и с подсветкой, как на главной со сферой: карточка
+     стеклянная, и на белом листе судить о ней нельзя.
+
+     Смотреть тут стоит на одно: в каком состоянии карточка ПУГАЕТ. Строка
+     срока должна тревожить ровно тогда, когда пора идти пополнять счёт, и ни
+     минутой раньше — иначе её перестанут замечать вовсе.
   -->
   <script>
     (function () {
@@ -26,46 +29,59 @@
   </script>
   <link rel="stylesheet" href="/src/style.css"/>
   <style>
-    body { padding: var(--s-5) var(--s-4) var(--s-7); }
-    .wrap { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s-5); }
-    .case-note { font-size: 12px; color: var(--sub); }
+    body { background: var(--search-bg); padding: var(--s-5) var(--s-4) var(--s-7); }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--s-5); margin-top: var(--s-5);
+    }
+    .case-note { font-size: 12px; color: var(--sub); margin-bottom: var(--s-2); }
+    /* Подсветка сферы — фон главной, на котором карточка и живёт. */
+    .glow {
+      position: fixed; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 60% 55% at 50% 50%, var(--search-glow) 0%, transparent 70%);
+    }
   </style>
 </head>
 <body>
-  <div class="wrap" id="wrap">
+  <div class="glow"></div>
+  <div class="wrap">
     <button class="btn btn-sec" id="theme">Сменить тему</button>
+    <div class="grid" id="grid"></div>
   </div>
 
   <script type="module">
-    import { serverBalanceHtml } from '/src/serverBalance.js';
-    import { profileSectionHtml } from '/src/profileLayout.js';
+    import { serverCardHtml } from '/src/serverBalance.js';
 
-    const items = [
-      { label: 'Сервер — Cars DB', hourly: 1.76204, monthly: 1286.29 },
-      { label: 'Плавающий IP',     hourly: 0.25669, monthly: 187.38 },
-    ];
     // Цифры взяты с живого счёта: расход 2,02 ₽/час — это 1 473,67 ₽ в месяц.
+    const items = [
+      { kind: 'Сервер', name: 'Cars DB', label: 'Сервер — Cars DB', hourly: 1.76204, monthly: 1286.29 },
+      { kind: 'Плавающий IP', name: '', label: 'Плавающий IP', hourly: 0.25669, monthly: 187.38 },
+    ];
     const real = { balance: 134.18, bonus: 0, hourly: 2.01873, monthly: 1473.67,
                    items, checkedAt: new Date().toISOString(), stale: false };
 
     const cases = [
-      ['Месяц запаса',        { ...real, balance: 1500, hoursLeft: 743, daysLeft: 30 }],
-      ['Неделя',              { ...real, balance: 340,  hoursLeft: 168, daysLeft: 7 }],
-      ['Как сейчас — 66 ч',   { ...real, hoursLeft: 66, daysLeft: 2 }],
-      ['Последние часы',      { ...real, balance: 18.2, hoursLeft: 9, daysLeft: 0 }],
-      ['Бонусы на счету',     { ...real, bonus: 500, hoursLeft: 314, daysLeft: 13 }],
-      ['Расхода нет',         { ...real, hourly: 0, monthly: 0, hoursLeft: null, daysLeft: null, items: [] }],
-      ['Облако не ответило',  { ...real, hoursLeft: 66, daysLeft: 2, stale: true,
-                                checkedAt: new Date(Date.now() - 40 * 60000).toISOString() }],
+      ['Месяц запаса',       { ...real, balance: 1500, hoursLeft: 743, daysLeft: 30 }],
+      ['Неделя',             { ...real, balance: 340,  hoursLeft: 168, daysLeft: 7 }],
+      ['Как сейчас — 66 ч',  { ...real, hoursLeft: 66, daysLeft: 2 }],
+      ['Последние часы',     { ...real, balance: 18.2, hoursLeft: 9, daysLeft: 0 }],
+      ['Расхода нет',        { ...real, hourly: 0, monthly: 0, hoursLeft: null, daysLeft: null, items: [] }],
+      ['Облако не ответило', { ...real, hoursLeft: 66, daysLeft: 2, stale: true,
+                               checkedAt: new Date(Date.now() - 40 * 60000).toISOString() }],
+      ['Ресурсов больше трёх', { ...real, balance: 4200, hoursLeft: 900, daysLeft: 37, items: [
+        ...items,
+        { kind: 'Бэкап', name: 'Cars DB', label: 'Бэкап — Cars DB', hourly: 0.18 },
+        { kind: 'Снэпшот', name: 'Cars DB', label: 'Снэпшот — Cars DB', hourly: 0.09 },
+        { kind: 'Приватная сеть', name: '', label: 'Приватная сеть', hourly: 0.04 },
+      ] }],
     ];
 
-    const wrap = document.getElementById('wrap');
-    wrap.insertAdjacentHTML('beforeend', cases.map(([title, data]) => `
+    document.getElementById('grid').innerHTML = cases.map(([title, data]) => `
       <div>
         <div class="case-note">${title}</div>
-        ${profileSectionHtml({ title: 'Сервер', meta: 'Рег.облако', cls: 'profile-sec-server',
-                               body: serverBalanceHtml(data) })}
-      </div>`).join(''));
+        ${serverCardHtml(data)}
+      </div>`).join('');
 
     document.getElementById('theme').onclick = () => {
       const root = document.documentElement;
