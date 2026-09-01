@@ -36,6 +36,16 @@
 
   <script type="module">
     import { openCarCreator } from '/src/carEditor.js';
+    // Переключатель режима поиска стоит на этой странице настоящий, а капсулу
+    // ему на живом сайте включает main.js — сюда он не заходит. Без этого
+    // вызова плашка в песочнице выглядела бы сломанной (пилюли нет вовсе).
+    import { initSegmented } from '/src/segmented.js';
+    initSegmented();
+    document.querySelector('[data-seg="search-mode"]').addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (!chip) return;
+      chip.parentElement.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === chip));
+    });
 
     const DB = {
       brand: [
