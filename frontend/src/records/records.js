@@ -690,6 +690,11 @@ function statusIcon(status) {
 
 // ── Рендер ───────────────────────────────────────────────────────────────────
 
+// Разметка панели шапки с прошлой отрисовки: сравниваем строки, чтобы не
+// трогать её узлы зря (см. render). Сбрасывать не нужно — если shell пропал,
+// ветка полной пересборки сработает сама.
+let lastTopHtml = '';
+
 function render() {
     if (!root) return;
     // Карта живёт внутри перерисовываемого DOM — запоминаем, куда её увели
@@ -719,13 +724,35 @@ function render() {
         : `<div class="rc-boot">${esc(state.boardError || 'Нет данных')}</div>`;
     state.enterAnim = false; // флаг одноразовый: следующий render() уже без него
 
-    root.innerHTML = `
-        <div class="rc-shell">
-            ${renderHeader()}
-            ${renderBanner()}
-            ${content}
-        </div>
-        ${state.modal ? renderModal() : ''}`;
+    // ШАПКУ НЕ ПЕРЕСОБИРАЕМ, ЕСЛИ ЕЁ РАЗМЕТКА НЕ ИЗМЕНИЛАСЬ.
+    //
+    // Раньше render() выбрасывал и собирал заново весь shell целиком. Для
+    // доски это честно — она и правда меняется, — а для шапки почти всегда
+    // впустую: доска приезжает, статус тикает, а переключатель дня и поиск при
+    // этом те же. Стоило это дорого: в момент замены узла ОБРЫВАЛСЯ ПЕРЕЕЗД
+    // ПИЛЮЛИ. Человек жал «Завтра», пилюля трогалась — и на полпути, когда
+    // приезжала доска, прыгала на место, потому что новый узел рождался уже в
+    // конечном состоянии. Выглядело это как подтормаживание анимации, хотя
+    // тормозила не анимация, а перерисовка под ней.
+    const top = renderTopBar();
+    const shell = root.querySelector('.rc-shell');
+    const body = shell?.querySelector(':scope > .rc-body');
+    if (shell && body && top === lastTopHtml) {
+        patchStatus();
+        body.innerHTML = content;
+    } else {
+        lastTopHtml = top;
+        root.innerHTML = `
+            <div class="rc-shell">
+                ${renderHeader()}
+                ${renderBanner()}
+                <div class="rc-body">${content}</div>
+            </div>`;
+    }
+    // Окно живёт рядом с shell и пересобирается всегда: оно fixed, и порядок
+    // среди соседей ему безразличен.
+    root.querySelector(':scope > .modal')?.remove();
+    if (state.modal) root.insertAdjacentHTML('beforeend', renderModal());
     bind();
     syncNow(); // маркер и отсчёты ставятся сразу после отрисовки сетки
     syncModalChrome();
@@ -745,6 +772,20 @@ function syncModalChrome() {
 // Лёгкое обновление строки статуса без полной перерисовки (тикает раз в 10с).
 // НИКОГДА не перерисовывает открытые формы: пока показан гейт кредов или
 // модалка, ввод пользователя священен — иначе поля стираются под руками.
+// Строка состояния и баннер — единственное в шапке, что меняется само по себе.
+// Правим их на месте: они лежат отдельными узлами и никого вокруг не трогают.
+// Возвращает false, если шапки на экране нет (гейт, boot).
+function patchStatus() {
+    const el = root?.querySelector('.rc-updated');
+    if (!el) return false;
+    el.innerHTML = statusLineHtml();
+    const dot = root.querySelector('.rc-dot');
+    if (dot) dot.className = `rc-dot ${statusDotClass()}`;
+    const banner = root.querySelector('.rc-banner-slot');
+    if (banner) banner.innerHTML = bannerHtml();
+    return true;
+}
+
 function renderStatusOnly() {
     if (state.modal) return;
     if (state.credsNeeded) {
@@ -752,13 +793,40 @@ function renderStatusOnly() {
         render();
         return;
     }
-    const el = root?.querySelector('.rc-updated');
-    if (!el) { render(); return; }
-    el.innerHTML = statusLineHtml();
-    const dot = root.querySelector('.rc-dot');
-    if (dot) dot.className = `rc-dot ${statusDotClass()}`;
-    const banner = root.querySelector('.rc-banner-slot');
-    if (banner) banner.innerHTML = bannerHtml();
+    if (!patchStatus()) render();
+}
+
+// Точечная правка шапки — как renderStatusOnly, и по той же причине: полный
+// render() выбрасывает и собирает заново весь shell вместе с доской на три
+// десятка станций, а переключателю нужно переставить один класс.
+//
+// КЛАСС ПЕРЕСТАВЛЯЕТСЯ, А НЕ ПЕРЕРИСОВЫВАЕТСЯ РАЗМЕТКА, и это главное: пилюля
+// (segmented.js) едет по смене .active внутри ЖИВОГО узла, без подмены. Стоило
+// бы тут написать `nav.innerHTML = …` — и переключатель пересоздавался бы,
+// а пилюля прыгала бы на место вместо поездки.
+function renderHeaderOnly() {
+    const nav = root?.querySelector('[data-seg="rc-date"]');
+    if (!nav) { render(); return; }
+
+    const today = state.status?.today;
+    const tomorrow = state.status?.tomorrow;
+    const custom = state.date && state.date !== today && state.date !== tomorrow;
+    for (const chip of nav.querySelectorAll('.chip')) {
+        const on = chip.classList.contains('rc-date-pick')
+            ? custom
+            : chip.dataset.date === state.date;
+        chip.classList.toggle('active', on);
+    }
+    // Подпись третьего чипа: «Дата» или сама дата.
+    const pickLabel = nav.querySelector('.rc-date-pick span');
+    if (pickLabel) pickLabel.textContent = custom ? state.date : 'Дата';
+    const dateInput = document.getElementById('rc-date-input');
+    if (dateInput) dateInput.value = ddmmToIso(state.date);
+
+    // Живая панель теперь совпадает с тем, что вернёт renderTopBar(), — и
+    // render() не станет её пересобирать, а значит, не оборвёт переезд пилюли.
+    lastTopHtml = renderTopBar();
+    patchStatus();
 }
 
 function statusLineHtml() {
@@ -779,6 +847,19 @@ function statusLineHtml() {
 }
 
 function renderHeader() {
+    return `${renderTopBar()}
+    <div class="rc-statusline">
+        <span class="rc-dot ${statusDotClass()}"></span>
+        <span class="rc-updated">${statusLineHtml()}</span>
+    </div>
+    <div class="rc-banner-slot">${bannerHtml()}</div>`;
+}
+
+// Панель шапки БЕЗ строки состояния и баннера — то, что меняется редко.
+// Разделено ради render(): строка состояния тикает каждые несколько секунд, и
+// сравнивай мы шапку целиком, её узлы пересобирались бы постоянно, обрывая
+// переезд пилюли. Строку и баннер вместо этого правит patchStatus().
+function renderTopBar() {
     const { pending, failed } = unseenOps();
     const today = state.status?.today;
     const tomorrow = state.status?.tomorrow;
@@ -810,12 +891,7 @@ function renderHeader() {
             <button class="btn btn-sec" data-action="refresh" title="Обновить сейчас">${icons.refresh(15)}</button>
             ${isMod() ? `<button class="btn btn-sec" data-action="open-creds" title="Сменить логин/пароль админки">${icons.key(15)}</button>` : ''}
         </div>
-    </header>
-    <div class="rc-statusline">
-        <span class="rc-dot ${statusDotClass()}"></span>
-        <span class="rc-updated">${statusLineHtml()}</span>
-    </div>
-    <div class="rc-banner-slot">${bannerHtml()}</div>`;
+    </header>`;
 }
 
 function bannerHtml() {
@@ -2475,9 +2551,21 @@ function fadeOutBoard() {
 // renderStation() сам уведёт в список.
 async function switchDate(date) {
     if (!date || date === state.date) return;
-    await fadeOutBoard();
+
+    // ВЫБРАННЫЙ ДЕНЬ — ФАКТ ИНТЕРФЕЙСА, А НЕ ДАННЫХ: он известен в момент
+    // клика, и ждать доски ему незачем. Раньше ждал: первое, что делал этот
+    // код, — `await fadeOutBoard()`, то есть 150 мс, за которые на экране не
+    // менялось НИЧЕГО, а пилюля переключателя трогалась с места только на
+    // следующей перерисовке. Клик выглядел зависшим ровно настолько, насколько
+    // уезжала старая доска, а на медленном ответе — пока она не приедет.
+    //
+    // Поэтому день ставится сразу и шапка правится точечно (renderHeaderOnly),
+    // а доска уезжает и грузится уже за ней, своим чередом.
     state.date = date;
     state.highlightId = null; // подсветка записи чужого дня смысла не имеет
+    renderHeaderOnly();
+
+    await fadeOutBoard();
     state.board = null;      // станции чужого дня с экрана сняты
     state.fetchedAt = null;
     state.boardError = '';
