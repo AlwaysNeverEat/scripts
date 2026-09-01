@@ -9,6 +9,7 @@ import topRouter from './routes/top.js';
 import usersRouter from './routes/users.js';
 import adminRouter from './routes/admin.js';
 import crmRouter from './routes/crm.js';
+import serverRouter from './routes/server.js';
 // Панель Битрикса («Лиды») отложена — см. docs/BITRIX.md. Модули
 // backend/src/bitrix/ и оба роутера на месте, выключена только проводка.
 // import bitrixRouter from './routes/bitrix.js';
@@ -89,6 +90,11 @@ app.use('/api/users', requireSession, usersRouter);
 // роутера: без личности проверять роль нечем.
 app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm', requireSession, crmRouter);
+// Баланс облачного счёта и срок, на который его хватит. Сессия — чтобы цифры
+// не отдавались всему интернету по одному x-api-key, вшитому в юзерскрипты;
+// роли тут нет сознательно: кончившийся счёт кладёт сайт у всех, и знать об
+// этом заранее полезно каждому (см. routes/server.js).
+app.use('/api/server', requireSession, serverRouter);
 // Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md). ОТЛОЖЕНА
 // целиком — ручки не подняты, чтобы сайт не хранил чужие сессии портала ради
 // выключенной вкладки. Когда вернём: датчик звонков обязан стоять ПЕРЕД

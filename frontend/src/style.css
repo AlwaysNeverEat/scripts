@@ -8331,3 +8331,78 @@ a.diff-val-new:hover { border-color: var(--green); }
   .lead-spin, .lead-live-dot, .lead-toast-dot { animation: none; }
   .sk::after { animation: none; }
 }
+
+/* ── Панель «Сервер» в профиле (serverBalance.js) ──────────────────────────
+   Главное здесь — СРОК, а не сумма: «134,18 ₽» человеку, который за сервер не
+   платит, не говорит ничего, а «хватит на 2 дня» говорит. Поэтому срок стоит
+   крупно и первым, а рубли лежат ниже мелкой строкой цифр.
+
+   Цвет — смысл, а не украшение, и акцентом он поэтому НЕ красится: тон акцента
+   пользователь крутит сам (accent.js), и «денег на два дня» обязано выглядеть
+   тревожно при любом его выборе. Жёлтый тут — обычное «внимание», а не золото
+   медали: у медали свои градиенты (--gold-card-*), а это чистый тон. */
+.srv-life-head {
+  display: flex; align-items: baseline; gap: var(--s-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-3);
+}
+.srv-life-icon { color: var(--sub); align-self: center; display: flex; }
+.srv-life-main { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.srv-life-date { font-size: 12px; color: var(--sub); }
+
+/* Полоса — «сколько дней жизни осталось» по двухнедельной шкале. Капсула, а не
+   ступень скругления: у полосы прогресса радиус равен половине высоты. */
+.srv-bar {
+  height: 6px;
+  background: var(--bg2);
+  border-radius: var(--r-round);
+  overflow: hidden;
+}
+.srv-bar-fill {
+  display: block; height: 100%;
+  border-radius: var(--r-round);
+  background: var(--green);
+  transition: width .3s ease;
+}
+.srv-ok .srv-life-main    { color: var(--text); }
+.srv-warn .srv-life-main  { color: var(--gold); }
+.srv-warn .srv-bar-fill   { background: var(--gold); }
+.srv-alarm .srv-life-main { color: var(--red); }
+.srv-alarm .srv-bar-fill  { background: var(--red); }
+.profile-sec-meta.srv-meta-alarm { color: var(--red); }
+
+/* Цифры складываются в сетку и переносятся: на телефоне четыре колонки
+   превратились бы в четыре обрезанные суммы. */
+.srv-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+.srv-fig {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  padding: var(--s-3);
+}
+.srv-fig-label { display: block; font-size: 11px; color: var(--sub); }
+.srv-fig-value { display: block; font-size: 17px; font-weight: 600; margin-top: var(--s-1); }
+.srv-fig-unit { font-size: 12px; font-weight: 400; color: var(--sub); }
+
+/* Детализация: строка на ресурс, «что — почём». Имя длинное (у сервера в него
+   входит тариф), поэтому оно и обрезается многоточием, а цена — нет: ради неё
+   строка и читается. */
+.srv-items { margin-top: var(--s-4); display: grid; gap: var(--s-2); }
+.srv-item {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3);
+  font-size: 12px;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+}
+.srv-item-name {
+  color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.srv-item-price { color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.srv-stale { margin-top: var(--s-3); font-size: 11px; color: var(--sub); }

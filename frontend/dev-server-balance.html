@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Баланс сервера — песочница</title>
+  <!--
+     Открыть: npx vite → /dev-server-balance.html
+
+     Панель живёт в профиле, а профиль за входом, за базой И за чужим API
+     Рег.облака — глазами её не посмотреть никак. Здесь она нарисована во всех
+     состояниях сразу: спокойный запас, неделя, двое суток, часы, «расхода нет»
+     и снимок, который не удалось обновить.
+
+     Смотреть тут стоит на одно: в каком состоянии панель ПУГАЕТ. Цифра рядом с
+     полосой должна тревожить ровно тогда, когда пора идти пополнять счёт, и
+     ни минутой раньше — иначе её перестанут замечать вовсе.
+  -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('cars_db_theme');
+        document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/src/style.css"/>
+  <style>
+    body { padding: var(--s-5) var(--s-4) var(--s-7); }
+    .wrap { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s-5); }
+    .case-note { font-size: 12px; color: var(--sub); }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <button class="btn btn-sec" id="theme">Сменить тему</button>
+  </div>
+
+  <script type="module">
+    import { serverBalanceHtml } from '/src/serverBalance.js';
+    import { profileSectionHtml } from '/src/profileLayout.js';
+
+    const items = [
+      { label: 'Сервер — Cars DB', hourly: 1.76204, monthly: 1286.29 },
+      { label: 'Плавающий IP',     hourly: 0.25669, monthly: 187.38 },
+    ];
+    // Цифры взяты с живого счёта: расход 2,02 ₽/час — это 1 473,67 ₽ в месяц.
+    const real = { balance: 134.18, bonus: 0, hourly: 2.01873, monthly: 1473.67,
+                   items, checkedAt: new Date().toISOString(), stale: false };
+
+    const cases = [
+      ['Месяц запаса',        { ...real, balance: 1500, hoursLeft: 743, daysLeft: 30 }],
+      ['Неделя',              { ...real, balance: 340,  hoursLeft: 168, daysLeft: 7 }],
+      ['Как сейчас — 66 ч',   { ...real, hoursLeft: 66, daysLeft: 2 }],
+      ['Последние часы',      { ...real, balance: 18.2, hoursLeft: 9, daysLeft: 0 }],
+      ['Бонусы на счету',     { ...real, bonus: 500, hoursLeft: 314, daysLeft: 13 }],
+      ['Расхода нет',         { ...real, hourly: 0, monthly: 0, hoursLeft: null, daysLeft: null, items: [] }],
+      ['Облако не ответило',  { ...real, hoursLeft: 66, daysLeft: 2, stale: true,
+                                checkedAt: new Date(Date.now() - 40 * 60000).toISOString() }],
+    ];
+
+    const wrap = document.getElementById('wrap');
+    wrap.insertAdjacentHTML('beforeend', cases.map(([title, data]) => `
+      <div>
+        <div class="case-note">${title}</div>
+        ${profileSectionHtml({ title: 'Сервер', meta: 'Рег.облако', cls: 'profile-sec-server',
+                               body: serverBalanceHtml(data) })}
+      </div>`).join(''));
+
+    document.getElementById('theme').onclick = () => {
+      const root = document.documentElement;
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('cars_db_theme', next); } catch {}
+    };
+  </script>
+</body>
+</html>
