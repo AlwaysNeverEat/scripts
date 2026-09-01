@@ -1,20 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Карточка «Сервер» в левом углу главной: сколько денег на облачном счёте
-// Рег.облака и на сколько их хватит. Данные — /api/server/balance (бэкенд
-// ходит в облако сам, см. backend/src/regcloud/balance.js).
+// Карточка «Сервер» в нижнем левом углу главной: сколько сайту осталось жить.
+// Данные — /api/server/balance (бэкенд ходит в Рег.облако сам, см.
+// backend/src/regcloud/balance.js).
 //
-// Карточку видит КАЖДЫЙ вошедший, а не только модератор: кончившийся счёт
-// кладёт сайт у всех сразу — и записи, и калькулятор, и CRM-панель.
+// Карточку видит КАЖДЫЙ вошедший, а не только модератор: сайт живёт на
+// предоплаченном облачном счёте, и когда он кончится, ляжет всё сразу — и
+// записи, и калькулятор, и CRM-панель.
 //
-// Главное в ней — СРОК, а не сумма: «134,18 ₽» тому, кто за сервер не платит,
-// не говорит ничего, а «хватит на 2 дня» говорит. Поэтому сумма стоит крупно
-// (её ищут глазами), а строкой ниже — то, ради чего карточка вообще есть.
+// Главное и САМОЕ КРУПНОЕ здесь — СРОК. Рубли на счёте человеку, который за
+// сервер не платит, не говорят ничего: «134,18 ₽» — это не хорошо и не плохо,
+// пока не посчитаешь в уме расход. «2 дня» — это сразу понятно. Поэтому сумма
+// ушла в мелкую строку под полосой, а на её месте стоит время.
 //
-// Форма взята у готовой карточки статистики (uiverse), но материал наш:
-// стекло главной вместо белой плашки, шкала скруглений и отступов проекта
-// вместо своих чисел, системный шрифт вместо Inter. Полоса под значением у
-// образца показывала доли выручки — здесь она показывает, из чего складывается
-// расход: сам сервер, его адрес, бэкапы.
+// Полоса — ТОЖЕ ПРО ВРЕМЯ, а не про деньги: она пустеет вместе с запасом (две
+// недели — полная, сегодня — пустая). Сначала она показывала доли расхода по
+// ресурсам, красиво и бесполезно: на что уходят деньги, интересно ровно одному
+// человеку в конторе, а «сколько осталось» — всем.
+//
+// Из чего складывается расход, карточка всё же помнит — в подсказке у строки с
+// суммой: место это не занимает, а вопрос «почему так быстро тает» иногда
+// возникает.
+//
+// Форма (метка с иконкой, чип, крупное значение, полоса-капсула) взята у
+// готовой карточки статистики uiverse, но материал наш: стекло главной (те же
+// --glass-*, что у строки поиска), наши ступени скруглений и отступов,
+// системный шрифт.
 //
 // Токена в .env нет (машина разработчика, чужая копия) — карточки просто нет.
 // Пустая карточка с прочерками читалась бы как поломка.
@@ -40,11 +50,6 @@ const fmt = (n, digits = 2) => new Intl.NumberFormat('ru-RU', {
 const DAYS_ALARM = 3;
 const DAYS_WARN  = 7;
 
-// В полосе и легенде помещается три ресурса; всё остальное схлопывается в
-// «прочее» штриховкой. У нас их сейчас два, но снэпшоты и бэкапы заводятся
-// одним кликом в панели облака, и список туда приезжает сам.
-const MAX_PARTS = 3;
-
 function levelOf(days) {
     if (days == null) return 'ok';
     if (days <= DAYS_ALARM) return 'alarm';
@@ -52,14 +57,15 @@ function levelOf(days) {
     return 'ok';
 }
 
-// «Хватит на 2 дня». Меньше двух суток считаем часами: «0 дней» — это не срок,
-// а ошибка отображения.
-function lifeLabel({ hoursLeft, daysLeft }) {
-    if (hoursLeft == null) return 'Расхода нет — счёт не тратится';
-    if (hoursLeft <= 0) return 'Деньги кончились';
-    if (hoursLeft < 48) return `Хватит на ${hoursLeft} ${plural(hoursLeft, ['час', 'часа', 'часов'])}`;
+// Срок разбит на ЧИСЛО и ЕДИНИЦУ: число стоит крупно (его и читают), единица
+// рядом мелко. Меньше двух суток считаем часами — «0 дней» это не срок, а
+// ошибка отображения.
+function lifeParts({ hoursLeft, daysLeft }) {
+    if (hoursLeft == null) return { big: '∞', unit: 'не тратится' };
+    if (hoursLeft <= 0) return { big: '0', unit: 'деньги кончились' };
+    if (hoursLeft < 48) return { big: String(hoursLeft), unit: plural(hoursLeft, ['час', 'часа', 'часов']) };
     const days = daysLeft ?? Math.floor(hoursLeft / 24);
-    return `Хватит на ${days} ${plural(days, ['день', 'дня', 'дней'])}`;
+    return { big: String(days), unit: plural(days, ['день', 'дня', 'дней']) };
 }
 
 // Дату конца считаем от МОМЕНТА ЗАМЕРА, а не от «сейчас»: ответ живёт в кэше
@@ -72,64 +78,50 @@ function runsOutLabel({ checkedAt, hoursLeft }) {
     return 'до ' + end.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
-// Доли расхода. Считаем от суммы САМИХ СТРОК, а не от общего hourly: строки —
-// это то, что нарисовано, и полоса, не сходящаяся со своей же легендой,
-// выглядит ошибкой.
-function parts(items) {
-    const rows = (Array.isArray(items) ? items : []).filter(it => it.hourly > 0);
-    if (!rows.length) return [];
-    rows.sort((a, b) => b.hourly - a.hourly);
+// Шкала полосы — две недели. Не месяц: на месячной шкале разница между двумя
+// днями и четырьмя не видна вовсе, а она тут и решает.
+const SCALE_DAYS = 14;
 
-    // В легенде стоит ТИП ресурса («Сервер», «Плавающий IP»), а не имя машины:
-    // имя своё есть только у сервера, и «Cars DB» рядом с «Cars DB» (бэкап того
-    // же сервера) не различает строки, а путает их. Имя добавляется ровно там,
-    // где типы совпали, а полная подпись всегда лежит в подсказке.
-    const kinds = rows.slice(0, MAX_PARTS).map(it => it.kind || 'Ресурс');
-    const head = rows.slice(0, MAX_PARTS).map((it, i) => {
-        const kind = kinds[i];
-        const twice = kinds.filter(k => k === kind).length > 1;
-        return {
-            name: (twice && it.name ? `${kind} ${it.name}` : kind),
-            title: it.label || it.name || '',
-            hourly: it.hourly,
-        };
-    });
-    const restSum = rows.slice(MAX_PARTS).reduce((s, it) => s + it.hourly, 0);
-    if (restSum > 0) head.push({ name: 'Прочее', title: '', hourly: restSum, rest: true });
-    return head;
+// Подсказка к строке с суммой: на что уходит расход. В самой карточке этому
+// места нет, а знать иногда полезно.
+function costTitle(items, hourly) {
+    const rows = (Array.isArray(items) ? items : []).filter(it => it.hourly > 0);
+    const lines = rows.map(it => `${it.label || it.name || it.kind}: ${fmt(it.hourly)} ₽/час`);
+    return [`Расход ${fmt(hourly)} ₽/час`, ...lines].join('\n');
 }
 
 export function serverCardHtml(data) {
     const level = levelOf(data.daysLeft);
+    const life = lifeParts(data);
     const out = runsOutLabel(data);
-    const seg = parts(data.items);
+    // Полоса пустеет вместе с запасом. Минимум в пару процентов оставлен
+    // нарочно: полоса, стёртая в ноль, читается как «полосы нет», а не как
+    // «времени нет» — а времени как раз нет.
+    const fill = data.hoursLeft == null
+        ? 100
+        : Math.max(2, Math.min(100, Math.round((data.hoursLeft / 24) / SCALE_DAYS * 100)));
 
     return `
         <article class="srv-card srv-${level}">
             <header class="srv-card__head">
-                <span class="srv-card__label">${serverIcon(14)}Сервер</span>
+                <span class="srv-card__label">${serverIcon(13)}Сервер</span>
                 <span class="srv-card__range">${data.stale
                     ? esc('на ' + new Date(data.checkedAt).toLocaleTimeString('ru-RU',
                         { hour: '2-digit', minute: '2-digit' }))
                     : 'Рег.облако'}</span>
             </header>
 
-            <div class="srv-card__value">${esc(fmt(data.balance))}<span class="srv-card__currency">₽</span></div>
-
-            <div class="srv-card__delta">
+            <div class="srv-card__life">
                 ${data.hoursLeft == null ? '' : trendDownIcon(12)}
-                <span>${esc(lifeLabel(data))}${out ? ' · ' + esc(out) : ''}</span>
+                <span class="srv-card__big">${esc(life.big)}</span>
+                <span class="srv-card__unit">${esc(life.unit)}</span>
             </div>
 
-            ${seg.length ? `
-            <div class="srv-card__bar" aria-hidden="true">
-                ${seg.map((p, i) => `<span class="srv-seg-${p.rest ? 'rest' : i + 1}"
-                    style="flex:${p.hourly.toFixed(5)}"></span>`).join('')}
+            <div class="srv-card__bar" aria-hidden="true"><span style="width:${fill}%"></span></div>
+
+            <div class="srv-card__sub" title="${esc(costTitle(data.items, data.hourly))}">
+                ${esc(fmt(data.balance))} ₽${out ? ' · ' + esc(out) : ''}
             </div>
-            <footer class="srv-card__legend">
-                ${seg.map((p, i) => `<span title="${esc(p.title)}">
-                    <i class="srv-seg-${p.rest ? 'rest' : i + 1}"></i>${esc(p.name)}</span>`).join('')}
-            </footer>` : ''}
         </article>`;
 }
 

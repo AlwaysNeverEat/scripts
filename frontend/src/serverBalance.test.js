@@ -10,21 +10,32 @@ const base = {
     stale: false,
 };
 
-test('главная строка — срок, а не сумма', () => {
+test('самое крупное в карточке — срок, а не сумма', () => {
     const html = serverCardHtml(base);
-    assert.match(html, /Хватит на 2 дня/);
+    assert.match(html, /srv-card__big">2<\/span>\s*<span class="srv-card__unit">дня/);
     assert.match(html, /srv-alarm/);      // двое суток — это «пора пополнить»
 });
 
 test('меньше двух суток считается часами: «0 дней» сроком не является', () => {
     const html = serverCardHtml({ ...base, hoursLeft: 9, daysLeft: 0 });
-    assert.match(html, /Хватит на 9 часов/);
+    assert.match(html, /srv-card__big">9<\/span>\s*<span class="srv-card__unit">часов/);
 });
 
-test('запаса на месяц — спокойный вид', () => {
+test('запаса на месяц — спокойный вид и полная полоса', () => {
     const html = serverCardHtml({ ...base, balance: 3000, hoursLeft: 1400, daysLeft: 58 });
-    assert.match(html, /Хватит на 58 дней/);
+    assert.match(html, /srv-card__big">58</);
     assert.match(html, /srv-ok/);
+    assert.match(html, /width:100%/);
+});
+
+test('полоса — ЗАПАС ВРЕМЕНИ: неделя из двух даёт половину', () => {
+    const html = serverCardHtml({ ...base, hoursLeft: 24 * 7, daysLeft: 7 });
+    assert.match(html, /width:50%/);
+});
+
+test('последние часы — полоса не стирается в ноль совсем', () => {
+    const html = serverCardHtml({ ...base, hoursLeft: 1, daysLeft: 0 });
+    assert.match(html, /width:2%/);
 });
 
 test('неделя запаса — предупреждение, но не тревога', () => {
@@ -32,10 +43,11 @@ test('неделя запаса — предупреждение, но не тр
     assert.match(html, /srv-warn/);
 });
 
-test('расхода нет — срока нет тоже', () => {
+test('расхода нет — вместо срока бесконечность, полоса полная', () => {
     const html = serverCardHtml({ ...base, hourly: 0, hoursLeft: null, daysLeft: null });
-    assert.match(html, /Расхода нет/);
-    assert.doesNotMatch(html, /Хватит/);
+    assert.match(html, /srv-card__big">∞/);
+    assert.match(html, /не тратится/);
+    assert.match(html, /width:100%/);
 });
 
 test('дата конца считается от момента замера, а не от «сейчас»', () => {
@@ -49,36 +61,26 @@ test('дата конца считается от момента замера, �
     assert.match(dateOf(early), /до \d+ сентября/);
 });
 
-test('сумма пишется по-русски и с рублём отдельным знаком', () => {
+test('сумма стоит мелкой подписью вместе с датой конца', () => {
     const html = serverCardHtml({ ...base, balance: 1500 });
     // Пробел в тысячах ставит Intl (он неразрывный), поэтому сверяем шаблоном
-    assert.match(html, /1\s500,00<span class="srv-card__currency">₽/);
+    assert.match(html, /srv-card__sub[\s\S]*1\s500,00 ₽ · до \d+ сентября/);
 });
 
-test('полоса и легенда собираются из детализации, имя экранируется', () => {
+test('на что уходит расход — в подсказке к сумме, а не в карточке', () => {
     const html = serverCardHtml({ ...base, items: [
         { kind: 'Сервер', name: '<Cars DB>', label: 'Сервер — <Cars DB>', hourly: 1.76204 },
         { kind: 'Плавающий IP', name: '', label: 'Плавающий IP', hourly: 0.25669 },
     ] });
-    assert.match(html, /&lt;Cars DB&gt;/);
-    assert.match(html, /Плавающий IP/);
-    // Ширины сегментов — это сами цены: доли полосы всегда сходятся с легендой
-    assert.match(html, /flex:1\.76204/);
-    assert.match(html, /flex:0\.25669/);
+    assert.match(html, /title="Расход 2,02 ₽\/час/);
+    assert.match(html, /Сервер — &lt;Cars DB&gt;: 1,76 ₽\/час/);
+    assert.match(html, /Плавающий IP: 0,26 ₽\/час/);
 });
 
-test('лишние ресурсы схлопываются в «прочее», а не растягивают легенду', () => {
-    const many = ['a', 'b', 'c', 'd', 'e'].map((n, i) => (
-        { kind: 'Бэкап', name: n, label: 'Бэкап — ' + n, hourly: 1 - i * 0.1 }));
-    const html = serverCardHtml({ ...base, items: many });
-    assert.match(html, /Прочее/);
-    assert.equal(html.match(/srv-card__legend[\s\S]*$/)[0].match(/<i /g).length, 4);
-});
-
-test('нет детализации — нет ни полосы, ни легенды', () => {
+test('нет детализации — карточка всё равно целая: срок важнее её', () => {
     const html = serverCardHtml({ ...base, items: [] });
-    assert.doesNotMatch(html, /srv-card__bar/);
-    assert.doesNotMatch(html, /srv-card__legend/);
+    assert.match(html, /srv-card__bar/);
+    assert.match(html, /srv-card__big">2</);
 });
 
 test('устаревший снимок помечается временем замера вместо «Рег.облако»', () => {
