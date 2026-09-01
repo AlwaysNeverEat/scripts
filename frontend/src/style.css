@@ -517,25 +517,101 @@ body.modal-open .app-tabs {
 .app-tab.active .app-tab-avatar { border-color: var(--accent); }
 
 /* ── Переключатель темы ─────────────────────────────────────────────
-   Показываем иконку того, что получится по клику: в тёмной теме — солнце
-   («включить светлую»), в светлой — луну. */
+   ТУМБЛЕР ПОКАЗЫВАЕТ СОСТОЯНИЕ, А НЕ ДЕЙСТВИЕ: слева ночь со звёздами и
+   месяцем, справа день с солнцем и облаком. Раньше тут была кнопка с иконкой
+   того, что получится по клику, и беда у неё ровно та же, что у
+   перекрашивающегося чипа в переключателе дня: смена происходит скачком, и
+   глазу нечего проследить. Тут ползунок ЕДЕТ, месяц по дороге дорастает до
+   солнца, звёзды гаснут, облако выплывает — переход видно целиком.
+
+   ЦВЕТА НЕБА И СОЛНЦА ЗАШИТЫ, и это не забытый токен. Синее небо и жёлтое
+   солнце — это ПРЕДМЕТ, а не оформление: они не должны ни краситься акцентом
+   (зелёное небо), ни переворачиваться вместе с темой (тумблер рисует день и
+   ночь, а не поверхность сайта) — тот же довод, по которому акцентом не
+   красится золото топа и цвета факультетов. Держим их местными переменными,
+   чтобы лежали в одном месте, а не по правилам.
+
+   ГЕОМЕТРИЯ СЧИТАЕТСЯ ОТ СОБСТВЕННОГО КЕГЛЯ: em везде, включая тени, которыми
+   нарисованы месяц и солнце. Одно число (font-size) меняет тумблер целиком —
+   ровно как --rc-ctl-h держит рост шапки записей. Смешай мы em с пикселями,
+   на мелком экране серп поехал бы относительно круга.
+
+   Исходник формы — шаблон Uiverse.io (JustCode14), цвета и разметка его,
+   геометрия переведена в em и на шкалу радиусов. */
 .theme-toggle {
+  --sw-night: #2a2a2a;   /* ночное небо */
+  --sw-day:   #00a6ff;   /* дневное */
+  --sw-moon:  #fff;
+  --sw-sun:   #ffcf48;
+
+  font-size: 15px;
   flex: none;
-  width: 32px; height: 32px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2);
-  color: var(--sub);
-  cursor: pointer;
+  position: relative;
+  width: 4em;
+  height: 2.2em;
   padding: 0;
-  transition: color .15s, border-color .15s, background .15s;
+  background: var(--sw-night);
+  border: 1px solid var(--border);
+  border-radius: var(--r-round);
+  overflow: hidden;   /* облако выплывает из-за края, а не поверх ряда вкладок */
+  cursor: pointer;
+  transition: background .4s;
 }
-.theme-toggle:hover { color: var(--accent); border-color: var(--accent); background: var(--bg3); }
+:root[data-theme="light"] .theme-toggle { background: var(--sw-day); }
+
 .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.theme-toggle svg { flex: none; }
-:root[data-theme="light"] .theme-icon-sun,
-:root:not([data-theme="light"]) .theme-icon-moon { display: none; }
+
+/* Месяц рисуется ТЕНЬЮ ВНУТРЬ: сдвинутая заливка съедает часть круга и
+   оставляет серп. Солнце — та же тень, разогнанная растяжкой до полного
+   круга, поэтому одно перетекает в другое по дороге, а не подменяется. */
+.theme-toggle::before {
+  content: "";
+  position: absolute;
+  left: 0.5em;
+  bottom: 0.5em;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: var(--r-circle);
+  box-shadow: inset 0.47em -0.24em 0 0 var(--sw-moon);
+  transition: transform .4s cubic-bezier(0.81, -0.04, 0.38, 1.5), box-shadow .4s;
+}
+:root[data-theme="light"] .theme-toggle::before {
+  transform: translateX(1.8em);
+  box-shadow: inset 0.88em -0.24em 0 0.88em var(--sw-sun);
+}
+
+.theme-star {
+  position: absolute;
+  width: 0.3em;
+  height: 0.3em;
+  border-radius: var(--r-circle);
+  background: var(--sw-moon);
+  transition: opacity .4s;
+}
+/* Три звезды — три положения; отдельных классов им не нужно, порядок в
+   разметке и есть их различие. */
+.theme-star:nth-of-type(1) { left: 2.5em; top: 0.5em; }
+.theme-star:nth-of-type(2) { left: 2.2em; top: 1.2em; }
+.theme-star:nth-of-type(3) { left: 3em;   top: 0.9em; }
+:root[data-theme="light"] .theme-star { opacity: 0; }
+
+.theme-cloud {
+  position: absolute;
+  width: 3.5em;
+  left: -1.1em;
+  bottom: -1.4em;
+  opacity: 0;
+  transition: opacity .4s;
+}
+:root[data-theme="light"] .theme-cloud { opacity: 1; }
+
+/* Кому анимация мешает — тому мгновенная смена картинки, а не поездка. */
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle,
+  .theme-toggle::before,
+  .theme-star,
+  .theme-cloud { transition: none; }
+}
 
 /* На гейте ряда вкладок нет — кнопка живёт в углу самого экрана входа. */
 .auth-theme-toggle { position: absolute; top: 14px; right: 14px; z-index: 2; }
@@ -544,7 +620,8 @@ body.modal-open .app-tabs {
   :root { --tabs-h: 48px; }
   .app-tab { padding: 0 var(--s-3); gap: var(--s-2); font-size: 12px; }
   .app-tabs-inner { padding: 0 var(--s-2); gap: var(--s-1); }
-  .theme-toggle { width: 30px; height: 30px; }
+  /* Тумблер меряется собственным кеглем — уменьшается одним числом. */
+  .theme-toggle { font-size: 13.5px; }
 }
 /* На узких экранах подпись остаётся только у активной вкладки — пять
    разделов помещаются в ряд без горизонтальной прокрутки. */

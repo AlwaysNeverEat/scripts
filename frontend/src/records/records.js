@@ -563,11 +563,6 @@ function isDown() {
     return !state.boardOk || ageSec > 180;
 }
 
-function statusDotClass() {
-    if (state.credsNeeded) return 'rc-dot-warn';
-    return isDown() ? 'rc-dot-down' : 'rc-dot-ok';
-}
-
 // ── Маркер «сейчас» и отсчёт до конца записи ─────────────────────────────────
 
 // Текущее время в минутах от полуночи по Москве: рабочий день станций и
@@ -769,20 +764,16 @@ function syncModalChrome() {
     document.querySelector('.app-tab[data-tab="records"]')?.classList.toggle('has-draft', draft);
 }
 
-// Лёгкое обновление строки статуса без полной перерисовки (тикает раз в 10с).
+// Лёгкое обновление баннера без полной перерисовки (тикает раз в 10с).
 // НИКОГДА не перерисовывает открытые формы: пока показан гейт кредов или
 // модалка, ввод пользователя священен — иначе поля стираются под руками.
-// Строка состояния и баннер — единственное в шапке, что меняется само по себе.
-// Правим их на месте: они лежат отдельными узлами и никого вокруг не трогают.
+// Баннер «оригинал лёг» — единственное в шапке, что меняется само по себе.
+// Правим его на месте: он лежит отдельным узлом и никого вокруг не трогает.
 // Возвращает false, если шапки на экране нет (гейт, boot).
 function patchStatus() {
-    const el = root?.querySelector('.rc-updated');
-    if (!el) return false;
-    el.innerHTML = statusLineHtml();
-    const dot = root.querySelector('.rc-dot');
-    if (dot) dot.className = `rc-dot ${statusDotClass()}`;
-    const banner = root.querySelector('.rc-banner-slot');
-    if (banner) banner.innerHTML = bannerHtml();
+    const banner = root?.querySelector('.rc-banner-slot');
+    if (!banner) return false;
+    banner.innerHTML = bannerHtml();
     return true;
 }
 
@@ -829,45 +820,28 @@ function renderHeaderOnly() {
     patchStatus();
 }
 
-function statusLineHtml() {
-    const pending = pendingOps().length;
-    const queueNote = pending ? ` · в очереди: ${pending}` : '';
-    // День меняют — так и пишем: «данных ещё нет» на пустом экране читается как
-    // поломка, хотя доска просто едет.
-    // Доска на экране есть, но едет свежая — это надо сказать. Иначе после
-    // возвращения на вкладку человек полминуты смотрит на «обновлено 15 мин
-    // назад» и решает, что раздел умер: скелет тут не подставляется (старая
-    // доска важнее пустоты), и без этой приписки не видно вообще ничего.
-    const agoNote = state.boardLoading && !state.board ? `загружаю ${esc(state.date || '')}…`
-        : state.boardLoading && state.fetchedAt ? `обновлено ${esc(fmtAgo(state.fetchedAt))} · обновляю…`
-        : state.boardLoading ? 'обновляю…'
-        : state.fetchedAt ? `обновлено ${esc(fmtAgo(state.fetchedAt))}`
-        : 'данных ещё нет';
-    return `${agoNote}${queueNote}`;
-}
-
+// Строки «обновлено N назад» тут больше нет. Она тикала под шапкой всегда, а
+// говорила о деле только когда оригинал лёг, — но про это и без неё кричит
+// баннер, а «в очереди: N» стоит цифрой на кнопке «Очередь». Постоянно
+// меняющаяся строка на месте, где ничего не происходит, читается как шум.
 function renderHeader() {
     return `${renderTopBar()}
-    <div class="rc-statusline">
-        <span class="rc-dot ${statusDotClass()}"></span>
-        <span class="rc-updated">${statusLineHtml()}</span>
-    </div>
     <div class="rc-banner-slot">${bannerHtml()}</div>`;
 }
 
-// Панель шапки БЕЗ строки состояния и баннера — то, что меняется редко.
-// Разделено ради render(): строка состояния тикает каждые несколько секунд, и
+// Панель шапки БЕЗ баннера — то, что меняется редко. Разделено ради render():
+// баннер оживает сам по себе (оригинал лёг, поднялся, очередь выросла), и
 // сравнивай мы шапку целиком, её узлы пересобирались бы постоянно, обрывая
-// переезд пилюли. Строку и баннер вместо этого правит patchStatus().
+// переезд пилюли. Баннер вместо этого правит patchStatus().
 function renderTopBar() {
     const { pending, failed } = unseenOps();
     const today = state.status?.today;
     const tomorrow = state.status?.tomorrow;
     return `
     <header class="rc-top">
-        <!-- Возврата к калькулятору тут больше нет: разделы переключает
-             общий ряд вкладок сверху (index.html → .app-tabs). -->
-        <div class="rc-brand">${icons.pin(18)}<span>Записи</span></div>
+        <!-- Ни возврата к калькулятору, ни подписи раздела тут нет: где мы
+             находимся, горит в общем ряду вкладок сверху (index.html →
+             .app-tabs), и повторять это второй строкой незачем. -->
         <nav class="rc-tabs" data-seg="rc-date">
             <button class="chip ${state.date === today ? 'active' : ''}" data-action="set-date" data-date="${esc(today)}">Сегодня</button>
             <button class="chip ${state.date === tomorrow ? 'active' : ''}" data-action="set-date" data-date="${esc(tomorrow)}">Завтра</button>
@@ -888,8 +862,8 @@ function renderTopBar() {
                 ${pending ? `<span class="rc-queue-badge">${pending}</span>` : ''}
                 ${failed ? `<span class="rc-queue-badge rc-queue-badge-err">${failed}</span>` : ''}
             </button>
-            <button class="btn btn-sec" data-action="refresh" title="Обновить сейчас">${icons.refresh(15)}</button>
-            ${isMod() ? `<button class="btn btn-sec" data-action="open-creds" title="Сменить логин/пароль админки">${icons.key(15)}</button>` : ''}
+            <button class="btn btn-sec rc-icon-btn" data-action="refresh" title="Обновить сейчас">${icons.refresh(15)}</button>
+            ${isMod() ? `<button class="btn btn-sec rc-icon-btn" data-action="open-creds" title="Сменить логин/пароль админки">${icons.key(15)}</button>` : ''}
         </div>
     </header>`;
 }
