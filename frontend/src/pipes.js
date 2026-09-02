@@ -1,431 +1,510 @@
 // ── Трубы: вторая заставка на фоне главной ───────────────────────────────────
-// Тот самый хранитель экрана из Windows 95, по мотивам github.com/1j01/pipes.
-// Выбирается в профиле («Оформление» → «Фон главной»); значением по умолчанию
-// остаётся сфера — см. background.js.
+// Это ПОРТ настоящей заставки Isaiah Odhner (github.com/1j01/pipes, MIT) —
+// той самой из Windows 95, на three.js. Не «по мотивам»: Pipe, шарниры,
+// чайники, леденцы, растворение между клубками и числа вероятностей взяты из
+// её screensaver.js как есть, и правки в них по-хорошему надо сверять с
+// оригиналом. Происхождение, лицензии и что именно изменено —
+// design/pipes/README.md.
 //
-// ПОЧЕМУ НЕ THREE.JS, НА КОТОРОМ НАПИСАН ОРИГИНАЛ. Это фон под строкой поиска,
-// а не игра: three.min.js — 550 КБ и постоянный WebGL-контекст ради клубка
-// цилиндров, который на экране и так читается силуэтом. Проекцию и сортировку
-// по глубине соседняя сфера (sphere.js) уже считает сама, и трубам хватает
-// того же: труба — это ЛИНИЯ КРУГЛЫМ ПЕРОМ, а цилиндр из неё делает вторая
-// линия поуже, сдвинутая к свету. Плата названа честно: настоящих бликов,
-// теней и чайника-меша здесь нет и не будет.
+// Выбирается в профиле («Оформление» → «Фон главной»), по умолчанию остаётся
+// сфера. Грузится ОТДЕЛЬНЫМ ЧАНКОМ по требованию, как игры-пасхалки: three.js
+// весит полмегабайта, и у тех, кто оставил сферу, его в загрузке нет вовсе.
 //
-// ЧТО ПРИШЛО НЕ ИЗ ОРИГИНАЛА, А ИЗ ЗАПРОСА: камера. В оригинале она стоит и
-// прыгает в случайную точку на каждой перезагрузке клубка — заставке 95-го
-// года это шло, а фону, на который смотрят весь день, нет. Здесь она ЕДЕТ
-// вокруг куба непрерывно и по ходу цикла понемногу отъезжает: клубок растёт, и
-// неподвижная камера сперва утыкается в него носом, а потом теряет за краем.
-// Прыжок остался ровно один — в момент, когда экран уже пуст (см. фазы), и
-// увидеть его нельзя.
+// ЧТО ИЗМЕНЕНО ПРОТИВ ОРИГИНАЛА, и почему (подробности у мест):
+//   • КАМЕРА. В оригинале она стоит и прыгает в случайную точку на каждом
+//     новом клубке. Здесь едет вокруг сцены непрерывно и понемногу отъезжает
+//     по ходу цикла — фон, на который смотрят весь день, не должен дёргаться;
+//   • РАСТВОРЕНИЕ КРАСИТСЯ ТЕМОЙ, а не чёрным: на светлой теме экран заливало
+//     бы чёрными квадратами;
+//   • ЖИЗНЕННЫЙ ЦИКЛ. Заставка замирает на скрытой странице, в фоновой вкладке
+//     и под открытой модалкой, а геометрия старого клубка освобождается — у
+//     оригинала это вкладка со скринсейвером, а у нас страница, открытая весь
+//     день;
+//   • ОРГАНОВ УПРАВЛЕНИЯ НЕТ (кнопки полноэкранного режима, выбора шарниров,
+//     мыши-камеры): это фон под строкой поиска, а не страница заставки.
 //
-// ФОН ПРОСТРАНСТВА ЗДЕСЬ НЕ РИСУЕТСЯ ВОВСЕ: канвас прозрачный, а под ним тот
-// же --search-bg, что и под сферой, — то есть тему фон слушает сам, без единой
-// строчки в этом файле. Зато ДЫМКА, в которой тонут дальние трубы, красится
-// этим же цветом, и её пересчитывает repaint() по themechange: без неё на
-// светлой теме дальние трубы уходили бы в черноту посреди белого экрана.
+// Фон пространства заставка не рисует вовсе: канвас прозрачный (alpha: true,
+// как в оригинале), а под ним тот же --search-bg, что и под сферой. Поэтому
+// смена темы меняет фон сама.
 
-import { cssToRgb, varToRgb } from './cssColor.js';
-import { createGrid, spawnPipe, stepPipe, rng } from './pipesGrid.js';
+import * as THREE from 'three';
+import { TeapotBufferGeometry } from './vendor/TeapotBufferGeometry.js';
+import candycaneUrl from './assets/pipes/candycane.png';
+import { varToRgb } from './cssColor.js';
 
-// ── Геометрия сцены ──────────────────────────────────────────────────────────
-const HALF = 8;              // куб узлов ±8 (у оригинала ±10)
-const PIPE_R = 0.22;         // радиус трубы в клетках
-const BALL_R = PIPE_R * 1.55;
-const TEAPOT_R = PIPE_R * 1.9;
+// ── Ниже и до конца блока Pipe — код оригинала ───────────────────────────────
+const gridBounds = new THREE.Box3(
+    new THREE.Vector3(-10, -10, -10),
+    new THREE.Vector3(10, 10, 10),
+);
 
-// ── Ход цикла ────────────────────────────────────────────────────────────────
-// Одна труба шагает раз в GROW_MS. Оригинал растит по отрезку НА КАДР — это
-// шестьдесят клеток в секунду на трубу, за десяток секунд куб забит, и смотреть
-// уже не на что. Тут рост нарочно медленнее хода камеры: клубок собирается на
-// глазах, а не появляется целиком.
-const GROW_MS = 240;
-const PIPES_MIN = 2;
-const PIPES_MAX = 3;
-// Потолок отрезков — не про красоту, а про кадр: каждый отрезок это две линии
-// в КАЖДОМ кадре, и тысяча труб превращает фон главной в обогреватель. Пятьсот
-// при таком росте набираются примерно за минуту.
-const MAX_SEGMENTS = 500;
-const CYCLE_MS = 75000;
-const FADE_OUT_MS = 1700;
-const FADE_IN_MS = 900;
+const JOINTS_ELBOW = 'elbow';
+const JOINTS_BALL = 'ball';
+const JOINTS_MIXED = 'mixed';
+
+const random = (x1, x2) => Math.random() * (x2 - x1) + x1;
+const randomInteger = (x1, x2) => Math.round(random(x1, x2));
+const chance = (value) => Math.random() < value;
+const chooseFrom = (values) => values[Math.floor(Math.random() * values.length)];
+
+function shuffleArrayInPlace(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
+function randomIntegerVector3WithinBox(box) {
+    return new THREE.Vector3(
+        randomInteger(box.min.x, box.max.x),
+        randomInteger(box.min.y, box.max.y),
+        randomInteger(box.min.z, box.max.z),
+    );
+}
+
+const textures = {};
+// Оригинал грузит текстуру через THREE.ImageUtils.loadTexture, которого в 98-й
+// версии three.js уже нет (его заменили на TextureLoader) — то есть леденцы у
+// него роняют кадр, а не выпадают. Здесь загрузчик нынешний, и пасхалка
+// работает.
+function loadTexture(url) {
+    if (!textures[url]) {
+        const texture = new THREE.TextureLoader().load(url);
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(2, 2);
+        textures[url] = texture;
+    }
+    return textures[url];
+}
+
+// Одна труба: ползёт по узлам сетки, оставляя за собой цилиндры и шарниры.
+// Тела (цилиндр, шар, чайник, «эльбол») и вероятности — как в оригинале.
+function Pipe(scene, grid, options) {
+    const self = this;
+    const pipeRadius = 0.2;
+    const ballJointRadius = pipeRadius * 1.5;
+    const teapotSize = ballJointRadius;
+
+    self.currentPosition = randomIntegerVector3WithinBox(gridBounds);
+    self.positions = [self.currentPosition];
+    self.object3d = new THREE.Object3D();
+    scene.add(self.object3d);
+
+    if (options.texturePath) {
+        self.material = new THREE.MeshLambertMaterial({ map: loadTexture(options.texturePath) });
+    } else {
+        const color = randomInteger(0, 0xffffff);
+        const emissive = new THREE.Color(color).multiplyScalar(0.3);
+        self.material = new THREE.MeshPhongMaterial({
+            specular: 0xa9fcff,
+            color,
+            emissive,
+            shininess: 100,
+        });
+    }
+
+    // ── Слияние кусков (этого в оригинале нет) ───────────────────────────────
+    // Труба растёт на шестьдесят клеток в секунду, и к концу цикла в сцене
+    // несколько тысяч отдельных мешей — столько же вызовов отрисовки на КАЖДЫЙ
+    // кадр. Оригиналу это сходит с рук: он занимает весь экран и живёт минуту.
+    // У нас это фон рабочей страницы, открытой весь день, и на офисной
+    // видеокарте столько вызовов кладёт кадр в пол.
+    //
+    // Поэтому свежие куски по-прежнему добавляются поодиночке (труба обязана
+    // расти НА ГЛАЗАХ), а как только их накапливается BATCH, они сливаются в
+    // один меш. Картинка от этого не меняется ни на пиксель: материал у трубы
+    // один, а геометрия складывается со своими матрицами.
+    const BATCH = 60;
+    const loose = [];
+
+    const addPiece = function (mesh) {
+        mesh.updateMatrix();
+        mesh.matrixAutoUpdate = false;
+        self.object3d.add(mesh);
+        loose.push(mesh);
+        if (loose.length >= BATCH) flush();
+    };
+
+    const flush = function () {
+        if (loose.length < 2) return;
+        const merged = new THREE.Geometry();
+        for (const mesh of loose) {
+            const g = mesh.geometry.isBufferGeometry
+                ? new THREE.Geometry().fromBufferGeometry(mesh.geometry)
+                : mesh.geometry;
+            merged.merge(g, mesh.matrix);
+            self.object3d.remove(mesh);
+            if (g !== mesh.geometry) g.dispose();
+            mesh.geometry.dispose();
+        }
+        loose.length = 0;
+        const batch = new THREE.Mesh(new THREE.BufferGeometry().fromGeometry(merged), self.material);
+        batch.matrixAutoUpdate = false;
+        self.object3d.add(batch);
+        merged.dispose();
+    };
+
+    const makeCylinderBetweenPoints = function (fromPoint, toPoint, material) {
+        const deltaVector = new THREE.Vector3().subVectors(toPoint, fromPoint);
+        const arrow = new THREE.ArrowHelper(deltaVector.clone().normalize(), fromPoint);
+        const geometry = new THREE.CylinderGeometry(
+            pipeRadius, pipeRadius, deltaVector.length(), 10, 4, true,
+        );
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.setFromQuaternion(arrow.quaternion);
+        mesh.position.addVectors(fromPoint, deltaVector.multiplyScalar(0.5));
+        addPiece(mesh);
+    };
+
+    const makeBallJoint = function (position) {
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(ballJointRadius, 8, 8), self.material);
+        ball.position.copy(position);
+        addPiece(ball);
+    };
+
+    const makeTeapotJoint = function (position) {
+        const teapot = new THREE.Mesh(
+            new TeapotBufferGeometry(teapotSize, true, true, true, true, true),
+            self.material,
+        );
+        teapot.position.copy(position);
+        teapot.rotation.x = (Math.floor(random(0, 50)) * Math.PI) / 2;
+        teapot.rotation.y = (Math.floor(random(0, 50)) * Math.PI) / 2;
+        teapot.rotation.z = (Math.floor(random(0, 50)) * Math.PI) / 2;
+        addPiece(teapot);
+    };
+
+    // «Эльбол», а не настоящее колено: у оригинала тут шарик поменьше шарового
+    // шарнира — так угол выглядит скруглённым, а не срезанным. Настоящее
+    // колено там в планах и закомментировано десятком строк.
+    const makeElbowJoint = function (fromPosition) {
+        const elball = new THREE.Mesh(new THREE.SphereGeometry(pipeRadius, 8, 8), self.material);
+        elball.position.copy(fromPosition);
+        addPiece(elball);
+    };
+
+    grid.setAt(self.currentPosition, self);
+    makeBallJoint(self.currentPosition);
+
+    self.update = function () {
+        let lastDirectionVector = null;
+        if (self.positions.length > 1) {
+            const lastPosition = self.positions[self.positions.length - 2];
+            lastDirectionVector = new THREE.Vector3().subVectors(self.currentPosition, lastPosition);
+        }
+
+        // ЕДИНСТВЕННАЯ правка в самом росте. Оригинал берёт ОДНО направление и,
+        // если там занято или это край сетки, просто ничего не делает — труба
+        // молча стоит до конца цикла (в его же TODO это записано как «ideally,
+        // have a pool of the 6 possible directions»). Мы перебираем все шесть в
+        // случайном порядке; прямо, как и у него, идём с вероятностью 1/2.
+        const directions = [];
+        if (chance(1 / 2) && lastDirectionVector) directions.push(lastDirectionVector);
+        const pool = [];
+        for (const axis of 'xyz') {
+            for (const sign of [+1, -1]) {
+                const v = new THREE.Vector3();
+                v[axis] += sign;
+                pool.push(v);
+            }
+        }
+        shuffleArrayInPlace(pool);
+        directions.push(...pool);
+
+        for (const directionVector of directions) {
+            const newPosition = new THREE.Vector3().addVectors(self.currentPosition, directionVector);
+            if (!gridBounds.containsPoint(newPosition)) continue;
+            if (grid.getAt(newPosition)) continue;
+            grid.setAt(newPosition, self);
+
+            // Шарнир — только на повороте (начальный шар ставится выше).
+            if (lastDirectionVector && !lastDirectionVector.equals(directionVector)) {
+                if (chance(options.teapotChance)) makeTeapotJoint(self.currentPosition);
+                else if (chance(options.ballJointChance)) makeBallJoint(self.currentPosition);
+                else makeElbowJoint(self.currentPosition);
+            }
+
+            makeCylinderBetweenPoints(self.currentPosition, newPosition, self.material);
+            self.currentPosition = newPosition;
+            self.positions.push(newPosition);
+            return;
+        }
+
+        self.dead = true;  // тупик: со всех шести сторон занято
+        flush();
+    };
+
+    // Клубок живёт минуты, страница — весь день: буферы и материалы старого
+    // клубка надо отдавать видеокарте обратно. Оригинал этого не делает — ему
+    // и не надо, у него вкладка с одной заставкой.
+    self.dispose = function () {
+        self.object3d.traverse((node) => { node.geometry?.dispose(); });
+        self.material.dispose();
+    };
+}
 
 // ── Камера ───────────────────────────────────────────────────────────────────
-const YAW_SPEED = 2 * Math.PI / 190000;   // оборот примерно за три минуты
-const PITCH_MID = 0.16;
-const PITCH_AMP = 0.24;
+// Того, что ниже, в оригинале нет вовсе: там look() ставит камеру в случайную
+// точку на расстоянии 14 и оставляет её там до следующего клубка. Здесь она
+// едет вокруг сцены непрерывно (оборот примерно за три минуты), качается по
+// высоте и по ходу цикла отъезжает: клубок растёт по шестьдесят клеток в
+// секунду на трубу, и с четырнадцати он очень быстро перестаёт помещаться в
+// кадр — камера оказывается внутри клубка, а не смотрит на него.
+const YAW_SPEED = 2 * Math.PI / 190000;
+const PITCH_MID = 0.18;
+const PITCH_AMP = 0.26;
 const PITCH_MS = 97000;                   // не кратно обороту — вид не повторяется
-// Куб целиком в кадре с запасом: на ближнем краю он занимает почти всю
-// меньшую сторону окна, на дальнем — примерно её половину. Ближе камеру
-// подпускать нельзя не из-за красоты: с дистанции меньше пятнадцати передние
-// трубы перестают помещаться, и клубок читается как забор поперёк экрана.
-const DIST_NEAR = 21;
-const DIST_FAR = 33;
-const FOV_K = 1.15;                       // фокусное = FOV_K × меньшая сторона окна
-const NEAR = 0.8;                         // ближе этого куски отрезков отрезаются
-
-// Экранное направление на свет: влево-вверх. Блик всегда с этой стороны трубы —
-// иначе клубок читается набором плоских палок.
-const LIGHT_X = -0.55;
-const LIGHT_Y = -0.83;
-
-// ── Цвет ─────────────────────────────────────────────────────────────────────
-// ТРУБЫ РАЗНОЦВЕТНЫЕ, и это не забытый акцент: в разноцветности вся заставка,
-// одноцветный клубок читается как ошибка отрисовки. Акцент никуда не делся — он
-// красит свечение пространства под канвасом (--search-glow в style.css). А вот
-// тему трубы слушают светлотой: на белом фоне те же тона надо брать темнее,
-// иначе клубок выцветает в молоко.
-const RECIPES = {
-    dark: {
-        base: (h) => `oklch(0.66 0.155 ${h})`,
-        hi: (h) => `oklch(0.86 0.105 ${h})`,
-        fog: 0.70,
-    },
-    light: {
-        base: (h) => `oklch(0.60 0.145 ${h})`,
-        hi: (h) => `oklch(0.79 0.115 ${h})`,
-        fog: 0.50,
-    },
-};
-const FALLBACK_BG = { dark: { r: 7, g: 9, b: 13 }, light: { r: 246, g: 247, b: 249 } };
-const FALLBACK_PIPE = { r: 150, g: 150, b: 160 };
-
-const themeName = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
-
-// Готовых строк цвета на трубу — по ступени дымки, а не по кадру. Иначе на
-// каждый отрезок в каждом кадре собиралась бы пара строк «rgb(…)»: тысяча
-// строк шестьдесят раз в секунду ради цвета, который между соседними ступенями
-// не отличить. Ступеней 32 — на глаз полос не видно.
-const FOG_STEPS = 32;
-
+const DIST_NEAR = 15;                     // 14 у оригинала, чуть дальше — под отъезд
+const DIST_FAR = 32;
+const smoothstep = (t) => t * t * (3 - 2 * t);
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const smooth = (t) => t * t * (3 - 2 * t);
 
 const isTouchOnly = typeof matchMedia === 'function'
     && matchMedia('(hover: none) and (pointer: coarse)').matches;
 const prefersReducedMotion = typeof matchMedia === 'function'
     && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const MAX_DPR = isTouchOnly ? 2 : 2.5;
-const MIN_FRAME_MS = isTouchOnly ? 1000 / 30 : 0;
+const MAX_DPR = isTouchOnly ? 1.5 : 2;
 
 /**
- * @param {HTMLCanvasElement} canvas
+ * @param {HTMLElement} stage — коробка с двумя канвасами (см. index.html)
  * @returns {{ setVisible: (v: boolean) => void }}
  */
-export function startPipes(canvas) {
-    const ctx = canvas.getContext('2d');
-    const rnd = rng((Math.random() * 0xffffffff) >>> 0);
-    const grid = createGrid(HALF);
+export function startPipes(stage) {
+    const canvasWebGL = stage.querySelector('#pipes-canvas, canvas:first-of-type');
+    const canvas2d = stage.querySelector('#pipes-dissolve, canvas:last-of-type');
+    const ctx2d = canvas2d.getContext('2d');
 
-    let pipes = [];
-    let segments = [];
+    const renderer = new THREE.WebGLRenderer({
+        alpha: true,          // фон пространства — CSS под канвасом, как в оригинале
+        antialias: true,
+        canvas: canvasWebGL,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_DPR));
+
+    const camera = new THREE.PerspectiveCamera(45, 1, 1, 100000);
+    const scene = new THREE.Scene();
+    scene.add(new THREE.AmbientLight(0x111111));
+    const directionalLightL = new THREE.DirectionalLight(0xffffff, 0.9);
+    directionalLightL.position.set(-1.2, 1.5, 0.5);
+    scene.add(directionalLightL);
+
+    // Сетка занятых узлов — как в оригинале, объект со строковыми ключами.
+    const nodes = new Map();
+    const key = (p) => `${p.x},${p.y},${p.z}`;
+    const grid = {
+        setAt: (p, v) => nodes.set(key(p), v),
+        getAt: (p) => nodes.get(key(p)),
+        clear: () => nodes.clear(),
+    };
+
+    const options = {
+        multiple: true,
+        texturePath: null,
+        joints: JOINTS_MIXED,
+        interval: [16, 24],   // секунды между растворениями, как в оригинале
+    };
+
+    let pipes = [];      // весь клубок: его освобождать на растворении
+    let growing = [];    // те, что ещё ползут
     let visible = true;
-    let bg = FALLBACK_BG[themeName()];
-    let fogK = RECIPES[themeName()].fog;
+    let running = false;
+    let rafId = 0;
+    let prevTime = 0;
 
-    // Порядок отрисовки: индексы отрезков, отсортированные по глубине. Массив
-    // переиспользуется между кадрами — пятьсот чисел незачем создавать заново
-    // шестьдесят раз в секунду (тот же довод, что у сферы).
-    const order = [];
+    // Растворение: экран покрывается квадратиками цвета фона, и под ними
+    // клубок меняется на новый. ЦВЕТ БЕРЁТСЯ ИЗ ТЕМЫ (--search-bg), а не чёрный
+    // как в оригинале: на светлой теме чёрные квадраты выглядели бы поломкой.
+    let dissolveColor = 'rgb(7,9,13)';
+    const readTheme = () => {
+        const c = varToRgb('--search-bg', { r: 7, g: 9, b: 13 });
+        dissolveColor = `rgb(${c.r},${c.g},${c.b})`;
+    };
+    readTheme();
 
-    // ── Цвета труб ───────────────────────────────────────────────────────────
-    // Палитра — ОБЩИЙ ОБЪЕКТ трубы и всех её отрезков, и меняется он на месте.
-    // Если на смену темы создавать новый, отрезки умерших труб остались бы с
-    // цветами прошлой темы: труба живёт до тупика, а её отрезки — до конца
-    // цикла. Поэтому палитры лежат отдельным списком, а не берутся из pipes.
-    let palettes = [];
+    let dissolveRects = [];
+    let dissolveRectsIndex = -1;
+    let dissolveRectsPerRow = 50;
+    let dissolveRectsPerColumn = 50;
+    let dissolveTransitionFrames = 120;
+    let dissolveEndCallback = null;
 
-    function paint(p) {
-        const r = RECIPES[themeName()];
-        p.base = cssToRgb(r.base(p.hue), FALLBACK_PIPE);
-        p.hi = cssToRgb(r.hi(p.hue), FALLBACK_PIPE);
-        p.baseFog = new Array(FOG_STEPS);
-        p.hiFog = new Array(FOG_STEPS);
+    const cssSize = () => ({ w: stage.offsetWidth, h: stage.offsetHeight });
+
+    function dissolve(seconds, endCallback) {
+        const { w, h } = cssSize();
+        dissolveRectsPerRow = Math.max(1, Math.ceil(w / 20));
+        dissolveRectsPerColumn = Math.max(1, Math.ceil(h / 20));
+        dissolveRects = new Array(dissolveRectsPerRow * dissolveRectsPerColumn)
+            .fill(null)
+            .map((_null, index) => ({
+                x: index % dissolveRectsPerRow,
+                y: Math.floor(index / dissolveRectsPerRow),
+            }));
+        shuffleArrayInPlace(dissolveRects);
+        dissolveRectsIndex = 0;
+        dissolveTransitionFrames = seconds * 60;
+        dissolveEndCallback = endCallback;
     }
 
-    function repaint() {
-        bg = varToRgb('--search-bg', FALLBACK_BG[themeName()]);
-        fogK = RECIPES[themeName()].fog;
-        for (const p of palettes) paint(p);
+    function fillRect(rect) {
+        const { w, h } = cssSize();
+        const rectWidth = w / dissolveRectsPerRow;
+        const rectHeight = h / dissolveRectsPerColumn;
+        ctx2d.fillStyle = dissolveColor;
+        ctx2d.fillRect(
+            Math.floor(rect.x * rectWidth),
+            Math.floor(rect.y * rectHeight),
+            Math.ceil(rectWidth),
+            Math.ceil(rectHeight),
+        );
     }
-    repaint();
 
-    // Тон новой трубы не должен совпасть с предыдущей: два близких оттенка
-    // читаются как одна труба, ошибшаяся геометрией.
-    let lastHue = -999;
-    function newPipe() {
-        const pipe = spawnPipe(grid, rnd);
-        if (!pipe) return null;
-        let hue = 0;
-        for (let i = 0; i < 8; i++) {
-            hue = rnd() * 360;
-            if (Math.abs(((hue - lastHue + 540) % 360) - 180) > 45) break;
-        }
-        lastHue = hue;
-        const pal = { hue };
-        paint(pal);
-        palettes.push(pal);
-        pipe.pal = pal;
-        return pipe;
+    function finishDissolve() {
+        dissolveEndCallback();
+        dissolveRects = [];
+        dissolveRectsIndex = -1;
+        ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+    }
+
+    let clearing = false;
+    // Возраст клубка. У оригинала это setTimeout, здесь — накопитель прямо в
+    // кадре: заставка замирает, когда на неё не смотрят, а таймер тикал бы и
+    // на скрытой странице — вернулся человек, а клубок как раз растворился.
+    // От него же считается отъезд камеры, поэтому число нужно всё равно.
+    let cycleAge = 0;
+    let cycleMs = random(options.interval[0], options.interval[1]) * 1000;
+
+    function startClear() {
+        if (clearing) return;
+        clearing = true;
+        dissolve(2, reset);
     }
 
     function reset() {
-        grid.clear();
-        segments = [];
-        order.length = 0;
-        palettes = [];
+        for (const pipe of pipes) {
+            scene.remove(pipe.object3d);
+            pipe.dispose();
+        }
         pipes = [];
-        const want = PIPES_MIN + (rnd() < 0.4 ? PIPES_MAX - PIPES_MIN : 0);
-        for (let i = 0; i < want; i++) {
-            const pipe = newPipe();
-            if (pipe) pipes.push(pipe);
-        }
+        growing = [];
+        grid.clear();
+        clearing = false;
+        cycleAge = 0;
+        cycleMs = random(options.interval[0], options.interval[1]) * 1000;
     }
 
-    // Шаг роста: каждая труба делает по отрезку, мёртвую заменяет новая. У
-    // оригинала замены нет — там труба, упёршаяся в занятый узел, молча стоит
-    // до конца цикла (см. pipesGrid.js).
-    function grow() {
-        for (let i = 0; i < pipes.length; i++) {
-            const pipe = pipes[i];
-            const seg = stepPipe(pipe, grid, rnd);
-            if (seg) {
-                seg.pal = pipe.pal;
-                // Где отрезок стыкуется с соседом по своей трубе. Нужно
-                // единственно для блика: см. drawSegment — на стыке его концы
-                // приходится вытягивать под соседа.
-                seg.joinA = false;
-                seg.joinB = false;
-                if (pipe.tail) {
-                    pipe.tail.joinB = true;
-                    seg.joinA = true;
-                }
-                pipe.tail = seg;
-                // Шарнир только на повороте: круглое перо и так скругляет угол,
-                // а шар с чайником — та самая примета заставки. Чайник редкий,
-                // как в оригинале.
-                seg.joint = seg.turn ? (rnd() < 1 / 200 ? 2 : rnd() < 1 / 3 ? 1 : 0) : 0;
-                segments.push(seg);
-            } else {
-                const next = newPipe();
-                if (next) pipes[i] = next;
-                else pipes.splice(i--, 1);
-            }
-        }
-    }
-
-    // ── Размер буфера, потеря контекста, цикл ────────────────────────────────
-    // Всё ниже — та же механика, что у сферы, и по тем же причинам (там она
-    // расписана подробно): буфер синхронизируется каждый кадр, а не по resize;
-    // цикл останавливается на скрытой странице, в фоновой вкладке и под
-    // открытой модалкой, а будят его visibilitychange, ResizeObserver и
-    // наблюдатель за классом modal-open.
-    const syncSize = () => {
-        const w = canvas.offsetWidth;
-        const h = canvas.offsetHeight;
-        if (!w || !h) return false;
-        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-        const bw = Math.round(w * dpr);
-        const bh = Math.round(h * dpr);
-        if (canvas.width !== bw || canvas.height !== bh) {
-            canvas.width = bw;
-            canvas.height = bh;
-        }
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        return true;
-    };
-    syncSize();
-
-    let contextLost = false;
-    canvas.addEventListener('contextlost', (e) => {
-        e.preventDefault();
-        contextLost = true;
-    });
-    canvas.addEventListener('contextrestored', () => {
-        contextLost = false;
-        canvas.width = 0;
-        prevTime = 0;
-    });
-
-    // ── Фазы: появление → рост → уход → новый клубок ─────────────────────────
-    let phase = 'in';
-    let phaseMs = 0;
-    let age = 0;        // возраст клубка: от него считается отъезд камеры
-    let clock = 0;      // время с запуска: от него качание по высоте
-    let growAcc = 0;
-    let yaw = rnd() * Math.PI * 2;
-    let prevTime = 0;
-    let lastFrame = 0;
-    let rafId = 0;
-    let running = false;
-    let lastFade = -1;
-
-    reset();
-
-    const step = (dt) => {
-        age += dt;
+    // Камера. Угол объезда копится сам по себе, а расстояние — от возраста
+    // клубка: он обнуляется на каждом растворении, и камера возвращается к
+    // сцене ровно тогда, когда смотреть на ней уже не на что.
+    let yaw = random(0, Math.PI * 2);
+    let clock = 0;
+    function placeCamera(dt) {
         clock += dt;
-        phaseMs += dt;
         yaw += dt * YAW_SPEED;
+        const pitch = PITCH_MID + Math.sin((clock / PITCH_MS) * Math.PI * 2) * PITCH_AMP;
+        // «Меньше движения» в системе: камера встаёт на середину отъезда, но
+        // трубы продолжают расти — без роста от заставки не остаётся ничего.
+        const t = prefersReducedMotion ? 0.5 : smoothstep(clamp01(cycleAge / cycleMs));
+        const dist = DIST_NEAR + (DIST_FAR - DIST_NEAR) * t;
+        camera.position.set(
+            dist * Math.cos(pitch) * Math.sin(yaw),
+            dist * Math.sin(pitch),
+            dist * Math.cos(pitch) * Math.cos(yaw),
+        );
+        camera.lookAt(scene.position);
+    }
 
-        if (phase === 'in' && phaseMs >= FADE_IN_MS) { phase = 'grow'; phaseMs = 0; }
-        if (phase !== 'out') {
-            growAcc += dt;
-            // Потолок на догон: dt и так обрезан сотней миллисекунд, но рост не
-            // должен выстреливать пачкой отрезков в один кадр после сна вкладки.
-            let guard = 4;
-            while (growAcc >= GROW_MS && guard-- > 0) {
-                growAcc -= GROW_MS;
-                grow();
-            }
-            if (growAcc >= GROW_MS) growAcc = 0;
-            if (segments.length >= MAX_SEGMENTS || age >= CYCLE_MS || !pipes.length) {
-                phase = 'out';
-                phaseMs = 0;
-            }
-        } else if (phaseMs >= FADE_OUT_MS) {
-            // Экран уже пуст — только здесь камере и можно вернуться к кубу.
-            reset();
-            age = 0;
-            phase = 'in';
-            phaseMs = 0;
+    // Размеры канвасов держим по вёрстке, а не по window.innerWidth: заставка
+    // живёт в куске страницы, а не во весь экран.
+    function syncSize() {
+        const { w, h } = cssSize();
+        if (!w || !h) return false;
+        if (canvas2d.width !== w || canvas2d.height !== h) {
+            canvas2d.width = w;
+            canvas2d.height = h;
+            // Растворение переживает ресайз: уже закрытые квадраты
+            // перерисовываем в новом размере (у оригинала так же).
+            for (let i = 0; i < dissolveRectsIndex; i++) fillRect(dissolveRects[i]);
         }
-    };
+        if (canvasWebGL.width !== Math.round(w * renderer.getPixelRatio())
+            || canvasWebGL.height !== Math.round(h * renderer.getPixelRatio())) {
+            renderer.setSize(w, h, false);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+        return true;
+    }
 
-    const fadeNow = () => {
-        if (phase === 'in') return clamp01(phaseMs / FADE_IN_MS);
-        if (phase === 'out') return 1 - clamp01(phaseMs / FADE_OUT_MS);
-        return 1;
-    };
-
-    const draw = (time) => {
-        const W = canvas.offsetWidth;
-        const H = canvas.offsetHeight;
+    // Цикл: та же механика, что у сферы (sphere.js), и по тем же причинам —
+    // там она расписана подробно. Заставка замирает на скрытой странице, в
+    // фоновой вкладке и под открытой модалкой; будят её visibilitychange,
+    // ResizeObserver и наблюдатель за классом modal-open. Для WebGL это важнее,
+    // чем для сферы: тут на каждый кадр уезжает несколько тысяч отрисовок.
+    const animate = (time) => {
         const paused = document.body.classList.contains('modal-open');
-        if (W === 0 || !visible || contextLost || document.hidden || paused) {
-            if (W !== 0 && !contextLost && !paused) ctx.clearRect(0, 0, W, H);
-            prevTime = 0;
+        if (!visible || document.hidden || paused || !stage.offsetWidth) {
             running = false;
-            return;
-        }
-        rafId = requestAnimationFrame(draw);
-        if (MIN_FRAME_MS && time - lastFrame < MIN_FRAME_MS) return;
-        lastFrame = time;
-        if (!syncSize()) {
             prevTime = 0;
             return;
         }
+        rafId = requestAnimationFrame(animate);
+        if (!syncSize()) return;
 
         const dt = prevTime ? Math.min(time - prevTime, 100) : 16;
         prevTime = time;
-        if (!prefersReducedMotion) step(dt);
+        placeCamera(prefersReducedMotion ? 0 : dt);
 
-        ctx.clearRect(0, 0, W, H);
+        if (!clearing) {
+            cycleAge += dt;
+            if (cycleAge >= cycleMs) startClear();
+        }
 
-        // Камера: непрерывный объезд, качание по высоте и медленный отъезд по
-        // ходу цикла. Отъезд считается от ВОЗРАСТА клубка, а качание — от
-        // общего времени: возраст обнуляется на каждом клубке, и высота
-        // повторяла бы один и тот же проход раз за разом.
-        const pitch = PITCH_MID + Math.sin((clock / PITCH_MS) * Math.PI * 2) * PITCH_AMP;
-        const dist = DIST_NEAR + (DIST_FAR - DIST_NEAR) * smooth(clamp01(age / CYCLE_MS));
-        const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
-        const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
-        const f = Math.min(W, H) * FOV_K;
-        const cx = W / 2;
-        const cy = H / 2;
-        // Дымка: ближний край — передняя грань куба, дальний — задняя.
-        const fogNear = dist - HALF;
-        const fogSpan = HALF * 2.4;
+        for (const pipe of growing) pipe.update();
+        // Труба, у которой заняты все шесть сторон, из растущих выбывает — но
+        // из сцены не девается: то, что она построила, остаётся до конца
+        // цикла. Оригинал такую трубу просто оставляет дёргаться вхолостую.
+        growing = growing.filter(p => !p.dead);
 
-        let count = 0;
-        for (let i = 0; i < segments.length; i++) {
-            const s = segments[i];
-            s.vis = false;
-
-            // Вид: поворот вокруг Y (объезд), потом вокруг X (высота). Числа
-            // держим в переменных, а не в объектах точки: на пятистах отрезках
-            // это тысяча объектов в мусор на каждый кадр.
-            let arx = s.ax * cosY - s.az * sinY;
-            let arz = s.ax * sinY + s.az * cosY;
-            let ary = s.ay * cosP - arz * sinP;
-            let ad = dist - (s.ay * sinP + arz * cosP);
-
-            let brx = s.bx * cosY - s.bz * sinY;
-            let brz = s.bx * sinY + s.bz * cosY;
-            let bry = s.by * cosP - brz * sinP;
-            let bd = dist - (s.by * sinP + brz * cosP);
-
-            // Отсечение по ближней плоскости: камера ездит внутри сферы,
-            // описанной вокруг куба, и куски труб регулярно оказываются у неё
-            // за спиной. Без отсечения такой отрезок улетает через весь экран
-            // зеркальной чертой.
-            if (ad < NEAR && bd < NEAR) continue;
-            s.jointVis = ad > NEAR;
-            s.jointScale = f / ad;
-            if (ad < NEAR) {
-                const t = (NEAR - ad) / (bd - ad);
-                arx += (brx - arx) * t; ary += (bry - ary) * t; ad = NEAR;
-            } else if (bd < NEAR) {
-                const t = (NEAR - bd) / (ad - bd);
-                brx += (arx - brx) * t; bry += (ary - bry) * t; bd = NEAR;
+        if (growing.length === 0) {
+            const jointType = options.joints;
+            const pipeOptions = {
+                teapotChance: 1 / 200,   // 1 / 1000 в самой Windows, 1/200 у оригинала порта
+                ballJointChance: jointType === JOINTS_BALL ? 1 : jointType === JOINTS_MIXED ? 1 / 3 : 0,
+                texturePath: options.texturePath,
+            };
+            if (chance(1 / 20)) {
+                pipeOptions.teapotChance = 1 / 20;
+                pipeOptions.texturePath = candycaneUrl;
             }
-
-            s.x1 = cx + arx * f / ad;
-            s.y1 = cy - ary * f / ad;
-            s.x2 = cx + brx * f / bd;
-            s.y2 = cy - bry * f / bd;
-            s.d = (ad + bd) / 2;
-            s.scale = f / s.d;
-            s.vis = true;
-            order[count++] = i;
-        }
-        order.length = count;
-        // Сзади наперёд: узел занимает ровно одна труба, поэтому спорить за
-        // пиксель могут только разнесённые по глубине отрезки — а у них порядок
-        // однозначен, и художника хватает.
-        order.sort((a, b) => segments[b].d - segments[a].d);
-
-        // ПОЯВЛЕНИЕ И УХОД КЛУБКА ГАСЯТСЯ ЦЕЛИКОМ, ЧЕРЕЗ CSS, а не globalAlpha
-        // на кисти. Полупрозрачной кистью каждое перекрытие складывается само с
-        // собой: трубы просвечивают друг через друга, а на стыках, где блик
-        // заходит под соседа, проступают светлые точки. Канвас же гасится как
-        // готовая картинка — ровно, чем бы он ни был нарисован.
-        const fade = fadeNow();
-        if (fade !== lastFade) {
-            canvas.style.setProperty('--pipes-fade', String(fade));
-            lastFade = fade;
-        }
-        ctx.lineCap = 'round';
-        for (let k = 0; k < order.length; k++) {
-            drawSegment(ctx, segments[order[k]], bg, fogNear, fogSpan, fogK);
+            for (let i = 0; i < 1 + options.multiple * (1 + chance(1 / 10)); i++) {
+                const pipe = new Pipe(scene, grid, pipeOptions);
+                pipes.push(pipe);
+                growing.push(pipe);
+            }
         }
 
-        // «Меньше движения» в системе: показываем готовый клубок и замираем —
-        // фон остаётся картинкой, а не вечной анимацией.
-        if (prefersReducedMotion) {
-            cancelAnimationFrame(rafId);
-            running = false;
+        if (!clearing) renderer.render(scene, camera);
+
+        if (dissolveRectsIndex > -1) {
+            const rectsAtATime = Math.max(1, Math.floor(dissolveRects.length / dissolveTransitionFrames));
+            for (let i = 0; i < rectsAtATime && dissolveRectsIndex < dissolveRects.length; i++) {
+                fillRect(dissolveRects[dissolveRectsIndex]);
+                dissolveRectsIndex += 1;
+            }
+            if (dissolveRectsIndex === dissolveRects.length) finishDissolve();
         }
     };
 
     const kick = () => {
         cancelAnimationFrame(rafId);
         prevTime = 0;
-        lastFrame = 0;
         running = true;
-        rafId = requestAnimationFrame(draw);
+        rafId = requestAnimationFrame(animate);
     };
 
-    // «Меньше движения»: клубок собирается разом, до первого кадра, — расти ему
-    // всё равно не дадут, цикл встанет сразу после первой отрисовки.
-    if (prefersReducedMotion) {
-        while (segments.length < MAX_SEGMENTS * 0.6 && pipes.length) grow();
-        phase = 'grow';
-        age = CYCLE_MS * 0.55;
-    }
-
     kick();
-    document.addEventListener('themechange', () => { repaint(); if (!running) kick(); });
+
+    document.addEventListener('themechange', () => { readTheme(); if (!running) kick(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
     window.addEventListener('pageshow', kick);
     if (typeof MutationObserver === 'function') {
@@ -434,142 +513,22 @@ export function startPipes(canvas) {
         }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     }
     if (typeof ResizeObserver === 'function') {
-        new ResizeObserver(() => {
-            if (!running && canvas.offsetWidth) kick();
-        }).observe(canvas);
+        new ResizeObserver(() => { if (!running && stage.offsetWidth) kick(); }).observe(stage);
     }
+    // Контекст WebGL браузер отбирает у долгоживущих вкладок (нехватка памяти,
+    // сброс драйвера). Без preventDefault он не станет его восстанавливать, и
+    // на месте заставки останется пустой прямоугольник навсегда.
+    canvasWebGL.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        running = false;
+        cancelAnimationFrame(rafId);
+    });
+    canvasWebGL.addEventListener('webglcontextrestored', () => { reset(); kick(); });
 
     return {
-        // Фон переключили на сферу — трубы замирают (цикл встанет и сам, когда
-        // канвас спрячут, но полагаться на это незачем).
         setVisible(v) {
             visible = v;
             if (v && !running) kick();
         },
     };
-}
-
-// ── Рисование одного отрезка ─────────────────────────────────────────────────
-// Труба — это ДВЕ линии: широкая цветом трубы и узкая, сдвинутая к свету,
-// цветом блика. Настоящий градиент поперёк цилиндра выглядел бы честнее, но
-// createLinearGradient на каждый отрезок в каждом кадре — это пятьсот новых
-// объектов шестьдесят раз в секунду ради разницы, которую видно стоп-кадром.
-function drawSegment(ctx, s, bg, fogNear, fogSpan, fogK) {
-    if (!s.vis) return;
-    const w = PIPE_R * 2 * s.scale;
-    if (w < 0.6) return;                       // тоньше половины пикселя — не видно
-
-    const t = clamp01((s.d - fogNear) / fogSpan) * fogK;
-    const fogStep = Math.min(FOG_STEPS - 1, (t * FOG_STEPS) | 0);
-    const base = fogged(s.pal, 'base', fogStep, bg);
-
-    ctx.strokeStyle = base;
-    ctx.lineWidth = w;
-    ctx.beginPath();
-    ctx.moveTo(s.x1, s.y1);
-    ctx.lineTo(s.x2, s.y2);
-    ctx.stroke();
-
-    // Блик кладём, только пока труба толще трёх пикселей: на дальних он
-    // сливается с телом и остаётся шумом.
-    //
-    // НА СТЫКАХ БЛИК ВЫТЯГИВАЕТСЯ ПОД СОСЕДА — без этого труба выглядит
-    // пунктирной. Отрезки рисуются по одному и сзади наперёд, поэтому круглый
-    // торец соседнего отрезка закрашивает своим телом конец нашего блика: на
-    // каждой клетке появляется прореха. Вытягиваем ровно на полтолщины —
-    // столько же, сколько занимает торец соседа, так что наружу вылезти
-    // некуда, а прорехе взяться неоткуда. На свободном конце трубы (соседа
-    // нет) блик, наоборот, не вытягиваем — он торчал бы за срез.
-    let hi = null;
-    if (w > 3) {
-        hi = fogged(s.pal, 'hi', fogStep, bg);
-        const dx = s.x2 - s.x1;
-        const dy = s.y2 - s.y1;
-        const len = Math.hypot(dx, dy) || 1;
-        const ux = dx / len;
-        const uy = dy / len;
-        let nx = -uy;
-        let ny = ux;
-        if (nx * LIGHT_X + ny * LIGHT_Y < 0) { nx = -nx; ny = -ny; }
-        const off = w * 0.22;
-        const ea = s.joinA ? w * 0.5 : 0;
-        const eb = s.joinB ? w * 0.5 : 0;
-        ctx.strokeStyle = hi;
-        ctx.lineWidth = w * 0.34;
-        ctx.beginPath();
-        ctx.moveTo(s.x1 + nx * off - ux * ea, s.y1 + ny * off - uy * ea);
-        ctx.lineTo(s.x2 + nx * off + ux * eb, s.y2 + ny * off + uy * eb);
-        ctx.stroke();
-    }
-
-    if (s.joint && s.jointVis) {
-        if (!hi) hi = fogged(s.pal, 'hi', fogStep, bg);
-        if (s.joint === 2) teapot(ctx, s.x1, s.y1, TEAPOT_R * s.jointScale, base, hi);
-        else ball(ctx, s.x1, s.y1, BALL_R * s.jointScale, base, hi);
-    }
-}
-
-function ball(ctx, x, y, r, base, hi) {
-    if (r < 0.7) return;
-    ctx.fillStyle = base;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    if (r > 2.5) {
-        ctx.fillStyle = hi;
-        ctx.beginPath();
-        ctx.arc(x + LIGHT_X * r * 0.42, y + LIGHT_Y * r * 0.42, r * 0.4, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
-// ЧАЙНИК — пасхалка самого оригинала (там это настоящий чайник из Юты, меш на
-// пару тысяч треугольников). Плоским пером меш не нарисуешь, поэтому здесь
-// СИЛУЭТ: тулово, носик, ручка, крышечка. Он не поворачивается вместе с
-// камерой — в этом и разница между силуэтом и мешем; на размере в десяток
-// пикселей раз в цикл её не видно, а меш стоил бы отдельной библиотеки.
-function teapot(ctx, x, y, r, base, hi) {
-    if (r < 2) return ball(ctx, x, y, r, base, hi);
-    ctx.strokeStyle = base;
-    ctx.fillStyle = base;
-
-    ctx.lineWidth = r * 0.34;                  // носик
-    ctx.beginPath();
-    ctx.moveTo(x + r * 0.55, y + r * 0.1);
-    ctx.lineTo(x + r * 1.25, y - r * 0.45);
-    ctx.stroke();
-
-    ctx.lineWidth = r * 0.24;                  // ручка
-    ctx.beginPath();
-    ctx.arc(x - r * 0.75, y - r * 0.05, r * 0.55, -Math.PI * 0.55, Math.PI * 0.55);
-    ctx.stroke();
-
-    ctx.beginPath();                           // тулово
-    ctx.ellipse(x, y, r, r * 0.82, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();                           // крышечка
-    ctx.arc(x, y - r * 0.85, r * 0.3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = hi;                        // блик на тулове
-    ctx.beginPath();
-    ctx.ellipse(x + LIGHT_X * r * 0.4, y + LIGHT_Y * r * 0.35, r * 0.34, r * 0.26, 0, 0, Math.PI * 2);
-    ctx.fill();
-}
-
-// Цвет трубы, утонувшей в дымке на ступень fogStep. Готовые строки лежат в
-// самой палитре: смешивать и собирать «rgb(…)» на каждый отрезок в каждом
-// кадре — это тысяча строк в секунду в мусор.
-function fogged(pal, which, fogStep, bg) {
-    const cache = which === 'base' ? pal.baseFog : pal.hiFog;
-    let css = cache[fogStep];
-    if (css) return css;
-    const c = which === 'base' ? pal.base : pal.hi;
-    const t = fogStep / FOG_STEPS;
-    css = `rgb(${Math.round(c.r + (bg.r - c.r) * t)},`
-        + `${Math.round(c.g + (bg.g - c.g) * t)},`
-        + `${Math.round(c.b + (bg.b - c.b) * t)})`;
-    cache[fogStep] = css;
-    return css;
 }

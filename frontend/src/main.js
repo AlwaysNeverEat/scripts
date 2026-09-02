@@ -678,7 +678,8 @@ async function loadSphere() {
 //
 // Выключенная заставка не «ставится на паузу» руками: спрятанный канвас имеет
 // нулевой размер, а на нулевом размере обе останавливают свой цикл сами (и
-// просыпаются от ResizeObserver, когда канвас снова показан).
+// просыпаются от ResizeObserver, когда канвас снова показан). Для труб это не
+// экономия, а условие: там WebGL и несколько тысяч отрисовок на кадр.
 let pipesController = null;
 let mountedBg = null;
 
@@ -688,9 +689,9 @@ async function mountBackground() {
     mountedBg = kind;
 
     const sphereCanvas = document.getElementById('sphere-canvas');
-    const pipesCanvas = document.getElementById('pipes-canvas');
+    const pipesStage = document.getElementById('pipes-stage');
     sphereCanvas?.classList.toggle('hidden', kind !== 'sphere');
-    pipesCanvas?.classList.toggle('hidden', kind !== 'pipes');
+    pipesStage?.classList.toggle('hidden', kind !== 'pipes');
     // У сферы setVisible трогать нельзя: им распоряжается режим «Теги» (мало
     // подходящих машин — сферу прячут), и переключение фона не должно решать
     // за него. Спрятанного канваса для остановки цикла и так достаточно.
@@ -700,13 +701,13 @@ async function mountBackground() {
         loadSphere();
         return;
     }
-    if (!pipesCanvas || pipesController) return;
+    if (!pipesStage || pipesController) return;
     try {
         const { startPipes } = await import('./pipes.js');
-        // Пока чанк ехал, фон могли переключить обратно — тогда трубы просто
-        // не поднимаем: сфера уже на экране.
+        // Пока чанк ехал (а это полмегабайта three.js), фон могли переключить
+        // обратно — тогда трубы просто не поднимаем: сфера уже на экране.
         if (mountedBg !== 'pipes') return;
-        pipesController = startPipes(pipesCanvas);
+        pipesController = startPipes(pipesStage);
     } catch { /* заставка — украшение, без неё страшного нет */ }
 }
 

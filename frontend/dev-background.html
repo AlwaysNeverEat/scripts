@@ -50,7 +50,10 @@
   <div id="page-search">
     <div class="sphere-glow"></div>
     <canvas id="sphere-canvas"></canvas>
-    <canvas id="pipes-canvas" class="hidden"></canvas>
+    <div id="pipes-stage" class="hidden">
+      <canvas id="pipes-canvas"></canvas>
+      <canvas id="pipes-dissolve"></canvas>
+    </div>
     <div class="search-ui">
       <div class="search-wrap">
         <div class="search-box">
@@ -89,13 +92,13 @@
         document.getElementById('sphere-canvas'),
         CARS.map((label, i) => ({ id: String(i), label })),
     );
-    const pipes = startPipes(document.getElementById('pipes-canvas'));
+    const pipes = startPipes(document.getElementById('pipes-stage'));
 
     // То же, что делает main.js: показан один канвас, скрытый останавливается сам.
     const apply = () => {
         const kind = currentBackground();
         document.getElementById('sphere-canvas').classList.toggle('hidden', kind !== 'sphere');
-        document.getElementById('pipes-canvas').classList.toggle('hidden', kind !== 'pipes');
+        document.getElementById('pipes-stage').classList.toggle('hidden', kind !== 'pipes');
         sphere.setVisible(kind === 'sphere');
         pipes.setVisible(kind === 'pipes');
     };

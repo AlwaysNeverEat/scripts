@@ -739,17 +739,13 @@ input[type="range"].accent-slider::-moz-range-progress { background: transparent
   background: radial-gradient(ellipse 60% 55% at 50% 50%, var(--search-glow) 0%, transparent 70%);
 }
 /* Обе заставки лежат в одном месте и одного размера — показана всегда одна
-   (см. background.js). */
-#sphere-canvas, #pipes-canvas {
+   (см. background.js). У труб это два канваса в общей коробке: сцена и
+   растворение между клубками. */
+#sphere-canvas, #pipes-stage, #pipes-stage canvas {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   cursor: default;
 }
-/* Трубы гасят клубок между циклами прозрачностью ВСЕГО канваса (см. pipes.js).
-   Два множителя, а не одно число: --pipes-fade крутит заставка, --pipes-dim —
-   вёрстка (на узком экране фон приглушён), и затирать чужое значение никому из
-   них нельзя. */
-#pipes-canvas { opacity: calc(var(--pipes-fade, 1) * var(--pipes-dim, 1)); }
 .search-ui {
   position: relative; z-index: 10;
   height: 100%;
@@ -3920,8 +3916,7 @@ a.diff-val-new:hover { border-color: var(--green); }
   /* Заставка остаётся фоном, но перестаёт спорить с текстом: подписи сферы
      шире экрана и лезли прямо под строку ввода, а трубы на узком экране
      проходят прямо через выдачу. */
-  #sphere-canvas { opacity: 0.45; }
-  #pipes-canvas { --pipes-dim: 0.45; }
+  #sphere-canvas, #pipes-stage { opacity: 0.45; }
   /* Узкий экран: ряд «режим + добавить» переносится, если не влезает в строку */
   .search-top-row { flex-wrap: wrap; margin-bottom: var(--s-3); }
   /* Выдача ограничена реальной высотой экрана, а не фиксированными 420px */
