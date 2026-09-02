@@ -17,6 +17,7 @@ import { rankCars, prepareCars } from '../../shared/carSearch.js';
 import { renderCarList } from './carList.js';
 import { initTheme } from './theme.js';
 import { initAccent } from './accent.js';
+import { initBackground, currentBackground } from './background.js';
 import { initSegmented } from './segmented.js';
 import { initSelects } from './select.js';
 // «Лиды» (панель Битрикса) отложены — см. docs/BITRIX.md. Сам модуль
@@ -29,6 +30,10 @@ initTheme();
 // Акцент уже применён инлайновым скриптом в <head>; здесь — только
 // подсветка выбранной плашки и синхронизация между вкладками.
 initAccent();
+// Выбор заставки на главной (сфера или трубы) — тоже с устройства, тоже
+// синхронизируется между вкладками. Сама заставка поднимается позже, в
+// mountBackground(), уже после входа.
+initBackground();
 // Капсулы-переключатели: один раз на страницу, дальше следят за собой сами
 // (записи и калькулятор перерисовывают свои куски через innerHTML).
 initSegmented();
@@ -157,7 +162,7 @@ function enterApp() {
     // попытки и роняет в консоль «Uncaught (in promise) DOMException: The
     // operation was aborted», за которым не видно настоящих ошибок.
     loadSnapshot().catch(() => {});
-    loadSphere();
+    mountBackground();
 }
 
 // Выход из аккаунта (или протухшая сессия): чужие данные не должны
@@ -657,7 +662,7 @@ function sampleNodes(limit = SPHERE_NODE_LIMIT) {
 
 async function loadSphere() {
     const canvas = document.getElementById('sphere-canvas');
-    if (!canvas) return;
+    if (!canvas || sphereController) return;
     try {
         await loadSnapshot();
         const nodes = sampleNodes();
@@ -665,6 +670,47 @@ async function loadSphere() {
         sphereController = startSphere(canvas, nodes);
     } catch { /* сфера — украшение, без неё страшного нет */ }
 }
+
+// ── Какая заставка стоит на главной ─────────────────────────────────────────
+// Выбор человека лежит в background.js; здесь только показ нужного канваса и
+// подъём его модуля. Трубы грузятся ОТДЕЛЬНЫМ ЧАНКОМ по требованию, как игры:
+// у тех, кто оставил сферу, они не должны попадать в первую загрузку сайта.
+//
+// Выключенная заставка не «ставится на паузу» руками: спрятанный канвас имеет
+// нулевой размер, а на нулевом размере обе останавливают свой цикл сами (и
+// просыпаются от ResizeObserver, когда канвас снова показан).
+let pipesController = null;
+let mountedBg = null;
+
+async function mountBackground() {
+    const kind = currentBackground();
+    if (kind === mountedBg) return;
+    mountedBg = kind;
+
+    const sphereCanvas = document.getElementById('sphere-canvas');
+    const pipesCanvas = document.getElementById('pipes-canvas');
+    sphereCanvas?.classList.toggle('hidden', kind !== 'sphere');
+    pipesCanvas?.classList.toggle('hidden', kind !== 'pipes');
+    // У сферы setVisible трогать нельзя: им распоряжается режим «Теги» (мало
+    // подходящих машин — сферу прячут), и переключение фона не должно решать
+    // за него. Спрятанного канваса для остановки цикла и так достаточно.
+    pipesController?.setVisible(kind === 'pipes');
+
+    if (kind === 'sphere') {
+        loadSphere();
+        return;
+    }
+    if (!pipesCanvas || pipesController) return;
+    try {
+        const { startPipes } = await import('./pipes.js');
+        // Пока чанк ехал, фон могли переключить обратно — тогда трубы просто
+        // не поднимаем: сфера уже на экране.
+        if (mountedBg !== 'pipes') return;
+        pipesController = startPipes(pipesCanvas);
+    } catch { /* заставка — украшение, без неё страшного нет */ }
+}
+
+document.addEventListener('bgchange', () => { mountBackground(); });
 
 // ── Переключатель «Поиск / Теги / Клиент» ───────────────────────────────────
 // Три режима одной строки поиска: по названию машины, по тегам и по человеку

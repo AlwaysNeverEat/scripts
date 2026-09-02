@@ -6,6 +6,8 @@
 // под курсором, кликом никуда не ведут (было криво: тесная зона попадания,
 // путаница с крестом-курсором вместо обычного).
 
+import { cssToRgb } from './cssColor.js';
+
 // Fibonacci sphere — равномерное распределение точек по единичной сфере
 function fibonacciSphere(n) {
     const phi = Math.PI * (3 - Math.sqrt(5));
@@ -89,32 +91,17 @@ function accentHue() {
     return Number.isFinite(n) && v !== '' ? n : 83;
 }
 
-// Канвасу нужны ЧИСЛА, а oklch мы считать не умеем — но умеет браузер.
-// Красим пиксель и читаем, что получилось: заодно даром достаётся приведение
-// в охват sRGB (синий и красный на нашей светлоте просто не бывают такими
-// насыщенными, и браузер сам убавит насыщенность, сохранив светлоту).
-//
-// Ни fillStyle, ни getComputedStyle для этого не годятся: оба отдают oklch()
-// обратно той же строкой, а не цветом.
-const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
-function toRgb(css, fallback) {
-    try {
-        probe.clearRect(0, 0, 1, 1);
-        probe.fillStyle = css;
-        probe.fillRect(0, 0, 1, 1);
-        const d = probe.getImageData(0, 0, 1, 1).data;
-        if (!d[3]) return fallback;              // цвет не разобрался — пиксель пуст
-        return { r: d[0], g: d[1], b: d[2] };
-    } catch { return fallback; }
-}
+// Цвета плашек считаются из oklch, которого канвас не знает: разбирает их
+// cssColor.js — тем же приёмом (красим пиксель и читаем), которым трубы
+// разбирают фон пространства.
 
 function buildPalette() {
     const name = themeName();
     const r = RECIPES[name];
     const h = accentHue();
     return {
-        gold: toRgb(r.gold(h), FALLBACK[name].gold),
-        highlight: toRgb(r.highlight(h), FALLBACK[name].highlight),
+        gold: cssToRgb(r.gold(h), FALLBACK[name].gold),
+        highlight: cssToRgb(r.highlight(h), FALLBACK[name].highlight),
         gray: r.gray,
         card: r.card,
     };

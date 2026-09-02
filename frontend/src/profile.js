@@ -19,6 +19,7 @@ import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { accentPickerHtml, bindAccentPicker } from './accent.js';
+import { backgroundPickerHtml, bindBackgroundPicker } from './background.js';
 import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml } from './namePrefix.js';
@@ -140,7 +141,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 ${profileSectionHtml({
                     title: 'Оформление',
                     meta: 'только на этом устройстве',
-                    body: accentPickerHtml(),
+                    body: backgroundPickerHtml() + accentPickerHtml(),
                 })}
 
                 ${profileSectionHtml({
@@ -154,6 +155,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             </div>
         `;
         bind();
+        bindBackgroundPicker(box);
         bindAccentPicker(box);
         attachFeedParticles(box);
         attachActivityFeed(box);

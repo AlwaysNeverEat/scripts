@@ -197,7 +197,12 @@
     <!-- Search page -->
     <div id="page-search" class="hidden">
       <div class="sphere-glow"></div>
+      <!-- Две заставки на выбор (профиль → «Оформление» → «Фон главной»):
+           сфера из машин и трубы. Лежат обе, показана одна — вторая скрыта
+           классом, и её цикл на скрытом канвасе останавливается сам
+           (см. background.js, main.js). -->
       <canvas id="sphere-canvas"></canvas>
+      <canvas id="pipes-canvas" class="hidden"></canvas>
       <div class="search-ui">
         <div class="search-wrap">
           <!-- Ряд над поиском: режим «Поиск/Теги» и кнопка «Добавить машину».

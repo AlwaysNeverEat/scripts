@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Фон главной — песочница</title>
+  <!--
+     Открыть: npx vite → /dev-background.html
+
+     Здесь смотрят САМ ФОН: сферу и трубы во всю страницу, с переключателем из
+     профиля и кнопкой смены темы. На живом сайте этого не посмотреть — главная
+     за входом и за базой, а сфере вдобавок нужны машины из снимка.
+
+     Поэтому сфера тут набита выдуманными машинами: важно, что рядом с трубами
+     стоит именно она, а не то, какие в ней надписи.
+  -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('cars_db_theme');
+        if (t !== 'light' && t !== 'dark') t = 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+        var raw = localStorage.getItem('cars_db_accent');
+        var a = Number(raw);
+        if (raw !== null && isFinite(a)) {
+          var deg = function (x) { return String(((Math.round(x) % 360) + 360) % 360); };
+          document.documentElement.style.setProperty('--accent-h', deg(a));
+          document.documentElement.style.setProperty('--accent-h-light', deg(a - 21));
+        }
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/src/style.css"/>
+  <style>
+    /* Страница поиска на сайте меряется от панели вкладок, которой тут нет. */
+    :root { --tabs-h: 0px; }
+    .dev-panel {
+      position: absolute; z-index: 20; left: 50%; bottom: var(--s-5);
+      transform: translateX(-50%);
+      display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap;
+      padding: var(--s-3) var(--s-4);
+      background: var(--glass-bg); border: 1px solid var(--glass-border);
+      border-radius: var(--r-4); backdrop-filter: blur(18px);
+    }
+    .dev-panel .bg-picker { gap: var(--s-2); }
+    .dev-panel .accent-note { max-width: 320px; }
+  </style>
+</head>
+<body>
+  <div id="page-search">
+    <div class="sphere-glow"></div>
+    <canvas id="sphere-canvas"></canvas>
+    <canvas id="pipes-canvas" class="hidden"></canvas>
+    <div class="search-ui">
+      <div class="search-wrap">
+        <div class="search-box">
+          <input id="search-input" type="search" placeholder="Wake up, neo. . ." autocomplete="off"/>
+        </div>
+      </div>
+    </div>
+    <div class="dev-panel">
+      <div id="picker"></div>
+      <button type="button" class="btn btn-sec" id="toggle-theme">Сменить тему</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { backgroundPickerHtml, bindBackgroundPicker, initBackground, currentBackground } from '/src/background.js';
+    import { initSegmented } from '/src/segmented.js';
+    import { applyTheme, currentTheme } from '/src/theme.js';
+    import { startSphere } from '/src/sphere.js';
+    import { startPipes } from '/src/pipes.js';
+
+    document.getElementById('picker').innerHTML = backgroundPickerHtml();
+    initBackground();
+    bindBackgroundPicker(document);
+    initSegmented();
+    document.getElementById('toggle-theme').addEventListener('click', () => {
+        applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+    });
+
+    const CARS = [
+        'TOYOTA Land Cruiser 200', 'BMW X5 G05', 'LADA Vesta', 'KIA Rio X-Line',
+        'VOLKSWAGEN Tiguan II', 'MAZDA CX-5 KF', 'HYUNDAI Solaris II', 'AUDI A6 C7',
+        'SKODA Octavia A7', 'RENAULT Duster HS', 'NISSAN X-Trail T32', 'FORD Focus III',
+        'CHERY Tiggo 7 Pro', 'HAVAL Jolion', 'GEELY Coolray', 'MERCEDES-BENZ E-класс W213',
+    ];
+    const sphere = startSphere(
+        document.getElementById('sphere-canvas'),
+        CARS.map((label, i) => ({ id: String(i), label })),
+    );
+    const pipes = startPipes(document.getElementById('pipes-canvas'));
+
+    // То же, что делает main.js: показан один канвас, скрытый останавливается сам.
+    const apply = () => {
+        const kind = currentBackground();
+        document.getElementById('sphere-canvas').classList.toggle('hidden', kind !== 'sphere');
+        document.getElementById('pipes-canvas').classList.toggle('hidden', kind !== 'pipes');
+        sphere.setVisible(kind === 'sphere');
+        pipes.setVisible(kind === 'pipes');
+    };
+    document.addEventListener('bgchange', apply);
+    apply();
+  </script>
+</body>
+</html>
