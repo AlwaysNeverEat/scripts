@@ -197,7 +197,18 @@
     <!-- Search page -->
     <div id="page-search" class="hidden">
       <div class="sphere-glow"></div>
+      <!-- Две заставки на выбор (профиль → «Оформление» → «Фон главной»):
+           сфера из машин и трубы. Лежат обе, показана одна — вторая скрыта
+           классом, и её цикл на скрытом канвасе останавливается сам
+           (см. background.js, main.js).
+
+           У труб канваса ДВА, как в оригинале заставки: на первом WebGL рисует
+           сцену, на втором растворение между клубками (см. pipes.js). -->
       <canvas id="sphere-canvas"></canvas>
+      <div id="pipes-stage" class="hidden">
+        <canvas id="pipes-canvas"></canvas>
+        <canvas id="pipes-dissolve"></canvas>
+      </div>
       <div class="search-ui">
         <div class="search-wrap">
           <!-- Ряд над поиском: режим «Поиск/Теги» и кнопка «Добавить машину».

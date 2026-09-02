@@ -708,6 +708,23 @@ input[type="range"].accent-slider::-moz-range-progress { background: transparent
 
 .accent-note { font-size: 11.5px; color: var(--sub); line-height: 1.5; }
 
+/* Выбор фона главной (background.js). Живёт в том же разделе профиля, что и
+   акцент, и потому делит с ним подпись-примечание. Сама капсула — общая
+   [data-seg] с едущей пилюлей, здесь только ряд «подпись + переключатель». */
+.bg-picker { display: flex; flex-direction: column; gap: var(--s-2); }
+.bg-picker-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-3); flex-wrap: wrap;
+}
+.bg-picker-label { font-size: 13px; color: var(--text); }
+/* Две ручки в одном разделе — фон и акцент — разделяем волосяной линией: без
+   неё примечание фона читается как подпись к плашкам акцента. */
+.bg-picker + .accent-picker {
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+}
+
 /* ── Страница поиска (сфера из машин + строка) ──────────────────── */
 #page-search {
   position: relative;
@@ -721,7 +738,10 @@ input[type="range"].accent-slider::-moz-range-progress { background: transparent
   pointer-events: none;
   background: radial-gradient(ellipse 60% 55% at 50% 50%, var(--search-glow) 0%, transparent 70%);
 }
-#sphere-canvas {
+/* Обе заставки лежат в одном месте и одного размера — показана всегда одна
+   (см. background.js). У труб это два канваса в общей коробке: сцена и
+   растворение между клубками. */
+#sphere-canvas, #pipes-stage, #pipes-stage canvas {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   cursor: default;
@@ -3893,9 +3913,10 @@ a.diff-val-new:hover { border-color: var(--green); }
     padding: var(--s-4) var(--s-3) 0;
     gap: var(--s-4);
   }
-  /* Сфера остаётся фоном, но перестаёт спорить с текстом: её подписи шире
-     экрана и лезли прямо под строку ввода. */
-  #sphere-canvas { opacity: 0.45; }
+  /* Заставка остаётся фоном, но перестаёт спорить с текстом: подписи сферы
+     шире экрана и лезли прямо под строку ввода, а трубы на узком экране
+     проходят прямо через выдачу. */
+  #sphere-canvas, #pipes-stage { opacity: 0.45; }
   /* Узкий экран: ряд «режим + добавить» переносится, если не влезает в строку */
   .search-top-row { flex-wrap: wrap; margin-bottom: var(--s-3); }
   /* Выдача ограничена реальной высотой экрана, а не фиксированными 420px */
