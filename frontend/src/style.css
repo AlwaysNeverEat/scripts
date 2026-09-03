@@ -423,7 +423,7 @@ input, button, select, textarea { font-family: inherit; }
    краю и в эту прокрутку не уезжает — поэтому они лежат в общей обёртке. */
 .app-tabs-inner {
   height: 100%;
-  max-width: 1160px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0 var(--s-3);
   display: flex;
@@ -1111,23 +1111,31 @@ a.btn:visited, a.btn:active { color: var(--text); }
 .calc-topbar::after { content: ''; width: 92px; } /* балансирует кнопку слева */
 #btn-back { white-space: nowrap; }
 
+/* Ширина правой колонки — это ЧИСЛО СИМВОЛОВ в строке итога, а не вкус:
+   «Motul 5W-30 SAVE-NERGY 2150₽/л = 10265₽ + 550₽ (снятие/установка защиты
+   картера) = 10815₽» оператор диктует в трубку, и на 360px эта строка ломалась
+   на три куска. 440px держат её в двух, поэтому и вся страница шире (1280) —
+   отнимать место у калькулятора ради панели нельзя, там карточки агрегатов. */
 .calc-layout {
   display: grid;
-  grid-template-columns: minmax(0, 760px) 360px;
+  grid-template-columns: minmax(0, 784px) 440px;
   gap: var(--s-5);
-  max-width: 1160px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 0 var(--s-4) var(--s-7);
   align-items: start;
 }
-@media (max-width: 900px) {
+/* Порог перехода в одну колонку считается от ПАНЕЛИ: 440px правой колонки
+   плюс отступы оставляют калькулятору те же ~480px, на которых он ещё
+   читается двумя колонками карточек. Панель стала шире — порог поехал за ней. */
+@media (max-width: 1000px) {
   .calc-layout { grid-template-columns: 1fr; }
 }
 .calc-main { min-width: 0; padding: 0; }
 
 /* ── Шапка машины ───────────────────────────────────────────────── */
 .head-card {
-  max-width: 1160px;
+  max-width: 1280px;
   margin: var(--s-5) auto var(--s-5);
   padding: var(--s-5) var(--s-5);
   background: var(--card);
@@ -1909,7 +1917,7 @@ input[data-edit-filter-absent]:checked::after {
   position: sticky;
   top: calc(var(--tabs-h) + 66px);
 }
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   .report-panel { position: static; }
 }
 .report-head {
@@ -1917,7 +1925,7 @@ input[data-edit-filter-absent]:checked::after {
   margin-bottom: var(--s-3);
 }
 .report-head span {
-  font-size: 11px; font-weight: 600; letter-spacing: 1.2px;
+  font-size: 12px; font-weight: 600; letter-spacing: 1.2px;
   text-transform: uppercase; color: var(--sub);
 }
 .report-output {
@@ -1925,7 +1933,9 @@ input[data-edit-filter-absent]:checked::after {
   border: 1px solid var(--border);
   border-radius: var(--r-3);
   padding: var(--s-4);
-  font: 12px/1.7 "JetBrains Mono", Consolas, monospace;
+  /* Текст читают с расстояния вытянутой руки, набирая его в Битрикс с экрана,
+     а не глазами в мониторе: 12px тут были мельче всего остального на странице. */
+  font: 14px/1.7 "JetBrains Mono", Consolas, monospace;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text);
@@ -3285,8 +3295,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 /* ── Лента событий машины ───────────────────────────────────────── */
 /* Внешний контейнер тянется под ту же центровку, что и .calc-layout,
    а .events-wrap ограничивает ленту шириной калькулятора (без Битрикса). */
-.car-events { max-width: 1160px; margin: 0 auto var(--s-7); padding: 0 var(--s-4); }
-.events-wrap { max-width: 760px; }
+.car-events { max-width: 1280px; margin: 0 auto var(--s-7); padding: 0 var(--s-4); }
+.events-wrap { max-width: 784px; }
 .events-feed { display: flex; flex-direction: column; gap: var(--s-2); }
 /* Развёрнутая история — компактный скролл, чтобы не растягивать страницу. */
 .events-feed-scroll { max-height: 320px; overflow-y: auto; padding-right: var(--s-1); }
@@ -3966,7 +3976,7 @@ a.diff-val-new:hover { border-color: var(--green); }
   .page-body { padding-left: var(--s-4); padding-right: var(--s-4); }
   .calc-layout { padding-left: var(--s-3); padding-right: var(--s-3); gap: var(--s-4); }
   .calc-topbar::after { display: none; }  /* балансир под кнопку «назад» */
-  .report-output { font-size: 11.5px; padding: var(--s-3); }
+  .report-output { font-size: 13px; padding: var(--s-3); }
   /* Длинные названия масел и допусков не должны распирать карточку */
   .oil-name, .head-title, .calc-car-title { overflow-wrap: anywhere; }
 }
