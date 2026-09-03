@@ -23,6 +23,18 @@
     gap: var(--s-2);
 }
 
+/* ОКНА РАЗДЕЛА — ЦЕЛИКОМ КРУГЛЫЕ: поля, чипы, переключатели, длительность и
+   кнопки действий здесь капсулы, и оставшаяся на ступени --r-2 кнопка
+   («сменить на карте», действия карточки записи) читалась бы не как «другая
+   кнопка», а как другой материал на том же экране. Правило стоит РАНЬШЕ
+   круглого крестика и панели действий — у них своя форма, и они его
+   перебивают порядком, а не весом. Доски это не касается: там кнопки живут в
+   плотном ряду шапки, и переезд на круглое — отдельный разговор. */
+.rc-modal .btn { border-radius: var(--r-round); }
+/* Мелким кнопкам добавляем по бокам одну ступень: у капсулы края загнуты
+   сильнее, и на прежних --s-2 подпись упиралась в загиб. */
+.rc-modal .rc-mini-btn { padding: var(--s-1) var(--s-3); }
+
 .rc-shell {
     max-width: 1400px;
     margin: 0 auto;
@@ -1218,6 +1230,19 @@
 .rc-modal-body { max-height: min(76vh, 720px); overflow: auto; }
 .rc-modal-body-map { max-height: none; overflow: visible; }
 
+/* Крестик — КРУГ, а не кнопка со скруглением: внутри него один значок без
+   подписи, а круг — это форма, а не ступень шкалы (половина стороны). Общий
+   .btn даёт ему паддинги под текст, поэтому размер задаём сами. */
+.rc-modal .rc-modal-x {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    padding: 0;
+    border-radius: var(--r-circle);
+    color: var(--sub);
+}
+.rc-modal .rc-modal-x:hover { color: var(--accent); }
+
 /* Подпись под заголовком окна: про неё нужно знать один раз, поэтому она
    тихая — вкладки сверху остаются кликабельными и черновик переживает уход. */
 .rc-modal-note {
@@ -1254,8 +1279,8 @@
     background: var(--bg2);
     color: var(--text);
     border: 1px solid var(--border);
-    border-radius: var(--r-2);
-    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-round);
+    padding: var(--s-2) var(--s-4);
     font-size: 12.5px;
 }
 
@@ -1278,13 +1303,34 @@
 
 .rc-so-by { font-size: 11px; }
 
+/* ПОЛЯ ВВОДА В ОКНАХ РАЗДЕЛА — КАПСУЛЫ. Обычная ступень контрола (--r-2)
+   осталась бы единственным прямым углом среди круглых чипов, переключателей,
+   длительности и кнопок: поле в 8px рядом с ними читается не как «поле», а
+   как недоделанная деталь. Правило нарочно живёт здесь, а не в общих
+   .edit-field: те же классы носят поля редактора машины и лидов, а
+   переезжаем на круглое мы пока в записях.
+
+   Отступы по бокам подросли на ступень: у капсулы края скруглены сильнее,
+   и на прежних --s-3 текст ложился вплотную к загибу. */
+.rc-modal .edit-field input,
+.rc-modal .edit-field select,
+.rc-modal .edit-field .sel-btn {
+    border-radius: var(--r-round);
+    padding: var(--s-2) var(--s-4);
+}
+
 /* В окнах раздела textarea выглядит как обычное поле: базовые стили сайта
-   покрывают input и select, но не её. */
+   покрывают input и select, но не её.
+
+   КАПСУЛОЙ ОНА ПРИ ЭТОМ НЕ СТАНОВИТСЯ, и это не забывчивость: капсула —
+   всегда половина высоты, а комментарий тянут за уголок на пять строк, и
+   скругление в пол-поля превратило бы его в овал. Берём ступень блока
+   (--r-3): она держит круглый вид рядом с полями и не зависит от высоты. */
 .rc-modal .edit-field textarea {
     background: var(--bg2);
     border: 1px solid var(--border);
     color: var(--text);
-    border-radius: var(--r-2);
+    border-radius: var(--r-3);
     padding: var(--s-2) var(--s-3);
     font-size: 13px;
     width: 100%;
@@ -1426,10 +1472,78 @@
 /* Кнопка окна, пока выбор невозможен (окно не влезает, продлить некуда). */
 .rc-modal .modal-actions .btn:disabled { opacity: 0.45; cursor: default; }
 .rc-modal .modal-actions .btn:disabled:hover { border-color: var(--border); }
+
 .rc-pick-hint { font-size: 10.5px; line-height: 1.35; color: var(--sub); }
 
+/* ── ПЛАВАЮЩИЕ ДЕЙСТВИЯ ОКНА ЗАПИСИ ─────────────────────────────────────
+   Окна создания и правки длинные: поля, карта, расписание на весь день и
+   длительность. Кнопки лежали в самом низу, и чтобы записать клиента, до них
+   надо было домотать — а решение об этом принимают, глядя на расписание.
+   Теперь панель ЛИПКАЯ (position: sticky в прокручиваемом .rc-modal-body):
+   пока форму мотают, она висит над содержимым и нажать её можно всегда, а
+   домотав до низа, встаёт на своё обычное место в конце формы.
+
+   Стекло, а не сплошной фон: под панелью едет расписание, и полностью
+   закрашенная плашка выглядела бы вторым дном окна.
+
+   ПАНЕЛЬ ПОЯВЛЯЕТСЯ ТОЛЬКО У ЗАПОЛНЕННОЙ ЗАПИСИ (класс is-on ставит
+   bindActions): пока не названы имя и телефон, записывать нечего, а
+   «Записать» над пустой формой только зовёт нажать её раньше времени.
+   Прячем ПРОЗРАЧНОСТЬЮ, а не display: none, — место под панель занято с
+   самого начала, и форма не дёргается, когда та выезжает. */
+.rc-actions-float {
+    position: sticky;
+    bottom: var(--s-2);
+    z-index: 3;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto;
+    margin-top: var(--s-5);
+    padding: var(--s-2);
+    gap: var(--s-2);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-round);
+    box-shadow: var(--shadow-3);
+    backdrop-filter: blur(18px);
+
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+    pointer-events: none;
+    transition: opacity .2s ease, transform .32s cubic-bezier(.32, .72, 0, 1);
+}
+.rc-actions-float.is-on {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+}
+/* Кому анимация мешает — тому просто появление, а не выезд. */
+@media (prefers-reduced-motion: reduce) {
+    .rc-actions-float { transition: none; transform: none; }
+}
+
+/* Кнопки внутри капсулы — сами капсулы: две прямоугольные плитки в круглой
+   плашке читаются как «панель забыли скруглить». Переход по цвету — ради
+   ответа «В Битрикс», который приходит НА САМУ КНОПКУ (см. flashCopyBtn):
+   подпись на пять секунд меняется на «Скопировано». */
+.rc-modal .rc-actions-float .btn {
+    border-radius: var(--r-round);
+    padding: var(--s-2) var(--s-5);
+    transition: border-color .1s, background .1s, color .15s;
+}
+.rc-act-done { color: var(--green); border-color: var(--green); }
+.rc-act-done:hover { border-color: var(--green); }
+.rc-act-bad { color: var(--red); border-color: var(--red); }
+.rc-act-bad:hover { border-color: var(--red); }
+
 /* Длительность: шаг кнопками ±30 минут, ручной ввод часов и минут и пресеты.
-   Скролла нет намеренно — по нему промахиваются, а тут нужен точный выбор. */
+   Скролла нет намеренно — по нему промахиваются, а тут нужен точный выбор.
+
+   ФОРМА ЗДЕСЬ ТА ЖЕ, ЧТО У ПЕРЕКЛЮЧАТЕЛЕЙ ДНЯ ВЫШЕ, — капсула. Дорожка с
+   круглыми ± внутри и капсулы пресетов под ней читаются одной группой
+   контролов, а прямоугольная коробка посреди круглых чипов выглядела чужой
+   деталью. Капсула и круг — не ступени шкалы, а формы (см. CLAUDE.md):
+   капсула это всегда половина высоты, круг — половина стороны. */
 .rc-dur {
     display: flex;
     align-items: center;
@@ -1437,7 +1551,7 @@
     width: max-content;
     padding: var(--s-1) var(--s-2);
     border: 1px solid var(--border);
-    border-radius: var(--r-3);
+    border-radius: var(--r-round);
     background: var(--bg2);
 }
 
@@ -1448,7 +1562,7 @@
     display: grid;
     place-items: center;
     border: 1px solid var(--border);
-    border-radius: var(--r-2);
+    border-radius: var(--r-circle);
     background: var(--bg3);
     color: var(--text);
     font-size: 17px;
@@ -1465,7 +1579,7 @@
     width: 40px;
     padding: var(--s-1) 2px;
     border: 1px solid transparent;
-    border-radius: var(--r-2);
+    border-radius: var(--r-round);
     background: none;
     color: var(--text);
     font-size: 19px;
@@ -1480,7 +1594,14 @@
 .rc-dur-unit { font-size: 11px; color: var(--sub); }
 
 .rc-dur-quick { display: flex; flex-wrap: wrap; gap: var(--s-1); }
-.rc-dur-quick .chip { font-size: 11px; padding: var(--s-1) var(--s-2); }
+/* Своей дорожки [data-seg] у пресетов нет и быть не может: их четыре, они
+   переносятся на вторую строку, а едущая пилюля живёт только в один ряд.
+   Форму при этом держим общую — капсула. */
+.rc-dur-quick .chip {
+    font-size: 11px;
+    padding: var(--s-1) var(--s-3);
+    border-radius: var(--r-round);
+}
 .rc-dur-quick .chip:disabled { opacity: 0.35; cursor: default; }
 
 
@@ -1509,18 +1630,6 @@
 .rc-btn-danger:hover { border-color: var(--red); }
 
 .rc-copied-note { margin-top: var(--s-3); color: var(--green); font-size: 12px; display: flex; align-items: center; gap: var(--s-1); }
-
-/* Ответ кнопки «В Битрикс»: сама строка при успехе, причина при отказе. */
-.rc-copy-note {
-    margin-right: auto;
-    align-self: center;
-    min-width: 0;
-    font-size: 11px;
-    line-height: 1.35;
-    color: var(--green);
-}
-
-.rc-copy-bad { color: var(--red); }
 
 /* Карточка записи */
 .rc-chain-info { display: flex; flex-direction: column; gap: var(--s-1); margin-bottom: var(--s-4); }
@@ -1714,8 +1823,8 @@
     gap: var(--s-2);
     background: var(--bg2);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-round);
+    padding: var(--s-2) var(--s-4);
     color: var(--sub);
     margin-bottom: var(--s-3);
 }
@@ -1902,6 +2011,8 @@
     .rc-side-map { height: 52dvh; }
     .rc-map-near { max-height: min(50dvh, 520px); }
     .rc-modal-body { max-height: min(70dvh, 720px); }
-    /* Полоса жеста «домой» на iPhone перекрывала нижний ряд кнопок окна */
-    .rc-modal .modal-actions { padding-bottom: env(safe-area-inset-bottom); }
+    /* Полоса жеста «домой» на iPhone перекрывала нижний ряд кнопок окна.
+       Плавающей панели этого не надо: она липнет к низу ПРОКРУТКИ окна, а не
+       к кромке экрана, и лишний паддинг снизу только сплющил бы капсулу. */
+    .rc-modal .modal-actions:not(.rc-actions-float) { padding-bottom: env(safe-area-inset-bottom); }
 }
