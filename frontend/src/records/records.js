@@ -543,6 +543,36 @@ function bindPhoneMask(input) {
     input.addEventListener('paste', () => setTimeout(apply, 0));
 }
 
+// ПАНЕЛЬ ДЕЙСТВИЙ ПОКАЗЫВАЕТСЯ ПО ЗАПОЛНЕННОСТИ, и считается она ПО ПОЛЯМ, а
+// не по state: между перерисовками поля живут своей жизнью (их переносит
+// keepCreateFields), а тут нужно «что набрано прямо сейчас».
+//
+// Телефон считается указанным, только когда набран ЦЕЛИКОМ: маска доводит
+// любой ввод до +7 и десяти цифр, и полузаполненный номер — это человек,
+// который ещё диктует, а не готовая запись.
+function fieldsFilled(name, phone) {
+    if (!String(name || '').trim()) return false;
+    return String(phone || '').replace(/\D/g, '').length >= 11;
+}
+
+function bindActions() {
+    const bar = document.getElementById('rc-actions');
+    if (!bar) return;
+    paintCopyBtn(); // «Скопировано» переживает перерисовку окна
+    const kind = state.modal?.kind === 'edit' ? 'e' : 'f';
+    const name = document.getElementById(`rc-${kind}-name`);
+    const phone = document.getElementById(`rc-${kind}-phone`);
+    const sync = () => bar.classList.toggle('is-on', fieldsFilled(name?.value, phone?.value));
+    for (const el of [name, phone]) {
+        if (!el) continue;
+        el.addEventListener('input', sync);
+        el.addEventListener('change', sync); // подстановка из истории имён
+    }
+    // Первый расчёт — до первой отрисовки кадра: у правки поля заполнены
+    // с самого начала, и панели там незачем выезжать на каждый чих.
+    sync();
+}
+
 function fmtAgo(iso) {
     if (!iso) return 'ещё не обновлялось';
     const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -1380,7 +1410,8 @@ function modalShell(title, body, { wide = false, map = false, note = '' } = {}) 
     return `
     <div class="modal-win ${map ? 'rc-win-map' : wide ? 'rc-win-wide' : ''}">
         <div class="modal-head"><span>${title}${note ? `<span class="rc-modal-note">${esc(note)}</span>` : ''}</span>
-            <button class="btn btn-sec" data-action="close-modal">${icons.x(14)}</button>
+            <button class="btn btn-sec rc-modal-x" data-action="close-modal"
+                title="Закрыть" aria-label="Закрыть">${icons.x(15)}</button>
         </div>
         <div class="modal-body rc-modal-body ${map ? 'rc-modal-body-map' : ''}">${body}</div>
     </div>`;
@@ -1688,10 +1719,9 @@ function modalCreate(m) {
             </div>`}
 
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
-            <div class="modal-actions">
-                <span class="rc-copy-note" id="rc-copy-note"></span>
+            <div class="modal-actions rc-actions-float" id="rc-actions">
                 <button class="btn btn-sec" data-action="copy-new"
-                    title="Строка для Битрикса: дата, время и адрес">${icons.copy(14)} В Битрикс</button>
+                    title="Строка для Битрикса: дата, время и адрес">${copyBtnLabel(m.copyFlash)}</button>
                 <button class="btn btn-pri" data-action="submit-create">${icons.plus(14)} Записать${isDown() ? ' (встанет в очередь)' : ''}</button>
             </div>
         </div>
@@ -1861,10 +1891,9 @@ function modalEdit(m) {
             </div>
 
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
-            <div class="modal-actions">
-                <span class="rc-copy-note" id="rc-copy-note"></span>
+            <div class="modal-actions rc-actions-float" id="rc-actions">
                 <button class="btn btn-sec" data-action="copy-edit"
-                    title="Строка для Битрикса: дата, время и адрес">${icons.copy(14)} В Битрикс</button>
+                    title="Строка для Битрикса: дата, время и адрес">${copyBtnLabel(m.copyFlash)}</button>
                 <button class="btn btn-pri" data-action="submit-edit">${icons.check(14)} Сохранить${isDown() ? ' (в очередь)' : ''}</button>
             </div>
         </div>
@@ -2599,6 +2628,8 @@ function bind() {
     // Маска телефона в окнах создания и правки
     bindPhoneMask(document.getElementById('rc-f-phone'));
     bindPhoneMask(document.getElementById('rc-e-phone'));
+    // Плавающая панель действий: появляется, когда запись заполнена
+    bindActions();
     // Произвольная дата в окне создания записи
     const createDate = document.getElementById('rc-f-date');
     if (createDate) {
@@ -3071,7 +3102,45 @@ function revalidateCreatePick() {
 // Строка для Битрикса из ещё не сохранённой записи: пока операция идёт в
 // очереди, оператор уже заполняет CRM и берёт следующий звонок. Формат тот же,
 // что у «Копировать» в карточке записи.
-let copyNoteTimer = 0;
+//
+// ОТВЕТ ПРИХОДИТ НА САМУ КНОПКУ, а не строкой рядом. Раньше рядом печаталась
+// целиком скопированная строка («03.09.2026 20:00 Оптиков 2 (Игорь) —
+// скопировано») — это отладочная подпись: оператор только что сам её и
+// собрал, читать её заново незачем, а в буфер она уже уехала. Нужен ему ровно
+// один факт — получилось или нет.
+const COPY_FLASH_MS = 5_000;
+let copyFlashTimer = 0;
+
+function copyBtnLabel(flash) {
+    if (!flash) return `${icons.copy(14)} В Битрикс`;
+    return `${flash.bad ? icons.alert(14) : icons.check(14)} ${esc(flash.text)}`;
+}
+
+// Подпись меняется НА МЕСТЕ, без render(): полная перерисовка окна сбросила бы
+// фокус из поля, в котором оператор в этот момент печатает. Но и в состоянии
+// окна её помним — окно пересобирается от приехавшей карточки записи, и
+// «Скопировано» не должно пропадать от чужого запроса.
+function paintCopyBtn() {
+    const btn = root?.querySelector('#rc-actions [data-action^="copy-"]');
+    if (!btn) return;
+    const flash = state.modal?.copyFlash || null;
+    btn.innerHTML = copyBtnLabel(flash);
+    btn.classList.toggle('rc-act-done', Boolean(flash) && !flash.bad);
+    btn.classList.toggle('rc-act-bad', Boolean(flash?.bad));
+}
+
+function flashCopyBtn(text, bad = false) {
+    const m = state.modal;
+    if (!m) return;
+    m.copyFlash = { text, bad };
+    paintCopyBtn();
+    clearTimeout(copyFlashTimer);
+    copyFlashTimer = setTimeout(() => {
+        if (state.modal !== m) return; // окно уже закрыли или сменили
+        m.copyFlash = null;
+        paintCopyBtn();
+    }, COPY_FLASH_MS);
+}
 
 // Подпись «(Имя)» ставится только тому, за кем это имя закреплено: у остальных
 // и у гостей строка уходит без скобок.
@@ -3081,16 +3150,9 @@ function operatorName() {
 
 async function copyBitrixLine(kind) {
     const m = state.modal;
-    const note = root?.querySelector('#rc-copy-note');
-    const say = (text, bad = false) => {
-        if (!note) return;
-        note.textContent = text;
-        note.classList.toggle('rc-copy-bad', bad);
-        clearTimeout(copyNoteTimer);
-        copyNoteTimer = setTimeout(() => {
-            if (note.isConnected) { note.textContent = ''; note.classList.remove('rc-copy-bad'); }
-        }, 4000);
-    };
+    // Причина отказа тоже уходит на кнопку, поэтому она короткая: подробности
+    // на месте подписи «В Битрикс» просто не поместятся и растянут капсулу.
+    const say = (text, bad = false) => flashCopyBtn(text, bad);
 
     let name = '';
     let date = '';
@@ -3112,15 +3174,15 @@ async function copyBitrixLine(kind) {
         title = stationById(m.addressId, createBoard(m))?.title || '';
     }
 
-    if (!String(name || '').trim()) return say('имя клиента пустое — сначала впишите, кого записываем', true);
-    if (!time) return say('время не выбрано — сначала выберите окно в расписании', true);
+    if (!String(name || '').trim()) return say('впишите имя', true);
+    if (!time) return say('выберите время', true);
 
     const line = buildCopyLine(date, time, title, operatorName());
     try {
         await navigator.clipboard.writeText(line);
-        say(`${line} — скопировано`);
+        say('Скопировано');
     } catch {
-        say(`буфер недоступен, скопируйте вручную: ${line}`, true);
+        say('буфер недоступен', true);
     }
 }
 
