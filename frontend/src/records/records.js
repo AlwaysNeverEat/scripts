@@ -917,7 +917,7 @@ function stationsByLine(list) {
 function renderSortBar() {
     return `
     <div class="rc-sortbar">
-        <span class="rc-sortbar-label">${icons.filter(13)}Станции</span>
+        
         <!-- Подпись «Станции» лежит СНАРУЖИ дорожки: она не пункт выбора, и
              внутри капсулы пилюля однажды приехала бы под неё. -->
         <div class="rc-sortbar-seg" data-seg="rc-sort">
