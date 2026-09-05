@@ -6,7 +6,9 @@
 //
 // Источник — record_credits, тот же, что у месячного топа: одна строка на одну
 // успешно сделанную запись (см. db/migrations/020_record_credits.sql). Поэтому
-// цифры в ленте и в топе не могут разъехаться.
+// цифры в ленте и в топе не могут разъехаться — и по той же причине здесь тот
+// же фильтр `counted`, что и в топе: запись мастера в клетке не светится, хотя
+// в окне дня она видна (см. backend/src/records/credits.js).
 //
 // День — в МСК, как и месяц зачёта: иначе вечерняя запись падала бы в
 // соседний квадрат, а у сервера в UTC «сегодня» кончалось бы в три часа ночи.
@@ -33,6 +35,7 @@ const ACTIVITY_QUERY = `
     -- самого старого дня выпали бы из ленты).
     LEFT JOIN record_credits rc
            ON rc.user_id = $1
+          AND rc.counted
           AND rc.created_at >= ((b.today - ($2::int - 1))::timestamp AT TIME ZONE 'Europe/Moscow')
    GROUP BY b.today, day
    ORDER BY day`;

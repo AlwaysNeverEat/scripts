@@ -317,6 +317,9 @@ function validateCreate(p) {
     // Сетка оригинала шире рабочего дня (до 22:30), а станции работают до 21:00:
     // запись, которая вылезает за закрытие, до очереди не доходит вовсе.
     if (start + dur > WORK_END_MIN) return 'time';
+    // Флаг «запись мастера» — только настоящий boolean: он решает, дать ли
+    // очко, и «true» строкой в jsonb потом читалось бы как что угодно.
+    if (p.byMaster != null && typeof p.byMaster !== 'boolean') return 'byMaster';
     return null;
 }
 
@@ -366,6 +369,9 @@ router.post('/ops', async (req, res) => {
     if (type === 'create') {
         invalid = validateCreate(payload);
         trimFields(payload);
+        // Приводим к boolean явно: в базу payload уезжает как есть, а
+        // creditSkipReason сравнивает строго с true.
+        payload.byMaster = payload.byMaster === true;
     } else if (type === 'update') {
         invalid = validateRecordsList(payload, { needTarget: true });
         // Правка шла мимо обрезки вовсе: создание резало комментарий, правка не

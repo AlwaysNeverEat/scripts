@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<!-- Дев-песочница окна дня из профиля: карточки сделанных записей, без
+     бэкенда и без базы.
+     Открыть: npx vite → /dev-day.html
+
+     Здесь проверяется ВЁРСТКА карточки: что станция, время и клиент читаются
+     с одного взгляда, что чипы с телефоном и госномером не разъезжают карточку,
+     что «Открыть» видно как ссылку, а незачтённая запись (мастер) отличается
+     пунктиром, а не тревожным цветом. Разбор ответа и тексты проверяет
+     frontend/src/activityFeed.test.js.
+
+     Четыре состояния — по кнопкам: обычный день, день с записью мастера,
+     день целиком до обновления и смешанный.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: день записей</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      const acc = localStorage.getItem('cars_db_accent');
+      if (acc !== null && isFinite(Number(acc))) {
+        const deg = (x) => String(((Math.round(x) % 360) + 360) % 360);
+        document.documentElement.style.setProperty('--accent-h', deg(Number(acc)));
+        document.documentElement.style.setProperty('--accent-h-light', deg(Number(acc) - 21));
+      }
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">День записей — песочница</h2>
+    <p class="page-sub">Так профиль показывает, за что даны очки. Карточка ведёт на саму запись.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-sec" data-day="normal">Обычный день</button>
+    <button class="btn btn-sec" data-day="master">С записью мастера</button>
+    <button class="btn btn-sec" data-day="legacy">До обновления</button>
+    <button class="btn btn-sec" data-day="mixed">Смешанный</button>
+  </div>
+
+  <div class="page-body">
+    <section class="profile-sec" style="max-width:520px">
+      <div class="profile-sec-head">
+        <h3 class="profile-sec-title">5 сентября 2026</h3>
+        <span class="profile-sec-meta" id="dev-count"></span>
+      </div>
+      <div class="profile-sec-body" id="dev-day"></div>
+    </section>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, toggleTheme } from './src/theme.js';
+    import { dayRecordsHtml } from './src/activityFeed.js';
+
+    initTheme();
+    document.getElementById('dev-theme').onclick = () => toggleTheme();
+
+    const rec = (over = {}) => ({
+      madeAt: '12:41', recordId: '102', stationId: '3',
+      stationTitle: 'Охтинская ул. 9/1, Мурино', stationShort: 'Охтинская 9/1, Мурино',
+      recordDate: '2026-09-05', recordTime: '14:00', durationMin: 60,
+      clientName: 'Иван', phone: '79211234567', carNumber: 'А123БВ178',
+      counted: true, skipLabel: '', ...over,
+    });
+
+    const DAYS = {
+      normal: {
+        count: 3, skipped: 0, legacy: 0,
+        records: [
+          rec(),
+          rec({ madeAt: '13:02', recordId: '103', clientName: 'Пётр Николаевич Загороднов',
+                phone: '79219998877', carNumber: '', recordTime: '16:30', durationMin: 30,
+                stationTitle: 'деревня Новосаратовка Свердловское городское поселение 267А',
+                stationShort: 'Новосаратовка 267А' }),
+          rec({ madeAt: '17:55', recordId: null, clientName: 'Аня двс + акпп', phone: '',
+                carNumber: 'О001ОО198', recordDate: '2026-09-06', recordTime: '09:00', durationMin: 150,
+                stationTitle: 'Выборгское ш. 212 к8', stationShort: 'Выб. шоссе 212к8' }),
+        ],
+      },
+      master: {
+        count: 0, skipped: 1, legacy: 0,
+        records: [rec({ counted: false, skipLabel: 'запись мастера', clientName: 'Сергей (от мастера)' })],
+      },
+      legacy: { count: 4, skipped: 0, legacy: 4, records: [] },
+      mixed: {
+        count: 3, skipped: 1, legacy: 2,
+        records: [
+          rec(),
+          rec({ madeAt: '15:20', recordId: '104', clientName: 'Марина', phone: '79111234567',
+                carNumber: '', recordTime: '18:00', durationMin: 30,
+                counted: false, skipLabel: 'запись мастера' }),
+        ],
+      },
+    };
+
+    function show(key) {
+      const day = DAYS[key];
+      document.getElementById('dev-day').innerHTML = dayRecordsHtml(day);
+      document.getElementById('dev-count').textContent =
+        `${day.count} очк. · ${day.skipped} не в счёт · ${day.legacy} до обновления`;
+    }
+
+    document.querySelectorAll('[data-day]').forEach(btn => {
+      btn.onclick = () => show(btn.dataset.day);
+    });
+    show('normal');
+  </script>
+</body>
+</html>

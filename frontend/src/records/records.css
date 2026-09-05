@@ -1033,6 +1033,30 @@
 .rc-author-avatar i { font-style: normal; }
 .rc-author-avatar { width: 22px; height: 22px; font-size: 11px; }
 
+/* Незачтённая запись (мастер): кружок автора приглушён рамкой, а не цветом —
+   автор у неё такой же настоящий, просто очка она не даёт. */
+.rc-cap-author-skip { background: var(--bg2); color: var(--sub); box-shadow: inset 0 0 0 1px var(--border-strong); }
+
+.rc-author-skip {
+    margin-left: var(--s-2);
+    padding: 1px var(--s-2);
+    border-radius: var(--r-round);
+    background: var(--bg3);
+    color: var(--sub);
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+/* Переключатель «запись мастера»: подпись в две строки, поэтому тумблер
+   выравниваем по первой, а не по центру блока. */
+.rc-master { align-items: flex-start; gap: var(--s-3); }
+.rc-master input[type="checkbox"] { margin-top: 1px; }
+.rc-master-text { display: flex; flex-direction: column; gap: 2px; }
+.rc-master-text b { font-weight: 600; }
+/* Подпись держим в столбце текста: окно создания широкое, и во всю его ширину
+   строка объяснения читается как заголовок, а не как пояснение. */
+.rc-master-text i { font-style: normal; font-size: 11.5px; line-height: 1.35; color: var(--sub); max-width: 62ch; }
+
 /* Строка автора в окне записи — кнопка, ведущая в профиль, но выглядит как
    строка: у неё нет своего фона и рамки, только подчёркнутое имя на наведении. */
 .rc-chain-author {

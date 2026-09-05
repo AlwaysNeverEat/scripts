@@ -275,7 +275,7 @@ function restoreScroll(hash) {
 //   #/car/:id     — страница машины (прямая ссылка переживает F5)
 //   #/profile     — свой профиль (редактируемый)
 //   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
-//   #/records     — записи по станциям
+//   #/records     — записи по станциям (с ?date=…&station=… открывает запись)
 //   #/scripts     — фид юзерскриптов
 //   #/news        — «Новости»: посты об изменениях сайта
 //   #/top         — рейтинг пользователей
@@ -407,13 +407,40 @@ let recordsMounted = false; // раздел собран в #page-records
 let recordsRunning = false; // ...и его таймеры сейчас живы
 let recordsLoading = null;
 
+// Ссылка на конкретную запись: #/records?date=YYYY-MM-DD&station=3&time=14:00
+// &record=102 — её ставят карточки сделанных записей в профиле
+// (frontend/src/activityFeed.js). Разбираем здесь, а применяет раздел
+// (focusRecords): ему решать, дождаться доски или сначала сменить день.
+function recordsTarget(hash) {
+    const q = hash.indexOf('?');
+    if (q === -1) return null;
+    const p = new URLSearchParams(hash.slice(q + 1));
+    const date = p.get('date');
+    return date ? { date, stationId: p.get('station'), time: p.get('time'), recordId: p.get('record') } : null;
+}
+
 async function showRecords() {
     showPage(pageRecords);
-    if (recordsRunning) return;
+    const target = recordsTarget(location.hash);
+    if (!(await mountRecords())) return;
+    if (!target) return;
+    // Ссылка ОДНОРАЗОВАЯ: применили — и адрес снова обычный #/records. Иначе
+    // клик по вкладке «Записи» через час снова открывал бы ту же запись, а
+    // выбранный внутри раздела день с адресом в строке и так не сверяется.
+    lastRoute.records = '#/records';
+    currentRoute = '#/records';
+    history.replaceState(null, '', '#/records');
+    recordsMod.focusRecords(target);
+}
+
+// Поднять раздел записей (или разбудить уже поднятый). → false, если модуль не
+// загрузился или пока он грузился ушли на другой роут.
+async function mountRecords() {
+    if (recordsRunning) return true;
     if (recordsMounted) {
         recordsMod.resumeRecords();
         recordsRunning = true;
-        return;
+        return true;
     }
     if (!recordsMod) {
         pageRecords.innerHTML = '<div class="rc-boot">Загрузка записей…</div>';
@@ -423,15 +450,16 @@ async function showRecords() {
         } catch (e) {
             pageRecords.innerHTML = `<div class="rc-boot">Не удалось загрузить записи: ${esc(e.message)}</div>`;
             recordsLoading = null;
-            return;
+            return false;
         }
         recordsLoading = null;
         // Пока грузился модуль, могли уйти на другой роут.
-        if (!location.hash.startsWith('#/records')) return;
+        if (!location.hash.startsWith('#/records')) return false;
     }
     recordsMod.startRecords(pageRecords);
     recordsMounted = true;
     recordsRunning = true;
+    return true;
 }
 
 function pauseRecords() {
