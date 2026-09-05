@@ -99,7 +99,8 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
         </div>
     `;
     attachFeedParticles(box);
-    attachActivityFeed(box);
+    // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).
+    attachActivityFeed(box, { loadDay: date => apiFetch('/api/users/' + userId + '/day/' + date) });
 
     if (!viewerIsMod) return;
 

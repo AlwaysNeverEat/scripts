@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Дев-песочница вкладки «Что нового?»: лента постов без бэкенда и без входа.
+<!-- Дев-песочница вкладки «Новости»: лента постов без бэкенда и без входа.
      Открыть: npx vite → /dev-news.html
      Кнопки внизу гоняют состояние «прочитано / не прочитано» и счётчик вкладки.
      В прод-сборку не попадает: vite собирает только index.html. -->
@@ -32,7 +32,7 @@
         </button>
         <button class="app-tab active" role="tab" aria-selected="true">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V6Z"/><path d="M17 8h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2"/><line x1="8" y1="8" x2="13" y2="8"/><line x1="8" y1="12" x2="13" y2="12"/><line x1="8" y1="16" x2="11" y2="16"/></svg>
-          <span class="app-tab-label">Что нового?</span>
+          <span class="app-tab-label">Новости</span>
           <span class="app-tab-badge hidden" id="news-badge" aria-hidden="true"></span>
         </button>
       </div>
@@ -47,7 +47,7 @@
 
   <div id="page-news">
     <div class="page-head">
-      <h2 class="page-title">Что нового?</h2>
+      <h2 class="page-title">Новости</h2>
       <p class="page-sub">Коротко о том, что изменилось на сайте.</p>
     </div>
     <div id="news-body" class="page-body news-body"></div>

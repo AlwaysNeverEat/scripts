@@ -158,7 +158,8 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
         bindBackgroundPicker(box);
         bindAccentPicker(box);
         attachFeedParticles(box);
-        attachActivityFeed(box);
+        // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).
+        attachActivityFeed(box, { loadDay: date => apiFetch('/api/profile/day/' + date) });
     }
 
     function bind() {

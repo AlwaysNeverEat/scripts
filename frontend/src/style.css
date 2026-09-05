@@ -2757,6 +2757,27 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .top-prev-name { flex: 1; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
 .top-prev-count { font-size: 12px; font-weight: 700; color: var(--gold-soft); }
 
+/* «Как считается» под списком: правила зачёта написаны прямо на вкладке, а
+   не спрятаны в новостях, — топ обещает прозрачность, и правила его часть. */
+.top-rules {
+  margin-top: var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-3);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  font-size: 12.5px; line-height: 1.45; color: var(--sub);
+}
+.top-rules-head {
+  display: flex; align-items: center; gap: var(--s-2);
+  font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: var(--s-2);
+}
+.top-rules-head svg { flex: none; }
+.top-rules ul { margin: 0; padding-left: var(--s-4); }
+.top-rules li + li { margin-top: var(--s-1); }
+.top-rules a { color: var(--blue); }
+
 /* Первое место — сплошная золотая плашка, по которой раз в цикл проходит
    блик: и по фону, и по тексту. Анимация одна и та же (gold-sweep) с общей
    длительностью, поэтому блик на фоне и на тексте идёт синхронно — даже
@@ -3059,6 +3080,38 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-figure span { display: block; margin-top: 3px; font-size: 10.5px; color: var(--sub); }
 /* Разделители между колонками — только внутренние. */
 .activity-figure + .activity-figure { border-left: 1px solid var(--border); padding-left: var(--s-3); }
+/* Окно дня (клик по клетке): список записей, сделанных в этот день. Слева
+   время, когда запись сделали, справа — кого и куда. Строки без фона и рамок:
+   это перечень, а не карточки, и десяток рамок в окне читался бы решёткой. */
+.day-head { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
+.day-head-count { font-size: 12px; font-weight: 600; color: var(--sub); white-space: nowrap; }
+.day-list { display: flex; flex-direction: column; }
+.day-rec {
+  display: flex; align-items: flex-start; gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+.day-rec:last-child { border-bottom: none; }
+.day-rec-made {
+  flex: none; width: 40px;
+  font-size: 12px; font-weight: 600; color: var(--sub);
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+}
+.day-rec-main { flex: 1; min-width: 0; }
+.day-rec-who { font-size: 13px; overflow-wrap: anywhere; }
+.day-rec-who b { font-weight: 600; }
+.day-rec-where { margin-top: 2px; font-size: 11.5px; color: var(--sub); overflow-wrap: anywhere; }
+/* «До обновления» — не ошибка и не пустота, а объяснение: тон спокойный. */
+.day-legacy {
+  padding: var(--s-3);
+  border-radius: var(--r-3);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  font-size: 12.5px; line-height: 1.45; color: var(--sub);
+}
+.day-legacy-tail { margin-top: var(--s-3); }
+
 /* Подсказка над клеткой: position: fixed — иначе крайние недели прижимают её
    к границе панели и она обрезается о её край. */
 .activity-tip {

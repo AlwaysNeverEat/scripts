@@ -17,8 +17,9 @@ import {
     fetchBoardHtml, fetchEditFormHtml, postRecordUpdate, deleteRecordByUrl,
     hasCredentials, ZmsError,
 } from './adminClient.js';
-import { parseRecordBoard, parseEditForm, isExtensionCreate } from '../../../shared/crmRecords.js';
+import { parseRecordBoard, parseEditForm } from '../../../shared/crmRecords.js';
 import { applyOp, hasAppliedWork } from './opEngine.js';
+import { creditOp, resolveCreditRecordIds } from './credits.js';
 
 const SYNC_INTERVAL_MS = Math.max(10_000, Number(process.env.RECORDS_SYNC_INTERVAL_MS) || 60_000);
 const MAX_OP_ATTEMPTS = 30;       // ~полчаса ретраев сетевых ошибок, потом откат/failed
@@ -203,7 +204,8 @@ async function markOpDone(op, result = {}) {
 }
 
 // Зачёт в месячный топ: одна успешно созданная запись = одна строка в
-// record_credits (см. db/migrations/020_record_credits.sql).
+// record_credits вместе с подробностями самой записи (см. credits.js и
+// db/migrations/020_record_credits.sql, 039_record_credit_details.sql).
 //
 // Считаем только create и только «настоящие» записи. Длина роли не играет —
 // операция одна, слотов в ней сколько угодно, — и продлений это тоже касается:
@@ -213,19 +215,14 @@ async function markOpDone(op, result = {}) {
 // хвоста при правке длины ставят слоты именно с ней) и по доске — слот встык к
 // записи того же клиента (до неё или после), даже если оператор продлевал
 // руками, с настоящим номером (continuation из opEngine.applyCreate).
+// Запись с «мусорным» номером из одной цифры не зачитывается вовсе.
 //
 // Зачёт выдаётся один раз и НЕ отзывается: перенос, правка и удаление записи
 // очко не снимают. Клиент отменился — работа всё равно была сделана, поэтому
 // строки из record_credits не удаляет никто и никогда.
 async function creditRecordOp(op, result = {}) {
-    if (op.type !== 'create' || !op.userId) return;
-    if (isExtensionCreate(op.payload) || result.continuation) return;
     try {
-        await query(
-            `INSERT INTO record_credits (op_id, user_id) VALUES ($1, $2)
-             ON CONFLICT (op_id) DO NOTHING`,
-            [op.id, op.userId],
-        );
+        await creditOp(op, result);
     } catch (err) {
         // Счётчик топа не должен ронять очередь: запись в оригинале уже стоит.
         console.error('records: не удалось зачесть запись в топ', err.message);
@@ -385,6 +382,11 @@ export async function syncTick() {
                     const board = await freshBoard(date);
                     await saveSnapshot(date, board);
                     anyOk = true;
+                    // Свежая доска — самое время дописать номера только что
+                    // созданным записям (см. credits.js). Отдельный catch:
+                    // авторство не должно ронять синк.
+                    await resolveCreditRecordIds(ddmmyyyyToIso(date), board)
+                        .catch(err => console.error('records: номера зачтённых записей', err.message));
                 } catch (err) {
                     const message = err instanceof ZmsError ? err.message : `ошибка разбора: ${err.message}`;
                     if (!firstError) firstError = message;

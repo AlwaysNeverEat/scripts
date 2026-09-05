@@ -93,6 +93,10 @@ const state = {
     boardError: '',
     boardLoading: false,
     ops: [],               // последние операции (очередь)
+    // Кто записал клиента: id записи → { id, display_name, avatar } по зачётам
+    // топа (backend/src/records/credits.js). Записи, сделанные мимо сайта, тут
+    // отсутствуют — автора у них и правда нет.
+    authors: {},
     // Правки справочника станций и предупреждения, расставленные модераторами:
     // ключ станции → { patch, warning, updatedAt, updatedBy }. См. loadOverrides.
     overrides: {},
@@ -199,6 +203,7 @@ async function loadBoard({ silent = false } = {}) {
         state.boardOk = data.ok;
         state.boardError = data.error || '';
         state.ops = data.ops || [];
+        state.authors = data.authors || {};
         state.credsNeeded = false;
         // Доска появилась на пустом месте (первый заход или смена дня) —
         // проявляем станции; при тихом обновлении дёргать анимацию нельзя.
@@ -414,6 +419,23 @@ function stationCounts(addr, board = state.board) {
 
 function pendingOps() {
     return state.ops.filter(o => o.status === 'pending');
+}
+
+// Автор цепочки — по любому её слоту: зачёт подписан на голову, но после
+// ручного продления «перед» записью головой становится другой слот.
+function authorOf(chain) {
+    for (const p of chain.parts) {
+        const a = state.authors[String(p.id)];
+        if (a) return a;
+    }
+    return null;
+}
+
+// Кружок автора: аватарка, а без неё — первая буква ника. Размер задаёт CSS
+// по месту (на капсуле — 14px, в окне записи — 22px).
+function authorAvatarHtml(a) {
+    if (a?.avatar) return `<img src="${esc(a.avatar)}" alt=""/>`;
+    return `<i>${esc(String(a?.display_name || '?').trim().charAt(0).toUpperCase())}</i>`;
 }
 
 // Подсказка последних имён в поле «Имя клиента» — как в оригинальной админке,
@@ -1190,6 +1212,9 @@ function renderStation() {
         const nParts = chain.parts.length;
         const isDeleting = chain.parts.some(p => del.has(String(p.id)));
         const isMoving = chain.parts.some(p => moved.has(String(p.id)));
+        // Кто записал — кружком в углу капсулы: авторство видно прямо на
+        // доске, а не только в окне записи.
+        const author = authorOf(chain);
         const segs = chain.parts.map((p, idx) => idx === 0 ? '' :
             `<i class="rc-cap-seg" style="top:${idx * ROW_H - 1}px"></i>`).join('');
         // Конец — с учётом продлений (в том числе ещё не применённых): по нему
@@ -1212,6 +1237,7 @@ function renderStation() {
                 <b>${esc(chain.head.name || chain.head.customer || 'без имени')}</b>
                 ${nParts > 1 ? `<span class="rc-cap-worm-badge">${icons.link(10)}${nParts}</span>` : ''}
                 <span class="rc-cap-left hidden"></span>
+                ${author ? `<span class="rc-cap-author" title="Записал(а): ${esc(author.display_name)}">${authorAvatarHtml(author)}</span>` : ''}
             </span>
             <span class="rc-cap-line2">${esc(chain.timeStart)}–${esc(chain.timeEnd)}${chain.head.phone && !chain.head.isStub ? ` · ${esc(chain.head.phone)}` : ''}</span>
             ${isDeleting ? `<span class="rc-cap-flag">${icons.trash(10)} удаляется…</span>` : ''}
@@ -1773,6 +1799,22 @@ function detailsHtml(det) {
     return rows.length ? rows.join('') : `<div class="rc-chain-row rc-dim">госномера и комментария нет</div>`;
 }
 
+// Кто записал клиента — строкой в окне записи, с переходом в профиль. Записи
+// без автора (сделаны прямо в оригинальной админке или до того, как сайт стал
+// запоминать авторство) так и подписываются: пустое место читалось бы как
+// «не подгрузилось».
+function authorRowHtml(a) {
+    if (!a) {
+        return `<div class="rc-chain-row rc-dim">${icons.user(12)} кто записал — неизвестно: запись сделана мимо сайта или до того, как он стал это запоминать</div>`;
+    }
+    return `
+        <button class="rc-chain-row rc-chain-author" data-action="open-author" data-user="${esc(a.id)}"
+                title="Открыть профиль">
+            <span class="rc-author-avatar">${authorAvatarHtml(a)}</span>
+            <span>записал(а) <b>${esc(a.display_name)}</b></span>
+        </button>`;
+}
+
 // Кнопок в карточке ровно три: правка, копирование, удаление. Раньше их было
 // пять, и три из них вели в одно и то же: «Продлить» — это длина записи,
 // «Время и длина» — она же вместе с началом, «Изменить данные» — поля той же
@@ -1792,6 +1834,7 @@ function modalChain(m) {
             <div class="rc-chain-row">${boxCodeHtml(meta)}${esc(meta?.short || addr.title)} · ${esc(state.date || '')} · ${esc(chain.timeStart)}–${esc(chain.timeEnd)}</div>
             ${n > 1 ? `<div class="rc-chain-row rc-chain-worm">${icons.link(12)} продлённая запись: ${n} слотов по 30 минут</div>` : ''}
             ${detailsHtml(detailsOf(chain.head.id))}
+            ${authorRowHtml(authorOf(chain))}
         </div>
         <div class="rc-chain-actions">
             <button class="btn btn-sec" data-action="open-edit" data-head="${esc(chain.head.id)}">${icons.edit(14)} Редактировать</button>
@@ -2937,6 +2980,14 @@ async function handleAction(btn, ev) {
     }
     if (a === 'submit-create') return submitCreate();
 
+    if (a === 'open-author') {
+        // Профиль — обычная страница под окном: сначала убираем окно, потом
+        // уезжаем, иначе на долю секунды виден профиль под окном записи.
+        state.modal = null;
+        render();
+        location.hash = '#/user/' + btn.dataset.user;
+        return;
+    }
     if (a === 'open-chain') {
         state.modal = { kind: 'chain', headId: btn.dataset.head };
         loadDetails(btn.dataset.head); // окно открываем сразу, карточка доедет

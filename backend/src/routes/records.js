@@ -24,6 +24,7 @@ import {
     parseRecordBoard, parseEditForm, timeToMin,
     SLOT_MINUTES, MAX_DURATION_MIN, MAX_OP_RECORDS, WORK_END_MIN,
 } from '../../../shared/crmRecords.js';
+import { loadBoardAuthors } from '../records/credits.js';
 import { query } from '../db/client.js';
 import { requireRole } from '../auth/middleware.js';
 
@@ -95,6 +96,19 @@ router.get('/status', async (_req, res) => {
 
 // ── Доска ────────────────────────────────────────────────────────────────────
 
+// Кто записал каждого клиента на доске: { [recordId]: { id, display_name,
+// avatar } } по зачётам топа (credits.js). Записи, сделанные мимо сайта (прямо
+// в оригинальной админке), автора не имеют — и это правда, а не пробел.
+// Отдельный catch: доска важнее подписи, без авторов она должна открываться.
+async function authorsFor(date, board) {
+    try {
+        return await loadBoardAuthors(date, board);
+    } catch (err) {
+        console.error('records: авторы записей', err.message);
+        return {};
+    }
+}
+
 router.get('/board', async (req, res) => {
     const date = String(req.query.date || mskToday(0));
     if (!DATE_RE.test(date)) return bad(res, 'date: DD.MM.YYYY');
@@ -115,6 +129,7 @@ router.get('/board', async (req, res) => {
                     ok: snap.ok,
                     error: snap.error,
                     ops,
+                    authors: await authorsFor(date, snap.board),
                 });
             }
             // Снапшота ещё нет (первый запуск) — пробуем живьём и не ждём тика.
@@ -122,7 +137,8 @@ router.get('/board', async (req, res) => {
         const html = await fetchBoardHtml(date);
         const board = parseRecordBoard(html);
         const ops = await listOps({ limit: 100 });
-        res.json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops });
+        const authors = await authorsFor(date, board);
+        res.json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops, authors });
     } catch (err) {
         sendZmsError(res, err);
     }

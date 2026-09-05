@@ -4,6 +4,7 @@ import { requireRole } from '../auth/middleware.js';
 import { clearSessionCache } from '../auth/sessions.js';
 import { listUserAchievements, syncAchievementsSafe } from '../achievements/achievements.js';
 import { loadActivity } from '../records/activity.js';
+import { loadDayRecords } from '../records/credits.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge, facultyCard } from '../faculty/store.js';
 
 const router = Router();
@@ -141,6 +142,24 @@ router.get('/:id/activity', async (req, res) => {
     res.json(await loadActivity(req.params.id));
   } catch (err) {
     console.error('GET /api/users/:id/activity', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/users/:id/day/:date ──────────────────────────────────────────────
+// Записи, сделанные человеком в этот день, — то же, что GET /api/profile/day
+// у себя. Открыто всем вошедшим сознательно: топ обещает прозрачность, и
+// «за что очки» должен видеть не только их владелец. Ничего закрытого тут
+// нет — те же имя и телефон клиента видны на доске записей.
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+router.get('/:id/day/:date', async (req, res) => {
+  if (!DAY_RE.test(req.params.date)) return res.status(400).json({ error: 'date: YYYY-MM-DD' });
+  try {
+    res.json(await loadDayRecords(req.params.id, req.params.date));
+  } catch (err) {
+    console.error('GET /api/users/:id/day', err);
     res.status(500).json({ error: err.message });
   }
 });
