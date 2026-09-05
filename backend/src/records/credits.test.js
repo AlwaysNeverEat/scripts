@@ -33,16 +33,20 @@ test('creditSkipReason: настоящая запись зачитывается
     assert.equal(creditSkipReason(createOp()), null);
 });
 
-test('creditSkipReason: перенос, гость, продолжение и мусорный номер — нет', () => {
+test('creditSkipReason: перенос, гость, продолжение, мастер и мусорный номер — нет', () => {
     assert.equal(creditSkipReason(createOp({ type: 'update' })), 'not_create');
     assert.equal(creditSkipReason(createOp({ userId: null })), 'guest');
     // Заглушка «Продлить» и слот встык к своей же записи — это одна запись.
     assert.equal(creditSkipReason(createOp({ payload: { ...createOp().payload, phone: EXTENSION_STUB_PHONE } })), 'continuation');
     assert.equal(creditSkipReason(createOp(), { continuation: true }), 'continuation');
+    // Переключатель в окне создания: телефон у такой записи клиентский, и
+    // отличить её больше нечем.
+    assert.equal(creditSkipReason(createOp({ payload: { ...createOp().payload, byMaster: true } })), 'by_master');
     // Одна и та же цифра — запись ради счётчика, а не ради клиента.
     assert.equal(creditSkipReason(createOp({ payload: { ...createOp().payload, phone: '+7 999 999-99-99' } })), 'junk_phone');
     // А вот запись без телефона — обычная (клиент подошёл на станцию).
     assert.equal(creditSkipReason(createOp({ payload: { ...createOp().payload, phone: '' } })), null);
+    assert.equal(creditSkipReason(createOp({ payload: { ...createOp().payload, byMaster: false } })), null);
 });
 
 test('creditDetails: подробности берутся из payload и progress, телефон — цифрами', () => {
@@ -67,10 +71,26 @@ test('creditOp: пишет строку с подробностями и не п
     assert.equal(calls.length, 1);
     assert.match(calls[0].text, /INSERT INTO record_credits/);
     assert.match(calls[0].text, /ON CONFLICT \(op_id\) DO NOTHING/);
-    assert.deepEqual(calls[0].params, [7, 'u-1', '3', 'Охтинская 9/1', '2026-09-05', '14:00', 60, 'Иван', '79211234567', 'А123БВ178']);
+    assert.deepEqual(calls[0].params,
+        [7, 'u-1', '3', 'Охтинская 9/1', '2026-09-05', '14:00', 60, 'Иван', '79211234567', 'А123БВ178', true, '']);
 
     assert.equal(await creditOp(createOp({ userId: null }), {}, { db }), false);
-    assert.equal(calls.length, 1, 'гость в базу не ходит');
+    assert.equal(await creditOp(createOp(), { continuation: true }, { db }), false);
+    assert.equal(calls.length, 1, 'гость и продолжение в базу не ходят');
+});
+
+test('creditOp: запись мастера всё равно пишется — но без очка', async () => {
+    // Строка нужна ради автора: без неё запись на доске выглядела бы сделанной
+    // мимо сайта, а это ровно та непрозрачность, ради которой всё затевалось.
+    const { db, calls } = fakeDb();
+    const op = createOp({ payload: { ...createOp().payload, byMaster: true } });
+    assert.equal(await creditOp(op, {}, { db }), true);
+    assert.deepEqual(calls[0].params.slice(-2), [false, 'by_master']);
+
+    // Номер именно не заглушечный: +7 111 111-11-11 — это телефон продолжения,
+    // и такая запись отсеивается раньше, как continuation.
+    await creditOp(createOp({ payload: { ...createOp().payload, phone: '+7 999 999-99-99' } }), {}, { db });
+    assert.deepEqual(calls[1].params.slice(-2), [false, 'junk_phone']);
 });
 
 // ── Поиск записи на доске ────────────────────────────────────────────────────
@@ -131,13 +151,24 @@ test('resolveCreditRecordIds: без доски или даты в базу не
 test('loadBoardAuthors: по record_id напрямую, без него — по месту на доске', async () => {
     const user = { id: 'u-1', display_name: 'Оля', avatar: null };
     const { db, calls } = fakeDb([
-        { record_id: '555', station_id: '3', record_time: '09:00', phone: '', client_name: '', ...user },
-        { record_id: null, station_id: '3', record_time: '14:00', phone: '79211234567', client_name: 'Иван', ...user },
-        { record_id: null, station_id: '3', record_time: '16:00', phone: '79211234567', client_name: 'Иван', ...user },
+        { record_id: '555', station_id: '3', record_time: '09:00', phone: '', client_name: '', counted: true, skip_reason: '', ...user },
+        { record_id: null, station_id: '3', record_time: '14:00', phone: '79211234567', client_name: 'Иван', counted: true, skip_reason: '', ...user },
+        { record_id: null, station_id: '3', record_time: '16:00', phone: '79211234567', client_name: 'Иван', counted: true, skip_reason: '', ...user },
     ]);
     const authors = await loadBoardAuthors('05.09.2026', boardWith(rec(102)), { db });
     assert.deepEqual(calls[0].params, ['2026-09-05']);
-    assert.deepEqual(authors, { 555: user, 102: user });
+    const shown = { ...user, counted: true, skipLabel: '' };
+    assert.deepEqual(authors, { 555: shown, 102: shown });
+});
+
+test('loadBoardAuthors: у записи мастера автор тот же, но помечен «не в счёт»', async () => {
+    const user = { id: 'u-1', display_name: 'Оля', avatar: null };
+    const { db } = fakeDb([
+        { record_id: '555', station_id: '3', record_time: '09:00', phone: '', client_name: '',
+          counted: false, skip_reason: 'by_master', ...user },
+    ]);
+    const authors = await loadBoardAuthors('05.09.2026', boardWith(), { db });
+    assert.deepEqual(authors[555], { ...user, counted: false, skipLabel: 'запись мастера' });
 });
 
 test('loadBoardAuthors: кривая дата — пусто и без запроса', async () => {
@@ -151,27 +182,63 @@ test('loadBoardAuthors: кривая дата — пусто и без запр�
 test('loadDayRecords: подробные строки — в список, старые — в legacy', async () => {
     const { db, calls } = fakeDb([
         { id: 1, made_at: '10:05', record_id: null, station_id: null, station_title: null, record_date: null,
-          record_time: null, duration_min: null, client_name: null, phone: null, car_number: null },
+          record_time: null, duration_min: null, client_name: null, phone: null, car_number: null,
+          counted: true, skip_reason: '' },
         { id: 2, made_at: '12:41', record_id: '102', station_id: '3', station_title: 'Охтинская 9/1',
           record_date: '2026-09-05', record_time: '14:00', duration_min: 60, client_name: 'Иван',
-          phone: '79211234567', car_number: 'А123БВ178' },
+          phone: '79211234567', car_number: 'А123БВ178', counted: true, skip_reason: '' },
     ]);
     const day = await loadDayRecords('u-1', '2026-09-05', { db });
     assert.deepEqual(calls[0].params, ['u-1', '2026-09-05']);
     assert.deepEqual(day, {
         date: '2026-09-05',
         count: 2,
+        skipped: 0,
         legacy: 1,
         records: [{
             madeAt: '12:41', recordId: '102', stationId: '3', stationTitle: 'Охтинская 9/1',
-            recordDate: '2026-09-05', recordTime: '14:00', durationMin: 60,
+            // Справочник знает станцию под своим именем — «Охтинская 9/1, Мурино».
+            stationShort: 'Охтинская 9/1, Мурино', recordDate: '2026-09-05', recordTime: '14:00', durationMin: 60,
             clientName: 'Иван', phone: '79211234567', carNumber: 'А123БВ178',
+            counted: true, skipLabel: '',
         }],
     });
+});
+
+test('loadDayRecords: запись мастера видна в списке, но в очки дня не идёт', async () => {
+    // Число очков обязано совпадать с подсказкой над квадратом ленты, иначе
+    // окно спорит с сеткой, по которой в него зашли.
+    const { db } = fakeDb([
+        { id: 1, made_at: '12:41', record_id: '102', station_id: '3', station_title: 'Охтинская 9/1',
+          record_date: '2026-09-05', record_time: '14:00', duration_min: 60, client_name: 'Иван',
+          phone: '79211234567', car_number: '', counted: true, skip_reason: '' },
+        { id: 2, made_at: '13:10', record_id: '103', station_id: '3', station_title: 'Охтинская 9/1',
+          record_date: '2026-09-05', record_time: '15:00', duration_min: 30, client_name: 'Пётр',
+          phone: '79219998877', car_number: '', counted: false, skip_reason: 'by_master' },
+    ]);
+    const day = await loadDayRecords('u-1', '2026-09-05', { db });
+    assert.equal(day.count, 1);
+    assert.equal(day.skipped, 1);
+    assert.equal(day.records.length, 2);
+    assert.deepEqual(day.records.map(r => [r.counted, r.skipLabel]),
+        [[true, ''], [false, 'запись мастера']]);
+});
+
+test('loadDayRecords: длинный адрес станции сокращается по справочнику', async () => {
+    // В базе лежит адрес из оригинала, а в окне нужно название, по которому
+    // станцию узнают: «деревня Новосаратовка … 267А» карточку не подписывает.
+    const { db } = fakeDb([
+        { id: 1, made_at: '12:41', record_id: '102', station_id: '3',
+          station_title: 'Выборгское ш. 212 к8', record_date: '2026-09-05', record_time: '14:00',
+          duration_min: 30, client_name: 'Иван', phone: '', car_number: '', counted: true, skip_reason: '' },
+    ]);
+    const day = await loadDayRecords('u-1', '2026-09-05', { db });
+    assert.equal(day.records[0].stationShort, 'Выб. шоссе 212к8');
+    assert.equal(day.records[0].stationTitle, 'Выборгское ш. 212 к8');
 });
 
 test('loadDayRecords: день без записей — нули, а не ошибка', async () => {
     const { db } = fakeDb([]);
     assert.deepEqual(await loadDayRecords('u-1', '2026-09-05', { db }),
-        { date: '2026-09-05', count: 0, legacy: 0, records: [] });
+        { date: '2026-09-05', count: 0, skipped: 0, legacy: 0, records: [] });
 });

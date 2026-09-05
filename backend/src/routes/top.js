@@ -7,6 +7,11 @@
 // «Продлить» (телефон-заглушка), ни созданные руками встык слоты того же
 // клиента: для человека это одна запись, а не три.
 //
+// `rc.counted` — фильтр, а не украшение: с миграции 040 в той же таблице лежат
+// и записи, сделанные через сайт, но очка не дающие (запись мастера, номер из
+// одной цифры). Они нужны доске и окну дня — там у записи есть автор, — но в
+// рейтинг не идут. См. backend/src/records/credits.js.
+//
 // Месяц закрывается сам собой: рейтинг — это выборка по текущему 'YYYY-MM',
 // поэтому 1-го числа он начинается с нуля, а прошлый месяц никуда не девается
 // и отдаётся отдельным полем previous: кто был первым к концу месяца, тот там
@@ -36,7 +41,7 @@ const RANKED_QUERY = `
     JOIN users u ON u.id = rc.user_id
     LEFT JOIN role_labels rl ON rl.role = u.role
     ${FACULTY_JOIN}
-   WHERE rc.month = $1
+   WHERE rc.month = $1 AND rc.counted
    GROUP BY u.id, rl.prefix_label, rl.color, rl.tooltip, fr.faculty
    ORDER BY count(*) DESC, u.display_name
    LIMIT $2`;

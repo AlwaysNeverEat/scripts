@@ -3080,28 +3080,79 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-figure span { display: block; margin-top: 3px; font-size: 10.5px; color: var(--sub); }
 /* Разделители между колонками — только внутренние. */
 .activity-figure + .activity-figure { border-left: 1px solid var(--border); padding-left: var(--s-3); }
-/* Окно дня (клик по клетке): список записей, сделанных в этот день. Слева
-   время, когда запись сделали, справа — кого и куда. Строки без фона и рамок:
-   это перечень, а не карточки, и десяток рамок в окне читался бы решёткой. */
+/* Окно дня (клик по клетке): КАРТОЧКИ записей, сделанных в этот день, и каждая
+   ведёт на саму запись в разделе «Записи». Карточки, а не строки списка: у
+   записи пять разных сведений (клиент, телефон, машина, станция, время), и
+   строкой они сливаются в одну фразу, в которой ничего не найти глазами.
+   Ссылка при этом обязана ВЫГЛЯДЕТЬ ссылкой — отсюда стрелка «Открыть» и
+   подъём карточки на наведении: без них никто не догадается кликнуть. */
 .day-head { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
 .day-head-count { font-size: 12px; font-weight: 600; color: var(--sub); white-space: nowrap; }
-.day-list { display: flex; flex-direction: column; }
-.day-rec {
-  display: flex; align-items: flex-start; gap: var(--s-3);
-  padding: var(--s-2) 0;
-  border-bottom: 1px solid var(--border);
+.day-cards { display: flex; flex-direction: column; gap: var(--s-3); }
+.day-card {
+  display: block;
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--bg2);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .12s, transform .12s, box-shadow .12s;
 }
-.day-rec:last-child { border-bottom: none; }
-.day-rec-made {
-  flex: none; width: 40px;
+.day-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-1);
+}
+.day-card-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3);
+}
+.day-card-station {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  font-size: 12px; font-weight: 700; color: var(--accent);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.day-card-station svg { flex: none; }
+.day-card-when {
+  flex: none;
   font-size: 12px; font-weight: 600; color: var(--sub);
   font-variant-numeric: tabular-nums;
-  padding-top: 1px;
 }
-.day-rec-main { flex: 1; min-width: 0; }
-.day-rec-who { font-size: 13px; overflow-wrap: anywhere; }
-.day-rec-who b { font-weight: 600; }
-.day-rec-where { margin-top: 2px; font-size: 11.5px; color: var(--sub); overflow-wrap: anywhere; }
+.day-card-client { margin-top: var(--s-1); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.day-card-chips { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-2); margin-top: var(--s-2); }
+.day-chip {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  padding: 1px var(--s-2);
+  border-radius: var(--r-round);
+  background: var(--bg3);
+  font-size: 11.5px; color: var(--sub);
+  white-space: nowrap;
+}
+.day-chip svg { flex: none; opacity: .8; }
+.day-card-foot {
+  display: flex; align-items: center; gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--sub);
+}
+.day-card-go {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  margin-left: auto;
+  font-weight: 700; color: var(--accent);
+}
+.day-card-go svg { transition: transform .12s; }
+.day-card:hover .day-card-go svg { transform: translateX(2px); }
+/* Незачтённая запись (мастер): пунктир вместо сплошной рамки — карточка та же,
+   просто очка за ней нет. Красным её метить нельзя: это не ошибка. */
+.day-card-skip { border-style: dashed; }
+.day-card-skip-tag {
+  padding: 1px var(--s-2);
+  border-radius: var(--r-round);
+  background: var(--bg3);
+  color: var(--sub);
+  font-weight: 600;
+}
 /* «До обновления» — не ошибка и не пустота, а объяснение: тон спокойный. */
 .day-legacy {
   padding: var(--s-3);

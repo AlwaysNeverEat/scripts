@@ -15,8 +15,18 @@
 //   • гость без аккаунта — некому зачесть;
 //   • продолжение продлённой записи — по телефону-заглушке или по доске
 //     (слот встык к записи того же клиента): длинная запись — одна запись;
+//   • ЗАПИСЬ МАСТЕРА — переключатель в окне создания: мастер звонит со станции
+//     и диктует клиента, телефон при этом клиентский, и отличить такую запись
+//     нечем, кроме как со слов того, кто её заводит;
 //   • «мусорный» телефон — одна и та же цифра (+7 111 111-11-11 и подобные):
 //     очко должно означать живого человека, а не строчку ради счётчика.
+//
+// Первые три причины строку НЕ создают вовсе: там нет ни новой записи, ни
+// автора. Две последние — создают, но с counted = false (миграция 040): запись
+// настоящая и сделал её известно кто, просто очка она не даёт. Иначе на доске
+// она выглядела бы сделанной мимо сайта — та самая непрозрачность, ради
+// которой всё и затевалось. Поэтому считающие запросы (топ, лента активности)
+// фильтруют по counted, а показывающие (окно дня, авторы) — нет.
 //
 // Номер записи в оригинале (record_id) при создании неизвестен — оригинал его
 // не возвращает. Его дописывает следующий синк доски (resolveCreditRecordIds):
@@ -28,6 +38,7 @@ import { query } from '../db/client.js';
 import {
     normPhoneDigits, isExtensionCreate, isJunkPhone, SLOT_MINUTES,
 } from '../../../shared/crmRecords.js';
+import { findStationMeta } from '../../../shared/stationsMeta.js';
 
 // 'DD.MM.YYYY' → 'YYYY-MM-DD' (null, если строка не дата). Дублирует
 // sync.js сознательно: sync.js импортирует этот модуль, и тянуть его обратно
@@ -42,9 +53,22 @@ export function creditSkipReason(op, result = {}) {
     if (op?.type !== 'create') return 'not_create';
     if (!op.userId) return 'guest';
     if (isExtensionCreate(op.payload) || result.continuation) return 'continuation';
+    if (op.payload?.byMaster === true) return 'by_master';
     if (isJunkPhone(op.payload?.phone)) return 'junk_phone';
     return null;
 }
+
+// Причины, при которых строка ВСЁ РАВНО пишется — с counted = false. Это
+// настоящие записи с настоящим автором, и скрывать их нельзя: пропадёт подпись
+// на доске и строка в окне дня, то есть ровно то, что делает топ проверяемым.
+const RECORDED_SKIPS = new Set(['by_master', 'junk_phone']);
+
+// Человеческая расшифровка для окна дня. Показываем ПРИЧИНУ, а не просто
+// «не в счёт»: иначе строка выглядит отобранным очком.
+export const SKIP_LABELS = {
+    by_master: 'запись мастера',
+    junk_phone: 'номер из одной цифры',
+};
 
 // Подробности записи для строки зачёта — из payload операции и её progress
 // (название станции туда кладёт applyCreate в opEngine.js: по одному id доска
@@ -63,19 +87,21 @@ export function creditDetails(op) {
     };
 }
 
-// Зачесть операцию. Идемпотентно по op_id: повторная отметка done не удвоит
-// счётчик. → true, если очко выдано (или уже было).
+// Записать операцию: очком (counted = true) или без него, но с автором и
+// причиной. Идемпотентно по op_id: повторная отметка done не удвоит счётчик.
+// → true, если строка нужна была (и появилась), false — если писать нечего.
 export async function creditOp(op, result = {}, { db = query } = {}) {
-    if (creditSkipReason(op, result)) return false;
+    const skip = creditSkipReason(op, result);
+    if (skip && !RECORDED_SKIPS.has(skip)) return false;
     const d = creditDetails(op);
     await db(
         `INSERT INTO record_credits
             (op_id, user_id, station_id, station_title, record_date, record_time,
-             duration_min, client_name, phone, car_number)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             duration_min, client_name, phone, car_number, counted, skip_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (op_id) DO NOTHING`,
         [op.id, op.userId, d.stationId, d.stationTitle, d.recordDate, d.recordTime,
-         d.durationMin, d.clientName, d.phone, d.carNumber],
+         d.durationMin, d.clientName, d.phone, d.carNumber, !skip, skip || ''],
     );
     return true;
 }
@@ -137,7 +163,10 @@ export async function resolveCreditRecordIds(isoDay, board, { db = query } = {})
 
 // ── Авторство на доске ───────────────────────────────────────────────────────
 
-// { [recordId]: { id, display_name, avatar } } по всем зачтённым записям дня.
+// { [recordId]: { id, display_name, avatar, counted, skipReason } } по всем
+// записям дня, сделанным через сайт. Незачтённые (запись мастера) идут сюда
+// наравне с зачтёнными: автор у них есть, и прятать его — значит выдавать
+// такую запись за сделанную мимо сайта.
 // Зачёт без record_id (синк ещё не дошёл) подписывается по месту на доске —
 // тем же поиском, что и resolveCreditRecordIds.
 export async function loadBoardAuthors(dateDDMMYYYY, board, { db = query } = {}) {
@@ -145,6 +174,7 @@ export async function loadBoardAuthors(dateDDMMYYYY, board, { db = query } = {})
     if (!iso) return {};
     const r = await db(
         `SELECT rc.record_id, rc.station_id, rc.record_time, rc.phone, rc.client_name,
+                rc.counted, rc.skip_reason,
                 u.id, u.display_name, u.avatar
            FROM record_credits rc
            JOIN users u ON u.id = rc.user_id
@@ -153,7 +183,11 @@ export async function loadBoardAuthors(dateDDMMYYYY, board, { db = query } = {})
     );
     const authors = {};
     for (const row of r.rows) {
-        const user = { id: row.id, display_name: row.display_name, avatar: row.avatar };
+        const user = {
+            id: row.id, display_name: row.display_name, avatar: row.avatar,
+            counted: row.counted !== false,
+            skipLabel: SKIP_LABELS[row.skip_reason] || '',
+        };
         let recordId = row.record_id;
         if (!recordId) {
             const rec = findCreditRecord(board, {
@@ -179,7 +213,8 @@ const DAY_QUERY = `
          to_char(created_at AT TIME ZONE 'Europe/Moscow', 'HH24:MI') AS made_at,
          record_id, station_id, station_title,
          to_char(record_date, 'YYYY-MM-DD') AS record_date,
-         record_time, duration_min, client_name, phone, car_number
+         record_time, duration_min, client_name, phone, car_number,
+         counted, skip_reason
     FROM record_credits
    WHERE user_id = $1
      AND created_at >= ($2::date::timestamp AT TIME ZONE 'Europe/Moscow')
@@ -187,27 +222,44 @@ const DAY_QUERY = `
    ORDER BY created_at`;
 
 // → { date, count, legacy, records: [{ madeAt, stationId, stationTitle,
-//     recordDate, recordTime, durationMin, clientName, phone, carNumber, recordId }] }
-// count — все очки за день; legacy — сколько из них без подробностей (строки
-// до миграции 039); records — только те, про которые есть что рассказать.
+//     stationShort, recordDate, recordTime, durationMin, clientName, phone,
+//     carNumber, recordId, counted, skipLabel }] }
+// count — ОЧКИ за день (то же число, что в клетке ленты): незачтённые записи
+// в него не входят, иначе окно спорило бы с подсказкой над квадратом.
+// skipped — сколько записей сделано, но в топ не пошло (мастер, мусорный
+// номер): в шапке окна это отдельное число, а не потерянные очки.
+// legacy — сколько очков без подробностей (строки до миграции 039);
+// records — все строки, про которые есть что рассказать, вместе с незачтёнными.
+//
+// Короткое имя станции считаем ЗДЕСЬ, а не в браузере: в базе лежит адрес из
+// оригинала («деревня Новосаратовка … 267А»), а справочник (shared/
+// stationsMeta.js) на бэкенде уже есть и в бандл сайта не тянется.
 export async function loadDayRecords(userId, isoDay, { db = query } = {}) {
     const r = await db(DAY_QUERY, [userId, isoDay]);
     const records = [];
     let legacy = 0;
+    let count = 0;
+    let skipped = 0;
     for (const row of r.rows) {
-        if (!row.station_id) { legacy++; continue; }
+        const counted = row.counted !== false;
+        if (counted) count++; else skipped++;
+        if (!row.station_id) { if (counted) legacy++; continue; }
+        const title = row.station_title || '';
         records.push({
             madeAt: row.made_at,
             recordId: row.record_id || null,
             stationId: row.station_id,
-            stationTitle: row.station_title || '',
+            stationTitle: title,
+            stationShort: findStationMeta(title)?.short || title,
             recordDate: row.record_date,
             recordTime: row.record_time,
             durationMin: row.duration_min,
             clientName: row.client_name || '',
             phone: row.phone || '',
             carNumber: row.car_number || '',
+            counted,
+            skipLabel: SKIP_LABELS[row.skip_reason] || '',
         });
     }
-    return { date: isoDay, count: r.rows.length, legacy, records };
+    return { date: isoDay, count, skipped, legacy, records };
 }

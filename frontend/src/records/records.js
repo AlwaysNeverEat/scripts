@@ -229,6 +229,8 @@ async function loadBoard({ silent = false } = {}) {
     }
     state.boardLoading = false;
     render();
+    // Пришли по ссылке из профиля — доска приехала, можно открывать запись.
+    applyFocus();
 }
 
 // ── Карточка записи (госномер и комментарий) ─────────────────────────────────
@@ -1237,7 +1239,9 @@ function renderStation() {
                 <b>${esc(chain.head.name || chain.head.customer || 'без имени')}</b>
                 ${nParts > 1 ? `<span class="rc-cap-worm-badge">${icons.link(10)}${nParts}</span>` : ''}
                 <span class="rc-cap-left hidden"></span>
-                ${author ? `<span class="rc-cap-author" title="Записал(а): ${esc(author.display_name)}">${authorAvatarHtml(author)}</span>` : ''}
+                ${author ? `<span class="rc-cap-author${author.counted === false ? ' rc-cap-author-skip' : ''}"
+                    title="Записал(а): ${esc(author.display_name)}${author.counted === false ? ` · ${esc(author.skipLabel || 'не в счёт')}` : ''}"
+                    >${authorAvatarHtml(author)}</span>` : ''}
             </span>
             <span class="rc-cap-line2">${esc(chain.timeStart)}–${esc(chain.timeEnd)}${chain.head.phone && !chain.head.isStub ? ` · ${esc(chain.head.phone)}` : ''}</span>
             ${isDeleting ? `<span class="rc-cap-flag">${icons.trash(10)} удаляется…</span>` : ''}
@@ -1705,6 +1709,18 @@ function modalCreate(m) {
             <label class="edit-field"><span>Комментарий</span>
                 <textarea id="rc-f-comment" rows="2" placeholder="Табуретка+вф+сф">${esc(m.comment || '')}</textarea></label>
 
+            <!-- Запись мастера. Отличить её от обычной нечем: мастер звонит со
+                 станции и диктует клиента, телефон при этом клиентский —
+                 поэтому это переключатель, а не догадка по номеру. -->
+            <label class="chk-label rc-master">
+                <input type="checkbox" id="rc-f-master" ${m.byMaster ? 'checked' : ''}/>
+                <span class="rc-master-text">
+                    <b>Запись мастера</b>
+                    <i>Записал не оператор, а мастер со станции. Такая запись не идёт в топ,
+                       но на доске остаётся подписанной — видно, кто её завёл.</i>
+                </span>
+            </label>
+
             <div class="rc-sub">Станция — ${boxCodeHtml(meta)}<b>${esc(meta?.short || addr?.title || '')}</b>${acHtml(meta, 10)}
                 <button class="btn btn-sec rc-mini-btn" data-action="toggle-create-map">${icons.map(13)} сменить на карте</button>
             </div>
@@ -1769,6 +1785,18 @@ function chainByHead(headId) {
     return null;
 }
 
+// Цепочка, накрывающая это время на станции. Нужна переходу из профиля: у
+// записи, которой синк ещё не проставил номер, известны только станция и
+// время — а этого достаточно, чтобы показать ту самую капсулу.
+function chainAt(addressId, time) {
+    const addr = stationById(addressId);
+    const min = timeToMin(time);
+    if (!addr || Number.isNaN(min)) return null;
+    const chain = chainsFor(addr.id).find(c =>
+        timeToMin(c.timeStart) <= min && min < timeToMin(c.timeEnd));
+    return chain ? { chain, addr } : null;
+}
+
 // Цепочка, в которую входит слот (не обязательно голова) — нужно, чтобы из
 // очереди вернуться к записи по id любого её слота.
 function chainByPart(recordId) {
@@ -1807,11 +1835,18 @@ function authorRowHtml(a) {
     if (!a) {
         return `<div class="rc-chain-row rc-dim">${icons.user(12)} кто записал — неизвестно: запись сделана мимо сайта или до того, как он стал это запоминать</div>`;
     }
+    // Незачтённая запись (мастер, номер из одной цифры) подписана автором так
+    // же, как любая другая, — она настоящая. Пометка объясняет только одно:
+    // почему её нет в топе.
+    const skip = a.counted === false
+        ? `<span class="rc-author-skip" title="В месячный топ такая запись не идёт">${esc(a.skipLabel || 'не в счёт')}</span>`
+        : '';
     return `
         <button class="rc-chain-row rc-chain-author" data-action="open-author" data-user="${esc(a.id)}"
                 title="Открыть профиль">
             <span class="rc-author-avatar">${authorAvatarHtml(a)}</span>
             <span>записал(а) <b>${esc(a.display_name)}</b></span>
+            ${skip}
         </button>`;
 }
 
@@ -1822,6 +1857,14 @@ function authorRowHtml(a) {
 // и заодно диктует госномер, а оператор ходил по двум окнам подряд.
 function modalChain(m) {
     const found = chainByHead(m.headId);
+    // Пришли по ссылке из профиля — там запись была, а здесь её нет: значит,
+    // её удалили или перенесли уже после того, как она была сделана. Общее
+    // «обновите» тут врёт: обновление ничего не вернёт.
+    if (!found && m.fromLink) {
+        return modalShell('Запись', `<div class="rc-empty-note">Этой записи на доске больше нет —
+            её удалили или перенесли на другое время после того, как она была сделана.
+            Очко за неё осталось: сделанную работу зачёт не отзывает.</div>`);
+    }
     if (!found) return modalShell('Запись', '<div class="rc-empty-note">Запись уже исчезла с доски (обновите)</div>');
     const { chain, addr } = found;
     const meta = metaFor(addr);
@@ -2618,6 +2661,41 @@ async function switchDate(date) {
     await loadBoard();
 }
 
+// ── Переход по ссылке (из профиля) ───────────────────────────────────────────
+// Карточка сделанной записи в профиле — ссылка сюда: #/records?date=…&station=…
+// Раздел на этот момент может быть каким угодно — не смонтированным, на другом
+// дне, с ещё не приехавшей доской, — поэтому цель не выполняется на месте, а
+// ЗАПОМИНАЕТСЯ и применяется каждый раз, когда доска приезжает (см. хвост
+// loadBoard). Пока день не тот, applyFocus сам уводит на нужный: ждать
+// правильной последовательности вызовов от вызывающей стороны нельзя.
+
+let pendingFocus = null;
+
+export function focusRecords(target) {
+    if (!root || !target) return;
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(target.date || ''))
+        ? isoToDdmm(target.date)   // ссылка приходит в ISO, раздел живёт в DD.MM.YYYY
+        : String(target.date || '');
+    if (!date) return;
+    pendingFocus = { ...target, date };
+    applyFocus();
+}
+
+function applyFocus() {
+    const t = pendingFocus;
+    if (!t || !state.board) return;         // доска ещё едет — вернёмся сюда после неё
+    if (state.date !== t.date) { switchDate(t.date); return; }
+    pendingFocus = null;
+
+    const found = (t.recordId && chainByPart(t.recordId)) || chainAt(t.stationId, t.time);
+    const headId = found ? String(found.chain.head.id) : null;
+    // Окно открываем всегда, даже когда записи на доске нет: молча высадить
+    // человека на станцию — значит оставить его гадать, туда ли он попал.
+    state.modal = { kind: 'chain', headId, fromLink: true };
+    if (headId) loadDetails(headId);
+    openStation(found ? found.addr.id : t.stationId, headId);
+}
+
 // ── Бинды ────────────────────────────────────────────────────────────────────
 
 function bindCredsGate() {
@@ -2816,6 +2894,9 @@ function keepCreateFields() {
     state.modal.phone = document.getElementById('rc-f-phone')?.value ?? state.modal.phone;
     state.modal.carNumber = document.getElementById('rc-f-car')?.value ?? state.modal.carNumber;
     state.modal.comment = document.getElementById('rc-f-comment')?.value ?? state.modal.comment;
+    // Переключатель «запись мастера» переживает перерисовку наравне с полями:
+    // станцию и дату меняют уже после того, как его поставили.
+    state.modal.byMaster = document.getElementById('rc-f-master')?.checked ?? state.modal.byMaster;
 }
 
 // Поля правки переживают перерисовку (её вызывает приехавшая карточка записи).
@@ -2935,7 +3016,7 @@ async function handleAction(btn, ev) {
             date: state.date,
             time: btn.dataset.time || null,
             durationMinutes: 30,
-            name: '', phone: '', carNumber: '', comment: '',
+            name: '', phone: '', carNumber: '', comment: '', byMaster: false,
         };
         return render();
     }
@@ -3261,6 +3342,9 @@ async function submitCreate() {
             carNumber: m.carNumber.trim(),
             comment: m.comment.trim(),
             durationMinutes: m.durationMinutes,
+            // Решает только зачёт в топ: в оригинал такая запись уходит
+            // обычной (backend/src/records/credits.js).
+            byMaster: Boolean(m.byMaster),
         });
         rememberClientName(m.name);
         destroyMapCtl();
@@ -3551,6 +3635,10 @@ export function pauseRecords() {
     syncModalChrome();
     stopPolling();
     markAway();
+    // Ушли с раздела, не дождавшись доски, — переход по ссылке отменяется:
+    // открывать чужую запись через полчаса, когда человек вернётся совсем за
+    // другим, незачем.
+    pendingFocus = null;
 }
 
 // Возврат на вкладку: поднимаем опрос и сразу подтягиваем свежую доску, чтобы
@@ -3572,6 +3660,7 @@ export function resumeRecords() {
 
 export function stopRecords() {
     stopPolling();
+    pendingFocus = null;
     destroyMapCtl();
     destroyStationMapCtl();
     if (root && onClick) root.removeEventListener('click', onClick);

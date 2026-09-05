@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <!-- Дев-песочница выбора времени: фейковая доска, без бэкенда.
-     Открыть: npx vite → /dev-records-pick.html?modal=create (или ?modal=extend)
+     Открыть: npx vite → /dev-records-pick.html?modal=create (или ?modal=extend,
+     ?focus=<id записи>[&time=HH:MM] — переход по ссылке из профиля;
+     несуществующий id с пустым временем показывает «записи больше нет»)
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -85,8 +87,14 @@
       return realFetch(url, init);
     };
 
-    const { startRecords } = await import('/src/records/records.js');
+    const { startRecords, focusRecords } = await import('/src/records/records.js');
     startRecords(document.getElementById('page-records'));
+
+    // ?focus=<id записи> — то же, что переход по ссылке из профиля (карточка
+    // сделанной записи): раздел обязан сам дождаться доски, открыть станцию и
+    // показать эту запись. Дата тут в ISO — ровно как в ссылке.
+    const focus = new URLSearchParams(location.search).get('focus');
+    if (focus) focusRecords({ date: '2026-07-26', stationId: '1', time: new URLSearchParams(location.search).get('time') || '13:00', recordId: focus });
 
     // ?modal=create|extend — сразу открыть нужное окно (для скриншотов и правки стилей)
     const want = new URLSearchParams(location.search).get('modal');
