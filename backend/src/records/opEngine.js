@@ -84,6 +84,10 @@ async function applyCreate(payload, progress, io) {
     // другим (запись сама себе продолжение).
     if (progress.continuation === undefined) {
         progress.continuation = extendsExistingRecord(board, payload);
+        // Название станции — в подпись зачёта (credits.js): доска прошлых дней
+        // по одному id его уже не расскажет, а на доске оно есть прямо сейчас.
+        progress.stationTitle = (board.addresses || [])
+            .find(a => String(a.id) === String(payload.addressId))?.title || '';
         await io.saveProgress(progress);
     }
     for (const slot of slots) {

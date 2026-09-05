@@ -10,6 +10,7 @@ import {
   computeMetrics, listUserAchievements, presentAchievement, syncAchievementsSafe,
 } from '../achievements/achievements.js';
 import { loadActivity } from '../records/activity.js';
+import { loadDayRecords } from '../records/credits.js';
 
 const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
   .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
@@ -136,6 +137,23 @@ router.get('/activity', async (req, res) => {
     res.json(await loadActivity(req.user.id));
   } catch (err) {
     console.error('GET /api/profile/activity', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/profile/day/:date ─────────────────────────────────────────────────
+// Записи, сделанные в этот день (клик по клетке ленты): за что именно даны
+// очки. Тот же источник, что у ленты и топа, — record_credits, см. credits.js.
+// Чужие — GET /api/users/:id/day/:date, ответ тот же.
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+router.get('/day/:date', async (req, res) => {
+  if (!DAY_RE.test(req.params.date)) return res.status(400).json({ error: 'date: YYYY-MM-DD' });
+  try {
+    res.json(await loadDayRecords(req.user.id, req.params.date));
+  } catch (err) {
+    console.error('GET /api/profile/day', err);
     res.status(500).json({ error: err.message });
   }
 });

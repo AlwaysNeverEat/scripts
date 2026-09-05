@@ -7,7 +7,7 @@ import {
     parseRecordBoard, detectChains, assignLanes, buildExtensionOps,
     contiguousFreeSlots, flattenAddressRecords, buildCopyLine, copyOperatorFor,
     findSlotConflict, findBoardRecord, isExtensionCreate, extendsExistingRecord,
-    isRecordBoard, looksLikeLoginPage, parseEditForm,
+    isRecordBoard, looksLikeLoginPage, parseEditForm, isJunkPhone,
     timeToMin, minToTime, addMinutes, normPhoneDigits, formatRuPhone,
     isBookableTime, LAST_START_TIME, EXTENSION_STUB_PHONE,
 } from './crmRecords.js';
@@ -261,6 +261,20 @@ test('isExtensionCreate: продолжение — по телефону-заг
     assert.equal(isExtensionCreate({ phone: '' }), false);
     assert.equal(isExtensionCreate({}), false);
     assert.equal(isExtensionCreate(null), false);
+});
+
+test('isJunkPhone: одна и та же цифра — мусор, настоящий номер и пустой — нет', () => {
+    // Такие записи в топ не идут (backend/src/records/sync.js): очко должно
+    // означать живого клиента, а не «+7 111…» ради счётчика.
+    assert.equal(isJunkPhone(EXTENSION_STUB_PHONE), true);
+    assert.equal(isJunkPhone('+7 (111) 111-11-11'), true);
+    assert.equal(isJunkPhone('8 000 000 00 00'), true);
+    assert.equal(isJunkPhone('+7 999 999-99-99'), true);
+    assert.equal(isJunkPhone('9999999999'), true);
+    assert.equal(isJunkPhone('+7 921 111-11-11'), false);
+    assert.equal(isJunkPhone('+7 (921) 123-45-67'), false);
+    assert.equal(isJunkPhone(''), false);
+    assert.equal(isJunkPhone(undefined), false);
 });
 
 // Ручное продление — слот встык с настоящим номером клиента: заглушки нет, но

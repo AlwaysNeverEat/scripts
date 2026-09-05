@@ -186,7 +186,7 @@ function warmCrmSession() {
     apiFetch('/api/crm/status').catch(() => { /* панель разберётся на месте */ });
 }
 
-// Счётчик непрочитанных постов на вкладке «Что нового?».
+// Счётчик непрочитанных постов на вкладке «Новости».
 function renderNewsBadge() {
     const badge = document.getElementById('news-badge');
     if (!badge) return;
@@ -277,7 +277,7 @@ function restoreScroll(hash) {
 //   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
 //   #/records     — записи по станциям
 //   #/scripts     — фид юзерскриптов
-//   #/news        — «Что нового?»: посты об изменениях сайта
+//   #/news        — «Новости»: посты об изменениях сайта
 //   #/top         — рейтинг пользователей
 
 let renderedCarId = null;  // машина, уже отрисованная на #page-calc
