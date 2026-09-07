@@ -1485,6 +1485,7 @@ a.btn:visited, a.btn:active { color: var(--text); }
 /* Кому анимация мешает — тому статичная подсветка, а не поездка. */
 @media (prefers-reduced-motion: reduce) {
   .seg-pill { transition: none; }
+  .activity-strip { transition: none; }
 }
 
 /* Плашка режима поиска лежит НА СФЕРЕ, и потому она стеклянная: свои
@@ -3010,18 +3011,37 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    читается как шкала, а не как пять разных статусов, и одинаково работает
    в обеих темах.
 
-   ГОД ВЛЕЗАЕТ ЦЕЛИКОМ, прокрутки вбок нет: колонки-недели заданы в 1fr, а
-   квадратность держит aspect-ratio. Поэтому размер клетки — производная от
-   ширины панели, и нигде ниже его нельзя задавать в пикселях (кроме легенды,
-   где клетки — просто иконки шкалы, а не дни). */
+   РАЗМЕР КЛЕТКИ НИГДЕ НЕ ЗАДАН В ПИКСЕЛЯХ (кроме легенды, где клетки — просто
+   иконки шкалы, а не дни): колонки-недели заданы в 1fr, квадратность держит
+   aspect-ratio, а сколько их видно — решает масштаб (--view). Отсюда и
+   крупная клетка: показанные недели делят ту же ширину панели.
+
+   ЛЕНТА ЕДЕТ ЦЕЛИКОМ, а не прокручивается: .activity-view — окно, .activity-strip
+   — все 53 недели, которые под ним сдвигаются transform-ом.
+
+   ЗАЗОР В ОБЕИХ ФОРМУЛАХ НИЖЕ УЧТЁН, и это не педантизм: колонок на одну
+   больше, чем зазоров между ними, поэтому «колонка вместе с зазором» — это
+   (ширина + зазор) / число колонок. Сдвинь мы ленту простыми процентами, за
+   53 недели набежало бы 52 лишних зазора — полторы колонки промаха, и правый
+   край окна показывал бы не ту неделю. Проценты в двух формулах считаются от
+   РАЗНЫХ коробок (в width — от окна, в transform — от самой ленты), потому
+   формулы и выглядят похоже, но переставлять их местами нельзя. */
 .activity { --cell-gap: 3px; }
+/* Шапка ленты: слева масштаб, справа показанный период. Период обязателен —
+   без него после ползунка непонятно, какой кусок года на экране. */
+.activity-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-3); flex-wrap: wrap;
+  margin-bottom: var(--s-3);
+}
+.activity-period { font-size: 11.5px; color: var(--sub); white-space: nowrap; }
 /* Колонка дней недели — отдельный флекс-столбец: её строки тянутся по высоте
    сетки (растяжкой flex), потому что высота клетки заранее неизвестна. */
 .activity-cols { display: flex; gap: var(--s-2); align-items: stretch; }
 .activity-side { flex: none; width: 20px; display: flex; flex-direction: column; }
 /* Распорка в высоту ряда месяцев — чтобы «Пн» встал против первой строки. */
 .activity-side-gap,
-.activity-months { height: 12px; line-height: 12px; margin-bottom: var(--s-1); }
+.activity-months { height: 14px; line-height: 14px; margin-bottom: var(--s-1); }
 .activity-weekdays {
   flex: 1;
   display: grid;
@@ -3037,13 +3057,30 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    Так подпись не занимает места вовсе и просто висит по центру своего ряда. */
 .activity-weekdays span { line-height: 0; white-space: nowrap; }
 .activity-main { flex: 1 1 auto; min-width: 0; }   /* min-width — иначе сетка не сожмётся */
+.activity-view { overflow: hidden; }
+.activity-strip {
+  width: calc((100% + var(--cell-gap)) * var(--weeks) / var(--view) - var(--cell-gap));
+  transform: translateX(calc(-1 * var(--pan) * (100% + var(--cell-gap)) / var(--weeks)));
+  transition: transform .28s cubic-bezier(.32, .72, 0, 1),
+              width     .28s cubic-bezier(.32, .72, 0, 1);
+}
+/* Ползунок во всю ширину: он про горизонталь сетки, и короткая дорожка под
+   широкой лентой читалась бы как чужой контрол. Ручка и трек — общие для
+   сайта (input[type="range"] выше), своих цветов у ленты нет. */
+.activity-pan { margin-top: var(--s-3); }
+.activity-range { display: block; width: 100%; }
 .activity-months {
   display: grid;
   grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
   gap: var(--cell-gap);
-  font-size: 9.5px; color: var(--sub);
+  font-size: 10.5px; color: var(--sub);
 }
-.activity-month { text-align: left; white-space: nowrap; }
+/* grid-row: 1 — не для красоты: хвостовая подпись НАРОЧНО залезает на колонки
+   соседки (иначе ей негде уместиться), а автоматическая раскладка от такого
+   наложения увела бы её во вторую строку — то есть на первый ряд клеток. */
+.activity-month { grid-row: 1; text-align: left; white-space: nowrap; }
+/* Хвостовая подпись — вправо: см. комментарий в activityFeed.js. */
+.activity-month-end { text-align: right; }
 .activity-grid {
   display: grid;
   grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
@@ -3054,7 +3091,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-cell {
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 2px;
+  /* Радиус в процентах, а не ступенью шкалы: клетка меняет размер от масштаба
+     втрое, и одно число выглядело бы то острым углом, то пилюлей. Пределы —
+     чтобы на годе клетка не превратилась в точку, а на трёх месяцах в кружок. */
+  border-radius: clamp(2px, 12%, 6px);
   background: var(--bg3);
   cursor: pointer;
   transition: outline-color .12s ease;
@@ -3223,6 +3263,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .profile-stat b { font-size: 22px; }
   .activity { --cell-gap: 2px; }
   .activity-side { display: none; }
+  /* Период уходит под масштаб: в строку они на телефоне не встают, а обрезать
+     подпись «10 июня — 7 сентября 2026» нельзя — она и есть ответ «где мы». */
+  .activity-head { gap: var(--s-2); }
+  .activity-period { font-size: 11px; }
   .activity-figures { gap: var(--s-2); }
   .activity-figure + .activity-figure { padding-left: var(--s-2); }
   .activity-figure b { font-size: 15px; }
