@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "leaflet": "^1.9.4",
-    "three": "^0.98.0"
+    "three": "^0.98.0",
+    "torph": "^0.1.3"
   }
 }

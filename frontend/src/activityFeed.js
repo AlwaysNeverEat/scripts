@@ -58,6 +58,7 @@ import {
     buildHeatmap, dayTitle, recordsWord, formatDayRu, WEEKDAYS_SHORT,
 } from '../../shared/activityHeatmap.js';
 import { formatRuPhone, addMinutes } from '../../shared/crmRecords.js';
+import { morphText } from './textMorph.js';
 
 function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c =>
@@ -411,7 +412,10 @@ function openDayModal(cell, loadDay) {
         const body = modal.querySelector('#activity-day-body');
         if (body) body.innerHTML = dayRecordsHtml(day);
         const head = modal.querySelector('#activity-day-count');
-        if (head) head.textContent = dayCountLabel(Number(day?.count) || 0, Number(day?.skipped) || 0);
+        // Окно открывается с числом ИЗ КЛЕТКИ и дозаполняется приехавшим
+        // ответом: незачтённых записей в клетке не видно. Перетекание тут не
+        // украшение — оно показывает, что число уточнилось, а не подменилось.
+        if (head) morphText(head, dayCountLabel(Number(day?.count) || 0, Number(day?.skipped) || 0));
     }).catch((err) => {
         const body = modal.querySelector('#activity-day-body');
         if (body) body.innerHTML = `<div class="search-empty">Не удалось загрузить: ${esc(err?.message || err)}</div>`;
@@ -449,7 +453,10 @@ function setupZoom(box, onPan) {
         box.style.setProperty('--pan', String(pan));
         panRow?.classList.toggle('hidden', max === 0);
         const label = periodOfDates(cells.slice(pan * 7, (pan + weeks) * 7).map(c => c.dataset.date));
-        if (period) period.textContent = label;
+        // Подпись ПЕРЕТЕКАЕТ, а не переписывается (textMorph.js): при ведении
+        // карты меняются обычно только числа, и перекат по разрядам показывает
+        // ровно это — «15 июня» → «16 марта», а «сентября 2026» стоит на месте.
+        if (period) morphText(period, label);
         if (map) {
             // Слепой рамку не видит, поэтому «где мы» ему говорят словами —
             // теми же самыми, что зрячему написаны над сеткой.
