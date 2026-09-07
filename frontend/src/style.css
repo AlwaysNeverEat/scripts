@@ -1942,6 +1942,27 @@ input[data-edit-filter-absent]:checked::after {
   min-height: 120px;
 }
 
+/* Переключатели под окном Битрикса. Столбиком, а не в строку: их три, и в
+   строку они на узкой колонке отчёта переносились бы по-разному от длины
+   подписи — «скидка 10%» короче «снятия/установки защиты картера». */
+.report-opts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.report-opts:empty { display: none; }
+
+/* Пометка «−10%» рядом с уценённой суммой: разложенная стоимость слева
+   считается до скидки, и без пометки итог выглядит арифметической ошибкой. */
+.disc-mark {
+  font-size: 11px; font-weight: 600;
+  color: var(--accent-fg); background: var(--accent);
+  border-radius: var(--r-1);
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
 /* ── Поля формы правки (живут в окне carEditor) ─────────────────── */
 .edit-sec-h {
   font-size: 11px; font-weight: 600; color: var(--sub);

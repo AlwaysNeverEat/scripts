@@ -82,3 +82,64 @@ test('правка объёма МКПП тоже уезжает в текст',
     assert.match(report, /\(3\.0л\)/, 'подпись — правленый объём');
     assert.equal(volumeFromPrice(report, 1900 + 550), 3);
 });
+
+// ── Скидка 10% ────────────────────────────────────────────────────────────────
+// Главное, что тут стережётся: скидка применяется РОВНО ОДИН РАЗ. Соблазн
+// «уценить каждый агрегат и на всякий случай ещё итог» даёт не 10%, а 19%, и
+// заметить это на глаз нельзя — обе цифры выглядят правдоподобно.
+
+// Все суммы отчёта: и по агрегатам, и «Итого».
+function sumsOf(report) {
+    return (report.match(/= (\d+)₽/g) || []).map(x => Number(x.match(/\d+/)[0]));
+}
+
+test('скидка снимает ровно 10% с каждой суммы и с итога', () => {
+    const data = {
+        engine:    { volumeService: 4.3, filterVolume: 0.3 },
+        automatic: { volumeService: 8, approvals: ['VW G 052 182'] },
+    };
+    const base = {
+        selected: new Set(['engine', 'automatic']),
+        totals: [{ engine: 0, automatic: 0 }],
+        showWithSump: true,
+    };
+    const approvals = ['VW 507 00', 'ACEA C3'];
+    const plain = buildReport(CAR, data, makeState(base), approvals);
+    const disc  = buildReport(CAR, data, makeState({ ...base, discount: true }), approvals);
+
+    const a = sumsOf(plain), b = sumsOf(disc);
+    assert.equal(a.length, b.length, 'состав строк от скидки не меняется');
+    a.forEach((sum, i) => {
+        assert.equal(b[i], Math.round(sum * 0.9),
+            `сумма #${i}: ${sum} → ожидалось ${Math.round(sum * 0.9)}, а вышло ${b[i]}`);
+    });
+});
+
+test('итог со скидкой — сумма уценённых слагаемых, а не уценённая сумма ещё раз', () => {
+    const data = {
+        engine:    { volumeService: 4.3, filterVolume: 0.3 },
+        automatic: { volumeService: 8, approvals: ['VW G 052 182'] },
+    };
+    const report = buildReport(CAR, data, makeState({
+        selected: new Set(['engine', 'automatic']),
+        totals: [{ engine: 0, automatic: 0 }],
+        discount: true,
+    }), ['VW 507 00', 'ACEA C3']);
+
+    const totalLine = report.split('\n').find(l => /^\d+\(/.test(l));
+    assert.ok(totalLine, 'в отчёте должна быть строка «Итого»');
+    // Разбираем аккуратно: в названиях масел свои числа («5W-30»), поэтому
+    // берём только те, что стоят В НАЧАЛЕ слагаемого, и итог сразу за «=».
+    const [left, right] = totalLine.split(' = ');
+    const parts = left.split(' + ').map(x => Number(x.match(/^\d+/)[0]));
+    const total = Number(right.match(/^\d+/)[0]);
+    assert.ok(parts.length >= 2, 'слагаемых должно быть несколько');
+    assert.equal(total, parts.reduce((s, x) => s + x, 0),
+        'итог обязан быть простой суммой показанных слагаемых');
+});
+
+test('без скидки суммы и подписи прежние', () => {
+    const data   = { engine: { volumeService: 4.3, filterVolume: 0.3 } };
+    const report = buildReport(CAR, data, makeState(), ['VW 507 00', 'ACEA C3']);
+    assert.ok(!/скидк/i.test(report), 'подпись про скидку появляется только со скидкой');
+});

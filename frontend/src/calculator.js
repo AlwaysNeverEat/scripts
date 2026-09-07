@@ -4,6 +4,7 @@ import {
     filtersTotal, anyFilterEnabled, calcForAggregate,
     pickAtfOils, totalAggLabel, totalOilLabel, computeTotalSum,
     splitOilApprovals, matchOilToReglament, manualWarnText, sapsLabel,
+    sumpCost, DISCOUNT_PCT,
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
 import { extractViscosity } from '../../shared/crmAnalyse.js';
@@ -68,6 +69,7 @@ export function initCalculator(dbRecord) {
         showOilPicker: null,
         ignoreApprovals: false,
         showWithSump: false,
+        discount: false,
         flush: 'none',
         filters: dbFiltersFromRecord(dbRecord),
         articles: dbArticlesFromRecord(dbRecord),
@@ -198,7 +200,46 @@ function renderCalcControls(container, car, data, calcState, carApprovals) {
         ${renderTotals(data, calcState, carApprovals)}
     `;
     bindEvents(container, car, data, calcState, carApprovals);
+    renderReportOpts(container, car, data, calcState, carApprovals);
     restoreTypingFocus(container, focus);
+}
+
+// ── Опции под окном Битрикса ──────────────────────────────────────────────────
+// Три переключателя, которые дёргают ПОСРЕДИ РАЗГОВОРА, когда цена уже названа:
+// защита картера, скидка и «игнорировать допуска». В «Настройках расчёта»
+// наверху панели они были не под рукой — на вопрос «а со скидкой сколько?»
+// приходилось мотать длинный список агрегатов обратно к началу, мимо цены, на
+// которую в этот момент и смотришь. Отсюда же порядок: сверху то, что чаще
+// меняют по ходу разговора.
+//
+// Панель живёт ВНЕ #calc-main (в блоке отчёта, в разметке страницы), поэтому
+// рисуется отдельно, а не строкой в renderCalcControls.
+function renderReportOpts(container, car, data, calcState, carApprovals) {
+    const box = document.getElementById('report-opts');
+    if (!box) return;
+
+    const opt = (id, checked, label) => `
+        <label class="chk-label">
+            <input type="checkbox" id="${id}" ${checked ? 'checked' : ''}/>
+            <span>${label}</span>
+        </label>`;
+    box.innerHTML = `
+        ${opt('chk-sump', calcState.showWithSump, `Снятие/установка защиты картера (+${sumpCost(calcState)}₽)`)}
+        ${opt('chk-discount', calcState.discount, `Скидка ${DISCOUNT_PCT}%`)}
+        ${opt('chk-ignore-approvals', calcState.ignoreApprovals, 'Игнорировать допуска')}
+    `;
+
+    const rerender = () => {
+        renderCalcControls(container, car, data, calcState, carApprovals);
+        updateReport(calcState, data, car, carApprovals);
+    };
+    const bind = (id, apply) => {
+        const el = box.querySelector('#' + id);
+        if (el) el.onchange = () => { apply(el.checked); rerender(); };
+    };
+    bind('chk-sump',             v => { calcState.showWithSump = v; });
+    bind('chk-discount',         v => { calcState.discount = v; });
+    bind('chk-ignore-approvals', v => { calcState.ignoreApprovals = v; });
 }
 
 // ── Фокус на пересборке панели ────────────────────────────────────────────────
@@ -251,17 +292,7 @@ function renderControls(calcState) {
                 ${chip('0w20',   '0W-20')}
                 ${chip('0w30',   '0W-30')}
             </div>
-            <div class="ctrl-row" style="margin:14px 0">
-                <label class="chk-label">
-                    <input type="checkbox" id="chk-ignore-approvals" ${calcState.ignoreApprovals ? 'checked' : ''}/>
-                    <span>Игнорировать допуска</span>
-                </label>
-                <label class="chk-label">
-                    <input type="checkbox" id="chk-sump" ${calcState.showWithSump ? 'checked' : ''}/>
-                    <span>Снятие/установка защиты картера (+550₽)</span>
-                </label>
-            </div>
-            <div class="ctrl-lbl" style="margin-bottom:6px">Промывка ДВС</div>
+            <div class="ctrl-lbl" style="margin:14px 0 6px">Промывка ДВС</div>
             <div class="seg" data-seg="flush">
                 ${flushChip('none', 'без промывки')}
                 ${flushChip('5min', '5-минутка')}
@@ -696,10 +727,17 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                 ? `<div class="oil-stock">на станции: <b>${stockL} л</b></div>`
                 : '<div class="oil-stock oil-stock-none">нет на станции</div>');
 
+            // c.total и sumpCost() приезжают уже со скидкой — тут только сложение
+            const sump = sumpCost(calcState);
             const sumpSuffix = agg.group === 'engine'
                 ? (calcState.showWithSump
-                    ? ` + 550₽ (снятие/установка защиты картера) = <b>${c.total + 550}₽</b>`
-                    : ' + 550₽ (снятие/установка защиты картера)')
+                    ? ` + ${sump}₽ (снятие/установка защиты картера) = <b>${c.total + sump}₽</b>`
+                    : ` + ${sump}₽ (снятие/установка защиты картера)`)
+                : '';
+            // Разложенная стоимость («900 × 5 + 1200») до скидки, итог — после:
+            // без пометки это выглядит как ошибка в арифметике.
+            const discMark = calcState.discount
+                ? ` <span class="disc-mark" title="было ${c.base}₽">−${DISCOUNT_PCT}%</span>`
                 : '';
 
             const pickHint = canPick
@@ -709,7 +747,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             return `
                 <div class="oil-option${i === 0 ? ' selected' : ''}${canPick ? ' oil-option-pick' : ''}"${canPick ? ` data-picker-toggle="${agg.key}"` : ''}>
                     <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
-                    <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b>${sumpSuffix}</div>
+                    <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b>${discMark}${sumpSuffix}</div>
                     ${oilApprHtml}
                     ${oilAdsHtml}
                     ${stockHtml}
@@ -802,15 +840,19 @@ function renderTotals(data, calcState, carApprovals) {
             `;
         }).join('');
 
+        // sum складывает УЖЕ УЦЕНЁННЫЕ стоимости агрегатов (скидка применена
+        // один раз, в calcForAggregate), поэтому второй раз её тут не трогаем —
+        // иначе «Итого» уходило бы в минус 19% вместо десяти.
         const { sum, hasEngine } = computeTotalSum(tot, aggData);
-        const sumpAdd = calcState.showWithSump && hasEngine ? 550 : 0;
+        const sumpAdd = calcState.showWithSump && hasEngine ? sumpCost(calcState) : 0;
         const display = sum + sumpAdd;
-        const sumpSuffix = sumpAdd ? ` + 550₽ (снятие/установка защиты картера) = <b>${display}₽</b>` : '';
+        const sumpSuffix = sumpAdd ? ` + ${sumpAdd}₽ (снятие/установка защиты картера) = <b>${display}₽</b>` : '';
+        const discMark = calcState.discount ? ` <span class="disc-mark">−${DISCOUNT_PCT}%</span>` : '';
 
         return `
             <div class="total-block">
                 <div class="total-block-h">
-                    <span>Стоимость #${idx + 1}: <b>${sum}₽</b>${sumpSuffix}</span>
+                    <span>Стоимость #${idx + 1}: <b>${sum}₽</b>${sumpSuffix}${discMark}</span>
                     <button class="btn btn-sec" data-tot-del="${idx}" style="padding:3px 8px;font-size:11px">✕</button>
                 </div>
                 ${rowsHtml}
@@ -870,13 +912,8 @@ function bindEvents(container, car, data, calcState, carApprovals) {
         block.addEventListener('mouseleave', () => { panel.textContent = idle; });
     });
 
-    // Ignore approvals
-    const ignChk = container.querySelector('#chk-ignore-approvals');
-    if (ignChk) ignChk.onchange = () => { calcState.ignoreApprovals = ignChk.checked; rerender(); };
-
-    // Sump
-    const sumpChk = container.querySelector('#chk-sump');
-    if (sumpChk) sumpChk.onchange = () => { calcState.showWithSump = sumpChk.checked; rerender(); };
+    // Переключатели «защита картера / скидка / игнорировать допуска» живут не
+    // здесь, а под окном Битрикса — см. renderReportOpts.
 
     // Filters: open/close paste panel
     const addFiltBtn = container.querySelector('#btn-add-filters');

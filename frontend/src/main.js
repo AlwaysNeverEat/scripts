@@ -377,6 +377,9 @@ async function loadCarPage(carId) {
             `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
         document.getElementById('calc-main').innerHTML = '';
         document.getElementById('crm-panel').innerHTML = '';
+        // Панель под окном Битрикса живёт вне #calc-main — гасим её отдельно,
+        // иначе на «не удалось загрузить» остались бы переключатели без расчёта
+        document.getElementById('report-opts').innerHTML = '';
     }
 }
 
