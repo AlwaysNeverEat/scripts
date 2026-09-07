@@ -1485,6 +1485,9 @@ a.btn:visited, a.btn:active { color: var(--text); }
 /* Кому анимация мешает — тому статичная подсветка, а не поездка. */
 @media (prefers-reduced-motion: reduce) {
   .seg-pill { transition: none; }
+  .activity-strip,
+  .activity-map-win,
+  .activity-map-dim { transition: none; }
 }
 
 /* Плашка режима поиска лежит НА СФЕРЕ, и потому она стеклянная: свои
@@ -3010,18 +3013,37 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    читается как шкала, а не как пять разных статусов, и одинаково работает
    в обеих темах.
 
-   ГОД ВЛЕЗАЕТ ЦЕЛИКОМ, прокрутки вбок нет: колонки-недели заданы в 1fr, а
-   квадратность держит aspect-ratio. Поэтому размер клетки — производная от
-   ширины панели, и нигде ниже его нельзя задавать в пикселях (кроме легенды,
-   где клетки — просто иконки шкалы, а не дни). */
+   РАЗМЕР КЛЕТКИ НИГДЕ НЕ ЗАДАН В ПИКСЕЛЯХ (кроме легенды, где клетки — просто
+   иконки шкалы, а не дни): колонки-недели заданы в 1fr, квадратность держит
+   aspect-ratio, а сколько их видно — решает масштаб (--view). Отсюда и
+   крупная клетка: показанные недели делят ту же ширину панели.
+
+   ЛЕНТА ЕДЕТ ЦЕЛИКОМ, а не прокручивается: .activity-view — окно, .activity-strip
+   — все 53 недели, которые под ним сдвигаются transform-ом.
+
+   ЗАЗОР В ОБЕИХ ФОРМУЛАХ НИЖЕ УЧТЁН, и это не педантизм: колонок на одну
+   больше, чем зазоров между ними, поэтому «колонка вместе с зазором» — это
+   (ширина + зазор) / число колонок. Сдвинь мы ленту простыми процентами, за
+   53 недели набежало бы 52 лишних зазора — полторы колонки промаха, и правый
+   край окна показывал бы не ту неделю. Проценты в двух формулах считаются от
+   РАЗНЫХ коробок (в width — от окна, в transform — от самой ленты), потому
+   формулы и выглядят похоже, но переставлять их местами нельзя. */
 .activity { --cell-gap: 3px; }
+/* Шапка ленты: слева масштаб, справа показанный период. Период обязателен —
+   без него после ползунка непонятно, какой кусок года на экране. */
+.activity-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s-3); flex-wrap: wrap;
+  margin-bottom: var(--s-3);
+}
+.activity-period { font-size: 11.5px; color: var(--sub); white-space: nowrap; }
 /* Колонка дней недели — отдельный флекс-столбец: её строки тянутся по высоте
    сетки (растяжкой flex), потому что высота клетки заранее неизвестна. */
 .activity-cols { display: flex; gap: var(--s-2); align-items: stretch; }
 .activity-side { flex: none; width: 20px; display: flex; flex-direction: column; }
 /* Распорка в высоту ряда месяцев — чтобы «Пн» встал против первой строки. */
 .activity-side-gap,
-.activity-months { height: 12px; line-height: 12px; margin-bottom: var(--s-1); }
+.activity-months { height: 14px; line-height: 14px; margin-bottom: var(--s-1); }
 .activity-weekdays {
   flex: 1;
   display: grid;
@@ -3037,13 +3059,93 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
    Так подпись не занимает места вовсе и просто висит по центру своего ряда. */
 .activity-weekdays span { line-height: 0; white-space: nowrap; }
 .activity-main { flex: 1 1 auto; min-width: 0; }   /* min-width — иначе сетка не сожмётся */
+.activity-view { overflow: hidden; }
+.activity-strip {
+  width: calc((100% + var(--cell-gap)) * var(--weeks) / var(--view) - var(--cell-gap));
+  transform: translateX(calc(-1 * var(--pan) * (100% + var(--cell-gap)) / var(--weeks)));
+  transition: transform .28s cubic-bezier(.32, .72, 0, 1),
+              width     .28s cubic-bezier(.32, .72, 0, 1);
+}
+/* КАРТА ГОДА вместо ползунка. Обычный range тут был чужим: круглая ручка на
+   серой дорожке отвечает только на «левее-правее», а вопрос у человека другой —
+   «где я в году и где было густо». Карта отвечает на оба, потому что нарисована
+   из тех же данных: столбик на неделю, высота — сколько записей в ту неделю.
+
+   Ширина карты — вся ширина ленты, и это обязательно: карта и сетка над ней
+   показывают ОДИН И ТОТ ЖЕ год, и рамка обязана стоять ровно под своим куском. */
+.activity-pan { margin-top: var(--s-3); }
+.activity-map {
+  position: relative;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--r-2);
+  background: var(--bg3);
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: none;   /* ведём рамку пальцем, а не прокручиваем ею страницу */
+}
+.activity-map:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.activity-map-bars {
+  position: absolute; inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
+  align-items: end;
+}
+/* Столбики РАЗДЕЛЕНЫ ПРОЗРАЧНОЙ РАМКОЙ, а не зазором сетки: колонка карты
+   должна быть ровно 1/53 её ширины, иначе рамка показанного куска считалась бы
+   с поправкой на зазоры — той самой, из-за которой ниже целый абзац у ленты. */
+.activity-map-bars i {
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  border-right: 1px solid transparent;
+  /* Тот же замес, что у густой клетки сетки (activity-l3): карта и лента
+     нарисованы из одних данных и обязаны выглядеть роднёй. */
+  background: color-mix(in oklab, var(--accent) 75%, var(--bg3));
+  background-clip: padding-box;
+}
+/* Незанятое рамкой — притушено фоном панели, а не серым цветом: карта остаётся
+   читаемой (год виден весь), но взгляд идёт туда, где сейчас лента. */
+.activity-map-dim {
+  position: absolute; top: 0; bottom: 0;
+  background: color-mix(in oklab, var(--bg2) 58%, transparent);
+  pointer-events: none;
+}
+.activity-map-dim-l { left: 0; width: calc(var(--pan) / var(--weeks) * 100%); }
+.activity-map-dim-r { left: calc((var(--pan) + var(--view)) / var(--weeks) * 100%); right: 0; }
+/* Рамка показанного куска. Своего фона у неё почти нет — она не заслонка, а
+   именно рамка: под ней те же столбики, только не притушенные. */
+.activity-map-win {
+  position: absolute; top: 0; bottom: 0;
+  left: calc(var(--pan) / var(--weeks) * 100%);
+  width: calc(var(--view) / var(--weeks) * 100%);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r-2);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--bg2) 60%, transparent);
+  pointer-events: none;
+}
+.activity-map-win,
+.activity-map-dim { transition: left .28s cubic-bezier(.32, .72, 0, 1),
+                                width .28s cubic-bezier(.32, .72, 0, 1); }
+/* Пока рамку ВЕДУТ, переездов нет ни у неё, ни у ленты: рамка обязана стоять
+   под курсором, а не догонять его, и лента под ней — тоже. Плавность нужна
+   смене масштаба и клику мимо рамки, а не движению руки. */
+.activity-dragging .activity-map-win,
+.activity-dragging .activity-map-dim,
+.activity-dragging .activity-strip { transition: none; }
+.activity-dragging .activity-map { cursor: grabbing; }
 .activity-months {
   display: grid;
   grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
   gap: var(--cell-gap);
-  font-size: 9.5px; color: var(--sub);
+  font-size: 10.5px; color: var(--sub);
 }
-.activity-month { text-align: left; white-space: nowrap; }
+/* grid-row: 1 — не для красоты: хвостовая подпись НАРОЧНО залезает на колонки
+   соседки (иначе ей негде уместиться), а автоматическая раскладка от такого
+   наложения увела бы её во вторую строку — то есть на первый ряд клеток. */
+.activity-month { grid-row: 1; text-align: left; white-space: nowrap; }
+/* Хвостовая подпись — вправо: см. комментарий в activityFeed.js. */
+.activity-month-end { text-align: right; }
 .activity-grid {
   display: grid;
   grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
@@ -3054,7 +3156,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-cell {
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 2px;
+  /* Радиус в процентах, а не ступенью шкалы: клетка меняет размер от масштаба
+     втрое, и одно число выглядело бы то острым углом, то пилюлей. Пределы —
+     чтобы на годе клетка не превратилась в точку, а на трёх месяцах в кружок. */
+  border-radius: clamp(2px, 12%, 6px);
   background: var(--bg3);
   cursor: pointer;
   transition: outline-color .12s ease;
@@ -3076,6 +3181,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-legend {
   display: flex; align-items: center; justify-content: flex-end; gap: var(--s-1);
   margin-top: var(--s-2);
+  /* Под картой года легенде нужен воздух: она объясняет цвет КЛЕТОК, и вплотную
+     к карте читалась бы как подпись к её столбикам. */
   font-size: 10px; color: var(--sub);
 }
 /* Клетки легенды — иконки шкалы, а не дни: у них свой фиксированный размер,
@@ -3083,6 +3190,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-legend-cell { width: 10px; height: 10px; aspect-ratio: auto; flex: none; cursor: default; }
 .activity-legend span:first-child { margin-right: 2px; }
 .activity-legend span:last-child { margin-left: 2px; }
+.activity-pan + .activity-legend { margin-top: var(--s-3); }
 /* Итоги под лентой: среднее объясняет всю раскраску, поэтому оно стоит рядом с
    сеткой цифрой, а не строчкой мелкого серого текста над ней. */
 .activity-figures {
@@ -3223,6 +3331,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .profile-stat b { font-size: 22px; }
   .activity { --cell-gap: 2px; }
   .activity-side { display: none; }
+  /* Период уходит под масштаб: в строку они на телефоне не встают, а обрезать
+     подпись «10 июня — 7 сентября 2026» нельзя — она и есть ответ «где мы». */
+  .activity-head { gap: var(--s-2); }
+  .activity-period { font-size: 11px; }
   .activity-figures { gap: var(--s-2); }
   .activity-figure + .activity-figure { padding-left: var(--s-2); }
   .activity-figure b { font-size: 15px; }

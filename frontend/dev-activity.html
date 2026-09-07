@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<!-- Дев-песочница ленты активности из профиля: масштаб, ползунок и клетки —
+     без бэкенда и без базы.
+     Открыть: npx vite → /dev-activity.html
+
+     Здесь проверяется ГЕОМЕТРИЯ: что на «3 месяцах» клетка крупная и в неё
+     удобно целиться, что ползунок доводит ленту ровно до последней недели и
+     не промахивается на зазорах, что подписи месяцев едут вместе с сеткой, а
+     колонка Пн/Ср/Пт остаётся в створе со своими рядами. Разбор данных и
+     раскраску проверяет shared/activityHeatmap.js.
+
+     Данные выдуманные, но с провалами (отпуск, выходные) — ровно на них видно,
+     что яркость считается от среднего по активным дням.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: лента активности</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      const acc = localStorage.getItem('cars_db_accent');
+      if (acc !== null && isFinite(Number(acc))) {
+        const deg = (x) => String(((Math.round(x) % 360) + 360) % 360);
+        document.documentElement.style.setProperty('--accent-h', deg(Number(acc)));
+        document.documentElement.style.setProperty('--accent-h-light', deg(Number(acc) - 21));
+      }
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Активность — песочница</h2>
+    <p class="page-sub">Масштаб, ползунок и окно дня. Клик по клетке открывает выдуманный день.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-sec" data-mode="busy">Работяга</button>
+    <button class="btn btn-sec" data-mode="rare">Редкие записи</button>
+    <button class="btn btn-sec" data-mode="fresh">Новый аккаунт (месяц)</button>
+  </div>
+
+  <div class="page-body">
+    <section class="profile-sec" style="max-width:760px">
+      <div class="profile-sec-head">
+        <h3 class="profile-sec-title">Активность</h3>
+        <span class="profile-sec-meta">последний год</span>
+      </div>
+      <div class="profile-sec-body" id="dev-activity"></div>
+    </section>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, toggleTheme } from './src/theme.js';
+    import { initSegmented } from './src/segmented.js';
+    import { activityFeedHtml, attachActivityFeed } from './src/activityFeed.js';
+    import { addDays } from '../shared/activityHeatmap.js';
+
+    initTheme();
+    initSegmented();
+    document.getElementById('dev-theme').onclick = () => toggleTheme();
+
+    const TO = '2026-09-07';
+
+    // Свой генератор с сидом, а не Math.random: песочницу открывают, чтобы
+    // сравнить «до» и «после», и каждый раз новая картинка этому мешает.
+    function rnd(seed) {
+      let x = seed || 1;
+      return () => {
+        x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+        return ((x >>> 0) % 1000) / 1000;
+      };
+    }
+
+    const MODES = {
+      busy:  { days: 365, chance: 0.72, max: 48 },
+      rare:  { days: 365, chance: 0.18, max: 9 },
+      fresh: { days: 31,  chance: 0.65, max: 22 },
+    };
+
+    function make(mode) {
+      const { days, chance, max } = MODES[mode];
+      const next = rnd(20260907);
+      const from = addDays(TO, -(days - 1));
+      const out = [];
+      for (let i = 0; i < days; i++) {
+        const date = addDays(from, i);
+        const weekend = [5, 6].includes((new Date(date + 'T00:00:00Z').getUTCDay() + 6) % 7);
+        // Отпуск в середине года — провал, на котором видно шкалу.
+        const vacation = i > 150 && i < 172;
+        if (vacation || (weekend && next() < 0.8) || next() > chance) continue;
+        out.push({ date, count: 1 + Math.floor(next() * max) });
+      }
+      return { days: out, from, to: TO };
+    }
+
+    const box = document.getElementById('dev-activity');
+    const day = (date) => Promise.resolve({
+      date, count: 2, skipped: 0, legacy: 0,
+      records: [{
+        madeAt: '12:41', recordId: '102', stationId: '3',
+        stationTitle: 'Охтинская ул. 9/1, Мурино', stationShort: 'Охтинская 9/1',
+        recordDate: date, recordTime: '14:00', durationMin: 60,
+        clientName: 'Иван', phone: '79211234567', carNumber: 'А123БВ178', counted: true,
+      }],
+    });
+
+    function show(mode) {
+      box.innerHTML = activityFeedHtml(make(mode));
+      attachActivityFeed(box, { loadDay: day });
+    }
+
+    for (const b of document.querySelectorAll('[data-mode]')) {
+      b.onclick = () => show(b.dataset.mode);
+    }
+    show('busy');
+  </script>
+</body>
+</html>

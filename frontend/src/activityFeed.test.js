@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { dayRecordsHtml, dayRecordHref } from './activityFeed.js';
+import { activityFeedHtml, dayRecordsHtml, dayRecordHref } from './activityFeed.js';
+import { addDays } from '../../shared/activityHeatmap.js';
 
 // Окно дня — единственное место, где топ показывает, ЗА ЧТО даны очки, поэтому
 // его состояния проверяются отдельно: карточки, «до обновления» целиком,
@@ -88,4 +89,41 @@ test('пользовательский текст экранируется — �
     // Станция и номер записи попадают в href — кавычка там рвала бы атрибут.
     const evil = dayRecordsHtml({ count: 1, legacy: 0, records: [rec({ stationId: '3"onerror="x' })] });
     assert.doesNotMatch(evil, /href="[^"]*"onerror/);
+});
+
+// ── Масштаб ленты ────────────────────────────────────────────────────────────
+// Проверяется РАЗМЕТКА, с которой лента приезжает: окно должно стоять на
+// последних неделях и совпадать с положением ползунка. Разъедься эти два числа
+// — и человек увидел бы сентябрь, а ползунок показывал бы на март.
+
+const yearOfDays = (to, days = 365) => ({
+    from: addDays(to, -(days - 1)),
+    to,
+    days: [{ date: to, count: 3 }],
+});
+
+test('по умолчанию лента открыта на последних неделях, а не на целом годе', () => {
+    const html = activityFeedHtml(yearOfDays('2026-09-07'));
+    assert.match(html, /--view:13/);
+    // Окно стоит в конце: сдвиг равен «всего недель минус показанные».
+    const weeks = Number(/--weeks:(\d+)/.exec(html)[1]);
+    const pan = Number(/--pan:(\d+)/.exec(html)[1]);
+    assert.equal(pan, weeks - 13);
+    // Карта года обязана показывать ровно тот же сдвиг и упираться в него.
+    assert.match(html, new RegExp(`aria-valuemax="${pan}" aria-valuenow="${pan}"`));
+    // Столбиков на карте столько же, сколько недель в сетке: карта и лента
+    // показывают один и тот же год.
+    assert.equal(html.match(/<i style="height:/g).length, weeks);
+    // Подпись периода кончается сегодняшним днём — это и есть «где мы».
+    assert.match(html, /7 сентября 2026<\/span>/);
+});
+
+test('данных меньше масштаба — карты года нет вовсе', () => {
+    // Новый аккаунт: записи за месяц. Двигать окно некуда, и карта, на которой
+    // рамка занимает всё, выглядела бы поломкой.
+    const html = activityFeedHtml(yearOfDays('2026-09-07', 21));
+    const weeks = Number(/--weeks:(\d+)/.exec(html)[1]);
+    assert.match(html, new RegExp(`--view:${weeks}`));
+    assert.match(html, /--pan:0/);
+    assert.match(html, /activity-pan hidden/);
 });
