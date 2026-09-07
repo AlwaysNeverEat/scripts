@@ -28,6 +28,7 @@ import {
     EXTENSION_STUB_PHONE, SLOT_MINUTES, MAX_DURATION_MIN, copyOperatorFor,
     LAST_START_TIME,
 } from '../../../shared/crmRecords.js';
+import { filterStations, stationMatch } from './stationFilter.js';
 import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
@@ -104,6 +105,9 @@ const state = {
     sort: readSort(),      // порядок карточек в обзоре: см. SORTS
     stationId: null,
     search: '',
+    // Быстрый поиск станции: набранное «мимо полей» (см. блок ниже). Живёт
+    // именно тут, а не в DOM, — иначе тик обновления доски стирал бы его.
+    quick: '',
     highlightId: null,     // подсветить запись после перехода из поиска
     modal: null,           // { kind, ... } | null
     enterAnim: false,      // ближайший render() проявляет содержимое анимацией
@@ -814,6 +818,10 @@ function render() {
 // на вкладке «Записи», пока черновик не закрыт, — видно, куда возвращаться.
 function syncModalChrome() {
     document.body.classList.toggle('modal-open', visible && Boolean(state.modal));
+    // Крупная надпись быстрого поиска лежит в <body> и о разделе ничего не
+    // знает — гасим её там же, где гасится вся остальная внешняя обвязка:
+    // поверх открытого окна и на чужой вкладке сайта ей делать нечего.
+    if (!visible || state.modal) hideQuickHint();
     const draft = Boolean(root) && (state.modal?.kind === 'create' || state.modal?.kind === 'edit');
     document.querySelector('.app-tab[data-tab="records"]')?.classList.toggle('has-draft', draft);
 }
@@ -939,6 +947,129 @@ function bannerHtml() {
 
 function renderBanner() { return ''; } // баннер живёт внутри header-блока (rc-banner-slot)
 
+// ── Быстрый поиск станции ────────────────────────────────────────────────────
+//
+// Ничего не выделено, диспетчер просто начинает печатать — и в обзоре остаются
+// ТОЛЬКО подходящие станции, а набранное показывается крупно посреди экрана и
+// само гаснет, стоит перестать печатать. Взято из выбора героя в Dota, и по той
+// же причине: нужную станцию человек и так знает по имени, а тянуться мышью к
+// полю поиска ради трёх букв дольше, чем эти три буквы набрать.
+//
+// С ПОИСКОМ В ШАПКЕ ЭТО РАЗНЫЕ ВЕЩИ, и смешивать их нельзя. Тот ищет КЛИЕНТА
+// (имя, телефон) и открывает конкретную запись; этот только отсеивает карточки
+// станций и ничего не открывает сам. На один и тот же набор цифр у них честно
+// разные ответы, поэтому у быстрого поиска и нет своего поля: он и есть ответ
+// на «поле не нужно».
+//
+// Работает он только в ОБЗОРЕ: на виде станции отсеивать нечего, и клавиши там
+// пусть остаются свободными.
+
+const QUICK_MAX = 24;      // длиннее названия станции всё равно нет
+const QUICK_HOLD_MS = 350; // столько надпись висит после последней клавиши
+
+// Крупная надпись поверх экрана. Держим её ОТДЕЛЬНЫМ УЗЛОМ В <body>, а не
+// внутри раздела, и это не мелочь: доска перечитывается по таймеру раз в 45
+// секунд, а render() выбрасывает и собирает содержимое раздела заново. Узел,
+// лежащий внутри, на каждом тике рождался бы новым — то есть начинал бы
+// проявляться и гаснуть с нуля, а на глаз это ровно то, чего ждёшь от такой
+// поломки: надпись моргает сама по себе. Сам запрос при этом лежит в state
+// (state.quick), поэтому тик не может стереть ни набранное, ни отсев карточек:
+// render() собирает список из состояния, а не читает его с экрана.
+let quickEl = null;
+let quickTimer = 0;
+let onQuickKey = null;
+
+// Правило совпадения и раскладка живут в stationFilter.js — одним знанием на
+// быстрый поиск и на подсказки карты станции.
+function quickFilter(list) {
+    return filterStations(list, state.quick);
+}
+
+function setQuick(v) {
+    const next = String(v).slice(0, QUICK_MAX);
+    if (next === state.quick) return;
+    state.quick = next;
+    paintQuickHint();
+    render();
+}
+
+function paintQuickHint() {
+    if (!state.quick) { hideQuickHint(); return; }
+    if (!quickEl) {
+        quickEl = document.createElement('div');
+        quickEl.className = 'rc-quick';
+        quickEl.setAttribute('aria-hidden', 'true'); // это эхо клавиш, а не содержимое
+        quickEl.innerHTML = '<div class="rc-quick-text"></div>';
+        document.body.appendChild(quickEl);
+    }
+    quickEl.querySelector('.rc-quick-text').textContent = state.quick;
+    quickEl.classList.add('rc-quick-on');
+    clearTimeout(quickTimer);
+    quickTimer = setTimeout(() => quickEl?.classList.remove('rc-quick-on'), QUICK_HOLD_MS);
+}
+
+// Надпись гаснет, а ОТСЕВ ОСТАЁТСЯ: набранное живёт до тех пор, пока станцию
+// не открыли или не сбросили Esc'ом. Поэтому же над сеткой висит плашка с
+// запросом — пропавшие карточки должны иметь видимую причину, а надпись к
+// этому моменту уже погасла.
+function hideQuickHint() {
+    clearTimeout(quickTimer);
+    quickEl?.classList.remove('rc-quick-on');
+}
+
+function destroyQuickHint() {
+    clearTimeout(quickTimer);
+    quickEl?.remove();
+    quickEl = null;
+}
+
+// Печатают в поле — значит, печатают в поле: своя строка поиска, телефон в
+// окне создания, календарь. Быстрый поиск включается только «мимо» них.
+//
+// КНОПКА ПОЛЕМ НЕ СЧИТАЕТСЯ, и это не небрежность: после клика по «По алфавиту»
+// или по карточке станции фокус остаётся на кнопке, и считай мы его вводом,
+// быстрый поиск после каждого клика мышью молча переставал бы работать. Взамен
+// на кнопке ей возвращаются ЕЁ клавиши — Enter и пробел (см. handleQuickKey):
+// отнимать нажатие у того, на чём стоит фокус, нельзя.
+function typingInField(el) {
+    return Boolean(el) && (el.isContentEditable
+        || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+}
+
+function handleQuickKey(e) {
+    if (!root || !visible || state.modal || state.credsNeeded) return;
+    if (state.view !== 'overview' || !state.board) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (typingInField(e.target)) return;
+    const onButton = e.target?.tagName === 'BUTTON'; // фокус после клика мышью
+
+    if (e.key === 'Escape') {
+        if (!state.quick) return;
+        e.preventDefault();
+        return setQuick('');
+    }
+    if (e.key === 'Backspace') {
+        if (!state.quick) return;
+        e.preventDefault();
+        return setQuick(state.quick.slice(0, -1));
+    }
+    if (e.key === 'Enter') {
+        // Отсев оставил ровно то, что нужно, — Enter открывает первую станцию.
+        // Это продолжение той же мысли: до станции доходят, не трогая мышь.
+        if (!state.quick || onButton) return;
+        const hit = quickFilter(sortedStations())[0];
+        if (!hit) return;
+        e.preventDefault();
+        return openStation(hit.addr.id);
+    }
+    // Стрелки, Tab, F5 и прочее — не текст. И пробел на пустом запросе тоже
+    // не текст: он листает страницу, и отнимать это на всякий случай нельзя.
+    if (e.key.length !== 1) return;
+    if (e.key === ' ' && (!state.quick || onButton)) return;
+    e.preventDefault();
+    setQuick(state.quick + e.key);
+}
+
 // ── Обзор всех станций ───────────────────────────────────────────────────────
 
 // Станции обзора в выбранном порядке. Станции без меты (в справочнике нет —
@@ -979,12 +1110,36 @@ function renderSortBar() {
             <button class="chip chip-sm ${state.sort === s.id ? 'active' : ''}"
                 data-action="set-sort" data-sort="${esc(s.id)}" title="${esc(s.title)}">${esc(s.label)}</button>`).join('')}
         </div>
+        ${quickChipHtml()}
     </div>`;
 }
 
+// Плашка активного быстрого поиска. Она обязательна, а не украшение: крупная
+// надпись гаснет через секунду, а половина карточек к этому моменту пропала —
+// без видимой причины это читается как «доска сломалась». Здесь же и единственный
+// способ сбросить отсев мышью.
+function quickChipHtml() {
+    if (!state.quick) return '';
+    return `
+    <button class="rc-quick-chip" data-action="quick-clear" title="Сбросить отсев станций (Esc)">
+        ${icons.search(12)}<b>${esc(state.quick)}</b>${icons.x(12)}
+    </button>`;
+}
+
 function renderOverview() {
-    const withMeta = sortedStations();
-    if (withMeta.length) lastStationCount = withMeta.length;
+    const all = sortedStations();
+    // Скелет считаем по ВСЕМ станциям, а не по отсеянным: он рисуется при смене
+    // дня, когда отсева уже может не быть, и три карточки на месте тридцати
+    // выглядели бы как «половина станций не приехала».
+    if (all.length) lastStationCount = all.length;
+    const withMeta = quickFilter(all);
+    if (!withMeta.length && all.length) {
+        return renderSortBar() + `
+        <main class="rc-overview-none">
+            <b>Ни одна станция не подходит</b>
+            <span>По «${esc(state.quick)}» ничего не нашлось. Backspace — стереть букву, Esc — сбросить.</span>
+        </main>`;
+    }
 
     const grid = state.sort === 'metro'
         ? renderOverviewByLine(withMeta)
@@ -1370,11 +1525,7 @@ function stationHits(query) {
     if (!q) return [];
     return (state.board?.addresses || [])
         .map(addr => ({ addr, meta: metaFor(addr) }))
-        .filter(({ addr, meta }) =>
-            addr.title.toLowerCase().includes(q)
-            || String(meta?.short || '').toLowerCase().includes(q)
-            || String(meta?.metro || '').toLowerCase().includes(q)
-            || String(meta?.boxNo || '').includes(q))
+        .filter(({ addr, meta }) => stationMatch(addr, meta, q))
         .slice(0, 8);
 }
 
@@ -2930,6 +3081,10 @@ function openStation(id, highlightId = null) {
     // кадром. Прошлое положение поэтому не сбрасываем: новая карта стартует
     // оттуда, где стояла старая, и уже сама подъезжает (см. initStationMap).
     if (String(id) !== String(state.stationId)) state.stationMap.fly = true;
+    // Станцию выбрали — маска своё отработала. Возвращаться в обзор человек
+    // будет уже за другим, и заставать там вчерашний отсев ему незачем.
+    state.quick = '';
+    hideQuickHint();
     state.view = 'station';
     state.stationId = id;
     state.highlightId = highlightId;
@@ -2951,6 +3106,7 @@ async function handleAction(btn, ev) {
     const a = btn.dataset.action;
 
     if (a === 'set-date') return switchDate(btn.dataset.date);
+    if (a === 'quick-clear') return setQuick('');
     if (a === 'pick-date') {
         // Свой календарь под тему сайта; скрытый input остаётся моделью
         // значения, а на таче открывается нативный (см. datepicker.js).
@@ -3538,6 +3694,7 @@ function resetState() {
         view: 'overview',
         stationId: null,
         search: '',
+        quick: '',
         highlightId: null,
         modal: null,
         enterAnim: false,
@@ -3568,6 +3725,14 @@ export function startRecords(mount) {
         }
     };
     root.addEventListener('click', onClick);
+
+    // Клавиши слушаем НА ДОКУМЕНТЕ: быстрый поиск включается ровно тогда, когда
+    // фокуса нет ни на чём, — то есть события до раздела не доходят вовсе.
+    // Отсев при этом всё равно проверяет visible и вид: раздел остаётся
+    // собранным, когда с него ушли на калькулятор (pauseRecords), и печатать
+    // там в невидимую доску нельзя.
+    onQuickKey = handleQuickKey;
+    document.addEventListener('keydown', onQuickKey);
 
     onVisibility = () => {
         if (document.hidden) { markAway(); return; }
@@ -3664,6 +3829,9 @@ export function stopRecords() {
     destroyMapCtl();
     destroyStationMapCtl();
     if (root && onClick) root.removeEventListener('click', onClick);
+    if (onQuickKey) document.removeEventListener('keydown', onQuickKey);
+    onQuickKey = null;
+    destroyQuickHint();
     onClick = null;
     onVisibility = null;
     root = null;
