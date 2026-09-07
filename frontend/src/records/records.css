@@ -384,6 +384,88 @@
 
 .rc-sortbar + .rc-overview { margin-top: var(--s-3); }
 
+/* ── Быстрый поиск станции ─────────────────────────────────────── */
+
+/* Крупная надпись поверх экрана: эхо набранного «мимо полей». Слой ниже вкладок
+   сайта (520) и окон (500) — это подсказка, а не поверхность поверх всего, и
+   кликов она не ловит вовсе (мышью в это время всё равно не работают). */
+.rc-quick {
+    position: fixed;
+    inset: 0;
+    z-index: 480;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--s-6);
+    /* Заслонка ЦВЕТОМ ФОНА, а не чёрным: в тёмной теме это и есть затемнение,
+       а в светлой чёрная плёнка спорила бы с надписью — та рисуется --text,
+       то есть тёмным. Смысл в обоих случаях один: содержимое отступает на шаг
+       назад, набранное выходит вперёд. */
+    background: color-mix(in oklab, var(--bg) 52%, transparent);
+    pointer-events: none;
+    opacity: 0;
+    /* Гаснет за секунду, а проявляется мгновенно, и это разные скорости не по
+       вкусу: набранное нужно видеть с первой буквы, иначе поиск отстаёт от рук,
+       а вот исчезновение — фон, и рывком оно читается как мигание. */
+    transition: opacity 0.7s ease;
+}
+
+.rc-quick.rc-quick-on {
+    opacity: 1;
+    transition-duration: 0.08s;
+}
+
+.rc-quick-text {
+    max-width: 100%;
+    /* Затемнение слабое, поэтому надпись держится не фоном, а размером и весом:
+       под ней должно быть видно, как отсеиваются карточки. */
+    font-size: clamp(44px, 11vw, 128px);
+    font-weight: 800;
+    line-height: 1.05;
+    text-align: center;
+    color: var(--text);
+    text-shadow: 0 4px 32px var(--bg), 0 2px 6px var(--bg);
+    white-space: pre-wrap;   /* пробел в середине запроса — такой же символ */
+    overflow-wrap: anywhere;
+}
+
+/* Плашка активного отсева: надпись погасла, а карточек по-прежнему меньше —
+   причина должна остаться на виду. Она же и кнопка сброса. */
+.rc-quick-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: 3px var(--s-2) 3px var(--s-3);
+    border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);
+    border-radius: var(--r-round);
+    background: color-mix(in oklab, var(--accent) 13%, transparent);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.6;
+    cursor: pointer;
+}
+.rc-quick-chip b { font-weight: 700; }
+.rc-quick-chip:hover { background: color-mix(in oklab, var(--accent) 22%, transparent); }
+.rc-quick-chip svg:last-child { color: var(--sub); }
+
+/* Отсев не оставил ни одной станции. Пустая сетка тут не годится: она
+   неотличима от «день не приехал». */
+.rc-overview-none {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+    align-items: center;
+    text-align: center;
+    margin-top: var(--s-7);
+    color: var(--sub);
+    font-size: 13px;
+}
+.rc-overview-none b { color: var(--text); font-size: 15px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .rc-quick { transition: none; }
+}
+
 .rc-overview {
     margin-top: var(--s-4);
     display: grid;
