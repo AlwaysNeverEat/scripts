@@ -1485,7 +1485,9 @@ a.btn:visited, a.btn:active { color: var(--text); }
 /* Кому анимация мешает — тому статичная подсветка, а не поездка. */
 @media (prefers-reduced-motion: reduce) {
   .seg-pill { transition: none; }
-  .activity-strip { transition: none; }
+  .activity-strip,
+  .activity-map-win,
+  .activity-map-dim { transition: none; }
 }
 
 /* Плашка режима поиска лежит НА СФЕРЕ, и потому она стеклянная: свои
@@ -3064,11 +3066,74 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   transition: transform .28s cubic-bezier(.32, .72, 0, 1),
               width     .28s cubic-bezier(.32, .72, 0, 1);
 }
-/* Ползунок во всю ширину: он про горизонталь сетки, и короткая дорожка под
-   широкой лентой читалась бы как чужой контрол. Ручка и трек — общие для
-   сайта (input[type="range"] выше), своих цветов у ленты нет. */
+/* КАРТА ГОДА вместо ползунка. Обычный range тут был чужим: круглая ручка на
+   серой дорожке отвечает только на «левее-правее», а вопрос у человека другой —
+   «где я в году и где было густо». Карта отвечает на оба, потому что нарисована
+   из тех же данных: столбик на неделю, высота — сколько записей в ту неделю.
+
+   Ширина карты — вся ширина ленты, и это обязательно: карта и сетка над ней
+   показывают ОДИН И ТОТ ЖЕ год, и рамка обязана стоять ровно под своим куском. */
 .activity-pan { margin-top: var(--s-3); }
-.activity-range { display: block; width: 100%; }
+.activity-map {
+  position: relative;
+  height: 34px;
+  padding: 0;
+  border-radius: var(--r-2);
+  background: var(--bg3);
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: none;   /* ведём рамку пальцем, а не прокручиваем ею страницу */
+}
+.activity-map:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.activity-map-bars {
+  position: absolute; inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
+  align-items: end;
+}
+/* Столбики РАЗДЕЛЕНЫ ПРОЗРАЧНОЙ РАМКОЙ, а не зазором сетки: колонка карты
+   должна быть ровно 1/53 её ширины, иначе рамка показанного куска считалась бы
+   с поправкой на зазоры — той самой, из-за которой ниже целый абзац у ленты. */
+.activity-map-bars i {
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  border-right: 1px solid transparent;
+  /* Тот же замес, что у густой клетки сетки (activity-l3): карта и лента
+     нарисованы из одних данных и обязаны выглядеть роднёй. */
+  background: color-mix(in oklab, var(--accent) 75%, var(--bg3));
+  background-clip: padding-box;
+}
+/* Незанятое рамкой — притушено фоном панели, а не серым цветом: карта остаётся
+   читаемой (год виден весь), но взгляд идёт туда, где сейчас лента. */
+.activity-map-dim {
+  position: absolute; top: 0; bottom: 0;
+  background: color-mix(in oklab, var(--bg2) 58%, transparent);
+  pointer-events: none;
+}
+.activity-map-dim-l { left: 0; width: calc(var(--pan) / var(--weeks) * 100%); }
+.activity-map-dim-r { left: calc((var(--pan) + var(--view)) / var(--weeks) * 100%); right: 0; }
+/* Рамка показанного куска. Своего фона у неё почти нет — она не заслонка, а
+   именно рамка: под ней те же столбики, только не притушенные. */
+.activity-map-win {
+  position: absolute; top: 0; bottom: 0;
+  left: calc(var(--pan) / var(--weeks) * 100%);
+  width: calc(var(--view) / var(--weeks) * 100%);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r-2);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--bg2) 60%, transparent);
+  pointer-events: none;
+}
+.activity-map-win,
+.activity-map-dim { transition: left .28s cubic-bezier(.32, .72, 0, 1),
+                                width .28s cubic-bezier(.32, .72, 0, 1); }
+/* Пока рамку ВЕДУТ, переездов нет ни у неё, ни у ленты: рамка обязана стоять
+   под курсором, а не догонять его, и лента под ней — тоже. Плавность нужна
+   смене масштаба и клику мимо рамки, а не движению руки. */
+.activity-dragging .activity-map-win,
+.activity-dragging .activity-map-dim,
+.activity-dragging .activity-strip { transition: none; }
+.activity-dragging .activity-map { cursor: grabbing; }
 .activity-months {
   display: grid;
   grid-template-columns: repeat(var(--weeks), minmax(0, 1fr));
@@ -3116,6 +3181,8 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-legend {
   display: flex; align-items: center; justify-content: flex-end; gap: var(--s-1);
   margin-top: var(--s-2);
+  /* Под картой года легенде нужен воздух: она объясняет цвет КЛЕТОК, и вплотную
+     к карте читалась бы как подпись к её столбикам. */
   font-size: 10px; color: var(--sub);
 }
 /* Клетки легенды — иконки шкалы, а не дни: у них свой фиксированный размер,
@@ -3123,6 +3190,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .activity-legend-cell { width: 10px; height: 10px; aspect-ratio: auto; flex: none; cursor: default; }
 .activity-legend span:first-child { margin-right: 2px; }
 .activity-legend span:last-child { margin-left: 2px; }
+.activity-pan + .activity-legend { margin-top: var(--s-3); }
 /* Итоги под лентой: среднее объясняет всю раскраску, поэтому оно стоит рядом с
    сеткой цифрой, а не строчкой мелкого серого текста над ней. */
 .activity-figures {

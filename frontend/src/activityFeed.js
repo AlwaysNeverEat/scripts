@@ -14,12 +14,17 @@
 // тема и акцент: это настройка глаза, а не аккаунта.
 //
 // Прокрутки вбок у сетки нет и тут: возить мышью год по кусочкам — ровно то,
-// от чего в своё время ушли. Вместо неё ОДИН ползунок под сеткой (неделя =
-// шаг) и подпись показанного периода рядом с масштабом, чтобы было видно, где
-// мы находимся в году. Лента при этом одна на всю ширину: недели рисуются все,
-// а окно показывает их кусок — колонки от этого становятся шире, клетка
-// крупнее, и ничего не перерисовывается, то есть подсказки и обработчики
-// переживают любое движение ползунка.
+// от чего в своё время ушли. Вместо неё под сеткой лежит КАРТА ГОДА: столбик
+// на неделю, высота — сколько записей в ту неделю сделано, и рамка показанного
+// куска, которую таскают мышью. Обычный ползунок тут был бы чужим: круглая
+// ручка на серой дорожке не отвечает ни на «где я в году», ни на «а где было
+// густо» — она умеет только «левее-правее». Карта отвечает на всё это разом,
+// потому что нарисована из тех же данных, что и сама лента.
+//
+// Лента при этом одна на всю ширину: недели рисуются все, а окно показывает их
+// кусок — колонки от этого становятся шире, клетка крупнее, и ничего не
+// перерисовывается, то есть подсказки и обработчики переживают любое движение
+// карты.
 //
 // Яркость СЧИТАЕТСЯ ОТ СРЕДНЕГО по активным дням (см. shared/activityHeatmap.js),
 // а не от фиксированных порогов: лента должна одинаково читаться и у того, кто
@@ -129,6 +134,26 @@ function periodLabel(from, to) {
     return `${a.slice(-4) === b.slice(-4) ? a.slice(0, -5) : a} — ${b}`;
 }
 
+// ── Карта года под сеткой ────────────────────────────────────────────────────
+// Столбик на неделю, высота — от самой густой недели года. Мера у карты СВОЯ,
+// а не уровни клеток: клетка красится от среднего по активным ДНЯМ, а тут
+// сравниваются НЕДЕЛИ, и «неделя ровно на среднем» ничего не значит — важно,
+// где год гуще, а где отпуск.
+//
+// Столбики не разделены зазором, а «прорезаны» прозрачной рамкой справа
+// (background-clip в стилях): так колонка карты — ровно 1/53 её ширины, и рамка
+// показанного куска встаёт по столбикам без поправок на зазоры.
+function mapBarsHtml(weeks) {
+    const totals = weeks.map(w => w.reduce((sum, c) => sum + (c?.count || 0), 0));
+    const peak = Math.max(1, ...totals);
+    return totals.map((t) => {
+        // Пустая неделя — пустое место, а не полоска в пиксель: провал на карте
+        // такой же ответ, как и всплеск. Непустая — не ниже заметного.
+        const h = t ? Math.max(14, Math.round((t / peak) * 100)) : 0;
+        return `<i style="height:${h}%"></i>`;
+    }).join('');
+}
+
 // Период показанного окна — по самим датам показанных клеток, а не по
 // арифметике «сегодня минус столько-то недель»: крайние колонки добиты до
 // недели пустыми местами (дни за границей года), и считать их нельзя.
@@ -183,6 +208,7 @@ export function activityFeedHtml(data) {
     const zoom = ZOOMS.map(z => `
         <button class="chip chip-sm${z.id === zoomId ? ' active' : ''}"
             data-zoom="${z.id}">${esc(z.label)}</button>`).join('');
+    const period = periodOfDates(h.weeks.slice(pan, pan + view).flat().map(c => c?.date));
 
     // Колонка Пн/Ср/Пт — отдельным флекс-столбцом слева: её строки тянутся по
     // высоте сетки (клетка квадратная и потому зависит от ширины панели),
@@ -196,7 +222,7 @@ export function activityFeedHtml(data) {
         <div class="activity" data-weeks="${total}" style="--weeks:${total}; --view:${view}; --pan:${pan}">
             <div class="activity-head">
                 <div class="activity-zoom" data-seg="activity-zoom">${zoom}</div>
-                <span class="activity-period">${esc(periodOfDates(h.weeks.slice(pan, pan + view).flat().map(c => c?.date)))}</span>
+                <span class="activity-period">${esc(period)}</span>
             </div>
             <div class="activity-cols">
                 <div class="activity-side">
@@ -213,8 +239,19 @@ export function activityFeedHtml(data) {
                 </div>
             </div>
             <div class="activity-pan${total > view ? '' : ' hidden'}">
-                <input type="range" class="activity-range" min="0" max="${Math.max(0, total - view)}"
-                       value="${pan}" step="1" aria-label="Показанный период"/>
+                <!-- role="slider" с клавишами — это НЕ украшение поверх мыши:
+                     таскать рамку с клавиатуры нечем, а лента после этой правки
+                     показывает не весь год, то есть без клавиш часть года стала
+                     бы недоступна вовсе. -->
+                <div class="activity-map" role="slider" tabindex="0"
+                     aria-label="Показанный кусок года"
+                     aria-valuemin="0" aria-valuemax="${Math.max(0, total - view)}" aria-valuenow="${pan}"
+                     aria-valuetext="${esc(period)}">
+                    <div class="activity-map-bars">${mapBarsHtml(h.weeks)}</div>
+                    <i class="activity-map-dim activity-map-dim-l" aria-hidden="true"></i>
+                    <i class="activity-map-dim activity-map-dim-r" aria-hidden="true"></i>
+                    <i class="activity-map-win" aria-hidden="true"></i>
+                </div>
             </div>
             <div class="activity-legend">
                 <span>Меньше</span>${legend}<span>Больше</span>
@@ -381,17 +418,18 @@ function openDayModal(cell, loadDay) {
     });
 }
 
-// ── Масштаб и ползунок ───────────────────────────────────────────────────────
+// ── Масштаб и карта года ─────────────────────────────────────────────────────
 // Двигаем ТОЛЬКО два числа в стиле ленты (--view и --pan), разметку не трогаем:
-// ширина ленты и её сдвиг считаются в CSS от них, а клетки, подсказки и
-// обработчики остаются те же самые. Перерисовывай мы сетку на каждое движение
-// ползунка — 365 узлов рождались бы заново по нескольку раз в секунду.
+// ширина ленты, её сдвиг, рамка на карте и затемнение вокруг неё считаются в
+// CSS от них, а клетки, подсказки и обработчики остаются те же самые.
+// Перерисовывай мы сетку на каждое движение — 365 узлов рождались бы заново по
+// нескольку раз в секунду, и это при том, что ведут рамку мышью.
 //
 // onPan — «спрятать подсказку»: под курсором после сдвига оказывается другой
 // день, а висящая подсказка называла бы старый.
 function setupZoom(box, onPan) {
     const total = Number(box.dataset.weeks) || 0;
-    const range = box.querySelector('.activity-range');
+    const map = box.querySelector('.activity-map');
     const panRow = box.querySelector('.activity-pan');
     const period = box.querySelector('.activity-period');
     const chips = [...box.querySelectorAll('.activity-zoom .chip')];
@@ -409,14 +447,15 @@ function setupZoom(box, onPan) {
         pan = Math.min(Math.max(0, pan), max);
         box.style.setProperty('--view', String(weeks));
         box.style.setProperty('--pan', String(pan));
-        if (range) {
-            range.max = String(max);
-            if (Number(range.value) !== pan) range.value = String(pan);
-        }
         panRow?.classList.toggle('hidden', max === 0);
-        if (period) {
-            period.textContent = periodOfDates(
-                cells.slice(pan * 7, (pan + weeks) * 7).map(c => c.dataset.date));
+        const label = periodOfDates(cells.slice(pan * 7, (pan + weeks) * 7).map(c => c.dataset.date));
+        if (period) period.textContent = label;
+        if (map) {
+            // Слепой рамку не видит, поэтому «где мы» ему говорят словами —
+            // теми же самыми, что зрячему написаны над сеткой.
+            map.setAttribute('aria-valuemax', String(max));
+            map.setAttribute('aria-valuenow', String(pan));
+            map.setAttribute('aria-valuetext', label);
         }
     }
 
@@ -435,14 +474,63 @@ function setupZoom(box, onPan) {
         });
     }
 
-    range?.addEventListener('input', () => {
-        pan = Number(range.value) || 0;
-        onPan?.();
+    // Сдвиг карты, общий для мыши и клавиш. dragging — только чтобы на время
+    // ведения выключить переезды: рамка обязана держаться под курсором, а не
+    // догонять его.
+    const moveTo = (next) => {
+        const was = pan;
+        pan = next;
         apply();
+        if (pan !== was) onPan?.();
+    };
+
+    // Ведение рамки. Схвачено ВНУТРИ рамки — тащим за то место, за которое
+    // взяли; схвачено мимо — рамка прыгает серединой под курсор и дальше едет
+    // за ним. Второе и есть «показать мне вот этот кусок года»: целиться в
+    // тонкую рамку ради прыжка на май незачем.
+    map?.addEventListener('pointerdown', (e) => {
+        if (total <= weeks || e.button > 0) return;
+        e.preventDefault();
+        const rect = map.getBoundingClientRect();
+        const col = rect.width / total;            // ширина недели на карте
+        const winW = weeks * col;
+        const at = (ev) => ev.clientX - rect.left;
+        const inside = Math.abs(at(e) - (pan * col + winW / 2)) <= winW / 2;
+        const grab = inside ? at(e) - pan * col : winW / 2;
+
+        box.classList.add('activity-dragging');
+        map.setPointerCapture(e.pointerId);
+        const drag = (ev) => moveTo(Math.round((at(ev) - grab) / col));
+        const done = () => {
+            box.classList.remove('activity-dragging');
+            map.removeEventListener('pointermove', drag);
+            map.removeEventListener('pointerup', done);
+            map.removeEventListener('pointercancel', done);
+        };
+        map.addEventListener('pointermove', drag);
+        map.addEventListener('pointerup', done);
+        map.addEventListener('pointercancel', done);
+        map.focus();
+        drag(e);
+    });
+
+    // Клавиши — как у нативного ползунка: стрелки на неделю, PageUp/PageDown на
+    // показанный кусок целиком, Home/End в начало и конец года.
+    const KEYS = {
+        ArrowLeft: () => pan - 1, ArrowRight: () => pan + 1,
+        ArrowDown: () => pan - 1, ArrowUp: () => pan + 1,
+        PageDown: () => pan - weeks, PageUp: () => pan + weeks,
+        Home: () => 0, End: () => total,
+    };
+    map?.addEventListener('keydown', (e) => {
+        const next = KEYS[e.key];
+        if (!next || total <= weeks) return;
+        e.preventDefault();
+        moveTo(next());
     });
 
     // Горизонтальное колесо (двумя пальцами по тачпаду) двигает ленту так же,
-    // как ползунок. Вертикальное не трогаем вовсе: страница должна
+    // как рамка на карте. Вертикальное не трогаем вовсе: страница должна
     // прокручиваться сквозь ленту, а не застревать в ней.
     let acc = 0;
     viewport?.addEventListener('wheel', (e) => {
@@ -454,9 +542,7 @@ function setupZoom(box, onPan) {
         const move = Math.trunc(acc / step);
         if (!move) return;
         acc -= move * step;
-        pan += move;
-        onPan?.();
-        apply();
+        moveTo(pan + move);
     }, { passive: false });
 
     apply();
