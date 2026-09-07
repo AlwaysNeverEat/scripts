@@ -159,19 +159,36 @@ export function buildHeatmap({ days = [], from, to } = {}) {
         weeks.push(week);
     }
 
-    const active = cells.filter(c => c.count > 0);
-    const total = active.reduce((sum, c) => sum + c.count, 0);
-    const average = active.length ? total / active.length : 0;
-    for (const cell of cells) cell.level = activityLevel(cell.count, average);
+    // ЯРКОСТЬ КЛЕТОК СЧИТАЕТСЯ ОТ ГОДА ЦЕЛИКОМ, а не от показанного куска, и это
+    // важно: лента зумится и ездит, а шкала при этом обязана стоять на месте.
+    // Пересчитывай мы средее по видимым неделям, одна и та же среда меняла бы
+    // цвет от того, куда доехала карта года, — то есть цвет перестал бы значить
+    // хоть что-нибудь. Цифры ПОД сеткой при этом считаются по показанному куску
+    // (см. frontend/src/activityFeed.js): на масштабе «Год» это одно и то же
+    // число, на трёх месяцах — ответ на «а как шли дела этой весной».
+    const year = statsOfCells(cells);
+    for (const cell of cells) cell.level = activityLevel(cell.count, year.average);
 
     return {
         weeks,
         months: monthLabels(weeks),
-        total,
-        activeDays: active.length,
-        average,
-        best: active.reduce((max, c) => Math.max(max, c.count), 0),
+        ...year,
         from: toIso(start),
         to: toIso(end),
+    };
+}
+
+// Итоги по любому набору клеток: год целиком, показанный кусок, один месяц.
+// Считает ОДИН код, потому что вопрос один и тот же, а разъедься эти две
+// арифметики — «в среднем в активный день» на масштабе «Год» перестало бы
+// совпадать с цифрой, от которой посчитана яркость.
+export function statsOfCells(cells) {
+    const active = cells.filter(c => c && c.count > 0);
+    const total = active.reduce((sum, c) => sum + c.count, 0);
+    return {
+        total,
+        activeDays: active.length,
+        average: active.length ? total / active.length : 0,
+        best: active.reduce((max, c) => Math.max(max, c.count), 0),
     };
 }

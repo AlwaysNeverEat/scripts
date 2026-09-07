@@ -55,7 +55,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
-    buildHeatmap, dayTitle, recordsWord, formatDayRu, WEEKDAYS_SHORT,
+    buildHeatmap, dayTitle, recordsWord, formatDayRu, statsOfCells, WEEKDAYS_SHORT,
 } from '../../shared/activityHeatmap.js';
 import { formatRuPhone, addMinutes } from '../../shared/crmRecords.js';
 import { morphText } from './textMorph.js';
@@ -72,19 +72,43 @@ function formatAverage(avg) {
     return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace('.', ',');
 }
 
-// Цифры ПОД сеткой, тремя колонками: сколько всего за год, от какого среднего
-// считалась яркость и каким был лучший день. Раньше это была одна серая строчка
-// над лентой — её проматывали глазами, хотя среднее объясняет всю раскраску.
-function figuresHtml(h) {
-    if (!h.total) return `<div class="activity-figures activity-figures-empty">За год записей пока нет</div>`;
-    const figure = (value, label) => `
-        <div class="activity-figure"><b>${value}</b><span>${label}</span></div>`;
+// Цифры ПОД сеткой, тремя колонками: сколько записей, от какого среднего и каким
+// был лучший день. Раньше это была одна серая строчка над лентой — её
+// проматывали глазами, хотя цифры и есть ответ на «как шли дела».
+//
+// СЧИТАЮТСЯ ОНИ ПО ПОКАЗАННОМУ КУСКУ, а не по году: с тех пор как лента зумится
+// и ездит, весь блок описывает выбранный кусок года — сетка, рамка на карте,
+// подпись периода, — и годовые цифры под ними были единственным, что жило своей
+// жизнью. Теперь ведение карты меняет и их, а «за что именно» написано над
+// сеткой, поэтому в подписи цифры период не повторяется («490 записей», а не
+// «490 записей за 15 июня — 7 сентября»).
+//
+// ЯРКОСТЬ КЛЕТОК ПРИ ЭТОМ ОСТАЁТСЯ ГОДОВОЙ (см. shared/activityHeatmap.js), и
+// это осознанное расхождение: шкала не должна дёргаться при каждом сдвиге
+// карты, иначе цвет перестанет что-либо значить. На масштабе «Год» оба числа
+// снова совпадают.
+function figuresHtml(stats, empty) {
+    if (empty) return `<div class="activity-figures activity-figures-empty">За год записей пока нет</div>`;
+    // data-morph — имя для перетекания (textMorph.js): цифры меняются на каждом
+    // шаге ведения карты, и подменяться скачком им нельзя.
+    const figure = (name, value, label, labelName = '') => `
+        <div class="activity-figure">
+            <b data-morph="activity-${name}">${value}</b>
+            <span${labelName ? ` data-morph="activity-${labelName}"` : ''}>${label}</span>
+        </div>`;
     return `
         <div class="activity-figures">
-            ${figure(h.total, `${recordsWord(h.total)} за год`)}
-            ${figure(formatAverage(h.average), 'в среднем в активный день')}
-            ${figure(h.best, 'лучший день')}
+            ${figure('total', stats.total, recordsWord(stats.total), 'total-word')}
+            ${figure('average', formatAverage(stats.average), 'в среднем в активный день')}
+            ${figure('best', stats.best, 'лучший день')}
         </div>`;
+}
+
+// Итоги показанного куска. Клетки берутся из самой сетки, а не пересчитываются
+// из дат: в разметке уже лежит число записей каждого дня, и второй источник той
+// же правды рано или поздно разошёлся бы с первым.
+function statsOfShown(cells) {
+    return statsOfCells(cells.map(c => ({ count: Number(c?.dataset?.count) || 0 })));
 }
 
 // Подписи дней недели слева: только Пн/Ср/Пт, иначе не влезают в высоту клетки.
@@ -257,7 +281,7 @@ export function activityFeedHtml(data) {
             <div class="activity-legend">
                 <span>Меньше</span>${legend}<span>Больше</span>
             </div>
-            ${figuresHtml(h)}
+            ${figuresHtml(statsOfCells(h.weeks.slice(pan, pan + view).flat()), !h.total)}
         </div>`;
 }
 
@@ -438,6 +462,11 @@ function setupZoom(box, onPan) {
     const period = box.querySelector('.activity-period');
     const chips = [...box.querySelectorAll('.activity-zoom .chip')];
     const viewport = box.querySelector('.activity-view');
+    const figure = (name) => box.querySelector(`[data-morph="activity-${name}"]`);
+    const figures = {
+        total: figure('total'), word: figure('total-word'),
+        average: figure('average'), best: figure('best'),
+    };
     // Порядок клеток в разметке — колонка за колонкой (grid-auto-flow: column),
     // поэтому день недели i недели w лежит ровно на месте w * 7 + i.
     const cells = [...box.querySelectorAll('.activity-grid .activity-cell')];
@@ -457,6 +486,17 @@ function setupZoom(box, onPan) {
         // карты меняются обычно только числа, и перекат по разрядам показывает
         // ровно это — «15 июня» → «16 марта», а «сентября 2026» стоит на месте.
         if (period) morphText(period, label);
+
+        // Цифры под сеткой — про показанный кусок, поэтому едут вместе с ним.
+        // Пустой кусок честно показывает нули: отпуск — это тоже ответ, а
+        // подмена блока на «записей нет» дёргала бы вёрстку на каждом сдвиге.
+        if (figures.total) {
+            const stats = statsOfShown(cells.slice(pan * 7, (pan + weeks) * 7));
+            morphText(figures.total, stats.total);
+            morphText(figures.word, recordsWord(stats.total));
+            morphText(figures.average, formatAverage(stats.average));
+            morphText(figures.best, stats.best);
+        }
         if (map) {
             // Слепой рамку не видит, поэтому «где мы» ему говорят словами —
             // теми же самыми, что зрячему написаны над сеткой.

@@ -19,6 +19,7 @@ import { initTheme } from './theme.js';
 import { initAccent } from './accent.js';
 import { initBackground, currentBackground } from './background.js';
 import { initSegmented } from './segmented.js';
+import { initTextMorph } from './textMorph.js';
 import { initSelects } from './select.js';
 // «Лиды» (панель Битрикса) отложены — см. docs/BITRIX.md. Сам модуль
 // frontend/src/leads.js на месте, выключена только проводка.
@@ -37,6 +38,9 @@ initBackground();
 // Капсулы-переключатели: один раз на страницу, дальше следят за собой сами
 // (записи и калькулятор перерисовывают свои куски через innerHTML).
 initSegmented();
+// Перетекающий текст по атрибуту data-morph — тоже один раз на страницу и
+// дальше сам следит за новой разметкой (см. textMorph.js).
+initTextMorph();
 initSelects();
 
 // ── API config ────────────────────────────────────────────────────────────────

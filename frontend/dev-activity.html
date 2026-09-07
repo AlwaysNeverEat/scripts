@@ -3,6 +3,9 @@
      без бэкенда и без базы.
      Открыть: npx vite → /dev-activity.html
 
+     Здесь же видно перетекание цифр (textMorph.js): и при ведении карты года,
+     и при смене набора данных кнопками.
+
      Здесь проверяется ГЕОМЕТРИЯ: что на «3 месяцах» клетка крупная и в неё
      удобно целиться, что ползунок доводит ленту ровно до последней недели и
      не промахивается на зазорах, что подписи месяцев едут вместе с сеткой, а
@@ -56,11 +59,15 @@
     import './src/style.css';
     import { initTheme, toggleTheme } from './src/theme.js';
     import { initSegmented } from './src/segmented.js';
+    import { initTextMorph } from './src/textMorph.js';
     import { activityFeedHtml, attachActivityFeed } from './src/activityFeed.js';
     import { addDays } from '../shared/activityHeatmap.js';
 
     initTheme();
     initSegmented();
+    // Смена набора данных кнопками — это перерисовка блока целиком: цифры
+    // перетекают из прежних по data-morph, как на живом сайте.
+    initTextMorph();
     document.getElementById('dev-theme').onclick = () => toggleTheme();
 
     const TO = '2026-09-07';
