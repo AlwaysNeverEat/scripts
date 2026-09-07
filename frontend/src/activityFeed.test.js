@@ -127,3 +127,32 @@ test('данных меньше масштаба — карты года нет 
     assert.match(html, /--pan:0/);
     assert.match(html, /activity-pan hidden/);
 });
+
+test('цифры под сеткой — про показанный кусок, а не про весь год', () => {
+    // Сто записей прошлой осенью и пять на этой неделе: в окне «3 месяца»
+    // должны стоять пять. Годовая сотня — это ответ на вопрос, которого в этот
+    // момент никто не задавал: и сетка, и рамка на карте, и подпись периода
+    // показывают последние три месяца.
+    const html = activityFeedHtml({
+        from: addDays('2026-09-07', -364), to: '2026-09-07',
+        days: [{ date: '2025-10-01', count: 100 }, { date: '2026-09-07', count: 5 }],
+    });
+    assert.match(html, /data-morph="activity-total">5</);
+    assert.doesNotMatch(html, /data-morph="activity-total">105</);
+    assert.match(html, /data-morph="activity-best">5</);
+    // Склонение считается от того же числа, что показано.
+    assert.match(html, /data-morph="activity-total-word">записей</);
+});
+
+test('пустой кусок показывает нули, а пустой год — словами', () => {
+    // Отпуск — это тоже ответ: блок остаётся на месте, цифры честно нулевые.
+    const vacation = activityFeedHtml({
+        from: addDays('2026-09-07', -364), to: '2026-09-07',
+        days: [{ date: '2025-10-01', count: 100 }],
+    });
+    assert.match(vacation, /data-morph="activity-total">0</);
+    assert.doesNotMatch(vacation, /записей пока нет/);
+    // А вот когда записей нет вовсе, три нуля выглядели бы издевательством.
+    const empty = activityFeedHtml({ from: addDays('2026-09-07', -364), to: '2026-09-07', days: [] });
+    assert.match(empty, /За год записей пока нет/);
+});
