@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.776
+// @version      2.23.783
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -2880,6 +2880,19 @@
     const n = Number(x);
     return Number.isFinite(n) ? Math.round(n * 1e3) / 1e3 : 0;
   };
+  var DISCOUNT_PCT = 10;
+  var SUMP_COST = 550;
+  function applyDiscount(sum, calcState2) {
+    const n = Math.round(Number(sum) || 0);
+    if (!calcState2 || !calcState2.discount) return n;
+    return Math.round(n * (100 - DISCOUNT_PCT) / 100);
+  }
+  function sumpCost(calcState2) {
+    return applyDiscount(SUMP_COST, calcState2);
+  }
+  function discountNote(calcState2) {
+    return calcState2 && calcState2.discount ? ` (со скидкой ${DISCOUNT_PCT}%)` : "";
+  }
   function normApproval(s) {
     if (!s) return "";
     return s.toString().toUpperCase().replace(/APPROVAL/g, "").replace(/LICENSE.*$/, "").replace(/[\s\-_\.\/,;:()]+/g, "").replace(/MERCEDES|MBAPPROVAL/g, "MB").replace(/VOLKSWAGEN/g, "VW").replace(/RENAULTRN|RENAULT/g, "RN").replace(/GMOPEL|OPEL/g, "GM").replace(/BMWLL|LONGLIFE/g, "LL").replace(/JAGUARLANDROVER|JAGUAR/g, "STJLR").replace(/FORDWSS/g, "FORDWSS").replace(/АВТОВАЗ/g, "VAZ");
@@ -3555,7 +3568,8 @@
         total = price * vCalc + labor;
         breakdown = `${price} × ${vCalc} + 1900 + 550`;
       }
-      return { oil, total: Math.round(total), breakdown };
+      const base = Math.round(total);
+      return { oil, total: applyDiscount(base, calcState2), base, breakdown };
     });
     if (agg.group === "engine") costs.sort((a, b) => a.total - b.total);
     return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
@@ -3613,21 +3627,19 @@
         lines.push(`промывка двс (полная) - ${oilCost + 550}₽ (${litres}л × 350₽ + 550 услуга)`);
       }
       if (lines.length > 1) lines.push("");
-      if (isFixedSingle) {
-        calc.costs.slice(0, 1).forEach((c) => {
-          const sumpLine = calcState2.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : "";
-          lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
-        });
-      } else if (is0w20) {
-        calc.costs.forEach((c) => {
-          const sumpLine = calcState2.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : "";
-          lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
+      const sump = sumpCost(calcState2);
+      const note = discountNote(calcState2);
+      if (isFixedSingle || is0w20) {
+        const shown = isFixedSingle ? calc.costs.slice(0, 1) : calc.costs;
+        shown.forEach((c) => {
+          const sumpLine = calcState2.showWithSump ? ` + ${sump}₽ (снятие/установка защиты картера) = ${c.total + sump}₽` : "";
+          lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}${note}`);
         });
       } else {
         calc.costs.forEach((c) => {
           const base = `${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`;
-          const sumpLine = calcState2.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : " + 550₽ (снятие/установка защиты картера)";
-          lines.push(base + sumpLine);
+          const sumpLine = calcState2.showWithSump ? ` + ${sump}₽ (снятие/установка защиты картера) = ${c.total + sump}₽` : ` + ${sump}₽ (снятие/установка защиты картера)`;
+          lines.push(base + sumpLine + note);
         });
       }
     } else if (agg.group === "auto") {
@@ -3650,12 +3662,12 @@
       const extraTxt = extras.length ? " + " + extras.join(" + ") : "";
       lines.push(`${typeTxt} (${calc.vCalc}л / ${pct})${extraTxt}`);
       if (!isCvt && agg.atfWarn) lines.push("подходящих масел в наличии нет — перевести на мастера");
-      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
+      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${discountNote(calcState2)}`));
     } else {
       const vService = roundL(calc.vService).toFixed(1);
       lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
       if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
-      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
+      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${discountNote(calcState2)}`));
     }
     return lines.join("\n");
   }
@@ -3678,10 +3690,12 @@
         if (agg.key === "engine") hasEngine = true;
       }
       if (!parts.length) continue;
+      const sump = sumpCost(calcState2);
+      const note = discountNote(calcState2);
       if (calcState2.showWithSump && hasEngine) {
-        lines.push(`${parts.join(" + ")} + 550(снятие/установка защиты картера) = ${sum + 550}₽`);
+        lines.push(`${parts.join(" + ")} + ${sump}(снятие/установка защиты картера) = ${sum + sump}₽${note}`);
       } else {
-        lines.push(`${parts.join(" + ")} = ${sum}₽`);
+        lines.push(`${parts.join(" + ")} = ${sum}₽${note}`);
       }
     }
     return lines;
