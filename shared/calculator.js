@@ -22,6 +22,35 @@ export const roundL = (x) => {
     return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : 0;
 };
 
+// ── Скидка и защита картера ───────────────────────────────────────────────────
+// Скидка применяется РОВНО ОДИН РАЗ и ровно в одном месте — к окончательной
+// стоимости агрегата (`total` в calcForAggregate) и к надбавке за защиту
+// картера. Всё, что считается дальше — строка «Итого», текст для Битрикса,
+// подписи карточек, — складывает УЖЕ УЦЕНЁННЫЕ числа и своей скидки не
+// накидывает: иначе «Итого» из двух агрегатов со скидкой уходило бы в минус
+// 19%, а не 10%. Поэтому applyDiscount не зовут ни в report.js, ни в UI —
+// там берут готовые `total` и `sumpCost()`.
+export const DISCOUNT_PCT = 10;
+export const SUMP_COST = 550;
+
+export function applyDiscount(sum, calcState) {
+    const n = Math.round(Number(sum) || 0);
+    if (!calcState || !calcState.discount) return n;
+    return Math.round(n * (100 - DISCOUNT_PCT) / 100);
+}
+
+// Надбавка за снятие/установку защиты картера. Скидка на неё распространяется:
+// это такая же работа, как замена, и клиенту называют одну итоговую цену.
+export function sumpCost(calcState) {
+    return applyDiscount(SUMP_COST, calcState);
+}
+
+// Подпись к уценённой сумме. Без неё разложенная стоимость («900 × 5 + 1200»)
+// не сходится с итогом, и оператор ищет ошибку в арифметике.
+export function discountNote(calcState) {
+    return calcState && calcState.discount ? ` (со скидкой ${DISCOUNT_PCT}%)` : '';
+}
+
 // ── Approval normalisation ────────────────────────────────────────────────────
 
 export function normApproval(s) {
@@ -870,7 +899,11 @@ export function calcForAggregate(agg, calcState, carApprovals) {
             total = price * vCalc + labor;
             breakdown = `${price} × ${vCalc} + 1900 + 550`;
         }
-        return { oil, total: Math.round(total), breakdown };
+        // ЕДИНСТВЕННОЕ место, где применяется скидка: `total` уже уценён, и
+        // ниже по течению (итого, отчёт, карточки) её накидывать нельзя.
+        // `base` оставлен рядом — по нему видно, от чего считали.
+        const base = Math.round(total);
+        return { oil, total: applyDiscount(base, calcState), base, breakdown };
     });
 
     // Клиенту первым называем то, что дешевле, а дорогое остаётся вариантом на
@@ -897,6 +930,9 @@ export function totalAggLabel(agg) {
 
 export const totalOilLabel = (oil) => `${oil.b} ${oil.n}`;
 
+// Скидка тут НЕ применяется: `calc.costs[].total` приезжает сюда уже
+// уценённым из calcForAggregate. Умножить сумму ещё раз на 0.9 значило бы
+// дать 19% — тот самый двойной счёт, ради которого скидка живёт в одном месте.
 export function computeTotalSum(tot, aggData) {
     let sum = 0, hasEngine = false;
     for (const { agg, calc } of aggData) {

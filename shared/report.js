@@ -7,7 +7,7 @@
 
 import { roundL, calcForAggregate, getAggregates, filtersTotal,
          totalAggLabel, totalOilLabel, computeTotalSum,
-         manualWarnText } from './calculator.js';
+         manualWarnText, sumpCost, discountNote } from './calculator.js';
 
 // ── Per-aggregate text block ──────────────────────────────────────────────────
 
@@ -48,23 +48,24 @@ export function formatAggText(agg, calc, calcState) {
 
         if (lines.length > 1) lines.push('');
 
-        if (isFixedSingle) {
-            calc.costs.slice(0, 1).forEach(c => {
-                const sumpLine = calcState.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : '';
-                lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
-            });
-        } else if (is0w20) {
-            calc.costs.forEach(c => {
-                const sumpLine = calcState.showWithSump ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽` : '';
-                lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}`);
+        // c.total уже со скидкой, sumpCost() — тоже: складываем готовые числа
+        // и подписываем строку, иначе разложенная стоимость выше не сойдётся
+        // с итогом и оператор пойдёт искать ошибку в арифметике.
+        const sump = sumpCost(calcState);
+        const note = discountNote(calcState);
+        if (isFixedSingle || is0w20) {
+            const shown = isFixedSingle ? calc.costs.slice(0, 1) : calc.costs;
+            shown.forEach(c => {
+                const sumpLine = calcState.showWithSump ? ` + ${sump}₽ (снятие/установка защиты картера) = ${c.total + sump}₽` : '';
+                lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}${note}`);
             });
         } else {
             calc.costs.forEach(c => {
                 const base     = `${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`;
                 const sumpLine = calcState.showWithSump
-                    ? ` + 550₽ (снятие/установка защиты картера) = ${c.total + 550}₽`
-                    : ' + 550₽ (снятие/установка защиты картера)';
-                lines.push(base + sumpLine);
+                    ? ` + ${sump}₽ (снятие/установка защиты картера) = ${c.total + sump}₽`
+                    : ` + ${sump}₽ (снятие/установка защиты картера)`;
+                lines.push(base + sumpLine + note);
             });
         }
     } else if (agg.group === 'auto') {
@@ -89,12 +90,12 @@ export function formatAggText(agg, calc, calcState) {
         const extraTxt = extras.length ? ' + ' + extras.join(' + ') : '';
         lines.push(`${typeTxt} (${calc.vCalc}л / ${pct})${extraTxt}`);
         if (!isCvt && agg.atfWarn) lines.push('подходящих масел в наличии нет — перевести на мастера');
-        calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
+        calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${discountNote(calcState)}`));
     } else {
         const vService = roundL(calc.vService).toFixed(1);
         lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
         if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
-        calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`));
+        calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${discountNote(calcState)}`));
     }
     return lines.join('\n');
 }
@@ -122,10 +123,13 @@ export function buildTotalsLines(calcState, data, carApprovals) {
             if (agg.key === 'engine') hasEngine = true;
         }
         if (!parts.length) continue;
+        // Слагаемые уже уценены в calcForAggregate — тут только складываем.
+        const sump = sumpCost(calcState);
+        const note = discountNote(calcState);
         if (calcState.showWithSump && hasEngine) {
-            lines.push(`${parts.join(' + ')} + 550(снятие/установка защиты картера) = ${sum + 550}₽`);
+            lines.push(`${parts.join(' + ')} + ${sump}(снятие/установка защиты картера) = ${sum + sump}₽${note}`);
         } else {
-            lines.push(`${parts.join(' + ')} = ${sum}₽`);
+            lines.push(`${parts.join(' + ')} = ${sum}₽${note}`);
         }
     }
     return lines;
