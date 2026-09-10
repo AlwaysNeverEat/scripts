@@ -32,7 +32,6 @@ import { filterStations, stationMatch } from './stationFilter.js';
 import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
-import { initTitleWarp, destroyTitleWarp } from './titleWarp.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -1447,7 +1446,7 @@ function renderStation() {
         <div class="rc-station-head">
             <div class="rc-station-headline">
                 <h1 class="rc-station-title" title="${esc(addr.title)}">
-                    <span class="rc-station-name"><span class="rc-warp-src">${esc(meta?.short || addr.title)}</span></span>
+                    ${esc(meta?.short || addr.title)}
                     ${meta?.boxNo ? `<span class="rc-station-code" title="Код для перевода звонка">${esc(meta.boxNo)}</span>` : ''}
                 </h1>
                 <div class="rc-station-chips">
@@ -2947,15 +2946,9 @@ function bind() {
         };
     }
     bindCredsForm();
-    // Карта станции и шейдер на её названии — часть страницы, а не модалки:
-    // собираются при каждой перерисовке вида станции, потому что их узлы
-    // уезжают вместе с разметкой доски.
-    if (state.view === 'station' && state.board) {
-        bindStationMap();
-        initTitleWarp();
-    } else {
-        destroyTitleWarp();
-    }
+    // Карта станции — часть страницы, а не модалки: собирается при каждой
+    // перерисовке вида станции.
+    if (state.view === 'station' && state.board) bindStationMap();
     // Расписание и длительность (окна новой записи и её правки)
     if (state.modal?.kind === 'create' || state.modal?.kind === 'edit') bindPick();
 
@@ -3835,7 +3828,6 @@ export function stopRecords() {
     pendingFocus = null;
     destroyMapCtl();
     destroyStationMapCtl();
-    destroyTitleWarp();
     if (root && onClick) root.removeEventListener('click', onClick);
     if (onQuickKey) document.removeEventListener('keydown', onQuickKey);
     onQuickKey = null;
