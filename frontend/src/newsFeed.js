@@ -12,8 +12,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NEWS_POSTS } from './newsData.js';
+import { morphText } from './textMorph.js';
 
 const SEEN_KEY = 'news_seen_post_ids';
+
+// Ходить в API нужно только кнопкам внутри постов (см. ниже): сами посты
+// статичны и лежат в newsData.js.
+let apiFetchRef = null;
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -77,6 +82,7 @@ const ICONS = {
     check: `${SVG_HEAD}<circle cx="12" cy="12" r="8.5"/><polyline points="8.2 12.2 11 15 16 9.5"/></svg>`,
     sliders: `${SVG_HEAD}<line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.2"/><circle cx="15" cy="16" r="2.2"/></svg>`,
     dot: `${SVG_HEAD}<circle cx="12" cy="12" r="4"/></svg>`,
+    copy: `${SVG_HEAD}<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>`,
 };
 
 const ICON_NEW = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 14.3 9l5.7.5-4.3 3.9 1.2 5.7L12 16.2 7.1 19.1l1.2-5.7L4 9.5 9.7 9z"/></svg>`;
@@ -110,6 +116,38 @@ function tableHtml(table) {
     return `<div class="news-table-wrap"><table class="news-table">${head}<tbody>${body}</tbody></table></div>`;
 }
 
+// ── Кнопка внутри поста ──────────────────────────────────────────────────────
+//
+// Пока такая одна: «Скопировать» из окна записи, которой больше нет. Нажатие
+// не делает НИЧЕГО, и это не недоделка — кнопка и оставлена затем, чтобы по
+// ней было где поскучать. Рядом одно число на всех: сколько раз нажали.
+//
+// СВОЁ число в посте не показывается. В базе оно есть (на нём однажды встанет
+// ачивка), но пасхалка про общую кнопку, а не про личный зачёт: «из них ваших
+// — 12» превращает шутку в отчётность.
+//
+// Счётчик — перетекающий (textMorph.js), как цифры в ленте активности: число
+// меняется НА МЕСТЕ и остаётся тем же по смыслу, а это ровно тот случай, для
+// которого перетекание и заводилось. Имя ему дано по id кнопки — лента
+// собирается заново на каждый заход на вкладку, и помнить прошлое число по
+// узлу бессмысленно, его помнят по имени.
+function buttonHtml(btn) {
+    if (!btn?.id) return '';
+    // Счётчик уже спрашивали на прошлом заходе — ставим его в разметку сразу.
+    // Перетекающий узел помнит прошлую надпись ПО ИМЕНИ, и появись он с
+    // «считаем…», человек увидел бы, как число превращается в «считаем…» и
+    // обратно в то же число (см. textMorph.js).
+    const c = counters.get(btn.id);
+    const initial = c?.loaded ? clickLabel(c.total + c.pending) : (btn.idle || 'считаем…');
+    return `
+    <div class="news-button" data-news-button="${esc(btn.id)}">
+        <button type="button" class="btn btn-sec news-btn-relic">
+            ${ICONS.copy}<span>${esc(btn.label || 'Кнопка')}</span>
+        </button>
+        <span class="news-btn-total" data-morph="news-btn-${esc(btn.id)}">${esc(initial)}</span>
+    </div>`;
+}
+
 function sectionHtml(sec) {
     const icon = ICONS[sec.icon] || ICONS.dot;
     const list = Array.isArray(sec.list) && sec.list.length
@@ -129,6 +167,7 @@ function sectionHtml(sec) {
                 ${sec.text ? `<p class="news-sec-text">${esc(sec.text)}</p>` : ''}
                 ${tableHtml(sec.table)}
                 ${list}
+                ${buttonHtml(sec.button)}
                 ${note}
             </div>
         </section>`;
@@ -150,8 +189,144 @@ function postHtml(post, isNew) {
         </article>`;
 }
 
+// ── Счётчик нажатий ──────────────────────────────────────────────────────────
+//
+// Нажатия уезжают на сервер ПАЧКОЙ, а не по одному. По кнопке-пасхалке щёлкают
+// очередями, и запрос на каждый щелчок — это десятки запросов в секунду ради
+// числа, которое никто не сверяет по секундомеру. Поэтому счётчик растёт на
+// экране сразу, а прирост копится и уходит одним запросом.
+//
+// Состояние живёт в модуле, а не в разметке: лента пересобирается на каждый
+// заход на вкладку, и всё, что помнит только DOM, там теряется — вместе с
+// неотправленными нажатиями.
+const FLUSH_MS = 700;
+const FLUSH_AT = 25;   // длинную очередь щелчков отправляем, не дожидаясь паузы
+const RETRY_MS = 5_000;
+
+const counters = new Map(); // id → { total, pending, timer, sending, loaded }
+
+function counterFor(id) {
+    if (!counters.has(id)) {
+        counters.set(id, { total: 0, pending: 0, timer: 0, sending: false, loaded: false });
+    }
+    return counters.get(id);
+}
+
+export function plural(n, one, few, many) {
+    const mod100 = Math.abs(n) % 100;
+    const mod10 = mod100 % 10;
+    if (mod100 >= 11 && mod100 <= 14) return many;
+    if (mod10 === 1) return one;
+    if (mod10 >= 2 && mod10 <= 4) return few;
+    return many;
+}
+
+// Пробел между разрядами — неразрывный: «1 204 нажатия» не должно переноситься
+// по середине числа.
+export function spaced(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+}
+
+// «1 204 нажатия». Считает и пишет одно место: подпись показывается и при
+// открытии поста, и после каждого нажатия, и расходиться этим двум нельзя.
+export function clickLabel(n) {
+    return `${spaced(n)} ${plural(n, 'нажатие', 'нажатия', 'нажатий')}`;
+}
+
+// Пока счётчик не приехал, СВОЕГО числа не показываем: «0 нажатий» на кнопке,
+// по которой нажимали тысячу раз, — это не «ещё грузится», это неправда. На
+// экране в это время висит подпись из самого поста («считаем…»).
+function paintCounter(id) {
+    const box = document.querySelector(`[data-news-button="${id}"]`);
+    if (!box) return;
+    const c = counterFor(id);
+    if (!c.loaded) return;
+    const total = c.total + c.pending;   // своё нажатие видно сразу, до отправки
+    // Число перетекает (см. buttonHtml), поэтому читать его из textContent
+    // нельзя — своё состояние у нас и так есть.
+    const totalEl = box.querySelector('.news-btn-total');
+    if (totalEl) morphText(totalEl, clickLabel(total));
+}
+
+async function flush(id) {
+    const c = counterFor(id);
+    clearTimeout(c.timer);
+    c.timer = 0;
+    if (!apiFetchRef || c.sending || !c.pending) return;
+    const sent = c.pending;
+    c.pending = 0;
+    c.sending = true;
+    try {
+        const res = await apiFetchRef(`/api/news/buttons/${encodeURIComponent(id)}/click`, {
+            method: 'POST',
+            body: { delta: sent },
+        });
+        // Ответ на нажатие приносит те же счётчики. Своё число (res.mine) в
+        // посте не показывается — см. шапку buttonHtml.
+        c.total = Number(res?.total) || 0;
+        c.loaded = true;
+    } catch {
+        // Сеть отвалилась — нажатия не теряем, а возвращаем в накопитель:
+        // человек их сделал, и на экране они уже посчитаны.
+        c.pending += sent;
+        c.timer = setTimeout(() => flush(id), RETRY_MS);
+    } finally {
+        c.sending = false;
+        paintCounter(id);
+    }
+}
+
+function tap(id, btn) {
+    const c = counterFor(id);
+    c.pending += 1;
+    paintCounter(id);
+    // Перезапуск анимации: класс снимается и вешается в следующем кадре, иначе
+    // частые нажатия не показывали бы ничего — анимация уже идёт.
+    btn.classList.remove('is-tapped');
+    requestAnimationFrame(() => btn.classList.add('is-tapped'));
+    if (c.pending >= FLUSH_AT) return flush(id);
+    clearTimeout(c.timer);
+    c.timer = setTimeout(() => flush(id), FLUSH_MS);
+}
+
+function wireButtons(body) {
+    for (const box of body.querySelectorAll('[data-news-button]')) {
+        const id = box.dataset.newsButton;
+        const btn = box.querySelector('.news-btn-relic');
+        if (!btn) continue;
+        btn.addEventListener('click', () => tap(id, btn));
+        paintCounter(id);
+        if (!apiFetchRef) continue;
+        apiFetchRef(`/api/news/buttons/${encodeURIComponent(id)}`)
+            .then(res => {
+                const c = counterFor(id);
+                c.total = Number(res?.total) || 0;
+                c.loaded = true;
+                paintCounter(id);
+            })
+            .catch(() => {
+                // Не приехало — так и пишем. Нажатия при этом копятся и уедут
+                // при первой же удачной отправке: терять их незачем.
+                const totalEl = box.querySelector('.news-btn-total');
+                // Писать в узел textContent-ом нельзя — он перетекающий, его
+                // содержимое разобрано на сегменты (см. textMorph.js).
+                if (totalEl && !counterFor(id).loaded) morphText(totalEl, 'счётчик не приехал');
+            });
+    }
+}
+
+// Уходя со страницы, досылаем недосчитанное: пачка ждёт паузы в 700 мс, а
+// вкладку закрывают и раньше.
+if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'hidden') return;
+        for (const id of counters.keys()) flush(id);
+    });
+}
+
 // Собираем при каждом заходе: плашки «новое» зависят от того, что уже прочитано.
-export function initNewsFeed() {
+export function initNewsFeed({ apiFetch } = {}) {
+    if (apiFetch) apiFetchRef = apiFetch;
     const body = document.getElementById('news-body');
     if (!body) return;
     if (!NEWS_POSTS.length) {
@@ -160,4 +335,5 @@ export function initNewsFeed() {
     }
     const seen = readSeen();
     body.innerHTML = NEWS_POSTS.map(p => postHtml(p, !seen.has(p.id))).join('');
+    wireButtons(body);
 }

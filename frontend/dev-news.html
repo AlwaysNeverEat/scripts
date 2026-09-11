@@ -2,6 +2,11 @@
 <!-- Дев-песочница вкладки «Новости»: лента постов без бэкенда и без входа.
      Открыть: npx vite → /dev-news.html
      Кнопки внизу гоняют состояние «прочитано / не прочитано» и счётчик вкладки.
+
+     Здесь же живёт кнопка внутри поста («Скопировать» из окна записи, которой
+     больше нет) вместе со своим счётчиком: apiFetch подменён на выдуманный, с
+     задержкой ответа и накопителем в памяти — видно и «считаем…» до первого
+     ответа, и перетекание числа на каждый щелчок, и отправку пачкой.
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -54,6 +59,8 @@
     <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
       <button class="btn btn-sec" id="dev-unread">Сделать непрочитанным</button>
       <button class="btn btn-sec" id="dev-read">Отметить прочитанным</button>
+      <button class="btn btn-sec" id="dev-slow">Ответ сервера: <b id="dev-slow-v">300 мс</b></button>
+      <button class="btn btn-sec" id="dev-offline">Сервер: <b id="dev-offline-v">отвечает</b></button>
     </div>
   </div>
 
@@ -61,12 +68,32 @@
     import './src/style.css';
     import { initTheme } from './src/theme.js';
     import { initNewsFeed, markNewsSeen, unseenNewsCount } from './src/newsFeed.js';
+    import { initTextMorph } from './src/textMorph.js';
 
     initTheme();
+    initTextMorph(); // счётчик кнопки — перетекающий, как цифры в ленте активности
+
+    // Выдуманный бэкенд для счётчика кнопки: та же пара ручек, что в
+    // backend/src/routes/news.js, только счёт лежит в памяти вкладки.
+    let total = 1204;     // «нажали столько раз» — чтобы видеть разряды
+    let mine = 7;
+    let lag = 300;
+    let offline = false;
+    async function apiFetch(path, opts = {}) {
+      await new Promise(r => setTimeout(r, lag));
+      if (offline) throw new Error('сервер не отвечает');
+      if (opts.method === 'POST') {
+        const delta = Math.min(Math.max(Math.trunc(opts.body?.delta || 0), 0), 50);
+        total += delta;
+        mine += delta;
+      }
+      console.log('[dev] ' + (opts.method || 'GET') + ' ' + path, opts.body || '');
+      return { total, mine };
+    }
 
     const badge = document.getElementById('news-badge');
     function refresh() {
-      initNewsFeed();
+      initNewsFeed({ apiFetch });
       const n = unseenNewsCount();
       badge.textContent = n ? String(n) : '';
       badge.classList.toggle('hidden', !n);
@@ -78,6 +105,19 @@
     };
     document.getElementById('dev-read').onclick = () => {
       markNewsSeen();
+      refresh();
+    };
+
+    const slowBtn = document.getElementById('dev-slow');
+    slowBtn.onclick = () => {
+      lag = lag === 300 ? 2500 : 300;
+      document.getElementById('dev-slow-v').textContent = lag + ' мс';
+      refresh();
+    };
+    const offBtn = document.getElementById('dev-offline');
+    offBtn.onclick = () => {
+      offline = !offline;
+      document.getElementById('dev-offline-v').textContent = offline ? 'молчит' : 'отвечает';
       refresh();
     };
 
