@@ -229,6 +229,36 @@
 .rc-banner svg { color: var(--red); flex: none; margin-top: 2px; }
 .rc-banner b { color: var(--red); }
 
+/* Строка для Битрикса не уехала в буфер. Жёлтый, а не красный: запись сделана,
+   ничего не потеряно — просто последний шаг придётся доделать руками. Красный
+   тут занят «оригинал лежит», и уравнивать эти два случая нельзя. */
+.rc-banner-warn {
+    border-color: color-mix(in oklab, var(--accent) 45%, transparent);
+    background: var(--accent-dim);
+}
+.rc-banner-warn svg, .rc-banner-warn b { color: var(--accent); }
+
+.rc-copyfail-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+    margin-top: var(--s-2);
+}
+
+/* Строку показываем целиком и моноширинно: её будут выделять мышью, а
+   обрезанная многоточием строка для этого бесполезна. */
+.rc-copyfail-line {
+    padding: var(--s-1) var(--s-2);
+    border-radius: var(--r-1);
+    background: var(--bg2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    user-select: all;
+}
+
+.rc-copyfail-btn { padding: var(--s-1) var(--s-3); font-size: 11.5px; }
+
 /* ── Предупреждение по станции ─────────────────────────────────── */
 /* «Заправка кондея не работает» — то, что должно попасться на глаза ДО
    разговора с клиентом, поэтому висит в трёх местах сразу: на карточке
@@ -1674,19 +1704,15 @@
     .rc-actions-float { transition: none; transform: none; }
 }
 
-/* Кнопки внутри капсулы — сами капсулы: две прямоугольные плитки в круглой
-   плашке читаются как «панель забыли скруглить». Переход по цвету — ради
-   ответа «В Битрикс», который приходит НА САМУ КНОПКУ (см. flashCopyBtn):
-   подпись на пять секунд меняется на «Скопировано». */
+/* Кнопка внутри капсулы — сама капсула: прямоугольная плитка в круглой плашке
+   читается как «панель забыли скруглить». Кнопка тут одна: копирование строки
+   для Битрикса перестало быть отдельным действием и уехало внутрь записи
+   (см. bitrixLineFor в records.js). */
 .rc-modal .rc-actions-float .btn {
     border-radius: var(--r-round);
     padding: var(--s-2) var(--s-5);
     transition: border-color .1s, background .1s, color .15s;
 }
-.rc-act-done { color: var(--green); border-color: var(--green); }
-.rc-act-done:hover { border-color: var(--green); }
-.rc-act-bad { color: var(--red); border-color: var(--red); }
-.rc-act-bad:hover { border-color: var(--red); }
 
 /* Длительность: шаг кнопками ±30 минут, ручной ввод часов и минут и пресеты.
    Скролла нет намеренно — по нему промахиваются, а тут нужен точный выбор.

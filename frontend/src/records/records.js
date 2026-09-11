@@ -119,6 +119,9 @@ const state = {
     // снова начнут печатать в поиске. fly — открыли другую станцию, карте пора
     // к ней перелететь (флаг одноразовый, гасится в initStationMap).
     stationMap: { query: '', view: null, near: null, hidden: false, fly: false },
+    // Строка для Битрикса, которую не приняли в буфер: { line }. Запись при
+    // этом уже создана — см. noteCopyResult.
+    copyFail: null,
 };
 
 let mapCtl = null;         // Leaflet-контроллер открытой карты (модалки)
@@ -586,7 +589,6 @@ function fieldsFilled(name, phone) {
 function bindActions() {
     const bar = document.getElementById('rc-actions');
     if (!bar) return;
-    paintCopyBtn(); // «Скопировано» переживает перерисовку окна
     const kind = state.modal?.kind === 'edit' ? 'e' : 'f';
     const name = document.getElementById(`rc-${kind}-name`);
     const phone = document.getElementById(`rc-${kind}-phone`);
@@ -931,9 +933,10 @@ function renderTopBar() {
 }
 
 function bannerHtml() {
-    if (state.credsNeeded || !isDown()) return '';
+    const fail = copyFailHtml();
+    if (state.credsNeeded || !isDown()) return fail;
     const pending = pendingOps().length;
-    return `
+    return `${fail}
     <div class="rc-banner">
         ${icons.wifiOff(18)}
         <div>
@@ -943,6 +946,32 @@ function bannerHtml() {
             (${pending} шт.) и применятся автоматически, как только админка оживёт.
         </div>
     </div>`;
+}
+
+// Буфер не принял строку для Битрикса. Показываем её целиком: скопировать
+// руками выделением — единственное, что человеку в этот момент остаётся, а
+// «не удалось скопировать» без самой строки помочь не может ничем.
+function copyFailHtml() {
+    if (!state.copyFail) return '';
+    return `
+    <div class="rc-banner rc-banner-warn">
+        ${icons.alert(18)}
+        <div>
+            <b>Запись сделана, но строка не уехала в буфер.</b>
+            Браузер не дал её записать — скопируйте руками или нажмите «Ещё раз».
+            <div class="rc-copyfail-row">
+                <code class="rc-copyfail-line">${esc(state.copyFail.line)}</code>
+                <button class="btn btn-sec rc-copyfail-btn" data-action="copy-again">${icons.copy(13)} Ещё раз</button>
+                <button class="btn btn-sec rc-copyfail-btn" data-action="drop-copyfail">Скрыть</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+// Итог копирования после удачной операции: получилось — молчим (строка в
+// буфере, и сказать тут нечего), не получилось — вешаем баннер.
+function noteCopyResult(copied, line) {
+    state.copyFail = copied ? null : { line };
 }
 
 function renderBanner() { return ''; } // баннер живёт внутри header-блока (rc-banner-slot)
@@ -1913,9 +1942,8 @@ function modalCreate(m) {
 
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
             <div class="modal-actions rc-actions-float" id="rc-actions">
-                <button class="btn btn-sec" data-action="copy-new"
-                    title="Строка для Битрикса: дата, время и адрес">${copyBtnLabel(m.copyFlash)}</button>
-                <button class="btn btn-pri" data-action="submit-create">${icons.plus(14)} Записать${isDown() ? ' (встанет в очередь)' : ''}</button>
+                <button class="btn btn-pri" data-action="submit-create"
+                    title="Запишет и положит в буфер строку для Битрикса: дата, время и адрес">${icons.plus(14)} Записать и скопировать${isDown() ? ' (встанет в очередь)' : ''}</button>
             </div>
         </div>
     </div>`;
@@ -2129,9 +2157,8 @@ function modalEdit(m) {
 
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
             <div class="modal-actions rc-actions-float" id="rc-actions">
-                <button class="btn btn-sec" data-action="copy-edit"
-                    title="Строка для Битрикса: дата, время и адрес">${copyBtnLabel(m.copyFlash)}</button>
-                <button class="btn btn-pri" data-action="submit-edit">${icons.check(14)} Сохранить${isDown() ? ' (в очередь)' : ''}</button>
+                <button class="btn btn-pri" data-action="submit-edit"
+                    title="Сохранит и положит в буфер строку для Битрикса: дата, время и адрес">${icons.check(14)} Сохранить и скопировать${isDown() ? ' (в очередь)' : ''}</button>
             </div>
         </div>
     </div>`;
@@ -3272,7 +3299,12 @@ async function handleAction(btn, ev) {
     }
     if (a === 'submit-delete') return submitDelete();
 
-    if (a === 'copy-new' || a === 'copy-edit') return copyBitrixLine(a === 'copy-edit' ? 'edit' : 'create');
+    if (a === 'copy-again') {
+        if (await toClipboard(state.copyFail?.line)) { state.copyFail = null; if (!patchStatus()) render(); }
+        return;
+    }
+    if (a === 'drop-copyfail') { state.copyFail = null; if (!patchStatus()) render(); return; }
+
     if (a === 'copy-chain') {
         const found = chainByHead(btn.dataset.head);
         if (!found) return;
@@ -3387,91 +3419,50 @@ function revalidateCreatePick() {
     setPickDuration(m.durationMinutes);
 }
 
-// Строка для Битрикса из ещё не сохранённой записи: пока операция идёт в
-// очереди, оператор уже заполняет CRM и берёт следующий звонок. Формат тот же,
-// что у «Копировать» в карточке записи.
+// Строка для Битрикса — часть САМОЙ ЗАПИСИ, а не отдельного действия.
 //
-// ОТВЕТ ПРИХОДИТ НА САМУ КНОПКУ, а не строкой рядом. Раньше рядом печаталась
-// целиком скопированная строка («03.09.2026 20:00 Оптиков 2 (Игорь) —
-// скопировано») — это отладочная подпись: оператор только что сам её и
-// собрал, читать её заново незачем, а в буфер она уже уехала. Нужен ему ровно
-// один факт — получилось или нет.
-const COPY_FLASH_MS = 5_000;
-let copyFlashTimer = 0;
-
-function copyBtnLabel(flash) {
-    if (!flash) return `${icons.copy(14)} В Битрикс`;
-    return `${flash.bad ? icons.alert(14) : icons.check(14)} ${esc(flash.text)}`;
-}
-
-// Подпись меняется НА МЕСТЕ, без render(): полная перерисовка окна сбросила бы
-// фокус из поля, в котором оператор в этот момент печатает. Но и в состоянии
-// окна её помним — окно пересобирается от приехавшей карточки записи, и
-// «Скопировано» не должно пропадать от чужого запроса.
-function paintCopyBtn() {
-    const btn = root?.querySelector('#rc-actions [data-action^="copy-"]');
-    if (!btn) return;
-    const flash = state.modal?.copyFlash || null;
-    btn.innerHTML = copyBtnLabel(flash);
-    btn.classList.toggle('rc-act-done', Boolean(flash) && !flash.bad);
-    btn.classList.toggle('rc-act-bad', Boolean(flash?.bad));
-}
-
-function flashCopyBtn(text, bad = false) {
+// Раньше в обоих окнах стояли две кнопки: «В Битрикс» и «Записать». Жали их
+// всегда подряд, одну за другой, — и единственным, чем отличался порядок,
+// была забывчивость: строку не скопировали, запись ушла, а в Битриксе пусто.
+// Теперь кнопка одна и делает обе работы, причём В ТОМ ЖЕ ПОРЯДКЕ, в каком их
+// делали руками: сперва буфер, потом операция.
+//
+// Порядок тут не вкусовщина. Операция может уехать в очередь (оригинал лёг) и
+// применяться минутами, а строку оператор несёт в Битрикс сразу. И вторая
+// причина техническая: буфер браузер даёт писать только по живому клику —
+// после первого же await разрешение может быть уже потеряно.
+function bitrixLineFor(kind, date) {
     const m = state.modal;
-    if (!m) return;
-    m.copyFlash = { text, bad };
-    paintCopyBtn();
-    clearTimeout(copyFlashTimer);
-    copyFlashTimer = setTimeout(() => {
-        if (state.modal !== m) return; // окно уже закрыли или сменили
-        m.copyFlash = null;
-        paintCopyBtn();
-    }, COPY_FLASH_MS);
+    if (!m) return '';
+    if (kind === 'edit') {
+        const found = chainByHead(m.headId);
+        if (!found) return '';
+        const title = stationById(m.targetAddressId || found.addr.id, pickCtx(m)?.board)?.title || '';
+        return buildCopyLine(date || m.targetDate, m.targetTime, title, operatorName());
+    }
+    const title = stationById(m.addressId, createBoard(m))?.title || '';
+    return buildCopyLine(date || m.date, m.time, title, operatorName());
+}
+
+// Отказ буфера запись НЕ отменяет: работа оператора важнее, а буфер отвалиться
+// может по причинам, к записи отношения не имеющим (http вместо https, старый
+// браузер, отобранное разрешение). Но и молчать нельзя — человек уверен, что
+// строка у него в руках. Поэтому запись уходит, а строка остаётся на экране
+// баннером: её можно выделить руками или попробовать скопировать ещё раз.
+async function toClipboard(line) {
+    if (!line) return false;
+    try {
+        await navigator.clipboard.writeText(line);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 // Подпись «(Имя)» ставится только тому, за кем это имя закреплено: у остальных
 // и у гостей строка уходит без скобок.
 function operatorName() {
     return copyOperatorFor(state.viewer?.login);
-}
-
-async function copyBitrixLine(kind) {
-    const m = state.modal;
-    // Причина отказа тоже уходит на кнопку, поэтому она короткая: подробности
-    // на месте подписи «В Битрикс» просто не поместятся и растянут капсулу.
-    const say = (text, bad = false) => flashCopyBtn(text, bad);
-
-    let name = '';
-    let date = '';
-    let time = '';
-    let title = '';
-    if (kind === 'edit') {
-        const found = chainByHead(m.headId);
-        if (!found) return;
-        keepEditFields();
-        name = m.name ?? found.chain.head.name;
-        date = m.targetDate;
-        time = m.targetTime;
-        title = stationById(m.targetAddressId || found.addr.id, pickCtx(m)?.board)?.title || '';
-    } else {
-        keepCreateFields();
-        name = m.name;
-        date = m.date;
-        time = m.time;
-        title = stationById(m.addressId, createBoard(m))?.title || '';
-    }
-
-    if (!String(name || '').trim()) return say('впишите имя', true);
-    if (!time) return say('выберите время', true);
-
-    const line = buildCopyLine(date, time, title, operatorName());
-    try {
-        await navigator.clipboard.writeText(line);
-        say('Скопировано');
-    } catch {
-        say('буфер недоступен', true);
-    }
 }
 
 // ── Сабмиты операций ─────────────────────────────────────────────────────────
@@ -3488,6 +3479,10 @@ async function submitCreate() {
     }
     if (!String(m.name || '').trim()) { m.error = 'имя обязательно'; return render(); }
     setPickDuration(m.durationMinutes); // окно могло ужаться, пока окно открыто
+    // Буфер — первым делом, до всякого await (см. bitrixLineFor). День берём
+    // тот же, что уедет в операцию: в окне он мог остаться незаданным.
+    const line = bitrixLineFor('create', date);
+    const copied = await toClipboard(line);
     try {
         await postOp('create', {
             addressId: m.addressId,
@@ -3503,6 +3498,7 @@ async function submitCreate() {
             byMaster: Boolean(m.byMaster),
         });
         rememberClientName(m.name);
+        noteCopyResult(copied, line);
         destroyMapCtl();
         state.modal = null;
         render(); // окно закрываем сразу: дальше день может уехать анимацией
@@ -3596,6 +3592,12 @@ async function submitEdit() {
         return r;
     });
 
+    // Тот же порядок, что и при создании: сперва буфер, пока клик ещё «живой»
+    // (см. bitrixLineFor), и уже после всех проверок — строка не должна уезжать
+    // в буфер у записи, которую мы тут же откажемся сохранять.
+    const line = bitrixLineFor('edit', date);
+    const copied = await toClipboard(line);
+
     try {
         if (drop.length) await postOp('delete', { records: drop.map(p => ({ id: p.id, deleteUrl: p.deleteUrl })) });
         if (moved || fieldsChanged) await postOp('update', { records });
@@ -3614,6 +3616,7 @@ async function submitEdit() {
             });
         }
         rememberClientName(name);
+        noteCopyResult(copied, line);
         dropDetails(chain.parts.map(p => p.id));
         destroyMapCtl();
         state.modal = null;

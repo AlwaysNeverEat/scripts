@@ -27,6 +27,7 @@ import durakRouter from './routes/durak.js';
 import battleshipRouter from './routes/battleship.js';
 import checkersRouter from './routes/checkers.js';
 import facultyRouter from './routes/faculty.js';
+import newsRouter from './routes/news.js';
 import { requireSession, optionalSession } from './auth/middleware.js';
 import { avatarDir } from './storage/avatarStorage.js';
 import { startBot } from './bot/index.js';
@@ -136,6 +137,10 @@ app.use('/api/battleship', requireSession, battleshipRouter);
 // её нет вовсе, доска на виду у обоих. Причина та же, что в бильярде: игра
 // парная, и очко отнято у живого человека (см. routes/checkers.js).
 app.use('/api/checkers', requireSession, checkersRouter);
+// Новости: посты живут на фронте, серверу остаётся счётчик нажатий на кнопку
+// внутри поста (см. routes/news.js). Сессия нужна не ради гейта, а ради
+// «кто нажал»: счёт идёт по человеку, и на нём однажды встанет ачивка.
+app.use('/api/news', requireSession, newsRouter);
 // Записи (клон админки ZMS) — сознательно БЕЗ requireSession: доступ общий,
 // гейт — сами логин/пароль оригинальной админки (см. routes/records.js).
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются

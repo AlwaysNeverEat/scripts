@@ -337,7 +337,7 @@ async function renderRoute() {
         showPage(pageNews);
         // Порядок важен: сначала собираем ленту (она помечает непрочитанные
         // посты плашкой «новое»), и только потом гасим счётчик на вкладке.
-        initNewsFeed();
+        initNewsFeed({ apiFetch }); // apiFetch — ради счётчика кнопки в посте
         markNewsSeen();
         renderNewsBadge();
     } else if (tab === 'top') {
