@@ -768,6 +768,11 @@ input[type="range"].accent-slider::-moz-range-progress { background: transparent
   max-width: 560px;
   position: relative;
 }
+/* Режим «Склад» (stockSearch.js): колонка станций слева и таблица с колонкой
+   остатка на каждую станцию справа — в 560px не помещаются. Ширина меняется
+   переходом, чтобы переключение режима не выглядело прыжком. */
+.search-wrap { transition: max-width .28s cubic-bezier(.32, .72, 0, 1); }
+.search-wrap-wide { max-width: 880px; }
 .search-box { position: relative; }
 /* Лупа как в фигме (lucide Search); z-index — иначе фон инпута красит поверх.
    Иконка нарисована маской, а не картинкой: цвет берётся из --accent и потому

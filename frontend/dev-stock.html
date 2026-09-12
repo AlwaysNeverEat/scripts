@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!-- Дев-песочница режима «Склад»: станции, строка запроса, история и таблица
+     остатков без входа, без CRM и без базы.
+     Открыть: npx vite → /dev-stock.html
+
+     Строки тут — снимок РЕАЛЬНОЙ страницы CRM /analyse/free, прогнанный через
+     parseStockTable из shared/crmAnalyse.js, то есть ровно те поля, что
+     приедут с прокси. Ответы отдаются с задержкой нарочно: в режиме «списком»
+     главное, что проверяется, — как выглядят группы, ПОКА остальные ещё едут.
+     Разбор HTML проверяет shared/crmAnalyse.test.js, форматирование —
+     stockFormat.test.js, здесь — вёрстка и поведение окна.
+
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: склад</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      const acc = localStorage.getItem('cars_db_accent');
+      if (acc !== null && isFinite(Number(acc))) {
+        const deg = (x) => String(((Math.round(x) % 360) + 360) % 360);
+        document.documentElement.style.setProperty('--accent-h', deg(Number(acc)));
+        document.documentElement.style.setProperty('--accent-h-light', deg(Number(acc) - 21));
+      }
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Склад — песочница</h2>
+    <p class="page-sub">Остатки CRM по станциям, общая история запросов, поиск списком артикулов.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+    <select class="btn btn-sec" id="dev-case">
+      <option value="ok">CRM отвечает</option>
+      <option value="auth">Нет сессии CRM</option>
+      <option value="down">CRM недоступна</option>
+      <option value="flaky">Часть артикулов не отдалась</option>
+    </select>
+    <label style="font-size:12.5px; display:inline-flex; gap:6px; align-items:center">
+      <input type="checkbox" id="dev-slow" checked/> медленная CRM (видно плейсхолдеры)
+    </label>
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+  </div>
+  <!-- Ширина ровно как у .search-wrap-wide на главной (880px): режим «Склад»
+       шире остальных, см. main.js. -->
+  <div class="page-body" style="max-width:880px">
+    <div id="stock-search" class="stock-search"></div>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initStockSearch } from './src/stockSearch.js';
+
+    const STATIONS = [
+      { id: '45', name: 'Ветеранов 167к8' }, { id: '11', name: 'Выборгское ш. 2' },
+      { id: '26', name: 'Выборгское ш. 212к8' }, { id: '21', name: 'Дальневосточный 3а' },
+      { id: '6', name: 'Жукова 21' }, { id: '37', name: 'Индустриальный 47к1' },
+      { id: '30', name: 'Караваевская 15А' }, { id: '22', name: 'Кубинская 82к3' },
+      { id: '44', name: 'Кузнецовская 60' }, { id: '29', name: 'Малая балканская 35' },
+      { id: '38', name: 'Маршала Казакова 29' }, { id: '5', name: 'Оптиков 2' },
+      { id: '43', name: 'Охтинская 9/1' }, { id: '2', name: 'Планерная 16' },
+      { id: '33', name: 'Полюстровский 59б' }, { id: '3', name: 'Придорожная 16Ж' },
+      { id: '41', name: 'Руставели 69' }, { id: '17', name: 'Советский 55к2' },
+      { id: '7', name: 'Солидарности 22' }, { id: '31', name: 'Типанова 20к1' },
+      { id: '4', name: 'Фучика 14/4' }, { id: '1', name: 'Фучика 23' }, { id: '42', name: 'Центральная 25' },
+    ];
+
+    // Строки — со снимка реальной страницы; остаток по станциям раскидан тут.
+    const CATALOG = [
+      { id: '12508', name: '217317 Моторное масло ELF 5W-30 Evolution SXR 900 5l (4x4L)', priceRaw: 160, per: { 45: 0, 11: 0, 2: 32 } },
+      { id: '12510', name: '151527 Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)', priceRaw: 180, per: { 45: 200, 11: 179, 2: 288 } },
+      { id: '2816344', name: 'X3214932 Моторное масло GM 5W-30 "Dexos II" 5l (4x5L)', priceRaw: 165, per: { 45: 120, 11: 57, 2: 0 } },
+      { id: '2821794', name: '21268 Моторное масло Liqui Moly Leichtlauf HC 7 5W-30 A3/B4 60l (1x60L)', priceRaw: 205, per: { 45: 537, 11: 412, 2: 31 } },
+      { id: '2820299', name: 'NSIN0018631072 Масляный фильтр LYNX LC-1004 LYNXauto (2)', priceRaw: 552.48, per: { 45: 2, 11: 0, 2: 1 } },
+      { id: '2820302', name: 'NSIN0018471056 Масляный фильтр LYNX LC-1011 LYNXauto (1)', priceRaw: 445.48, per: { 45: 3, 11: 1, 2: 0 } },
+      { id: '12329', name: 'NSIN0023136124 Масляный фильтр Mann W 712/95 (5)', priceRaw: 1367.59, per: { 45: 7, 11: 2, 2: 4 } },
+      { id: '6367', name: 'NSIN0019735713 Масляный фильтр Mann W 7008 (5)', priceRaw: 847.68, per: { 45: 16, 11: 0, 2: 0 } },
+      { id: '9001', name: 'NSIN0000000001 Воздушный фильтр Mann C 21 014 (3)', priceRaw: 1199.5, per: { 45: 0, 11: 0, 2: 0 } },
+      { id: '9002', name: 'NSIN0000000002 Воздушный фильтр LYNX LA-1005 LYNXauto', priceRaw: 640, per: { 45: 4, 11: 2, 2: 0 } },
+      { id: '9003', name: 'NSIN0000000003 Салонный фильтр Mann CU 26 010 (2)', priceRaw: 980.2, per: { 45: 1, 11: 5, 2: 3 } },
+      { id: '9004', name: 'NSIN0000000004 Воздушный фильтр салона LYNX LAC-1904 (1)', priceRaw: 410, per: { 45: 6, 11: 0, 2: 0 } },
+      { id: '202665', name: '202665 Трансмиссионное масло ZIC ATF Multi LF (200л)', priceRaw: 140, per: { 45: 1412, 11: 0, 2: 800 } },
+      { id: '990561', name: '990561 Антифриз SINTEC MULTIFREEZE 1 кг (12x1L)', priceRaw: 387, per: { 45: 24, 11: 12, 2: 0 } },
+      { id: '2826480', name: 'NSII0009945161 03770 Щуп уровня масла Metalcaucho', priceRaw: 746.48, per: { 45: 1, 11: 0, 2: 0 } },
+      { id: '777', name: 'Услуги SPOT Замена ATF в ГУР', priceRaw: 1155, per: { 45: 9999, 11: 9999, 2: 9999 } },
+    ];
+
+    const HISTORY = ['W 712/95', 'C 21 014', '5w-30', 'CU 26 010', 'LC-1004', 'atf', 'W 7008', 'антифриз', 'LA-1005', 'Dexos']
+      .map((q, i) => ({ query: q, uses: 12 - i, lastAt: new Date().toISOString() }));
+
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const slow = () => document.getElementById('dev-slow').checked ? 700 + Math.random() * 900 : 0;
+    const err = (code, message) => Object.assign(new Error(message), { code });
+
+    // Ищем, как CRM: все слова запроса должны встретиться в названии.
+    function search(stationIds, query) {
+      const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+      const rows = CATALOG.filter(c => words.every(w => c.name.toLowerCase().includes(w))).map(c => {
+        const counts = {};
+        let count = 0;
+        if (stationIds.length) {
+          for (const id of stationIds) { const n = c.per[id] ?? 0; counts[id] = n; count += n; }
+        } else {
+          count = Object.values(c.per).reduce((a, b) => a + b, 0); counts.all = count;
+        }
+        return { id: c.id, name: c.name, priceRaw: c.priceRaw, counts, count };
+      }).sort((a, b) => a.priceRaw - b.priceRaw);
+      const columns = stationIds.map(id => STATIONS.find(s => s.id === id)).filter(Boolean);
+      return { query, stationIds, columns, rows, total: rows.length, shown: rows.length };
+    }
+
+    let flakyN = 0;
+    async function fakeApi(path, { method = 'GET', body } = {}) {
+      const mode = document.getElementById('dev-case').value;
+      await sleep(slow());
+      if (path === '/api/crm/stock/history') return { items: HISTORY };
+      if (path === '/api/crm/login') { if (body.login === 'x') throw err('crm_auth_failed', 'CRM не приняла логин или пароль'); document.getElementById('dev-case').value = 'ok'; return { ok: true }; }
+      if (mode === 'auth') throw err('crm_auth_required', 'нет сессии CRM — войдите');
+      if (mode === 'down') throw err('crm_unavailable', 'CRM недоступна (crm.zamena-masla-spot.ru): превышено время ожидания');
+      if (path === '/api/crm/stations') return { stations: STATIONS };
+      if (path === '/api/crm/stock/search') {
+        if (mode === 'flaky' && (++flakyN % 2 === 0)) throw err('crm_unavailable', 'CRM ответила HTTP 502');
+        return search(body.stationIds || [], body.query);
+      }
+      throw err('bad_request', 'нет такой ручки: ' + path);
+    }
+
+    const stock = initStockSearch({ apiFetch: fakeApi });
+    stock.activate();
+
+    document.getElementById('dev-theme').onclick = () => {
+      const el = document.documentElement;
+      const light = el.getAttribute('data-theme') === 'light';
+      if (light) el.removeAttribute('data-theme'); else el.setAttribute('data-theme', 'light');
+      try { localStorage.setItem('cars_db_theme', light ? 'dark' : 'light'); } catch {}
+    };
+  </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import { initAdminPage, isModerator } from './admin.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
+import { initStockSearch } from './stockSearch.js';
 import { initScriptsFeed } from './scriptsFeed.js';
 import { initNewsFeed, markNewsSeen, unseenNewsCount } from './newsFeed.js';
 import { openCarCreator } from './carEditor.js';
@@ -748,16 +749,19 @@ async function mountBackground() {
 
 document.addEventListener('bgchange', () => { mountBackground(); });
 
-// ── Переключатель «Поиск / Теги / Клиент» ───────────────────────────────────
-// Три режима одной строки поиска: по названию машины, по тегам и по человеку
-// из CRM. Режимы взаимоисключающие — включённый прячет чужую разметку целиком,
-// а не мешает её со своей.
+// ── Переключатель «Поиск / Теги / Клиент / Склад» ───────────────────────────
+// Четыре режима одной строки поиска: по названию машины, по тегам, по человеку
+// из CRM и по остаткам склада CRM. Режимы взаимоисключающие — включённый
+// прячет чужую разметку целиком, а не мешает её со своей.
 const modeBtnSearch = document.getElementById('mode-btn-search');
 const modeBtnTags   = document.getElementById('mode-btn-tags');
 const modeBtnClient = document.getElementById('mode-btn-client');
+const modeBtnStock  = document.getElementById('mode-btn-stock');
 const searchBoxEl   = document.querySelector('.search-box');
 const tagSearchEl   = document.getElementById('tag-search');
 const clientSearchEl = document.getElementById('client-search');
+const stockSearchEl = document.getElementById('stock-search');
+const searchWrapEl  = document.querySelector('.search-wrap');
 
 const tagSearch = initTagSearch({
     getCars: () => loadSnapshot().then(s => s.cars),
@@ -773,25 +777,34 @@ const tagSearch = initTagSearch({
 });
 
 const clientSearch = initClientSearch({ apiFetch });
+const stockSearch = initStockSearch({ apiFetch });
 
 function setSearchMode(mode) {
     const isTags = mode === 'tags';
     const isClient = mode === 'client';
-    const isCars = !isTags && !isClient;
+    const isStock = mode === 'stock';
+    const isCars = !isTags && !isClient && !isStock;
     modeBtnSearch.classList.toggle('active', isCars);
     modeBtnTags.classList.toggle('active', isTags);
     modeBtnClient.classList.toggle('active', isClient);
+    modeBtnStock.classList.toggle('active', isStock);
     searchBoxEl.classList.toggle('hidden', !isCars);
     searchResults.classList.toggle('hidden', !isCars);
     tagSearchEl.classList.toggle('hidden', !isTags);
     clientSearchEl.classList.toggle('hidden', !isClient);
+    stockSearchEl.classList.toggle('hidden', !isStock);
+    // «Склад» шире остальных режимов: слева колонка станций, справа строка и
+    // таблица с колонкой на каждую станцию — в 560px это не помещается.
+    searchWrapEl.classList.toggle('search-wrap-wide', isStock);
     if (isTags) tagSearch.activate(); else tagSearch.deactivate();
     if (isClient) clientSearch.activate(); else clientSearch.deactivate();
+    if (isStock) stockSearch.activate(); else stockSearch.deactivate();
 }
 
 modeBtnSearch.onclick = () => setSearchMode('search');
 modeBtnTags.onclick = () => setSearchMode('tags');
 modeBtnClient.onclick = () => setSearchMode('client');
+modeBtnStock.onclick = () => setSearchMode('stock');
 
 // ── «Добавить машину» ─────────────────────────────────────────────────────────
 // Та же форма, что и правка машины (carEditor.js), только пустая: держать

@@ -239,3 +239,100 @@ export const FILTER_SLOTS = [
     { key: 'mf', label: 'масляный',  crmType: 'мф' },
     { key: 'sf', label: 'салонный',  crmType: 'сф' },
 ];
+
+// ── Поиск по складу (режим «Склад» на главной) ───────────────────────────────
+// Та же страница /analyse/free, но не «есть ли артикул на ЭТОЙ станции», а
+// «что нашлось по запросу на выбранных станциях» — как в самой CRM: выделяешь
+// несколько складов, и у каждого своя колонка остатка (count45, count11…).
+// Без станций CRM отдаёт ОДНУ колонку count — сумму по всем складам.
+
+// Сколько строк просим у CRM за раз. По умолчанию она отдаёт 50 и режет на
+// страницы; листать их с сайта незачем — если по запросу больше двухсот
+// позиций, запрос надо уточнять, а не листать.
+export const STOCK_PAGE_SIZE = 200;
+
+export function stockSearchPath(stationIds, query, { pageSize = STOCK_PAGE_SIZE } = {}) {
+    const stations = (stationIds || [])
+        .map(id => `stations%5B%5D=${encodeURIComponent(String(id))}&`).join('');
+    return `/analyse/free?${stations}stationsColumns=&withCatalogItems=${encodeURIComponent(String(query || '').trim())}`
+        + `&selectionPeriod=&orderByField=price&orderByOrder=ASC&page_size=${pageSize}`;
+}
+
+// → { columns: [{ id, name }], rows: [{ id, name, priceRaw, counts, count }], total }
+//  columns — станции, по которым CRM развела остаток по колонкам (пусто, если
+//            станции не выбирали и колонка одна, общая);
+//  counts  — остаток по станциям { '45': 200, '11': 179 } (или { all: n });
+//  count   — сумма по всем колонкам строки;
+//  total   — сколько всего позиций нашла CRM (из пагинации «1 из 3 (147)»);
+//            больше rows.length — значит, показана только первая страница.
+export function parseStockTable(html) {
+    const src = String(html || '');
+
+    // Шапка: две строки с одинаковыми классами header_countNN — в первой
+    // название станции ссылкой, во второй итог по колонке. Берём первую.
+    const columns = [];
+    const thead = (src.match(/<thead[\s\S]*?<\/thead>/) || [''])[0];
+    const headRe = /<td[^>]*class="[^"]*\bheader_count(\d+)\b[^"]*"[^>]*>([\s\S]*?)<\/td>/g;
+    const seen = new Set();
+    let h;
+    while ((h = headRe.exec(thead))) {
+        if (seen.has(h[1]) || !/<a\b/.test(h[2])) continue;
+        seen.add(h[1]);
+        columns.push({ id: h[1], name: stripTags(h[2]) });
+    }
+
+    const rows = [];
+    const rowRe = /<tr class="table__row[\s\S]*?<\/tr>/g;
+    let rowMatch;
+    while ((rowMatch = rowRe.exec(src))) {
+        const rowHtml = rowMatch[0];
+        const cells = {};
+        const cellRe = /<td[^>]*data-name="([^"]+)"[^>]*>([\s\S]*?)<\/td>/g;
+        let c;
+        while ((c = cellRe.exec(rowHtml))) cells[c[1]] = c[2];
+        const name = stripTags(cells.name);
+        if (!name) continue;
+
+        const counts = {};
+        let count = 0;
+        for (const key of Object.keys(cells)) {
+            const m = key.match(/^count(\d*)$/);
+            if (!m) continue;
+            const n = parseInt(stripTags(cells[key]).replace(/\s/g, ''), 10) || 0;
+            counts[m[1] || 'all'] = n;
+            count += n;
+        }
+        rows.push({ id: stripTags(cells.id), name, priceRaw: parseRawPrice(stripTags(cells.price)), counts, count });
+    }
+
+    const pag = src.match(/<span>\s*\d+\s+из\s+\d+\s*<\/span>\s*<span>\s*\((\d+)\)\s*<\/span>/);
+    const total = pag ? parseInt(pag[1], 10) : rows.length;
+    return { columns, rows, total: Math.max(total, rows.length) };
+}
+
+// Ведущий код CRM в названии («NSIN0018631072 Масляный фильтр…», «151527
+// Моторное масло…», «X3214932 …») — внутренний номер позиции, оператору он не
+// нужен: ищут и сверяют по артикулу производителя, который стоит дальше в
+// названии. Вязкость («5W-30») кодом не считается — у масел она бывает первой.
+export function stripCrmCode(name) {
+    const s = stripTags(name);
+    const m = s.match(/^([A-Z0-9]{5,})\s+(.+)$/i);
+    if (!m || !/\d/.test(m[1]) || VISC_RE.test(m[1])) return s;
+    return m[2];
+}
+
+// Масло из бочки: остаток в CRM хранится в десятых долях литра (см. шапку
+// файла), и показывать его надо литрами. Касается ТОЛЬКО моторного и
+// трансмиссионного масла — антифриз, промывка и фильтры считаются штуками.
+export function isBulkOil(name) {
+    // Без \b: границу слова JS считает по латинице, после кириллицы она не срабатывает.
+    return /^(?:[A-Z0-9]+\s+)?(?:моторное|трансмиссионное)\s+масло(?=\s|$)/i.test(stripTags(name));
+}
+
+// Остаток строки для показа: { value, unit } — литры у масла, штуки у всего
+// остального. «55.6 л», но «20 л», а не «20.0 л».
+export function stockQuantity(name, count) {
+    const n = Number(count) || 0;
+    if (isBulkOil(name)) return { value: Math.round(n) / 10, unit: 'л' };
+    return { value: n, unit: 'шт' };
+}

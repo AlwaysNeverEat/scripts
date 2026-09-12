@@ -1,0 +1,501 @@
+/* Режим «Склад»: выбор станций, строка (или список) запроса, подсказки истории
+   и таблица остатков. Логика — stockSearch.js, там же объяснено, зачем это на
+   главной рядом с «Клиентом».
+
+   Три правила вёрстки:
+
+   1. Строка запроса — ТА ЖЕ «таблетка» с лупой, что у главного поиска и у
+      «Клиента» (.search-box / .cs-bar): четыре режима одной строки не должны
+      выглядеть как четыре сайта. Список артикулов — та же таблетка, только
+      выросшая в скруглённый прямоугольник под несколько строк.
+   2. В таблице три вещи — название, цена, остаток, — и числа стоят СТОЛБЦОМ
+      по правому краю: цены сравнивают взглядом сверху вниз, а не читают.
+      Строки, которых нет в наличии нигде, притушены, но не спрятаны: «нет»
+      тоже ответ.
+   3. Карточка не выше окна (страница поиска не прокручивается вовсе —
+      #page-search { overflow: hidden }), прокручивается внутри неё сама
+      таблица; шапка с запросом остаётся на виду. */
+
+/* Станции — КОЛОНКОЙ СЛЕВА от строки поиска и результата, как на странице
+   CRM: список всегда на виду, выбор — просто кликом, а строка и таблица
+   живут справа и не двигают его. Ради этого режим шире остальных трёх:
+   main.js вешает на .search-wrap класс search-wrap-wide (860px вместо 560). */
+#stock-search {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  /* Первая строка — ровно под строку поиска, остальное второй: колонка
+     станций тянется на обе, и без явных высот сетка делила её рост поровну —
+     таблица начиналась посреди экрана, отступив от строки на полсписка. */
+  grid-template-rows: auto 1fr;
+  gap: var(--s-3);
+  align-items: start;
+}
+
+.ss-stations { grid-row: 1 / span 2; }
+.ss-bar-wrap, .ss-body { grid-column: 2; }
+
+@media (max-width: 700px) {
+  #stock-search { grid-template-columns: minmax(0, 1fr); }
+  .ss-stations { grid-row: auto; }
+  .ss-bar-wrap, .ss-body { grid-column: 1; }
+  .ss-st-list { max-height: 160px; }
+}
+
+/* ── Станции ─────────────────────────────────────────────────────────────── */
+/* Список всегда на виду, как <select multiple size=10> в самой CRM: выбранные
+   подсвечены акцентом, «Все станции» — первым пунктом. Прокручивается сам —
+   станций два десятка с лишним, а строка поиска должна оставаться на экране. */
+
+.ss-stations {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-4);
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+}
+
+.ss-st-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-4) 0;
+}
+
+.ss-st-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  color: var(--glass-fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ss-st-list {
+  /* Один столбец, как в CRM: глаз идёт по списку сверху вниз и находит свою
+     станцию по месту. В высоту — сколько даёт экран; страница главной не
+     прокручивается, поэтому остаток списка крутится внутри. */
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: calc(100dvh - var(--tabs-h) - 220px);
+  margin-top: var(--s-1);
+  padding: var(--s-1);
+  overflow-y: auto;
+}
+
+.ss-st-item {
+  flex: none;
+  padding: 5px var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--glass-fg-dim);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;   /* Shift+клик не должен выделять текст */
+}
+
+.ss-st-item:hover { background: var(--glass-hover); color: var(--glass-fg); }
+.ss-st-item.is-on { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.ss-st-all { font-weight: 600; }
+.ss-st-note { padding: var(--s-2) var(--s-3); font-size: 12.5px; color: var(--glass-fg-dim); }
+
+/* ── Строка запроса ──────────────────────────────────────────────────────── */
+
+/* z-index у обёрток, а не у выпадашек: у таблетки backdrop-filter, а он
+   заводит свой контекст наложения — z-index: 30 у списка типов внутри неё
+   ничего не значил снаружи, и карточка результата рисовалась поверх списка.
+   */
+.ss-bar-wrap { position: relative; z-index: 2; }
+
+.ss-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-round);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.ss-bar:focus-within { border-color: var(--accent); box-shadow: var(--glass-shadow-focus); }
+
+/* Лупа — та же маска и тот же --accent, что у .search-box::before. */
+.ss-bar::before {
+  content: '';
+  position: absolute; left: 20px; top: 50%;
+  width: 16px; height: 16px; transform: translateY(-50%);
+  background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center/contain no-repeat;
+  opacity: .7;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ss-input, .ss-list {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 8px 14px 46px;
+  border: 0;
+  background: none;
+  color: var(--glass-fg);
+  font: inherit;
+  font-size: 14px;   /* как у #search-input, иначе таблетка другой высоты */
+  line-height: normal;
+  outline: none;
+}
+
+.ss-input::placeholder, .ss-list::placeholder { color: var(--glass-ph); }
+
+/* Список артикулов: та же таблетка, выросшая под несколько строк. Лупа при
+   этом уезжает к первой строке, а кнопки — в верхний правый угол. */
+.ss-bar-list { border-radius: var(--r-4); align-items: flex-start; }
+.ss-bar-list::before { top: 22px; transform: none; }
+.ss-list {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.45;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.ss-go {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: var(--s-1) 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-circle);
+  background: none;
+  color: var(--glass-fg-dim);
+  cursor: pointer;
+}
+
+.ss-go:hover { background: var(--accent); color: var(--accent-fg); }
+.ss-bar-list .ss-go { margin-top: var(--s-2); }
+
+/* Тип поиска — внутри таблетки, у правого края, как в «Клиенте». */
+.ss-kind { position: relative; flex: none; margin: var(--s-1) var(--s-1) var(--s-1) 0; }
+.ss-bar-list .ss-kind { margin-top: var(--s-2); }
+
+.ss-kind-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-round);
+  background: none;
+  color: var(--glass-fg-dim);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ss-kind-btn:hover, .ss-kind-btn[aria-expanded="true"] { background: var(--glass-hover); color: var(--glass-fg); }
+.ss-kind-btn svg { opacity: .7; transition: transform .15s ease; }
+.ss-kind-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.ss-kind-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 250px;
+  padding: var(--s-1);
+  border-radius: var(--r-4);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+.ss-kind-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ss-kind-opt:hover { background: var(--bg2); }
+.ss-kind-opt.active { background: var(--accent-dim); }
+.ss-kind-opt-label { font-size: 13.5px; font-weight: 600; }
+.ss-kind-opt-hint { font-size: 11.5px; color: var(--sub); }
+
+/* ── Подсказки истории ───────────────────────────────────────────────────── */
+
+.ss-history {
+  position: absolute;
+  z-index: 29;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: var(--s-1);
+  border-radius: var(--r-4);
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+.ss-hist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ss-hist-item svg { flex: none; color: var(--sub); }
+.ss-hist-item:hover, .ss-hist-item.is-cur { background: var(--bg2); }
+.ss-hist-q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ss-hist-uses { font-size: 11px; color: var(--sub); }
+
+/* ── Результат ───────────────────────────────────────────────────────────── */
+
+.ss-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* Вычитаем строку и зазоры: карточка обязана помещаться под строкой
+     целиком, докрутить до неё на главной нечем. */
+  max-height: calc(100dvh - var(--tabs-h) - 240px);
+  border-radius: var(--r-4);
+  background: var(--card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.ss-card-head {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.ss-head-q { font-size: 15px; font-weight: 700; color: var(--text); }
+.ss-dim { font-size: 12px; color: var(--sub); }
+.ss-more { font-size: 12px; color: var(--accent); }
+
+.ss-table-wrap { min-height: 0; overflow: auto; }
+
+.ss-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ss-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--s-2) var(--s-2);
+  background: var(--card);
+  color: var(--sub);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Заголовки станций переносятся на две строки и не шире ста пикселей: три
+   станции с адресами вроде «Индустриальный 47к1» иначе ложились друг на
+   друга. Ширина ограничена на СПАНЕ внутри ячейки: max-width у самой ячейки
+   таблица не соблюдает. Сами числа не переносятся. */
+.ss-th-num, .ss-td-num { text-align: right; white-space: nowrap; }
+.ss-th-num { vertical-align: bottom; }
+.ss-th-wrap { display: inline-block; max-width: 96px; white-space: normal; line-height: 1.2; text-align: right; }
+.ss-th-name { width: 100%; }
+.ss-th-pick, .ss-td-pick { width: 28px; padding-right: 0 !important; }
+
+.ss-table td {
+  padding: var(--s-2) var(--s-2);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.ss-row:last-child td { border-bottom: 0; }
+/* Название берёт всё, что осталось от числовых колонок, и обрезается
+   многоточием (max-width: 0 — иначе ячейка таблицы растягивается под текст, и
+   колонки станций уезжают за правый край карточки). Полное имя — в подсказке. */
+.ss-td-name {
+  max-width: 0;
+  min-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.ss-price { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.ss-qty { color: var(--green); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ss-qty-zero { color: var(--sub); font-weight: 400; }
+.ss-row-zero .ss-td-name, .ss-row-zero .ss-price { color: var(--sub); }
+.ss-row-pick { cursor: pointer; }
+.ss-row-pick:hover td { background: var(--bg2); }
+.ss-td-pick input { accent-color: var(--accent); margin: 0; vertical-align: middle; }
+
+.ss-skel { padding: var(--s-3) var(--s-4); }
+.ss-skel-row { display: flex; gap: var(--s-3); padding: var(--s-2) 0; }
+.ss-skel-row .sk-line:first-child { margin-right: auto; }
+
+/* ── Группы по артикулам ─────────────────────────────────────────────────── */
+
+.ss-groups { overflow-y: auto; }
+
+.ss-group { border-bottom: 1px solid var(--border); }
+.ss-group:last-of-type { border-bottom: 0; }
+.ss-group-empty .ss-group-head { opacity: .7; }
+
+.ss-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4) var(--s-1);
+}
+
+.ss-group-all { margin-left: auto; }
+
+/* Ссылка-кнопка в карточке: «выбрать все», «ещё раз». */
+.ss-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ss-link:hover { background: var(--accent-dim); }
+
+/* Тип фильтра — бейдж перед артикулом: «вф», «мф», «сф». */
+.ss-type {
+  padding: 1px 6px;
+  border-radius: var(--r-1);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Тот же бейдж в строке — у позиции, чей тип не совпал с типом группы. */
+.ss-type-row { font-size: 10px; vertical-align: 1px; }
+
+.ss-group-none, .ss-group-err { padding: var(--s-1) var(--s-4) var(--s-3); font-size: 12.5px; color: var(--sub); }
+.ss-group-err { color: var(--red); }
+.ss-group .ss-table th { position: static; }
+
+.ss-stale {
+  padding: var(--s-2) var(--s-4);
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.ss-copy-row {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+.ss-copy-btn { display: inline-flex; align-items: center; gap: var(--s-2); }
+.ss-copy-ok { display: inline-flex; align-items: center; gap: var(--s-1); font-size: 12.5px; color: var(--green); }
+
+.ss-copy-fail { width: 100%; font-size: 12.5px; color: var(--text); }
+.ss-copy-text {
+  display: block;
+  width: 100%;
+  margin-top: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--bg2);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  resize: vertical;
+}
+
+/* ── Заглушки и сообщения (как в «Клиенте») ──────────────────────────────── */
+
+.ss-note {
+  padding: var(--s-5);
+  border-radius: var(--r-4);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.ss-note-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.ss-note p { margin: var(--s-2) 0 0; font-size: 13px; line-height: 1.5; color: var(--sub); }
+.ss-note-empty { border-color: var(--border-strong); }
+.ss-note-error { border-color: var(--red); }
+.ss-note-error .ss-note-title { color: var(--red); }
+.ss-retry { margin-top: var(--s-3); }
+
+.ss-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) max-content;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  max-width: 560px;
+}
+
+.ss-login-input {
+  min-width: 0;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.ss-login-input:focus { outline: none; border-color: var(--accent); }
+.ss-login-go { white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .ss-login { grid-template-columns: 1fr; }
+}

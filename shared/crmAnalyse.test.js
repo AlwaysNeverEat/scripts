@@ -204,3 +204,106 @@ test('sortFilterRows: лучшая цена — минимальная, нали
     assert.deepEqual(rows.map(r => r.id), ['1', '2', '3']);
     assert.deepEqual(sortFilterRows(undefined), []);
 });
+
+// ── Поиск по складу ──────────────────────────────────────────────────────────
+// Разметка снята с реальной страницы CRM: три выбранные станции — три колонки
+// остатка, в шапке две строки с одинаковыми классами (имя станции и итог).
+
+import { parseStockTable, stockSearchPath, stripCrmCode, isBulkOil, stockQuantity, STOCK_PAGE_SIZE } from './crmAnalyse.js';
+
+function stockRow(id, name, counts, price) {
+    const cells = Object.entries(counts).map(([k, v]) =>
+        `<td class="table__cell count${k}" data-name="count${k}"> ${v} </td>`).join('');
+    return `<tr class="table__row " data-id="${id}" >
+        <td class="table__cell" data-name="TABLE_INDEX">1</td>
+        <td class="table__cell action__group_edit_checkbox "><input type="checkbox" name="id[]" value="${id}"></td>
+        <td class="table__cell id" data-name="id" > ${id} </td>
+        <td class="table__cell name" data-name="name" > ${name} </td>
+        ${cells}
+        <td class="table__cell price double" data-name="price" > ${price} </td>
+    </tr>`;
+}
+
+const MULTI_HEAD = `<thead><tr>
+    <td class="table__cell header_id center"><a href="#"> Ид </a></td>
+    <td class="table__cell header_name center"><a href="#"> Имя </a></td>
+    <td class="table__cell header_count45 center"><a href="#"> Ветеранов 167к8 </a></td>
+    <td class="table__cell header_count11 center"><a href="#"> Выборгское ш. 2 </a></td>
+    <td class="table__cell orderByTd descSorting header_price center"><a href="#"><div>Цена <span>⬆</span></div></a></td>
+  </tr><tr>
+    <td class="table__cell count-header header_id center"></td>
+    <td class="table__cell count-header header_name center"></td>
+    <td class="table__cell count-header header_count45 center"> 11445 </td>
+    <td class="table__cell count-header header_count11 center"> 8358 </td>
+    <td class="table__cell count-header header_price center"> 3755.<small>00</small> </td>
+  </tr></thead>`;
+
+test('parseStockTable: колонки по станциям и остаток в каждой', () => {
+    const html = `<table>${MULTI_HEAD}<tbody>
+        ${stockRow('12508', '217317 Моторное масло ELF 5W-30 Evolution SXR 900 5l (4x4L)', { 45: 0, 11: 32 }, '160.<small>00</small>')}
+        ${stockRow('12329', 'NSIN0023136124 Масляный фильтр Mann W 712/95 (5)', { 45: 7, 11: 2 }, '1&nbsp;367.<small>59</small>')}
+    </tbody></table>`;
+    const { columns, rows, total } = parseStockTable(html);
+    assert.deepEqual(columns, [
+        { id: '45', name: 'Ветеранов 167к8' },
+        { id: '11', name: 'Выборгское ш. 2' },
+    ]);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows[0].counts, { 45: 0, 11: 32 });
+    assert.equal(rows[0].count, 32);
+    assert.equal(rows[1].priceRaw, 1367.59);
+    assert.equal(rows[1].count, 9);
+    // пагинации нет — всего столько, сколько строк
+    assert.equal(total, 2);
+});
+
+test('parseStockTable: без станций колонка одна, а всего — из пагинации', () => {
+    const html = `<table><thead><tr>
+        <td class="table__cell header_name center"><a href="#"> Имя </a></td>
+        <td class="table__cell header_count center"><a href="#"> Количество </a></td>
+        <td class="table__cell header_price center"><a href="#"> Цена </a></td>
+      </tr></thead><tbody>
+        ${stockRow('6367', 'NSIN0019735713 Масляный фильтр Mann W 7008 (5)', { '': 16 }, '847.<small>68</small>')}
+    </tbody></table>
+    <div class="pagination"><form><ul><li><span>1 из 3</span> <span>(147)</span></li></ul></form></div>`;
+    const { columns, rows, total } = parseStockTable(html);
+    assert.deepEqual(columns, []);
+    assert.deepEqual(rows[0].counts, { all: 16 });
+    assert.equal(rows[0].count, 16);
+    assert.equal(total, 147);
+});
+
+test('parseStockTable: пустая выдача — пусто, а не ошибка', () => {
+    assert.deepEqual(parseStockTable('<table><thead></thead><tbody></tbody></table>'), { columns: [], rows: [], total: 0 });
+    assert.deepEqual(parseStockTable(''), { columns: [], rows: [], total: 0 });
+});
+
+test('stockSearchPath: станции массивом, запрос экранирован, сортировка по цене', () => {
+    const p = stockSearchPath(['45', '11'], ' W 712/95 ');
+    assert.ok(p.startsWith('/analyse/free?stations%5B%5D=45&stations%5B%5D=11&stationsColumns=&withCatalogItems=W%20712%2F95&'), p);
+    assert.ok(p.includes('orderByField=price&orderByOrder=ASC'));
+    assert.ok(p.endsWith(`page_size=${STOCK_PAGE_SIZE}`));
+    // без станций — параметр stations не пишется вовсе (CRM тогда суммирует по всем)
+    assert.ok(stockSearchPath([], '5w-30').startsWith('/analyse/free?stationsColumns=&withCatalogItems=5w-30&'));
+});
+
+test('stripCrmCode: внутренний код CRM в начале названия убирается, вязкость и артикул — нет', () => {
+    assert.equal(stripCrmCode('NSIN0018631072 Масляный фильтр LYNX LC-1004 LYNXauto (2)'), 'Масляный фильтр LYNX LC-1004 LYNXauto (2)');
+    assert.equal(stripCrmCode('151527 Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)'), 'Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)');
+    assert.equal(stripCrmCode('X3214932 Моторное масло GM 5W-30 "Dexos II" 5l'), 'Моторное масло GM 5W-30 "Dexos II" 5l');
+    // второй номер (артикул производителя) остаётся
+    assert.equal(stripCrmCode('NSII0009945161 03770 Щуп уровня масла Metalcaucho'), '03770 Щуп уровня масла Metalcaucho');
+    assert.equal(stripCrmCode('Услуги SPOT Замена ATF в ГУР'), 'Услуги SPOT Замена ATF в ГУР');
+    assert.equal(stripCrmCode('5W-30 Motul 8100'), '5W-30 Motul 8100');
+});
+
+test('isBulkOil / stockQuantity: масло из бочки — литры, остальное — штуки', () => {
+    assert.equal(isBulkOil('151527 Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)'), true);
+    assert.equal(isBulkOil('202665 Трансмиссионное масло ZIC ATF Multi LF (200л)'), true);
+    assert.equal(isBulkOil('990561 Антифриз SINTEC MULTIFREEZE 1 кг (12x1L)'), false);
+    assert.equal(isBulkOil('NSIN0023136124 Масляный фильтр Mann W 712/95 (5)'), false);
+    assert.equal(isBulkOil('Услуги SPOT Замена ATF в ГУР'), false);
+    assert.deepEqual(stockQuantity('202665 Трансмиссионное масло ZIC ATF Multi LF (200л)', 1412), { value: 141.2, unit: 'л' });
+    assert.deepEqual(stockQuantity('151527 Моторное масло Mobil 5W-30', 200), { value: 20, unit: 'л' });
+    assert.deepEqual(stockQuantity('NSIN0023136124 Масляный фильтр Mann W 712/95 (5)', 7), { value: 7, unit: 'шт' });
+});

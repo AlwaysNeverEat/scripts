@@ -3,7 +3,10 @@ import {
     crmLogin, crmLogout, crmEnsureSession, crmLinkedLogin, linkSecretConfigured,
     crmGetHtml, buildAnalyseFreePath, CrmError,
 } from '../crm/client.js';
-import { parseStations, parseAnalyseFree } from '../../../shared/crmAnalyse.js';
+import {
+    parseStations, parseAnalyseFree, parseStockTable, stockSearchPath,
+} from '../../../shared/crmAnalyse.js';
+import { remember as rememberStockQuery, recent as recentStockQueries, cleanQuery } from '../crm/stockHistory.js';
 import {
     clientSearchPath, clientPath, salePath,
     parseClientSearch, parseClientCard, parseSale,
@@ -183,6 +186,64 @@ router.post('/availability', async (req, res) => {
         res.json({ stationId, results });
     } catch (err) {
         sendCrmError(res, err);
+    }
+});
+
+// ── Поиск по складу (режим «Склад» на главной) ───────────────────────────────
+// Та же /analyse/free, что и у /availability, но так, как ею пользуются в самой
+// CRM: выбрал одну или несколько станций, набрал что угодно — получил таблицу
+// с колонкой остатка на каждую. Разбор — parseStockTable в shared/crmAnalyse.js.
+//
+// Один запрос — одна страница CRM. Список артикулов (режим «списком» в окне)
+// фронт шлёт по одному запросу на строку и рисует группы по мере готовности:
+// очередь к CRM последовательная, и «десять артикулов одним ответом» держали
+// бы запрос открытым, пока не отработает последний.
+
+const STOCK_MAX_STATIONS = 40;
+const stockCache = new Map(); // `${stations}|${query}` → { at, value }
+
+// POST /api/crm/stock/search  body: { stationIds: ['45', '11'], query, remember }
+// remember: false — в общую историю не писать (так шлёт режим «списком»:
+// десять артикулов разом вытеснили бы из подсказок всё, что искали руками).
+router.post('/stock/search', async (req, res) => {
+    const rawIds = Array.isArray(req.body?.stationIds) ? req.body.stationIds : [];
+    const stationIds = [...new Set(rawIds.map(id => String(id ?? '').trim()))].filter(Boolean);
+    const query = cleanQuery(req.body?.query);
+    const remember = req.body?.remember !== false;
+    if (!query) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'нужен query' } });
+    }
+    if (stationIds.length > STOCK_MAX_STATIONS || stationIds.some(id => !/^\d+$/.test(id))) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'stationIds — до 40 числовых id' } });
+    }
+    // Историю пишем ДО похода в CRM и независимо от его исхода: запрос, на
+    // котором CRM не ответила, повторят — и ему место в подсказках.
+    if (remember) {
+        try { await rememberStockQuery(query, req.user.id); }
+        catch (e) { console.warn('stock history', e.message); }
+    }
+    const cacheKey = `${[...stationIds].sort().join(',')}|${query.toLowerCase()}`;
+    const cached = cacheTake(stockCache, cacheKey, AVAIL_TTL_MS);
+    if (cached) return res.json({ ...cached, cached: true });
+    try {
+        const html = await crmGetHtml(req.user.id, stockSearchPath(stationIds, query));
+        const { columns, rows, total } = parseStockTable(html);
+        const value = { query, stationIds, columns, rows, total, shown: rows.length };
+        cachePut(stockCache, cacheKey, value, AVAIL_TTL_MS);
+        res.json(value);
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
+
+// GET /api/crm/stock/history — общая история, свежее сверху. Сессии CRM не
+// требует: подсказки должны появляться и до входа.
+router.get('/stock/history', async (req, res) => {
+    try {
+        res.json({ items: await recentStockQueries() });
+    } catch (err) {
+        console.error('stock history', err);
+        res.status(500).json({ error: { code: 'db_failed', message: 'история недоступна' } });
     }
 });
 
