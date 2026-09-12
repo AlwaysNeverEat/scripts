@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Режим «Склад» на главной: поиск по остаткам CRM, как на её странице
+// Вкладка «Склад» (#/stock): поиск по остаткам CRM, как на её странице
 // /analyse/free, — выбираешь одну или несколько станций, набираешь что угодно
 // (артикул, название, вязкость) и получаешь таблицу с колонкой остатка на
 // каждую станцию. Плюс две вещи, которых в CRM нет:
@@ -24,7 +24,7 @@
 // панели на странице машины, тут поиск — главное действие, и человек работает
 // со своей станции всю смену. Сеть — backend/src/routes/crm.js под
 // персональной сессией, поэтому возможен ответ «нет сессии CRM»: на него
-// показываем форму входа на месте, как в режиме «Клиент».
+// показываем форму входа на месте, как во вкладке «Клиент».
 //
 // Значки — SVG, эмодзи нет ни одного (та же причина, что в «Клиенте»).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ async function toClipboard(text) {
 
 export function initStockSearch({ apiFetch }) {
     const root = document.getElementById('stock-search');
-    if (!root) return { activate() {}, deactivate() {} };
+    if (!root) return { preload() {}, activate() {}, deactivate() {} };
 
     const state = {
         kind: 'one',            // one | list
@@ -154,7 +154,10 @@ export function initStockSearch({ apiFetch }) {
 
     // ── Данные ────────────────────────────────────────────────────────────────
 
+    let stationsLoading = false;
     async function loadStationsAll() {
+        if (stationsLoading) return;
+        stationsLoading = true;
         try {
             const { stations } = await apiFetch('/api/crm/stations');
             state.stationsAll = stations || [];
@@ -164,11 +167,20 @@ export function initStockSearch({ apiFetch }) {
             if (pruned.length !== state.stations.length) { state.stations = pruned; saveStations(pruned); }
             if (state.stage === 'auth') state.stage = 'idle';
         } catch (e) {
+            stationsLoading = false;
             if (e.code === 'crm_auth_required' || e.code === 'crm_auth_failed') { failed(e); return; }
+            // Список не приехал — не ошибка на весь экран, а строка в самом
+            // списке с кнопкой повтора: искать по всем станциям можно и так.
             state.stationsAll = [];
-            state.error = e.message || 'CRM недоступна';
         }
+        stationsLoading = false;
         render();
+    }
+
+    // Станции не загрузились или их ещё не спрашивали — спросить снова. Зовётся
+    // после каждого удачного поиска: раз CRM ответила, ответит и на список.
+    function ensureStations() {
+        if (!state.stationsAll || !state.stationsAll.length) loadStationsAll();
     }
 
     async function loadHistory() {
@@ -231,6 +243,7 @@ export function initStockSearch({ apiFetch }) {
             state.result = r;
             state.stage = r.rows.length ? 'result' : 'empty';
             render();
+            ensureStations();
             // Запрос ушёл в общую историю — подтягиваем её, чтобы и чужие
             // свежие подсказки не ждали перезахода в режим.
             loadHistory();
@@ -280,6 +293,7 @@ export function initStockSearch({ apiFetch }) {
             }
         };
         await Promise.all(Array.from({ length: LIST_WORKERS }, worker));
+        if (mine === token && state.groups.some(g => g.status === 'ok')) ensureStations();
     }
 
     async function retryGroup(i) {
@@ -371,7 +385,7 @@ export function initStockSearch({ apiFetch }) {
         const items = all === null
             ? '<div class="ss-st-note">Загружаю список станций…</div>'
             : !all.length
-                ? '<div class="ss-st-note">Список станций не загрузился.</div>'
+                ? `<div class="ss-st-note">Список станций не загрузился. <button type="button" class="ss-link" data-act="stations-retry">${ICON.retry} ещё раз</button></div>`
                 : all.map(s => `
                     <button type="button" class="ss-st-item${chosen.has(s.id) ? ' is-on' : ''}" data-st="${esc(s.id)}" role="option" aria-selected="${chosen.has(s.id)}">
                         ${esc(s.name)}
@@ -389,6 +403,8 @@ export function initStockSearch({ apiFetch }) {
         stationsEl.querySelectorAll('.ss-st-item').forEach(el => {
             el.onclick = (e) => pickStation(el.dataset.st, e);
         });
+        const retry = stationsEl.querySelector('[data-act="stations-retry"]');
+        if (retry) retry.onclick = () => { state.stationsAll = null; renderStations(); loadStationsAll(); };
     }
 
     // Порядок выбранных — как в списке CRM, чтобы колонки таблицы не прыгали
@@ -755,11 +771,18 @@ export function initStockSearch({ apiFetch }) {
 
     render();
 
+    // Станции и историю подтягиваем заранее — из main.js после прогрева сессии
+    // CRM, — чтобы вкладка открывалась уже с готовым списком.
+    function preload() {
+        if (state.stationsAll === null) loadStationsAll();
+        if (!state.history.length) loadHistory();
+    }
+
     return {
+        preload,
         activate() {
             renderBar();
-            if (state.stationsAll === null) loadStationsAll();
-            if (!state.history.length) loadHistory();
+            preload();
             (state.kind === 'list' ? list : input).focus();
         },
         // Уходя, закрываем только выпадашки: найденное остаётся — вернувшись,

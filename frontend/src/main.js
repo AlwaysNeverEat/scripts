@@ -11,7 +11,8 @@ import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
 import { initStockSearch } from './stockSearch.js';
-import { initScriptsFeed } from './scriptsFeed.js';
+// «Скрипты» выключены — их место заняли «Клиент» и «Склад» (см. index.html).
+// import { initScriptsFeed } from './scriptsFeed.js';
 import { initNewsFeed, markNewsSeen, unseenNewsCount } from './newsFeed.js';
 import { openCarCreator } from './carEditor.js';
 import { rankCars, prepareCars } from '../../shared/carSearch.js';
@@ -113,12 +114,14 @@ const pageCalc    = document.getElementById('page-calc');
 const pageProfile = document.getElementById('page-profile');
 const pageRecords = document.getElementById('page-records');
 // const pageLeads   = document.getElementById('page-leads'); // «Лиды» отложены
-const pageScripts = document.getElementById('page-scripts');
+const pageClient  = document.getElementById('page-client');
+const pageStock   = document.getElementById('page-stock');
+// const pageScripts = document.getElementById('page-scripts'); // «Скрипты» выключены
 const pageNews    = document.getElementById('page-news');
 const pageTop     = document.getElementById('page-top');
 const pageAdmin   = document.getElementById('page-admin');
 
-const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, /* pageLeads, */ pageScripts, pageNews, pageTop, pageAdmin];
+const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, /* pageLeads, */ pageClient, pageStock, /* pageScripts, */ pageNews, pageTop, pageAdmin];
 
 function hideAllPages() {
     for (const page of ALL_PAGES) page.classList.add('hidden');
@@ -154,7 +157,11 @@ function enterApp() {
     renderAdminTab();
     renderNewsBadge();
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
-    warmCrmSession();
+    // Станции для «Склада» подтягиваем сразу после прогрева сессии CRM, а не
+    // при первом заходе на вкладку: список должен уже стоять, когда её
+    // откроют. Именно ПОСЛЕ прогрева — до него запрос отвечал «нет сессии»,
+    // и вкладка встречала формой входа, хотя учётка привязана.
+    warmCrmSession().then(() => stockSearch.preload());
     // Звонки ловили ГЛОБАЛЬНО, а не на вкладке «Лиды»: входящий приходит,
     // когда оператор считает масло в калькуляторе, и уведомление должно
     // догнать его там же (см. leads.js). Пока вкладка отложена, опрос выключен
@@ -188,7 +195,7 @@ function resetTabsState() {
 // к моменту, когда откроют машину, панель «Наличие на станции» уже готова.
 // Молча: нет привязки или CRM не отвечает — панель сама покажет, что делать.
 function warmCrmSession() {
-    apiFetch('/api/crm/status').catch(() => { /* панель разберётся на месте */ });
+    return apiFetch('/api/crm/status').catch(() => { /* панель разберётся на месте */ });
 }
 
 // Счётчик непрочитанных постов на вкладке «Новости».
@@ -232,7 +239,9 @@ const DEFAULT_TAB_ROUTE = {
     calc:    '#/',
     records: '#/records',
     // leads:   '#/leads', // отложено
-    scripts: '#/scripts',
+    client:  '#/client',
+    stock:   '#/stock',
+    // scripts: '#/scripts', // выключено
     news:    '#/news',
     top:     '#/top',
     admin:   '#/admin',
@@ -246,7 +255,9 @@ let currentRoute = null;
 function tabOfHash(hash) {
     if (hash.startsWith('#/records')) return 'records';
     // if (hash === '#/leads') return 'leads'; // отложено: #/leads уходит в калькулятор
-    if (hash === '#/scripts') return 'scripts';
+    if (hash === '#/client') return 'client';
+    if (hash === '#/stock') return 'stock';
+    // if (hash === '#/scripts') return 'scripts'; // выключено: #/scripts уходит в калькулятор
     if (hash === '#/news') return 'news';
     if (hash === '#/top') return 'top';
     if (hash === '#/admin') return 'admin';
@@ -281,7 +292,9 @@ function restoreScroll(hash) {
 //   #/profile     — свой профиль (редактируемый)
 //   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
 //   #/records     — записи по станциям (с ?date=…&station=… открывает запись)
-//   #/scripts     — фид юзерскриптов
+//   #/client      — клиент из CRM по телефону или гос. номеру
+//   #/stock       — остатки склада CRM по станциям
+//   #/scripts     — фид юзерскриптов (выключен)
 //   #/news        — «Новости»: посты об изменениях сайта
 //   #/top         — рейтинг пользователей
 
@@ -331,9 +344,15 @@ async function renderRoute() {
     // } else if (tab === 'leads') {          // отложено вместе со вкладкой
     //     showPage(pageLeads);
     //     initLeadsPage({ apiFetch });
-    } else if (tab === 'scripts') {
-        showPage(pageScripts);
-        initScriptsFeed(); // фид статичный — собирается один раз
+    } else if (tab === 'client') {
+        showPage(pageClient);
+        clientSearch.activate(); // фокус в строку; найденный клиент остаётся
+    } else if (tab === 'stock') {
+        showPage(pageStock);
+        stockSearch.activate(); // подгружает станции и историю при первом заходе
+    // } else if (tab === 'scripts') {         // выключено вместе со вкладкой
+    //     showPage(pageScripts);
+    //     initScriptsFeed();
     } else if (tab === 'news') {
         showPage(pageNews);
         // Порядок важен: сначала собираем ленту (она помечает непрочитанные
@@ -360,8 +379,8 @@ async function renderRoute() {
     } else {
         showPage(pageSearch);
         // Запрос и выдача не чистятся при уходе — возвращаемся к тому же экрану,
-        // курсор ставим в строку, только если открыт режим «Поиск»: в «Тегах» и
-        // «Клиенте» её на экране нет вовсе, а фокус увёл бы прокрутку.
+        // курсор ставим в строку, только если открыт режим «Поиск»: в «Тегах»
+        // её на экране нет вовсе, а фокус увёл бы прокрутку.
         if (!searchBoxEl.classList.contains('hidden')) searchInput.focus();
     }
     restoreScroll(hash);
@@ -749,19 +768,15 @@ async function mountBackground() {
 
 document.addEventListener('bgchange', () => { mountBackground(); });
 
-// ── Переключатель «Поиск / Теги / Клиент / Склад» ───────────────────────────
-// Четыре режима одной строки поиска: по названию машины, по тегам, по человеку
-// из CRM и по остаткам склада CRM. Режимы взаимоисключающие — включённый
-// прячет чужую разметку целиком, а не мешает её со своей.
+// ── Переключатель «Поиск / Теги» ────────────────────────────────────────────
+// Два режима одной строки поиска: по названию машины и по тегам. Режимы
+// взаимоисключающие — включённый прячет чужую разметку целиком, а не мешает
+// её со своей. Поиск клиента и склад CRM — отдельные вкладки сайта
+// (#/client, #/stock), а не режимы строки: у них своя работа и свой экран.
 const modeBtnSearch = document.getElementById('mode-btn-search');
 const modeBtnTags   = document.getElementById('mode-btn-tags');
-const modeBtnClient = document.getElementById('mode-btn-client');
-const modeBtnStock  = document.getElementById('mode-btn-stock');
 const searchBoxEl   = document.querySelector('.search-box');
 const tagSearchEl   = document.getElementById('tag-search');
-const clientSearchEl = document.getElementById('client-search');
-const stockSearchEl = document.getElementById('stock-search');
-const searchWrapEl  = document.querySelector('.search-wrap');
 
 const tagSearch = initTagSearch({
     getCars: () => loadSnapshot().then(s => s.cars),
@@ -776,35 +791,24 @@ const tagSearch = initTagSearch({
     },
 });
 
+// Вкладки «Клиент» и «Склад»: разметка собирается один раз, дальше
+// renderRoute только показывает страницу и зовёт activate().
 const clientSearch = initClientSearch({ apiFetch });
 const stockSearch = initStockSearch({ apiFetch });
 
 function setSearchMode(mode) {
     const isTags = mode === 'tags';
-    const isClient = mode === 'client';
-    const isStock = mode === 'stock';
-    const isCars = !isTags && !isClient && !isStock;
+    const isCars = !isTags;
     modeBtnSearch.classList.toggle('active', isCars);
     modeBtnTags.classList.toggle('active', isTags);
-    modeBtnClient.classList.toggle('active', isClient);
-    modeBtnStock.classList.toggle('active', isStock);
     searchBoxEl.classList.toggle('hidden', !isCars);
     searchResults.classList.toggle('hidden', !isCars);
     tagSearchEl.classList.toggle('hidden', !isTags);
-    clientSearchEl.classList.toggle('hidden', !isClient);
-    stockSearchEl.classList.toggle('hidden', !isStock);
-    // «Склад» шире остальных режимов: слева колонка станций, справа строка и
-    // таблица с колонкой на каждую станцию — в 560px это не помещается.
-    searchWrapEl.classList.toggle('search-wrap-wide', isStock);
     if (isTags) tagSearch.activate(); else tagSearch.deactivate();
-    if (isClient) clientSearch.activate(); else clientSearch.deactivate();
-    if (isStock) stockSearch.activate(); else stockSearch.deactivate();
 }
 
 modeBtnSearch.onclick = () => setSearchMode('search');
 modeBtnTags.onclick = () => setSearchMode('tags');
-modeBtnClient.onclick = () => setSearchMode('client');
-modeBtnStock.onclick = () => setSearchMode('stock');
 
 // ── «Добавить машину» ─────────────────────────────────────────────────────────
 // Та же форма, что и правка машины (carEditor.js), только пустая: держать
