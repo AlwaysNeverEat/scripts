@@ -242,7 +242,7 @@
 
 .ss-history {
   position: absolute;
-  z-index: 29;
+  z-index: 40;
   top: calc(100% + 6px);
   left: 0;
   right: 0;
@@ -277,6 +277,13 @@
 /* ── Результат ───────────────────────────────────────────────────────────── */
 
 .ss-card {
+  /* Карточка — СВОЙ контекст наложения (isolation): внутри у прилипающих
+     ячеек названия и цены свои z-index, и без изоляции они соревновались с
+     подсказками истории над строкой — выпадашка рисовалась ПОД таблицей.
+     Снаружи карточка ниже строки (.ss-bar-wrap z-index: 2). */
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   min-height: 0;
