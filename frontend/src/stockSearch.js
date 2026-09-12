@@ -47,7 +47,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
 
 const KINDS = [
     { id: 'one',  label: 'Товар',   placeholder: 'Артикул, название или вязкость…', hint: 'Одна строка — как в CRM' },
-    { id: 'list', label: 'Списком', placeholder: 'C 21 014\nW 712/95\nCU 26 010', hint: 'Артикулы с новой строки, группа на каждый' },
+    { id: 'list', label: 'Списком', placeholder: 'C 21 014\nW 712/95\nCU 26 010', hint: 'Артикулы с новой строки (Shift+Enter), группа на каждый' },
 ];
 
 // Порядок групп в режиме списком — как в юзерскрипте: воздушный, масляный,
@@ -60,6 +60,7 @@ const ICON = {
     go: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>',
     pin: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
     clock: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>',
+    x: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     copy: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
     check: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>',
     retry: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 5 21 11 15 11"/><path d="M20 15a8 8 0 1 1-2.2-8.3L21 9"/></svg>',
@@ -451,7 +452,7 @@ export function initStockSearch({ apiFetch }) {
                 <span class="ss-kind-opt-label">${esc(k.label)}</span>
                 <span class="ss-kind-opt-hint">${esc(k.hint)}</span>
             </button>`).join('');
-        goBtn.title = isList ? 'Найти все (Ctrl+Enter)' : 'Найти (Enter)';
+        goBtn.title = isList ? 'Найти все (Enter; новая строка — Shift+Enter)' : 'Найти (Enter)';
     }
 
     // Подсказки: последние запросы всех, отфильтрованные по набранному.
@@ -559,7 +560,7 @@ export function initStockSearch({ apiFetch }) {
             <thead><tr>
                 ${pick ? '<th class="ss-th-pick"></th>' : ''}
                 <th class="ss-th-name">Название</th>
-                <th class="ss-th-num">Цена</th>
+                <th class="ss-th-num ss-th-price">Цена</th>
                 ${cols.map(c => `<th class="ss-th-num" title="${esc(c.name)}"><span class="ss-th-wrap">${esc(c.name)}</span></th>`).join('')}
             </tr></thead>`;
         const trs = rows.map(r => {
@@ -578,15 +579,19 @@ export function initStockSearch({ apiFetch }) {
                 nameHtml = (rowType && rowType !== groupType ? `<span class="ss-type ss-type-row">${esc(rowType)}</span> ` : '')
                     + esc(cleanFilterName(r.name));
             }
+            // Кнопка «скопировать строку» у КАЖДОЙ позиции, в обоих режимах:
+            // та же строка «мф <имя> - <цена>р», что уходит из списка пачкой,
+            // — её вставляют в калькулятор по одной ничуть не реже.
+            const copyBtn = `<button type="button" class="ss-row-copy" data-copy="${esc(copyLine(r, groupType))}" title="Скопировать строку для калькулятора" aria-label="Скопировать строку">${ICON.copy}</button>`;
             return `
                 <tr class="ss-row${zero ? ' ss-row-zero' : ''}${pick ? ' ss-row-pick' : ''}" ${pick ? `data-rowpick="${groupIdx}" data-rowkey="${esc(key)}"` : ''}>
                     ${pickCell}
-                    <td class="ss-td-name" title="${esc(r.name)}">${nameHtml}</td>
+                    <td class="ss-td-name" title="${esc(r.name)}"><span class="ss-name-text">${nameHtml}</span>${copyBtn}</td>
                     <td class="ss-td-num ss-price">${fmtPrice(r.name, r.priceRaw)}</td>
                     ${cells}
                 </tr>`;
         }).join('');
-        return `<div class="ss-table-wrap"><table class="ss-table">${head}<tbody>${trs}</tbody></table></div>`;
+        return `<div class="ss-table-wrap"><table class="ss-table${pick ? ' ss-table-pick' : ''}">${head}<tbody>${trs}</tbody></table></div>`;
     }
 
     function viewResult() {
@@ -679,6 +684,22 @@ export function initStockSearch({ apiFetch }) {
                 if (box) { box.checked = !box.checked; box.onchange(); }
             };
         });
+        // Копирование одной строки — по живому клику, иначе буфер не даст
+        // записать. Галочка на полторы секунды вместо иконки — и назад.
+        body.querySelectorAll('.ss-row-copy').forEach(btn => {
+            btn.onclick = async (e) => {
+                e.stopPropagation(); // в списке клик по строке переключает выбор
+                const ok = await toClipboard(btn.dataset.copy);
+                btn.classList.add(ok ? 'is-done' : 'is-fail');
+                btn.innerHTML = ok ? ICON.check : ICON.x;
+                btn.title = ok ? 'Скопировано' : 'Браузер не дал записать в буфер';
+                setTimeout(() => {
+                    btn.classList.remove('is-done', 'is-fail');
+                    btn.innerHTML = ICON.copy;
+                    btn.title = 'Скопировать строку для калькулятора';
+                }, 1500);
+            };
+        });
         body.querySelectorAll('[data-all]').forEach(el => {
             el.onclick = () => {
                 const g = state.groups[Number(el.dataset.all)];
@@ -764,8 +785,12 @@ export function initStockSearch({ apiFetch }) {
         }
     });
     list.addEventListener('input', () => { state.listText = list.value; });
+    // Enter в списке — ПОИСК, как и в строке: артикулы обычно вставляют из
+    // буфера уже с переносами, а руками добавляют одну строку — Shift+Enter.
     list.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runList(); }
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        e.preventDefault();
+        runList();
     });
     goBtn.onclick = () => run();
 
