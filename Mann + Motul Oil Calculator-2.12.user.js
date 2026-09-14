@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Mann + Motul Oil Calculator
 // @namespace    zamena-masla-spot.ru
-// @version      2.23.800
+// @version      2.23.807
 // @description  Расчёт замены масла: Mann Filter / LYNXauto / Ravenol → Motul + ROLF
 // @match        https://www.mann-filter.com/*
 // @match        https://lynxauto.info/*
@@ -2893,6 +2893,11 @@
   function discountNote(calcState2) {
     return calcState2 && calcState2.discount ? ` (со скидкой ${DISCOUNT_PCT}%)` : "";
   }
+  function oilPriceFor(oil, calcState2) {
+    const prices = calcState2 && calcState2.crmStock && calcState2.crmStock.prices;
+    const p = prices ? prices[oil.b + "_" + oil.n] : null;
+    return typeof p === "number" && isFinite(p) && p > 0 ? p : oil.price;
+  }
   function normApproval(s) {
     if (!s) return "";
     return s.toString().toUpperCase().replace(/APPROVAL/g, "").replace(/LICENSE.*$/, "").replace(/[\s\-_\.\/,;:()]+/g, "").replace(/MERCEDES|MBAPPROVAL/g, "MB").replace(/VOLKSWAGEN/g, "VW").replace(/RENAULTRN|RENAULT/g, "RN").replace(/GMOPEL|OPEL/g, "GM").replace(/BMWLL|LONGLIFE/g, "LL").replace(/JAGUARLANDROVER|JAGUAR/g, "STJLR").replace(/FORDWSS/g, "FORDWSS").replace(/АВТОВАЗ/g, "VAZ");
@@ -3242,10 +3247,13 @@
         return false;
     }
   }
-  function cheapestFirst(rated) {
+  function cheapestFirst(rated, calcState2) {
     if (!rated.length) return [];
     const bestCore = rated.reduce((m, r) => Math.max(m, r.core), -Infinity);
-    return rated.filter((r) => r.core === bestCore).sort((a, b) => a.oil.price !== b.oil.price ? a.oil.price - b.oil.price : b.score - a.score);
+    return rated.filter((r) => r.core === bestCore).sort((a, b) => {
+      const pa = oilPriceFor(a.oil, calcState2), pb = oilPriceFor(b.oil, calcState2);
+      return pa !== pb ? pa - pb : b.score - a.score;
+    });
   }
   function hasLiteralAceaClass(oil, cls) {
     const t = tokenSet(oil.a);
@@ -3274,11 +3282,11 @@
       const rate0w = buildOilRater(analysis0w);
       const rated0w = oils0w.map(rate0w);
       agg.approvalAnalysis = analysis0w;
-      rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
+      rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : oilPriceFor(a.oil, calcState2) - oilPriceFor(b.oil, calcState2));
       const fallback0w = mileage === "0w20" ? { b: "ZIC", n: "X9 FE 0W-20", price: 1550, v: "0W-20", a: ["API SP"], ad: [] } : { b: "ZIC", n: "ZERO 0W-30", price: 2150, v: "0W-30", a: ["ACEA C3"], ad: [] };
       let eligible0w = rated0w.filter((r) => !r.blocked);
       if (!eligible0w.length) eligible0w = rated0w;
-      const sufficient0w = cheapestFirst(eligible0w);
+      const sufficient0w = cheapestFirst(eligible0w, calcState2);
       const mid0w = sufficient0w.length ? sufficient0w[0].oil : fallback0w;
       let second0w = null;
       if (calcState2.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
@@ -3336,20 +3344,20 @@
         r.core += 30;
       } else r.classMiss = requiredClass;
     }
-    ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
+    ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : oilPriceFor(a.oil, calcState2) - oilPriceFor(b.oil, calcState2));
     let eligible = ratedAll.filter((r) => !r.blocked);
     if (!eligible.length) eligible = ratedAll;
     if (!requiredClass) {
       const thick = eligible.filter((r) => oilMeetsClass(r.oil, "A3B4"));
       if (thick.length) eligible = thick;
     }
-    const sufficient = cheapestFirst(eligible);
+    const sufficient = cheapestFirst(eligible, calcState2);
     const mid = sufficient.length ? sufficient[0].oil : (eligible[0] || ratedAll[0] || {}).oil || null;
     const needPro = needA5B5 || needC1 || needC2 || needC3 || isDieselVehicle;
     agg.spotWarn = null;
     const spotRated = shopOils.filter((o) => o.isSpot && o.v === targetVisc).map(rateOil);
     for (const r of spotRated) r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
-    const pickSpot = (list) => (list.find((r) => r.oil.tier === (needPro ? "pro" : "optimal")) || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
+    const pickSpot = (list) => (list.find((r) => r.oil.tier === (needPro ? "pro" : "optimal")) || [...list].sort((a, b) => oilPriceFor(a.oil, calcState2) - oilPriceFor(b.oil, calcState2))[0]).oil;
     const spotFit = spotRated.filter((r) => !r.blocked && r.classOk);
     const spotSafe = spotRated.filter((r) => !r.blocked);
     let spot = null;
@@ -3535,7 +3543,7 @@
     };
     const flush = calcFlushCost(vCalc);
     const costs = [oil1, oil2].filter(Boolean).map((oil) => {
-      const price = oil.price;
+      const price = oilPriceFor(oil, calcState2);
       let total, breakdown;
       if (agg.group === "engine") {
         const fTotal = filtersTotal(calcState2);
@@ -3569,7 +3577,7 @@
         breakdown = `${price} × ${vCalc} + 1900 + 550`;
       }
       const base = Math.round(total);
-      return { oil, total: applyDiscount(base, calcState2), base, breakdown };
+      return { oil, price, total: applyDiscount(base, calcState2), base, breakdown };
     });
     if (agg.group === "engine") costs.sort((a, b) => a.total - b.total);
     return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
@@ -3633,11 +3641,11 @@
         const shown = isFixedSingle ? calc.costs.slice(0, 1) : calc.costs;
         shown.forEach((c) => {
           const sumpLine = calcState2.showWithSump ? ` + ${sump}₽ (снятие/установка защиты картера) = ${c.total + sump}₽` : "";
-          lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${sumpLine}${note}`);
+          lines.push(`${c.oil.b} ${c.oil.n} ${c.price}₽/л = ${c.total}₽${sumpLine}${note}`);
         });
       } else {
         calc.costs.forEach((c) => {
-          const base = `${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽`;
+          const base = `${c.oil.b} ${c.oil.n} ${c.price}₽/л = ${c.total}₽`;
           const sumpLine = calcState2.showWithSump ? ` + ${sump}₽ (снятие/установка защиты картера) = ${c.total + sump}₽` : ` + ${sump}₽ (снятие/установка защиты картера)`;
           lines.push(base + sumpLine + note);
         });
@@ -3662,12 +3670,12 @@
       const extraTxt = extras.length ? " + " + extras.join(" + ") : "";
       lines.push(`${typeTxt} (${calc.vCalc}л / ${pct})${extraTxt}`);
       if (!isCvt && agg.atfWarn) lines.push("подходящих масел в наличии нет — перевести на мастера");
-      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${discountNote(calcState2)}`));
+      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.price}₽/л = ${c.total}₽${discountNote(calcState2)}`));
     } else {
       const vService = roundL(calc.vService).toFixed(1);
       lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
       if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
-      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.oil.price}₽/л = ${c.total}₽${discountNote(calcState2)}`));
+      calc.costs.forEach((c) => lines.push(`${c.oil.b} ${c.oil.n} ${c.price}₽/л = ${c.total}₽${discountNote(calcState2)}`));
     }
     return lines.join("\n");
   }
@@ -4383,7 +4391,7 @@
                     ${regBadge}
                 </div>
                 <div class="zm-oil-calc">${c.breakdown} = <b class="zm-oil-total">${c.total}₽</b>${sumpSuffix}</div>
-                <div class="zm-oil-price">${c.oil.price}₽/л</div>
+                <div class="zm-oil-price">${c.price}₽/л</div>
                 ${oilDetailsHtml}
             </div>`;
     }).join("")}
