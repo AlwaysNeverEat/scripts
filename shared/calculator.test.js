@@ -386,3 +386,48 @@ test('строка «ACEA C2» рядом с «ACEA C3» не даёт масл�
         assert.ok(oilProfile(oil.a).hthsMin < 3.5, `${oil.n} гуще, чем нужно мотору`);
     }
 });
+
+// ── Живые цены станции (crmStock.prices с панели «Наличие на станции») ───────
+
+test('живая цена станции идёт и в расчёт, и в price строки стоимости', () => {
+    const state = makeState({
+        car: { makeShort:'MERCEDES', modelShort:'C 180', fuelType:'01', yearFrom:2006 },
+        volumeOverride: {}, flush: 'none',
+        filters: { mf:{enabled:false}, vf:{enabled:false}, sf:{enabled:false} },
+    });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine', volume: 4 };
+    const catalog = calcForAggregate(agg, state, ['MB 229.3']);
+    const oil = catalog.costs[0].oil;
+
+    state.crmStock = { visc: '5W-30', stock: {},
+                       prices: { [oil.b + '_' + oil.n]: oil.price + 200 } };
+    const live = calcForAggregate(agg, state, ['MB 229.3']);
+    const row = live.costs.find(c => c.oil === oil) || live.costs.find(c =>
+        c.oil.b === oil.b && c.oil.n === oil.n);
+
+    assert.equal(row.price, oil.price + 200, 'в строке — цена станции');
+    assert.equal(row.total, (oil.price + 200) * live.vCalc, 'итог посчитан по ней же');
+    assert.ok(row.breakdown.startsWith(String(oil.price + 200)),
+        'разложенная стоимость показывает то число, по которому считали');
+
+    // без crmStock всё по каталогу, как раньше
+    assert.equal(catalog.costs[0].price, catalog.costs[0].oil.price);
+});
+
+test('живые цены переворачивают выбор «самое дешёвое из подходящих»', () => {
+    // Каталог: ROLF C3 1750 против Top Tec 2400 — выигрывает ROLF (тест выше).
+    // На станции наоборот: ROLF подорожал, Top Tec по акции — выбор обязан
+    // следовать сегодняшнему ценнику, а не прейскуранту из oils.js.
+    const state = makeState({
+        car: { makeShort:'SKODA', modelShort:'Octavia', fuelType:'01', yearFrom:2015 },
+        crmStock: { visc: '5W-30', stock: {}, prices: {
+            'ROLF_Professional 5W-30 C3': 2600,
+            'Liqui Moly_5W-30 Top Tec': 1600,
+        } },
+    });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid } = pickEngineOils(agg, getShopOils(), state,
+        ['VW 504 00','VW 507 00','ACEA C3','API SN','MB 229.51','BMW LL-04']);
+
+    assert.equal(mid.n, '5W-30 Top Tec', 'по живым ценам дешевле Top Tec');
+});

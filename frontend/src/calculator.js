@@ -4,7 +4,7 @@ import {
     filtersTotal, anyFilterEnabled, calcForAggregate,
     pickAtfOils, totalAggLabel, totalOilLabel, computeTotalSum,
     splitOilApprovals, matchOilToReglament, manualWarnText, sapsLabel,
-    sumpCost, DISCOUNT_PCT,
+    sumpCost, DISCOUNT_PCT, oilPriceFor,
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
 import { extractViscosity } from '../../shared/crmAnalyse.js';
@@ -76,7 +76,7 @@ export function initCalculator(dbRecord) {
         carId: dbRecord.id,
         showFiltersInput: false,
         totals: [],
-        crmStock: null,          // { visc, stock: {'b_n': литры} } — наличие с панели CRM
+        crmStock: null,          // { visc, stock: {'b_n': литры}, prices: {'b_n': ₽/л} } — с панели CRM
         data,
         car,
     };
@@ -121,14 +121,15 @@ export function initCalculator(dbRecord) {
     // Автоприменение результатов панели «Наличие на станции»: панель зовёт это
     // после каждой проверки — фильтры вставляются в расчёт сразу (тот же путь,
     // что и ручная вставка текста), масло ДВС переключается на лучшее из
-    // имеющихся, остатки в литрах показываются на карточках масел.
-    window.__zmApplyAvailability = ({ visc, stock, filtersText }) => {
+    // имеющихся, остатки в литрах показываются на карточках масел, а расчёт
+    // переходит на живые цены станции (prices, ₽/л — см. oilPriceFor).
+    window.__zmApplyAvailability = ({ visc, stock, prices, filtersText }) => {
         if (filtersText) {
             applyFiltersInput(calcState, filtersText);
             calcState.showFiltersInput = false;
             saveFilters(calcState);
         }
-        calcState.crmStock = { visc, stock: stock || {} };
+        calcState.crmStock = { visc, stock: stock || {}, prices: prices || {} };
         autoPickAvailableOil(data, calcState, carApprovals);
         rerender();
     };
@@ -727,6 +728,13 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                 ? `<div class="oil-stock">на станции: <b>${stockL} л</b></div>`
                 : '<div class="oil-stock oil-stock-none">нет на станции</div>');
 
+            // Цена в расчёте живая, со станции (c.price ≠ каталожной) — помечаем:
+            // оператор помнит каталожный прейскурант, и «съехавшая» цена без
+            // пометки читается как ошибка калькулятора.
+            const crmPriceMark = c.price !== c.oil.price
+                ? ` <span class="crm-price-mark" title="цена со станции по CRM (в каталоге ${c.oil.price}₽/л)">цена CRM</span>`
+                : '';
+
             // c.total и sumpCost() приезжают уже со скидкой — тут только сложение
             const sump = sumpCost(calcState);
             const sumpSuffix = agg.group === 'engine'
@@ -747,7 +755,7 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             return `
                 <div class="oil-option${i === 0 ? ' selected' : ''}${canPick ? ' oil-option-pick' : ''}"${canPick ? ` data-picker-toggle="${agg.key}"` : ''}>
                     <div class="oil-name">${regMark}${c.oil.isSpot ? '<span class="spot-pill">SPOT</span>' : ''}${esc(c.oil.b)} ${esc(c.oil.n)} <span class="visc-pill">${esc(c.oil.v)}</span></div>
-                    <div class="oil-price">${esc(c.breakdown || c.oil.price + '₽/л')} = <b>${c.total}₽</b>${discMark}${sumpSuffix}</div>
+                    <div class="oil-price">${esc(c.breakdown || c.price + '₽/л')} = <b>${c.total}₽</b>${discMark}${crmPriceMark}${sumpSuffix}</div>
                     ${oilApprHtml}
                     ${oilAdsHtml}
                     ${stockHtml}
@@ -794,7 +802,11 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
                             const sHtml = sL === null ? '' : (sL > 0
                                 ? ` <span class="oil-pick-stock">${sL} л</span>`
                                 : ' <span class="oil-pick-stock none">нет</span>');
-                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}"${adsTip}>${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — ${oil.price}₽/л${sHtml}</button>`;
+                            // Цена в пикере — та же, по которой посчитается
+                            // карточка: живая со станции, если панель её принесла
+                            const price = oilPriceFor(oil, calcState);
+                            const priceTip = price !== oil.price ? ` title="цена со станции по CRM (в каталоге ${oil.price}₽/л)"` : '';
+                            return `<button class="oil-pick-opt${isCur ? ' cur' : ''}" data-picker-pick="${agg.key}" data-picker-idx="${i}"${adsTip}>${rMark}${esc(oil.b)} ${esc(oil.n)}${hits} — <span${priceTip}>${price}₽/л</span>${sHtml}</button>`;
                         }).join('')}
                         <button class="btn btn-sec" data-picker-close="${agg.key}" style="margin-top:4px;font-size:11px">✕ закрыть</button>
                     </div>
