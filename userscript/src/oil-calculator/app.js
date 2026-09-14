@@ -589,7 +589,7 @@ function calcForAggregate(agg) {
                     ${regBadge}
                 </div>
                 <div class="zm-oil-calc">${c.breakdown} = <b class="zm-oil-total">${c.total}₽</b>${sumpSuffix}</div>
-                <div class="zm-oil-price">${c.oil.price}₽/л</div>
+                <div class="zm-oil-price">${c.price}₽/л</div>
                 ${oilDetailsHtml}
             </div>`;
         }).join('')}

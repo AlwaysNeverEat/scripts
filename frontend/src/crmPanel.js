@@ -211,10 +211,20 @@ export function initCrmPanel(record, { apiFetch }) {
         for (const r of state.results.results || []) byKey[r.key] = r;
         const { matched } = matchOilRows(byKey.oil?.rows);
         const stock = {};
-        for (const [k, e] of matched) stock[k] = +e.liters.toFixed(1);
+        const prices = {};
+        for (const [k, e] of matched) {
+            stock[k] = +e.liters.toFixed(1);
+            // Живая цена станции — в расчёт вместо каталожной. Пересчёту ×10,
+            // дико расходящемуся с каталогом, не доверяем и тут (см.
+            // renderOilRow): цена в такой строке скорее не за 0.1 л, и молча
+            // считать по ней хуже, чем остаться на каталожной.
+            const p = crmOilPricePerLiter(e.priceRaw);
+            if (p > 0 && !priceLooksOff(p, e.oil)) prices[k] = p;
+        }
         window.__zmApplyAvailability({
             visc: state.visc,
             stock,
+            prices,
             filtersText: buildFiltersText(byKey),
         });
     }
@@ -478,12 +488,17 @@ export function initCrmPanel(record, { apiFetch }) {
         return `<div class="crm-oils crm-oils-open">${parts.join('')}</div>`;
     }
 
+    // Цена в CRM — за 0.1 л; если после ×10 она дико расходится с каталожной,
+    // пересчёту не доверяем: ни показывать её как ₽/л, ни считать по ней.
+    function priceLooksOff(pricePerL, oil) {
+        const catalogPrice = oil.price || 0;
+        return catalogPrice > 0 && Math.abs(pricePerL - catalogPrice) / catalogPrice > 0.3;
+    }
+
     function renderOilRow(e, need, carApprovals) {
         const pricePerL = crmOilPricePerLiter(e.priceRaw);
-        // цена в CRM за 0.1 л; если после ×10 она дико расходится с каталожной —
-        // не доверяем пересчёту молча, показываем сырое значение
         const catalogPrice = e.oil.price || 0;
-        const priceOff = catalogPrice && Math.abs(pricePerL - catalogPrice) / catalogPrice > 0.3;
+        const priceOff = priceLooksOff(pricePerL, e.oil);
         const priceHtml = priceOff
             ? `<span class="crm-price-warn" title="Пересчёт ×10 расходится с ценой каталога (${catalogPrice}₽/л) — в CRM указано ${esc(String(e.priceRaw))}">${esc(String(e.priceRaw))} в CRM</span>`
             : `<span class="crm-row-price">≈${pricePerL}₽/л</span>`;

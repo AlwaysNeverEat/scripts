@@ -51,6 +51,20 @@ export function discountNote(calcState) {
     return calcState && calcState.discount ? ` (со скидкой ${DISCOUNT_PCT}%)` : '';
 }
 
+// ── Актуальная цена масла со станции ─────────────────────────────────────────
+// Цены каталога (shared/oils.js) набраны руками и на станциях устаревают.
+// Панель «Наличие на станции» приносит живые цены CRM, и фронт кладёт их в
+// calcState.crmStock.prices как { 'бренд_название': ₽/л } — тогда и расчёт, и
+// выбор «самого дешёвого из подходящих» считают по ним, а не по каталогу.
+// Ключ «бренд_название» уникален на весь каталог (название несёт вязкость),
+// поэтому цена другой вязкости сюда не подмешается. Юзерскрипт crmStock не
+// заполняет — там всё считается по каталожным ценам, как раньше.
+export function oilPriceFor(oil, calcState) {
+    const prices = calcState && calcState.crmStock && calcState.crmStock.prices;
+    const p = prices ? prices[oil.b + '_' + oil.n] : null;
+    return (typeof p === 'number' && isFinite(p) && p > 0) ? p : oil.price;
+}
+
 // ── Approval normalisation ────────────────────────────────────────────────────
 
 export function normApproval(s) {
@@ -496,14 +510,16 @@ function oilMeetsClass(oil, cls) {
 
 // Масла, закрывающие максимум настоящих требований (максимальный core),
 // от самого дешёвого к дорогому. При равной цене впереди тот, у кого
-// совпадений больше.
-function cheapestFirst(rated) {
+// совпадений больше. Цена — актуальная со станции, если она известна:
+// «дешевле» должно означать «дешевле по сегодняшнему ценнику».
+function cheapestFirst(rated, calcState) {
     if (!rated.length) return [];
     const bestCore = rated.reduce((m, r) => Math.max(m, r.core), -Infinity);
     return rated.filter(r => r.core === bestCore)
-        .sort((a, b) => a.oil.price !== b.oil.price
-            ? a.oil.price - b.oil.price
-            : b.score - a.score);
+        .sort((a, b) => {
+            const pa = oilPriceFor(a.oil, calcState), pb = oilPriceFor(b.oil, calcState);
+            return pa !== pb ? pa - pb : b.score - a.score;
+        });
 }
 
 function hasLiteralAceaClass(oil, cls) {
@@ -534,7 +550,8 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         const rate0w = buildOilRater(analysis0w);
         const rated0w = oils0w.map(rate0w);
         agg.approvalAnalysis = analysis0w;
-        rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
+        rated0w.sort((a, b) => b.score !== a.score ? b.score - a.score
+            : oilPriceFor(a.oil, calcState) - oilPriceFor(b.oil, calcState));
         const fallback0w = mileage === '0w20'
             ? { b:'ZIC', n:'X9 FE 0W-20', price:1550, v:'0W-20', a:['API SP'], ad:[] }
             : { b:'ZIC', n:'ZERO 0W-30', price:2150, v:'0W-30', a:['ACEA C3'], ad:[] };
@@ -542,7 +559,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         // требования, берём самое дешёвое, а не первое по длине паспорта.
         let eligible0w = rated0w.filter(r => !r.blocked);
         if (!eligible0w.length) eligible0w = rated0w;
-        const sufficient0w = cheapestFirst(eligible0w);
+        const sufficient0w = cheapestFirst(eligible0w, calcState);
         const mid0w = sufficient0w.length ? sufficient0w[0].oil : fallback0w;
         let second0w = null;
         if (calcState.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
@@ -621,7 +638,8 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         if (r.classOk) { r.score += 30; r.core += 30; }
         else r.classMiss = requiredClass;
     }
-    ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score : a.oil.price - b.oil.price);
+    ratedAll.sort((a, b) => b.score !== a.score ? b.score - a.score
+        : oilPriceFor(a.oil, calcState) - oilPriceFor(b.oil, calcState));
 
     // Основной выбор (идёт в отчёт) исключает только физически опасные масла.
     // Ограничение одностороннее и учтено в oilMeetsClass: мотору, которому
@@ -648,7 +666,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     // которые клиент платить не должен. Раньше здесь бралось масло из СЕРЕДИНЫ
     // ценового ряда (midIdx), то есть калькулятор сознательно предлагал не
     // самое дешёвое из подходящих.
-    const sufficient = cheapestFirst(eligible);
+    const sufficient = cheapestFirst(eligible, calcState);
     const mid = sufficient.length ? sufficient[0].oil : (eligible[0] || ratedAll[0] || {}).oil || null;
 
     // Своё масло (SPOT) проходит те же проверки, что и остальные. Раньше оно
@@ -661,7 +679,7 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     const spotRated = shopOils.filter(o => o.isSpot && o.v === targetVisc).map(rateOil);
     for (const r of spotRated) r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
     const pickSpot = (list) => (list.find(r => r.oil.tier === (needPro ? 'pro' : 'optimal'))
-        || [...list].sort((a, b) => a.oil.price - b.oil.price)[0]).oil;
+        || [...list].sort((a, b) => oilPriceFor(a.oil, calcState) - oilPriceFor(b.oil, calcState))[0]).oil;
     const spotFit = spotRated.filter(r => !r.blocked && r.classOk);
     const spotSafe = spotRated.filter(r => !r.blocked);
     let spot = null;
@@ -866,7 +884,11 @@ export function calcForAggregate(agg, calcState, carApprovals) {
     const flush = calcFlushCost(vCalc);
 
     const costs = [oil1, oil2].filter(Boolean).map(oil => {
-        const price = oil.price;
+        // Актуальная цена со станции (если панель наличия её принесла) — по ней
+        // и расчёт, и разложенная стоимость. Она же кладётся в `price` строки:
+        // отчёт и карточки обязаны показывать то число, по которому считали,
+        // а не каталожное из oil.price.
+        const price = oilPriceFor(oil, calcState);
         let total, breakdown;
         if (agg.group === 'engine') {
             const fTotal    = filtersTotal(calcState);
@@ -903,7 +925,7 @@ export function calcForAggregate(agg, calcState, carApprovals) {
         // ниже по течению (итого, отчёт, карточки) её накидывать нельзя.
         // `base` оставлен рядом — по нему видно, от чего считали.
         const base = Math.round(total);
-        return { oil, total: applyDiscount(base, calcState), base, breakdown };
+        return { oil, price, total: applyDiscount(base, calcState), base, breakdown };
     });
 
     // Клиенту первым называем то, что дешевле, а дорогое остаётся вариантом на

@@ -3737,6 +3737,18 @@ a.diff-val-new:hover { border-color: var(--green); }
 .oil-pick-stock { font-size: 10.5px; color: var(--green); }
 .oil-pick-stock.none { color: var(--red); }
 
+/* Расчёт идёт по живой цене станции, а не по каталожной, — пометка на
+   карточке масла; каталожная цена лежит в её title */
+.crm-price-mark {
+  font-size: 10.5px; font-weight: 600;
+  color: var(--sub);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  padding: 1px 5px;
+  white-space: nowrap;
+  cursor: help;
+}
+
 /* ── Панель «Наличие на станции» (CRM) ───────────────────────────── */
 .crm-panel { margin-top: var(--s-3); padding: var(--s-4) var(--s-4); }
 
