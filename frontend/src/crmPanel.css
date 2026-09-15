@@ -21,6 +21,31 @@
 
 .crm-link-note svg { flex: none; opacity: .8; }
 
+/* Тихая строка разведки под выбором станции: одна строка мелким кеглем в цвет
+   подписей — подсказка, а не блок. Зелёное здесь ровно два места: «есть на
+   этой станции» целиком и имя ближайшей станции-кандидата (оно же кнопка). */
+.crm-scout-note {
+  margin-top: var(--s-1);
+  font-size: 11.5px;
+  color: var(--sub);
+}
+
+.crm-scout-note.is-ok { color: var(--green); }
+
+.crm-scout-go {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--green);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.crm-scout-go:hover { text-decoration-style: solid; }
+
 /* Компактная форма входа в CRM: на широком экране поля не растягиваются
    на всю ширину панели, на узком — аккуратно перестраиваются. */
 .crm-login-form {

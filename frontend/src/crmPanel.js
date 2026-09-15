@@ -23,6 +23,7 @@ import {
     cleanFilterName, detectFilterType, FILTER_SLOTS, extractViscosity,
     sortFilterRows,
 } from '../../shared/crmAnalyse.js';
+import { stationsWithAll, rankStations, formatKm } from '../../shared/filterScout.js';
 import { initSelects } from './select.js';
 
 const VISCOSITIES = ['0W-20', '0W-30', '5W-30', '5W-40', '10W-40'];
@@ -60,6 +61,12 @@ export function initCrmPanel(record, { apiFetch }) {
                                  // он дублирует карточки ДВС в калькуляторе ниже)
         showOther: false,        // развёрнут ли блок «ещё в наличии»
         filterPick: {},          // slot.key → id строки CRM, выбранной вручную (выпадашкой)
+        // Фоновая разведка «все фильтры машины разом» по остальным станциям
+        // (shared/filterScout.js): status idle|loading|done|failed, results —
+        // ответы поиска по складу, по одному на заполненный фильтр. Ходит в CRM
+        // один раз на страницу: остатки сети от выбранной станции не зависят,
+        // при смене станции пересчитываются только дистанции.
+        scout: { status: 'idle', results: null },
     };
 
     render();
@@ -200,6 +207,69 @@ export function initCrmPanel(record, { apiFetch }) {
         }
         state.loading = false;
         render();
+        // Разведка стартует ПОСЛЕ основной проверки: очередь запросов к CRM
+        // последовательная, и фон не должен задерживать то, чего ждёт оператор.
+        if (state.results) startScout();
+    }
+
+    // ── Разведка «все фильтры разом» ─────────────────────────────────────────
+    // Три запроса поиска по складу (по одному на заполненный фильтр) со ВСЕМИ
+    // станциями сразу — CRM отдаёт остаток колонкой на каждую, и вся сеть
+    // проверяется без перебора «станций × фильтров».
+
+    // Перерисовка «когда не помешает»: разведка заканчивается в фоне, и
+    // пересборка панели выдернула бы открытый список станций из-под курсора
+    // (попап живёт в body и остался бы над уже мёртвыми узлами). Список
+    // открыт — ждём, пока его закроют, подсказки достанутся следующему
+    // открытию.
+    function quietRender() {
+        if (root.querySelector('.sel-btn[aria-expanded="true"]')) {
+            setTimeout(quietRender, 300);
+            return;
+        }
+        render();
+    }
+
+    async function startScout() {
+        if (state.scout.status === 'loading' || state.scout.status === 'done') return;
+        const items = filterItems(record);
+        if (!items.length || !state.stations?.length) return;
+        const stationIds = state.stations.map(s => s.id);
+        state.scout = { status: 'loading', results: null };
+        quietRender();
+        try {
+            const results = await Promise.all(items.map(async (it) => {
+                const resp = await apiFetch('/api/crm/stock/search', {
+                    method: 'POST',
+                    // remember: false — фоновые запросы не место в общей
+                    // истории подсказок склада, их никто не «искал»
+                    body: { stationIds, query: it.query, remember: false },
+                });
+                const slot = FILTER_SLOTS.find(s => s.key === it.key);
+                return { crmType: slot?.crmType, rows: resp.rows };
+            }));
+            state.scout = { status: 'done', results };
+        } catch (e) {
+            // Разведка — подсказка, а не работа: упала — молчим и попробуем
+            // снова при следующем выборе станции. Свою плашку ошибки она не
+            // заслуживает — ради того и затевалась тихой.
+            state.scout = { status: 'failed', results: null };
+        }
+        quietRender();
+    }
+
+    // Кандидаты с дистанцией от ВЫБРАННОЙ станции. Считается на каждой
+    // перерисовке: данные по сети одни, меняется только точка отсчёта.
+    function scoutInfo() {
+        if (state.scout.status !== 'done') return null;
+        const all = stationsWithAll(state.scout.results);
+        const cur = (state.stations || []).find(s => s.id === state.stationId);
+        const ranked = rankStations(all, state.stations || [], cur?.name);
+        return {
+            here: all.has(state.stationId),
+            others: ranked.filter(s => s.id !== state.stationId),
+            byId: new Map(ranked.map(s => [s.id, s])),
+        };
     }
 
     // Автоприменение: сразу после проверки фильтры и наличие масел уходят в
@@ -282,15 +352,49 @@ export function initCrmPanel(record, { apiFetch }) {
     function renderStationRow() {
         if (state.stations === null) return '<div class="crm-loading">Загружаю список станций…</div>';
         if (!state.stations.length && state.error) return '';
+        const scout = scoutInfo();
         const opts = ['<option value="">выбери станцию…</option>']
-            .concat(state.stations.map(s =>
-                `<option value="${esc(s.id)}"${s.id === state.stationId ? ' selected' : ''}>${esc(s.name)}</option>`));
+            .concat(state.stations.map(s => {
+                // Станции, где есть все фильтры разом, в списке зелёные и с
+                // дистанцией от выбранной (data-hint/data-tone рисует select.js).
+                // Выбранную не помечаем: про неё говорит строка под списком.
+                const c = s.id !== state.stationId ? scout?.byId.get(s.id) : null;
+                const extra = c
+                    ? ` data-tone="ok"${c.km != null ? ` data-hint="${esc(formatKm(c.km))}"` : ''}`
+                    : '';
+                return `<option value="${esc(s.id)}"${s.id === state.stationId ? ' selected' : ''}${extra}>${esc(s.name)}</option>`;
+            }));
         return `
             <div class="crm-station-row">
                 <select id="crm-station" class="crm-station-select">${opts.join('')}</select>
                 <button class="crm-refresh" id="crm-refresh" title="Проверить наличие заново" aria-label="Проверить заново" ${state.stationId ? '' : 'disabled'}><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
             </div>
+            ${renderScoutNote(scout)}
         `;
+    }
+
+    // Тихая строка под выбором станции: где все фильтры машины лежат РАЗОМ.
+    // Одна строка мелким кеглем — подсказка не должна спорить с карточками
+    // наличия; пока разведка не отработала (или упала), её просто нет.
+    function renderScoutNote(scout) {
+        if (!state.stationId) return '';
+        const n = filterItems(record).length;
+        if (!n) return '';
+        if (state.scout.status === 'loading') {
+            return '<div class="crm-scout-note">смотрю фильтры на других станциях…</div>';
+        }
+        if (!scout) return '';
+        const label = n === 3 ? 'все 3 фильтра' : n === 2 ? 'оба фильтра' : 'этот фильтр';
+        if (scout.here) {
+            return `<div class="crm-scout-note is-ok">${label} есть на этой станции</div>`;
+        }
+        const near = scout.others[0];
+        if (!near) {
+            const none = n === 3 ? 'всех 3 фильтров разом' : n === 2 ? 'обоих фильтров разом' : 'этого фильтра';
+            return `<div class="crm-scout-note">${none} нет ни на одной станции</div>`;
+        }
+        return `<div class="crm-scout-note">${label} на ближайшей:
+            <button type="button" class="crm-scout-go" data-scout-go="${esc(near.id)}" title="Проверить наличие на этой станции">${esc(near.name)}</button>${near.km != null ? ` · ${formatKm(near.km)}` : ''}</div>`;
     }
 
     function renderError() {
@@ -539,6 +643,13 @@ export function initCrmPanel(record, { apiFetch }) {
         };
         const refresh = root.querySelector('#crm-refresh');
         if (refresh) refresh.onclick = () => runCheck();
+        // Клик по станции в подсказке разведки — то же, что выбрать её в списке
+        const scoutGo = root.querySelector('[data-scout-go]');
+        if (scoutGo) scoutGo.onclick = () => {
+            state.stationId = scoutGo.dataset.scoutGo;
+            dropResults();
+            runCheck();
+        };
         const retry = root.querySelector('#crm-retry');
         if (retry) retry.onclick = () => {
             if (state.error?.code === 'crm_logout_failed') return doLogout();
