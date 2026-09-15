@@ -72,9 +72,14 @@ function syncLabel(select) {
 }
 
 function optionsOf(select) {
+    // hint/tone — необязательные data-атрибуты опции: короткая приписка справа
+    // (у станций CRM-панели это дистанция «4,2 км») и её окраска. В подпись
+    // кнопки и в поиск по списку приписка не попадает — это украшение пункта,
+    // а не часть значения.
     return [...select.options].map((o, i) => ({
         i, value: o.value, label: o.textContent.trim(),
         disabled: o.disabled, group: o.parentElement.label || '',
+        hint: o.dataset.hint || '', tone: o.dataset.tone || '',
     }));
 }
 
@@ -102,8 +107,10 @@ function renderList(query = '') {
     const cur = open.select.value;
     const list = pop.querySelector('.sel-list');
     list.innerHTML = shown.length
-        ? shown.map(o => `<div class="sel-opt${o.value === cur ? ' is-current' : ''}${o.disabled ? ' is-disabled' : ''}"
-              role="option" aria-selected="${o.value === cur}" data-i="${o.i}">${esc(o.label)}</div>`).join('')
+        ? shown.map(o => `<div class="sel-opt${o.value === cur ? ' is-current' : ''}${o.disabled ? ' is-disabled' : ''}${o.tone ? ` sel-tone-${esc(o.tone)}` : ''}${o.hint ? ' has-hint' : ''}"
+              role="option" aria-selected="${o.value === cur}" data-i="${o.i}">${o.hint
+                  ? `<span class="sel-opt-label">${esc(o.label)}</span><span class="sel-opt-hint">${esc(o.hint)}</span>`
+                  : esc(o.label)}</div>`).join('')
         : '<div class="sel-empty">Ничего не найдено</div>';
     open.index = shown.findIndex(o => o.value === cur);
     highlight();

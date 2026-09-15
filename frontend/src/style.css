@@ -1384,6 +1384,14 @@ a.btn:visited, a.btn:active { color: var(--text); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Пункт с припиской (data-hint у опции): текст слева, приписка прижата вправо.
+   Флекс включается только у таких пунктов — у остальных многоточие рисует сам
+   .sel-opt, и трогать их незачем. Тон (data-tone="ok") красит пункт целиком:
+   зелёный здесь — «есть в наличии», тот же смысл, что у остатков в CRM-панели. */
+.sel-opt.has-hint { display: flex; align-items: baseline; gap: var(--s-2); }
+.sel-opt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sel-opt-hint { flex: none; font-size: 11.5px; color: var(--sub); }
+.sel-opt.sel-tone-ok, .sel-opt.sel-tone-ok .sel-opt-hint { color: var(--green); }
 .sel-opt.is-active { background: var(--bg3); }
 .sel-opt.is-current { color: var(--accent); font-weight: 600; }
 .sel-opt.is-disabled { opacity: .45; cursor: default; }
