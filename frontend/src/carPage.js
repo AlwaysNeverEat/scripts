@@ -6,6 +6,7 @@
 // разворачивалась прямо здесь одной простынёй полей на всю машину сразу.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { navigate } from './router.js';
 import { initCalculator } from './calculator.js';
 import { initCrmPanel } from './crmPanel.js';
 import { checkAchievementsNow } from './achievements.js';
@@ -288,7 +289,7 @@ function confirmDeleteCar(record, ctx) {
         try {
             await ctx.apiFetch('/api/cars/' + record.id, { method: 'DELETE' });
             close();
-            location.hash = '#/';
+            navigate('/');
         } catch (e) {
             errBox.textContent = e.message;
             errBox.classList.remove('hidden');
@@ -354,7 +355,7 @@ export async function renderEvents(carId, ctx) {
         box.querySelectorAll('[data-user-link]').forEach(el => {
             el.onclick = (e) => {
                 e.stopPropagation(); // не даём сработать открытию диффа у edited-карточки
-                location.hash = '#/user/' + el.dataset.userLink;
+                navigate('/user/' + el.dataset.userLink);
             };
         });
         const toggleBtn = box.querySelector('#events-toggle');

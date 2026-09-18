@@ -36,7 +36,7 @@ test('карточка — ссылка на саму запись: день, с
     // По этой ссылке раздел записей встаёт на нужный день и открывает капсулу
     // (focusRecords в records/records.js).
     const href = dayRecordHref(rec());
-    assert.match(href, /^#\/records\?/);
+    assert.match(href, /^\/records\?/);
     const p = new URLSearchParams(href.slice(href.indexOf('?') + 1));
     assert.equal(p.get('date'), '2026-09-05');
     assert.equal(p.get('station'), '3');
@@ -46,7 +46,7 @@ test('карточка — ссылка на саму запись: день, с
     const noId = new URLSearchParams(dayRecordHref(rec({ recordId: null })).split('?')[1]);
     assert.equal(noId.get('record'), null);
     assert.equal(noId.get('time'), '14:00');
-    assert.match(dayRecordsHtml({ count: 1, legacy: 0, records: [rec()] }), /<a class="day-card" href="#\/records\?/);
+    assert.match(dayRecordsHtml({ count: 1, legacy: 0, records: [rec()] }), /<a class="day-card" href="\/records\?/);
 });
 
 test('пустые поля не оставляют дырок в карточке', () => {

@@ -4,17 +4,17 @@
   <meta charset="UTF-8"/>
   <title>Записи — SPOT</title>
   <meta name="robots" content="noindex"/>
-  <!-- Записи переехали внутрь основного приложения (роут #/records), чтобы
+  <!-- Записи переехали внутрь основного приложения (роут /records), чтобы
        переключение с калькулятором было мгновенным. Этот файл остался ради
        старых ссылок и закладок: уводит на новый адрес без «records.html». -->
   <script>
     (function () {
       var base = location.pathname.replace(/records\.html$/, '');
-      location.replace(base + (location.search || '') + '#/records');
+      location.replace(base + 'records' + (location.search || ''));
     })();
   </script>
 </head>
 <body>
-  <noscript><a href="./#/records">Открыть записи</a></noscript>
+  <noscript><a href="./records">Открыть записи</a></noscript>
 </body>
 </html>
