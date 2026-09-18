@@ -2919,14 +2919,14 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .profile-settings-btn:hover { background: var(--card); transform: rotate(45deg); }
 
-/* Аватар внахлёст: низ ряда прижат к низу, чтобы имя стояло на «земле»
-   карточки, а не плавало относительно аватара. */
+/* На шапку внахлёст заезжает ТОЛЬКО АВАТАР (отрицательный отступ на нём, а
+   не на ряде): имя и плашки стоят целиком ниже шапки — текст на границе
+   градиента читался плохо и выглядел съехавшим. */
 .profile-hero-main {
-  display: flex; align-items: flex-end; gap: var(--s-4);
+  display: flex; align-items: flex-start; gap: var(--s-4);
   padding: 0 var(--s-5);
-  margin-top: -44px;
 }
-.profile-avatar-wrap { position: relative; cursor: pointer; flex: none; }
+.profile-avatar-wrap { position: relative; cursor: pointer; flex: none; margin-top: -44px; }
 .profile-avatar-static { cursor: default; }
 /* Кольцо цветом карточки — тенью, а не рамкой: рамка меняла бы размер круга
    и сдвигала карандаш. */
@@ -2936,7 +2936,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   box-shadow: 0 0 0 4px var(--card);
 }
 .profile-avatar-default { font-size: 36px; }
-.profile-ident { min-width: 0; padding-bottom: var(--s-2); }
+.profile-ident { min-width: 0; padding-top: var(--s-3); }
 .profile-hero-sub { margin-top: 2px; font-size: 12.5px; color: var(--sub); }
 /* Карандаш на аватарке: единственный намёк, что её можно менять (в чужом
    профиле его нет). Иконка — маска, а не картинка: цвет берётся из токена. */
@@ -3431,7 +3431,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   .profile-content { padding: var(--s-4) var(--s-3) var(--s-7); }
   .profile-page { gap: var(--s-3); }
   .profile-cover { height: 72px; }
-  .profile-hero-main { padding: 0 var(--s-4); margin-top: -36px; gap: var(--s-3); }
+  .profile-hero-main { padding: 0 var(--s-4); gap: var(--s-3); }
+  .profile-avatar-wrap { margin-top: -36px; }
+  .profile-ident { padding-top: var(--s-2); }
   .profile-avatar { width: 80px; height: 80px; font-size: 30px; }
   .profile-stats { padding: var(--s-3) var(--s-4) var(--s-4); gap: var(--s-2); }
   .profile-sec { padding: var(--s-3) var(--s-3) var(--s-4); border-radius: var(--r-4); }
