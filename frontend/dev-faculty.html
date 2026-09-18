@@ -128,7 +128,8 @@
         ${profileHeroHtml({
           avatarInner: '<span class="profile-avatar-default"></span>',
           nameInner: `<span class="role-prefix role-prefix-green" title="модератор">mod</span> <span class="faculty-prefix faculty-${faculty.id}">${faculty.prefix}</span> Дежурный`,
-          added: 12, edited: 34, medals: 5,
+          added: 12, edited: 34,
+          achievements: [{ id: 'cars_added_5', title: 'Пять машин', unlockedAt: '2026-05-14' }],
           faculty,
           subtitle: faculty.name,
         })}

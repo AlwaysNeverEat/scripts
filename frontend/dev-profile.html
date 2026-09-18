@@ -50,7 +50,7 @@
     import { initSegmented } from './src/segmented.js';
     import { profileHeroHtml, profileSectionHtml } from './src/profileLayout.js';
     import { facultyCardHtml } from './src/faculty.js';
-    import { achievementsFeedHtml, attachFeedParticles } from './src/achievements.js';
+    import { openAchievementsModal } from './src/achievements.js';
     import { openProfileSettings } from './src/profileSettings.js';
     import { facultyPrefixHtml } from './src/namePrefix.js';
     import { facultyById } from '../shared/faculties.js';
@@ -58,10 +58,11 @@
     initTheme();
     initSegmented();
 
+    // id настоящие — у плитки и окна должны быть настоящие картинки медалей.
     const ACHIEVEMENTS = [
-      { id: 'first_car', title: 'Первая машина', unlockedAt: '2026-03-02', description: 'Добавлена первая машина' },
-      { id: 'edits_100', title: 'Сто правок', unlockedAt: '2026-05-14', description: '100 отредактированных машин' },
-      { id: 'wordle_1', title: 'Слово дня', unlockedAt: '2026-06-01', description: 'Первая победа в вордле' },
+      { id: 'registered', title: 'Добро пожаловать', unlockedAt: '2026-03-02', description: 'Аккаунт создан' },
+      { id: 'cars_added_5', title: 'Пять машин', unlockedAt: '2026-05-14', description: 'Добавлено 5 машин' },
+      { id: 'cars_edited_100', title: 'Сто правок', unlockedAt: '2026-06-01', description: '100 отредактированных машин' },
     ];
 
     const out = document.getElementById('dev-out');
@@ -73,7 +74,7 @@
           ${profileHeroHtml({
             avatarInner: '<span class="profile-avatar-default"></span>',
             nameInner: `<span class="role-prefix role-prefix-green" title="модератор">mod</span> ${facultyPrefixHtml(faculty)}Дежурный по станции`,
-            added: 128, edited: 342, medals: ACHIEVEMENTS.length,
+            added: 128, edited: 342, achievements: ACHIEVEMENTS,
             editable: true,
             faculty,
             subtitle: faculty ? faculty.name : '',
@@ -86,23 +87,19 @@
             body: faculty ? facultyCardHtml(faculty, { own: true }) : '<div class="search-empty">Тест не пройден</div>',
           })}
           ${profileSectionHtml({
-            title: 'Достижения',
-            meta: `${ACHIEVEMENTS.length} медали`,
-            body: `<div class="achievements-feed">${achievementsFeedHtml(ACHIEVEMENTS, 'Пока пусто')}</div>`,
-          })}
-          ${profileSectionHtml({
             title: 'Модератор',
             meta: 'видно только модераторам',
             cls: 'profile-sec-mod',
             body: '<button class="btn btn-sec profile-mod-assign">Записать себе незанятые машины</button>',
           })}
         </div>`;
-      attachFeedParticles(out);
       const gear = document.getElementById('btn-profile-settings');
       if (gear) gear.onclick = () => openProfileSettings({
         apiFetch: async (path) => { console.log('dev: apiFetch', path); return {}; },
         onLogout: () => console.log('dev: onLogout'),
       });
+      const achTile = document.getElementById('profile-ach-tile');
+      if (achTile) achTile.onclick = () => openAchievementsModal(ACHIEVEMENTS);
     }
 
     document.getElementById('dev-house').onchange = render;

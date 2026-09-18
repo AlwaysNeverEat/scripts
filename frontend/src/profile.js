@@ -10,11 +10,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { openAvatarCropper } from './avatarCropper.js';
-import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
+import { openAchievementsModal } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { openProfileSettings } from './profileSettings.js';
-import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
+import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml } from './namePrefix.js';
 
@@ -85,7 +85,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             ? `<img src="${esc(user.avatar)}" alt=""/>`
             : `<span class="profile-avatar-default"></span>`;
 
-        const medals = Array.isArray(achievements) ? achievements.length : 0;
         const isMod = user.role === 'mod' || user.role === 'admin';
 
         box.innerHTML = `
@@ -95,7 +94,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
                     added: stats.added ?? 0,
                     edited: stats.edited ?? 0,
-                    medals,
+                    achievements,
                     editable: true,
                     faculty: user.faculty,
                     subtitle: esc(user.faculty?.name || ''),
@@ -115,14 +114,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 })}
 
                 ${profileSectionHtml({
-                    title: 'Достижения',
-                    meta: medals ? `${medals} ${plural(medals, ['медаль', 'медали', 'медалей'])}` : '',
-                    body: `<div class="achievements-feed">
-                        ${achievementsFeedHtml(achievements, 'Пока пусто — достижения появятся здесь')}
-                    </div>`,
-                })}
-
-                ${profileSectionHtml({
                     title: 'Активность',
                     meta: 'последний год',
                     body: activityFeedHtml(activity),
@@ -137,7 +128,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             </div>
         `;
         bind();
-        attachFeedParticles(box);
         // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).
         attachActivityFeed(box, { loadDay: date => apiFetch('/api/profile/day/' + date) });
     }
@@ -272,6 +262,10 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
         const settingsBtn = document.getElementById('btn-profile-settings');
         if (settingsBtn) settingsBtn.onclick = () => openProfileSettings({ apiFetch, onLogout });
+
+        const achTile = document.getElementById('profile-ach-tile');
+        if (achTile) achTile.onclick = () =>
+            openAchievementsModal(achievements, { emptyText: 'Пока пусто — достижения появятся здесь' });
 
         const selfAssignBtn = document.getElementById('btn-self-assign-cars');
         if (selfAssignBtn) selfAssignBtn.onclick = () => {

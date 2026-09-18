@@ -15,6 +15,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { facultyClass } from './namePrefix.js';
+import { achievementIcon, latestAchievement } from './achievements.js';
+
+function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // «1 машина / 2 машины / 5 машин» — [одна, две, пять].
 export function plural(n, forms) {
@@ -36,13 +42,17 @@ export function plural(n, forms) {
 // заглушкой у того, кто ещё не прошёл распределение.
 //
 // subtitle — строка под ником (имя дома целиком: префикс у ника обрезан до
-// четырёх букв, а тут место есть). medals — третья плитка статистики: одни
-// цифры «про машины» рассказывали о человеке меньше, чем он заработал.
+// четырёх букв, а тут место есть).
+//
+// achievements — список ачивок ЦЕЛИКОМ, а не число: третья плитка показывает
+// последнюю медаль (иконку и название) и общий счёт, а по клику открывает окно
+// со всеми (openAchievementsModal — обработчик вешает страница). Отдельной
+// панели «Достижения» на странице нет — она дублировала бы эту плитку.
 //
 // withSettings — шестерёнка на шапке (только свой профиль): открывает окно
 // настроек (profileSettings.js), обработчик вешает profile.js.
 export function profileHeroHtml({
-    avatarInner, nameInner, added = 0, edited = 0, medals = 0,
+    avatarInner, nameInner, added = 0, edited = 0, achievements = [],
     editable = false, faculty = null, subtitle = '', withSettings = false,
 }) {
     const avatar = `<div class="profile-avatar">${avatarInner}</div>`;
@@ -60,6 +70,24 @@ export function profileHeroHtml({
            </button>`
         : '';
 
+    const count = Array.isArray(achievements) ? achievements.length : 0;
+    const latest = latestAchievement(achievements);
+    const latestIcon = latest ? achievementIcon(latest.id) : null;
+    // Плитка — кнопка: у неё есть работа (окно всех ачивок), а у соседних
+    // плиток нет. Подпись — НАЗВАНИЕ ПОСЛЕДНЕЙ медали, а не слово
+    // «достижений»: что это за число, объясняют иконка и подсказка.
+    const achTile = `
+        <button type="button" class="profile-stat profile-stat-ach" id="profile-ach-tile"
+                title="${count
+                    ? `${count} ${plural(count, ['достижение', 'достижения', 'достижений'])}, последнее — «${esc(latest.title)}». Показать все`
+                    : 'Достижений пока нет'}">
+            ${latestIcon ? `<img class="profile-ach-icon" src="${esc(latestIcon)}" alt=""/>` : ''}
+            <span class="profile-ach-info">
+                <b>${count}</b>
+                <span>${latest ? esc(latest.title) : plural(count, ['Достижение', 'Достижения', 'Достижений'])}</span>
+            </span>
+        </button>`;
+
     return `
         <section class="profile-hero${facultyClass(faculty, 'faculty-tint')}">
             <div class="profile-cover">${settingsBtn}</div>
@@ -73,7 +101,7 @@ export function profileHeroHtml({
             <div class="profile-stats">
                 <div class="profile-stat"><b>${added}</b><span>Добавлено машин</span></div>
                 <div class="profile-stat"><b>${edited}</b><span>Отредактировано</span></div>
-                <div class="profile-stat"><b>${medals}</b><span>${plural(medals, ['Достижение', 'Достижения', 'Достижений'])}</span></div>
+                ${achTile}
             </div>
         </section>`;
 }

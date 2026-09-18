@@ -7,9 +7,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { openAssignCarsModal } from './assignCars.js';
-import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
+import { openAchievementsModal } from './achievements.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
-import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
+import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
 import { namePrefixHtml } from './namePrefix.js';
 import { facultyCardHtml } from './faculty.js';
 
@@ -63,8 +63,6 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
             <div id="mod-panel-error" class="edit-error hidden"></div>`,
     }) : '';
 
-    const medals = Array.isArray(user.achievements) ? user.achievements.length : 0;
-
     box.innerHTML = `
         <div class="profile-page">
             ${profileHeroHtml({
@@ -72,7 +70,7 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
                 nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
                 added: user.stats.added ?? 0,
                 edited: user.stats.edited ?? 0,
-                medals,
+                achievements: user.achievements,
                 faculty: user.faculty,
                 subtitle: esc(user.faculty?.name || ''),
             })}
@@ -84,14 +82,6 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
             }) : ''}
 
             ${profileSectionHtml({
-                title: 'Достижения',
-                meta: medals ? `${medals} ${plural(medals, ['медаль', 'медали', 'медалей'])}` : '',
-                body: `<div class="achievements-feed">
-                    ${achievementsFeedHtml(user.achievements, 'Пока нет достижений')}
-                </div>`,
-            })}
-
-            ${profileSectionHtml({
                 title: 'Активность',
                 meta: 'последний год',
                 body: activityFeedHtml(activity),
@@ -100,9 +90,12 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
             ${modPanelHtml}
         </div>
     `;
-    attachFeedParticles(box);
     // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).
     attachActivityFeed(box, { loadDay: date => apiFetch('/api/users/' + userId + '/day/' + date) });
+
+    const achTile = document.getElementById('profile-ach-tile');
+    if (achTile) achTile.onclick = () =>
+        openAchievementsModal(user.achievements, { emptyText: 'Пока нет достижений' });
 
     if (!viewerIsMod) return;
 

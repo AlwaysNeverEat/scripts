@@ -2988,6 +2988,28 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .profile-stat b { display: block; font-size: 26px; line-height: 1.1; color: var(--accent); }
 .profile-stat span { display: block; font-size: 11px; color: var(--sub); margin-top: var(--s-1); }
 
+/* Плитка достижений — КНОПКА среди плиток: показывает последнюю медаль и
+   счёт, а по клику открывает окно со всеми (openAchievementsModal).
+   Отдельной панели «Достижения» на странице нет — она дублировала бы плитку. */
+.profile-stat-ach {
+  display: flex; align-items: center; justify-content: center; gap: var(--s-3);
+  font: inherit; color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s ease;
+}
+.profile-stat-ach:hover { border-color: var(--accent); }
+.profile-ach-icon { flex: none; width: 40px; height: 40px; object-fit: contain; }
+.profile-ach-info { min-width: 0; }
+/* Подпись — название последней медали: оно бывает длинным, а плитка не
+   резиновая, поэтому многоточие, полное — в подсказке. */
+.profile-ach-info > span {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Окно всех ачивок: та же сетка медалей, что раньше жила панелью на странице. */
+.ach-modal-win { max-width: 560px; }
+
 /* Панель раздела */
 .profile-sec {
   background: var(--card);
