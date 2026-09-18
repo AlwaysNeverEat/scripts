@@ -1,26 +1,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Страница профиля: обложка (аватар с загрузкой и обрезкой кроппером, ник по
-// клику, счётчики «добавлено/отредактировано») и дальше панели — достижения,
-// активность, инструменты модератора, аккаунт. Разметку обложки и панелей даёт
-// profileLayout.js: она общая с чужим профилем (publicProfile.js).
+// клику, статистика) и дальше панели — факультет, достижения, активность,
+// инструменты модератора. Разметку обложки и панелей даёт profileLayout.js:
+// она общая с чужим профилем (publicProfile.js).
 //
-// «Выйти» выходит по порядку: сначала бэкенд закрывает сессию в CRM и ждёт от
-// неё подтверждения, и только при успехе гасятся сессии сайта — ВСЕ, а не
-// только в этом браузере. Иначе второй открытый браузер того же человека
-// остался бы работать и первым же запросом поднял сессию CRM заново (учётка
-// CRM привязана к аккаунту), то есть выход из CRM был бы фикцией.
-//
-// Привязку учётки CRM при этом не снимаем — следующий вход на сайт снова
-// поднимет сессию CRM сам (снять привязку можно кнопкой «Выйти» в панели CRM).
+// Настройки (оформление устройства и выход из аккаунта) панелями страницы
+// больше не являются — они открываются шестерёнкой на обложке отдельным окном
+// (profileSettings.js): профиль показывает человека, а не ручки.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { openAvatarCropper } from './avatarCropper.js';
-import { achievementsFeedHtml, attachFeedParticles } from './achievements.js';
+import { openAchievementsModal } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
-import { accentPickerHtml, bindAccentPicker } from './accent.js';
-import { backgroundPickerHtml, bindBackgroundPicker } from './background.js';
-import { profileHeroHtml, profileSectionHtml, plural } from './profileLayout.js';
+import { openProfileSettings } from './profileSettings.js';
+import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml } from './namePrefix.js';
 
@@ -91,7 +85,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             ? `<img src="${esc(user.avatar)}" alt=""/>`
             : `<span class="profile-avatar-default"></span>`;
 
-        const medals = Array.isArray(achievements) ? achievements.length : 0;
         const isMod = user.role === 'mod' || user.role === 'admin';
 
         box.innerHTML = `
@@ -101,13 +94,16 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
                     added: stats.added ?? 0,
                     edited: stats.edited ?? 0,
+                    achievements,
                     editable: true,
                     faculty: user.faculty,
+                    subtitle: esc(user.faculty?.name || ''),
+                    withSettings: true,
                 })}
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
-                <!-- Ошибки аватарки, ника и выхода — одним местом сразу под
-                     обложкой: панелей стало много, и сообщение у нижней кнопки
-                     после клика по аватарке осталось бы за экраном. -->
+                <!-- Ошибки аватарки, ника и распределения — одним местом сразу
+                     под обложкой: сообщение рядом с местом клика, а не в конце
+                     страницы за экраном. -->
                 <div id="profile-error" class="edit-error hidden"></div>
 
                 ${profileSectionHtml({
@@ -115,14 +111,6 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     meta: faculty?.status === 'done' ? 'закреплён навсегда' : 'распределяющая шляпа',
                     cls: 'profile-sec-faculty',
                     body: facultySectionHtml(faculty),
-                })}
-
-                ${profileSectionHtml({
-                    title: 'Достижения',
-                    meta: medals ? `${medals} ${plural(medals, ['медаль', 'медали', 'медалей'])}` : '',
-                    body: `<div class="achievements-feed">
-                        ${achievementsFeedHtml(achievements, 'Пока пусто — достижения появятся здесь')}
-                    </div>`,
                 })}
 
                 ${profileSectionHtml({
@@ -137,27 +125,9 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     cls: 'profile-sec-mod',
                     body: `<button class="btn btn-sec profile-mod-assign" id="btn-self-assign-cars">Записать себе незанятые машины</button>`,
                 }) : ''}
-
-                ${profileSectionHtml({
-                    title: 'Оформление',
-                    meta: 'только на этом устройстве',
-                    body: backgroundPickerHtml() + accentPickerHtml(),
-                })}
-
-                ${profileSectionHtml({
-                    title: 'Аккаунт',
-                    body: `
-                        <button class="btn btn-sec profile-logout" id="btn-logout">Выйти</button>
-                        <!-- появляется только если CRM не подтвердила закрытие сессии -->
-                        <button class="btn btn-sec profile-logout-force hidden" id="btn-logout-force">Всё равно выйти из аккаунта</button>
-                        <div class="profile-logout-hint">Выход закрывает сессию CRM и все сессии сайта — на всех устройствах.</div>`,
-                })}
             </div>
         `;
         bind();
-        bindBackgroundPicker(box);
-        bindAccentPicker(box);
-        attachFeedParticles(box);
         // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).
         attachActivityFeed(box, { loadDay: date => apiFetch('/api/profile/day/' + date) });
     }
@@ -167,8 +137,8 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
         const showErr = (msg) => {
             errBox.textContent = msg;
             errBox.classList.remove('hidden');
-            // Ошибку выхода показываем в блоке под обложкой, а сама кнопка —
-            // в нижней панели: без подскролла сообщение осталось бы за экраном.
+            // Блок один на всю страницу: подскролл — чтобы сообщение точно
+            // оказалось на экране, из какого бы места ни кликнули.
             errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         };
         const fileInput = document.getElementById('profile-avatar-input');
@@ -290,6 +260,13 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             });
         };
 
+        const settingsBtn = document.getElementById('btn-profile-settings');
+        if (settingsBtn) settingsBtn.onclick = () => openProfileSettings({ apiFetch, onLogout });
+
+        const achTile = document.getElementById('profile-ach-tile');
+        if (achTile) achTile.onclick = () =>
+            openAchievementsModal(achievements, { emptyText: 'Пока пусто — достижения появятся здесь' });
+
         const selfAssignBtn = document.getElementById('btn-self-assign-cars');
         if (selfAssignBtn) selfAssignBtn.onclick = () => {
             openAssignCarsModal({
@@ -308,41 +285,5 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 },
             });
         };
-
-        // Выход: CRM → аккаунт сайта. Порядок именно такой, и второй шаг
-        // делается только после подтверждения первого.
-        const logoutBtn = document.getElementById('btn-logout');
-        const forceBtn = document.getElementById('btn-logout-force');
-
-        async function dropSiteSession() {
-            try { await apiFetch('/api/auth/logout', { method: 'POST' }); } catch { /* всё равно разлогиниваем локально */ }
-            onLogout();
-        }
-
-        logoutBtn.onclick = async () => {
-            errBox.classList.add('hidden');
-            forceBtn.classList.add('hidden');
-            logoutBtn.disabled = true;
-            logoutBtn.textContent = 'Закрываю сессию CRM…';
-            try {
-                // Привязку не снимаем: unlink не передаём.
-                await apiFetch('/api/crm/logout', { method: 'POST', body: {} });
-            } catch (err) {
-                logoutBtn.disabled = false;
-                logoutBtn.textContent = 'Выйти';
-                showErr(err.code === 'crm_logout_failed'
-                    ? 'CRM не подтвердила, что сессия закрыта — из аккаунта не выходим. Попробуй ещё раз.'
-                    : `Не удалось закрыть сессию CRM: ${err.message}. Из аккаунта не выходим — попробуй ещё раз.`);
-                // Если CRM недоступна надолго, из аккаунта всё-таки надо уметь
-                // выйти — но это осознанное решение человека, а не молчаливый
-                // обход проверки.
-                forceBtn.classList.remove('hidden');
-                return;
-            }
-            logoutBtn.textContent = 'Выхожу на всех устройствах…';
-            await dropSiteSession();
-        };
-
-        forceBtn.onclick = () => dropSiteSession();
     }
 }

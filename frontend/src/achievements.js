@@ -68,6 +68,42 @@ export function attachFeedParticles(root) {
         attachAchievementParticles(el, el.dataset.achIcon, 64));
 }
 
+// Последняя полученная ачивка — для плитки на обложке профиля. Сервер отдаёт
+// список по unlocked_at ASC, но на порядок не полагаемся: сравниваем сами
+// (ISO-отметки сравнимы строками), при равных берём более позднюю в списке.
+export function latestAchievement(achievements) {
+    if (!Array.isArray(achievements) || !achievements.length) return null;
+    return achievements.reduce((best, a) =>
+        (!best || String(a.unlockedAt || '') >= String(best.unlockedAt || '')) ? a : best, null);
+}
+
+// Окно со всеми ачивками — открывается плиткой «Достижения» на обложке.
+// Отдельной панели на странице профиля больше нет: плитка уже показывает
+// последнюю медаль и счёт, а полный список — работа по запросу, а не то, что
+// должно занимать экран у каждого профиля.
+export function openAchievementsModal(achievements, { emptyText = 'Пока нет достижений' } = {}) {
+    document.getElementById('achievements-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'achievements-modal';
+    modal.className = 'modal';
+    const n = Array.isArray(achievements) ? achievements.length : 0;
+    modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="modal-win ach-modal-win">
+            <div class="modal-head">
+                <span>Достижения${n ? ` — ${n}` : ''}</span>
+                <button class="btn btn-sec" id="ach-modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="achievements-feed">${achievementsFeedHtml(achievements, emptyText)}</div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('.modal-backdrop').onclick = () => modal.remove();
+    modal.querySelector('#ach-modal-close').onclick = () => modal.remove();
+    attachFeedParticles(modal);
+}
+
 const POLL_INTERVAL_MS = 120_000;
 const TOAST_LIFETIME_MS = 7_000;
 

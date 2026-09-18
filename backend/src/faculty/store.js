@@ -44,7 +44,6 @@ export function facultyCard(id) {
         tagline: f.tagline,
         about: f.about,
         strengths: f.strengths,
-        watch: f.watch,
     };
 }
 
