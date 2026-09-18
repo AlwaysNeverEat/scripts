@@ -81,6 +81,7 @@ export async function initPublicProfilePage({ apiFetch, userKey, viewer }) {
                 achievements: user.achievements,
                 faculty: user.faculty,
                 subtitle: user.login ? '@' + esc(user.login) : '',
+                fx: user.fx,
             })}
 
             ${user.faculty ? profileSectionHtml({

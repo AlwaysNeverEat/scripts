@@ -21,6 +21,7 @@
 import { Router } from 'express';
 import { query } from '../db/client.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
+import { FX_JOIN, FX_COLUMNS, fxOf } from '../profileFx/store.js';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ const MSK_NOW = `(now() AT TIME ZONE 'Europe/Moscow')`;
 
 const STATS_SELECT = `
   u.id, u.display_name, u.avatar,
-  rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS},
+  rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}, ${FX_COLUMNS},
   count(*)::int AS records`;
 
 // Ранжируем по числу записей; при равенстве — по имени, чтобы порядок был
@@ -41,8 +42,10 @@ const RANKED_QUERY = `
     JOIN users u ON u.id = rc.user_id
     LEFT JOIN role_labels rl ON rl.role = u.role
     ${FACULTY_JOIN}
+    ${FX_JOIN}
    WHERE rc.month = $1 AND rc.counted
-   GROUP BY u.id, rl.prefix_label, rl.color, rl.tooltip, fr.faculty
+   GROUP BY u.id, rl.prefix_label, rl.color, rl.tooltip, fr.faculty,
+            ufx.avatar_fx, ufx.profile_fx
    ORDER BY count(*) DESC, u.display_name
    LIMIT $2`;
 
@@ -55,6 +58,8 @@ function presentRow(row) {
       ? { label: row.prefix_label, color: row.color, tooltip: row.tooltip }
       : null,
     faculty: facultyBadge(row.faculty),
+    // Рамка аватара видна и в топе — оформление должно ездить с человеком.
+    fx: fxOf(row),
     records: row.records || 0,
   };
 }

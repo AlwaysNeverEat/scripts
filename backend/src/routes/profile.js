@@ -11,6 +11,7 @@ import {
 } from '../achievements/achievements.js';
 import { loadActivity } from '../records/activity.js';
 import { loadDayRecords } from '../records/credits.js';
+import { saveFx } from '../profileFx/store.js';
 
 const uploadFull = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_BYTES } })
   .fields([{ name: 'avatar_original', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
@@ -44,6 +45,26 @@ router.patch('/', async (req, res) => {
     res.json({ user: await loadPublicUser(req.user.id) });
   } catch (e) {
     console.error('PATCH /api/profile', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/profile/fx ──────────────────────────────────────────────────────
+// Надеть/снять рамку аватара и эффект обложки (body { avatar, profile } —
+// id из shared/profileFx.js или null). Валюты пока нет, поэтому проверки
+// «куплено ли» тоже нет — когда появится, она встанет здесь, до saveFx.
+// Незнакомый id молча превращается в null (normalizeFx) — мусор из консоли
+// не долетает до базы и не роняет запрос.
+
+router.post('/fx', async (req, res) => {
+  try {
+    const fx = await saveFx(req.user.id, {
+      avatar: req.body?.avatar ?? null,
+      profile: req.body?.profile ?? null,
+    });
+    res.json({ fx });
+  } catch (e) {
+    console.error('POST /api/profile/fx', e);
     res.status(500).json({ error: e.message });
   }
 });

@@ -14,6 +14,7 @@ import { openAchievementsModal } from './achievements.js';
 import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { openProfileSettings } from './profileSettings.js';
+import { openFxShop } from './profileFx.js';
 import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml } from './namePrefix.js';
@@ -99,6 +100,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     faculty: user.faculty,
                     subtitle: user.login ? '@' + esc(user.login) : '',
                     withSettings: true,
+                    fx: user.fx,
                 })}
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
                 <!-- Ошибки аватарки, ника и распределения — одним местом сразу
@@ -262,6 +264,18 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
         const settingsBtn = document.getElementById('btn-profile-settings');
         if (settingsBtn) settingsBtn.onclick = () => openProfileSettings({ apiFetch, onLogout });
+
+        const shopBtn = document.getElementById('btn-profile-shop');
+        if (shopBtn) shopBtn.onclick = () => openFxShop({
+            apiFetch,
+            fx: user.fx,
+            onChanged: (fx) => {
+                // Обложка перерисовывается сразу — эффект меряют, глядя на неё.
+                user = { ...user, fx };
+                onUserChanged(user);
+                render();
+            },
+        });
 
         const achTile = document.getElementById('profile-ach-tile');
         if (achTile) achTile.onclick = () =>

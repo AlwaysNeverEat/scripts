@@ -16,6 +16,7 @@
 
 import { facultyClass } from './namePrefix.js';
 import { achievementIcon, latestAchievement } from './achievements.js';
+import { avatarFxHtml, profileFxHtml } from './profileFx.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -49,23 +50,32 @@ export function plural(n, forms) {
 // со всеми (openAchievementsModal — обработчик вешает страница). Отдельной
 // панели «Достижения» на странице нет — она дублировала бы эту плитку.
 //
-// withSettings — шестерёнка на шапке (только свой профиль): открывает окно
-// настроек (profileSettings.js), обработчик вешает profile.js.
+// fx — кастомизация ({ avatar, profile } из shared/profileFx.js): рамка
+// ложится в контейнер аватара, эффект — слоем в шапку. Разметку обоих даёт
+// profileFx.js — та же, что в топе и в превью магазина.
+//
+// withSettings — шестерёнка и магазин на шапке (только свой профиль):
+// обработчики вешает profile.js.
 export function profileHeroHtml({
     avatarInner, nameInner, added = 0, edited = 0, achievements = [],
     editable = false, faculty = null, subtitle = '', withSettings = false,
+    fx = null,
 }) {
     const avatar = `<div class="profile-avatar">${avatarInner}</div>`;
+    const fxRing = avatarFxHtml(fx?.avatar);
     const avatarBlock = editable
         ? `<div class="profile-avatar-wrap" id="profile-avatar-wrap" title="Кликните, чтобы сменить аватар">
-               ${avatar}<span class="profile-avatar-pen" aria-hidden="true"></span>
+               ${avatar}${fxRing}<span class="profile-avatar-pen" aria-hidden="true"></span>
            </div>`
-        : `<div class="profile-avatar-wrap profile-avatar-static">${avatar}</div>`;
+        : `<div class="profile-avatar-wrap profile-avatar-static">${avatar}${fxRing}</div>`;
     const nameBlock = editable
         ? `<div class="profile-name" id="profile-name-view" title="Кликните, чтобы поменять ник">${nameInner}</div>`
         : `<div class="profile-name profile-name-static">${nameInner}</div>`;
     const settingsBtn = withSettings
-        ? `<button type="button" class="profile-settings-btn" id="btn-profile-settings" title="Настройки" aria-label="Настройки">
+        ? `<button type="button" class="profile-settings-btn" id="btn-profile-shop" title="Магазин" aria-label="Магазин">
+               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+           </button>
+           <button type="button" class="profile-settings-btn" id="btn-profile-settings" title="Настройки" aria-label="Настройки">
                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
            </button>`
         : '';
@@ -90,7 +100,8 @@ export function profileHeroHtml({
 
     return `
         <section class="profile-hero${facultyClass(faculty, 'faculty-tint')}">
-            <div class="profile-cover">${settingsBtn}</div>
+            <div class="profile-cover">${profileFxHtml(fx?.profile)}${
+                settingsBtn ? `<div class="profile-cover-btns">${settingsBtn}</div>` : ''}</div>
             <div class="profile-hero-main">
                 ${avatarBlock}
                 <div class="profile-ident">

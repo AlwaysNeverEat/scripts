@@ -2903,11 +2903,14 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
     linear-gradient(120deg, color-mix(in oklab, var(--accent) 26%, transparent) 0%, color-mix(in oklab, var(--accent) 7%, transparent) 70%);
 }
 
-/* Шестерёнка настроек — на шапке, где у обложек живут служебные кнопки.
-   Полупрозрачная подложка, а не голая иконка: шапка бывает и тёмной, и
-   светлой (цвет дома), и без неё шестерёнка тонет в градиенте. */
-.profile-settings-btn {
+/* Служебные кнопки шапки (магазин и настройки) — рядом в правом углу, как у
+   обложек и положено. Полупрозрачная подложка, а не голая иконка: шапка
+   бывает и тёмной, и светлой (цвет дома), и без неё кнопки тонут в градиенте. */
+.profile-cover-btns {
   position: absolute; top: var(--s-3); right: var(--s-3);
+  display: flex; gap: var(--s-2);
+}
+.profile-settings-btn {
   width: 36px; height: 36px;
   display: grid; place-items: center;
   border-radius: var(--r-circle);
@@ -3009,6 +3012,254 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* Окно всех ачивок: та же сетка медалей, что раньше жила панелью на странице. */
 .ach-modal-win { max-width: 560px; }
+
+/* ── Кастомизация профиля: рамки аватара и эффекты обложки ────────
+   Каталог — shared/profileFx.js, разметка — frontend/src/profileFx.js.
+   Всё нарисовано вёрсткой и анимациями, без картинок: эффект красится темой
+   и акцентом (неон у синего акцента синий), и это наш арт, а не чужой.
+   Класс = id эффекта: .afx-<id> у рамок, .pfx-<id> у эффектов обложки. */
+
+/* Рамка живёт в контейнере аватара (position: relative) и чуть шире круга. */
+.afx { position: absolute; inset: -11%; border-radius: var(--r-circle); pointer-events: none; }
+
+/* Обёртка аватара в строках топа: у самого .top-avatar overflow: hidden, и
+   рамка, положенная внутрь, обрезалась бы по кругу. */
+.top-ava-wrap { position: relative; display: inline-flex; flex: none; }
+
+@keyframes afx-spin { to { transform: rotate(360deg); } }
+
+/* Пульс: аватар «дышит» свечением акцента. */
+.afx-pulse {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 55%, transparent);
+  animation: afx-pulse 2.6s ease-in-out infinite;
+}
+@keyframes afx-pulse {
+  50% { box-shadow: 0 0 0 3px var(--accent), 0 0 22px 2px color-mix(in oklab, var(--accent) 65%, transparent); }
+}
+
+/* Неон: хвост, бегущий по кольцу. Кольцо вырезается маской из заливки —
+   рисовать «бегущий градиент» бордером нельзя, он не крутится. */
+.afx-neon {
+  background: conic-gradient(from 0deg,
+    transparent 0 62%, color-mix(in oklab, var(--accent) 45%, transparent) 78%, var(--accent) 96%, transparent 100%);
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+          mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  filter: drop-shadow(0 0 4px var(--accent));
+  animation: afx-spin 2.6s linear infinite;
+}
+
+/* Орбита: два спутника, сам контейнер крутится. */
+.afx-orbit { animation: afx-spin 7s linear infinite; }
+.afx-orbit i {
+  position: absolute; left: 50%; width: 9%; height: 9%;
+  margin-left: -4.5%;
+  border-radius: var(--r-circle);
+  background: var(--accent);
+  box-shadow: 0 0 7px var(--accent);
+}
+.afx-orbit i:first-child { top: -4%; }
+.afx-orbit i:last-child { bottom: -4%; transform: scale(0.7); opacity: .8; }
+
+/* Уголёк: тлеющий обод и искры вверх. Цвета огня СВОИ, не акцент —
+   зелёный уголёк это не уголёк. */
+.afx-ember {
+  box-shadow: 0 0 0 2px #b34a1f, 0 0 16px 2px rgba(255, 122, 40, .55);
+  animation: afx-ember 1.8s ease-in-out infinite;
+}
+@keyframes afx-ember {
+  50% { box-shadow: 0 0 0 2px #e06a28, 0 0 24px 4px rgba(255, 150, 50, .75); }
+}
+.afx-ember i {
+  position: absolute; bottom: 8%;
+  width: 6%; height: 6%;
+  border-radius: var(--r-circle);
+  background: #ffb257;
+  box-shadow: 0 0 6px #ff8a2a;
+  opacity: 0;
+  animation: afx-spark linear infinite;
+}
+@keyframes afx-spark {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  15% { opacity: .95; }
+  100% { transform: translateY(-140%) scale(.3); opacity: 0; }
+}
+
+/* Спектр: то же кольцо, но по всем цветам — светлота и насыщенность акцентные,
+   крутится только тон, поэтому кольцо не спорит с контрастом темы. */
+.afx-spectre {
+  background: conic-gradient(from 0deg,
+    oklch(0.8 0.17 0), oklch(0.8 0.17 60), oklch(0.8 0.17 120), oklch(0.8 0.17 180),
+    oklch(0.8 0.17 240), oklch(0.8 0.17 300), oklch(0.8 0.17 0));
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+          mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: afx-spin 5s linear infinite;
+}
+
+/* Иней: морозная кромка. Штрихи — repeating-conic в том же кольце-маске,
+   медленно ползут в обратную сторону, как позёмка. */
+.afx-frost {
+  background: repeating-conic-gradient(from 0deg,
+    rgba(190, 226, 255, .95) 0deg 7deg, rgba(190, 226, 255, .15) 7deg 16deg);
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+          mask: radial-gradient(closest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+  filter: drop-shadow(0 0 5px rgba(150, 210, 255, .8));
+  animation: afx-spin 14s linear infinite reverse;
+}
+
+/* Эффект обложки: слой поверх .profile-cover, частицы — <i> с инлайновыми
+   left/задержками (детерминированный псевдослучай — см. profileFx.js). */
+.pfx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.pfx i { position: absolute; display: block; }
+
+.pfx-snow i {
+  top: -8%;
+  width: 5px; height: 5px;
+  border-radius: var(--r-circle);
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 0 4px rgba(255, 255, 255, .5);
+  animation: pfx-fall linear infinite;
+}
+@keyframes pfx-fall {
+  to { top: 108%; }
+}
+
+.pfx-rain i {
+  top: -30%;
+  width: 1.5px; height: 26px;
+  background: linear-gradient(180deg, transparent, rgba(170, 205, 255, .8));
+  transform: rotate(12deg);
+  animation: pfx-rain linear infinite;
+}
+@keyframes pfx-rain {
+  to { top: 120%; }
+}
+
+.pfx-stars i {
+  width: 3px; height: 3px;
+  border-radius: var(--r-circle);
+  background: #fff;
+  box-shadow: 0 0 5px rgba(255, 255, 255, .8);
+  animation: pfx-twinkle ease-in-out infinite;
+}
+@keyframes pfx-twinkle {
+  0%, 100% { opacity: .15; transform: scale(.7); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+/* Падающая звезда — одна и редкая: чаще она перестаёт быть событием. */
+.pfx-stars .pfx-shoot {
+  position: absolute; top: 18%; left: -12%;
+  width: 70px; height: 1.5px;
+  background: linear-gradient(90deg, transparent, #fff);
+  transform: rotate(16deg);
+  opacity: 0;
+  animation: pfx-shoot 7s linear infinite;
+}
+@keyframes pfx-shoot {
+  0%, 88% { left: -12%; top: 18%; opacity: 0; }
+  90% { opacity: .9; }
+  97%, 100% { left: 105%; top: 62%; opacity: 0; }
+}
+
+.pfx-fireflies i {
+  width: 5px; height: 5px;
+  border-radius: var(--r-circle);
+  background: #ffd97a;
+  box-shadow: 0 0 8px 2px rgba(255, 200, 90, .65);
+  animation: pfx-drift ease-in-out infinite;
+}
+@keyframes pfx-drift {
+  0%, 100% { transform: translate(0, 0); opacity: .2; }
+  30% { opacity: 1; }
+  50% { transform: translate(14px, -10px); opacity: .55; }
+  75% { transform: translate(-8px, 6px); opacity: .95; }
+}
+
+.pfx-confetti i {
+  top: -12%;
+  width: 6px; height: 10px;
+  border-radius: var(--r-1);
+  background: oklch(0.8 0.17 var(--cf-h, 40));
+  animation: pfx-confetti linear infinite;
+}
+@keyframes pfx-confetti {
+  to { top: 115%; transform: rotate(540deg); }
+}
+
+/* Сияние: три размытые ленты, гуляющие поперёк шапки. Ленты, а не частицы —
+   сияние это волны, и blur из трёх градиентов даёт их дешевле любого канваса. */
+.pfx-aurora i {
+  top: -35%;
+  width: 60%; height: 120%;
+  filter: blur(14px);
+  opacity: .5;
+  animation: pfx-aurora ease-in-out infinite alternate;
+}
+.pfx-aurora i:nth-child(1) { left: -10%; background: linear-gradient(115deg, transparent, #3be8b0, transparent); animation-duration: 7s; }
+.pfx-aurora i:nth-child(2) { left: 30%; background: linear-gradient(65deg, transparent, #5aa8ff, transparent); animation-duration: 9s; }
+.pfx-aurora i:nth-child(3) { left: 65%; background: linear-gradient(90deg, transparent, #b07bff, transparent); animation-duration: 11s; }
+@keyframes pfx-aurora {
+  from { transform: translateX(-6%) skewX(-8deg); }
+  to { transform: translateX(6%) skewX(8deg); }
+}
+
+/* Кому мельтешение мешает — эффекты замирают, но остаются видимыми. */
+@media (prefers-reduced-motion: reduce) {
+  .afx, .afx i, .pfx i, .pfx-stars .pfx-shoot { animation: none; }
+}
+
+/* ── Окно магазина (openFxShop в profileFx.js) ──────────────────── */
+.fxshop-win { max-width: 560px; }
+.fxshop-sec { margin-top: var(--s-5); }
+.fxshop-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+.fxshop-card {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s-1);
+  padding: var(--s-3) var(--s-2);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  font: inherit; color: inherit;
+  cursor: pointer;
+  transition: border-color .15s ease;
+}
+.fxshop-card:hover { border-color: color-mix(in oklab, var(--accent) 60%, var(--border)); }
+.fxshop-card.is-on { border-color: var(--accent); }
+.fxshop-prev { display: grid; place-items: center; width: 100%; height: 56px; }
+.fxshop-ava {
+  position: relative;
+  width: 42px; height: 42px;
+  border-radius: var(--r-circle);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+/* Превью обложки — тот же градиент, что у шапки без факультета: эффект
+   смотрят на том фоне, на котором он будет жить. */
+.fxshop-cover {
+  position: relative; display: block;
+  width: 100%; height: 100%;
+  border-radius: var(--r-2);
+  overflow: hidden;
+  background: linear-gradient(120deg, color-mix(in oklab, var(--accent) 26%, transparent) 0%, color-mix(in oklab, var(--accent) 7%, transparent) 70%);
+}
+.fxshop-name { font-size: 12px; font-weight: 700; }
+.fx-price {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11px; font-weight: 700;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-round);
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.fxshop-state { font-size: 10.5px; color: var(--sub); }
+.fxshop-card.is-on .fxshop-state { color: var(--accent); }
+.fxshop-note { margin-top: var(--s-4); }
+#fxshop-error { margin-top: var(--s-3); }
+
+@media (max-width: 430px) {
+  .fxshop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* Панель раздела */
 .profile-sec {

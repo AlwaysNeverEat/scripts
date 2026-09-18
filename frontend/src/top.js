@@ -25,6 +25,7 @@ import { icons } from './records/icons.js';
 import { recordsWord } from '../../shared/activityHeatmap.js';
 import { namePrefixHtml, facultyClass } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
+import { avatarFxHtml } from './profileFx.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -85,7 +86,7 @@ function previousHtml(previous) {
     const label = monthLabel(previous.month);
     const names = winners.map(w => `
         <div class="top-prev-user"${profileRowAttrs(w)}>
-            <div class="top-avatar">${avatarHtml(w)}</div>
+            <span class="top-ava-wrap"><div class="top-avatar">${avatarHtml(w)}</div>${avatarFxHtml(w.fx?.avatar)}</span>
             <div class="top-prev-name">${namePrefixHtml(w)}${esc(w.display_name)}</div>
             <span class="top-prev-count">${w.records}&nbsp;${recordsWord(w.records)}</span>
         </div>`).join('');
@@ -137,7 +138,7 @@ function render(body, data) {
             return `
             <div class="top-row ${gold ? 'top-row-gold' : ''}${facultyClass(row.faculty, 'faculty-tint')}"${profileRowAttrs(row)}>
                 <span class="top-rank${t}">${row.rank}</span>
-                <div class="top-avatar">${avatarHtml(row)}</div>
+                <span class="top-ava-wrap"><div class="top-avatar">${avatarHtml(row)}</div>${avatarFxHtml(row.fx?.avatar)}</span>
                 <div class="top-name">${namePrefixHtml(row)}<span class="${t.trim()}">${esc(row.display_name)}</span></div>
                 ${countHtml(row, gold)}
             </div>`;

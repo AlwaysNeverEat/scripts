@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import { query } from '../db/client.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
+import { FX_JOIN, FX_COLUMNS, fxOf } from '../profileFx/store.js';
 import { isSessionAlive } from './midnightMsk.js';
 
 function hashToken(token) {
@@ -54,10 +55,11 @@ export async function loadPublicUser(userId) {
   const r = await query(
     `SELECT u.id, u.display_name, u.login, u.role, u.avatar,
             u.avatar_original, u.avatar_crop, u.banned_at,
-            rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}
+            rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}, ${FX_COLUMNS}
        FROM users u
        LEFT JOIN role_labels rl ON rl.role = u.role
        ${FACULTY_JOIN}
+       ${FX_JOIN}
       WHERE u.id = $1`,
     [userId],
   );
@@ -80,6 +82,8 @@ export async function loadPublicUser(userId) {
       : null,
     // Плашка факультета — рядом с ролью, но после неё (см. shared/faculties.js).
     faculty: facultyBadge(row.faculty),
+    // Кастомизация профиля: рамка аватара и эффект обложки (shared/profileFx.js).
+    fx: fxOf(row),
   };
 }
 

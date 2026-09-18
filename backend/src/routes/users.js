@@ -6,6 +6,7 @@ import { listUserAchievements, syncAchievementsSafe } from '../achievements/achi
 import { loadActivity } from '../records/activity.js';
 import { loadDayRecords } from '../records/credits.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge, facultyCard } from '../faculty/store.js';
+import { FX_JOIN, FX_COLUMNS, fxOf } from '../profileFx/store.js';
 
 const router = Router();
 
@@ -102,10 +103,11 @@ router.get('/:id/public', async (req, res) => {
 
     const userR = await query(
       `SELECT u.id, u.display_name, u.login, u.avatar, u.role, u.banned_at,
-              rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}
+              rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}, ${FX_COLUMNS}
          FROM users u
          LEFT JOIN role_labels rl ON rl.role = u.role
          ${FACULTY_JOIN}
+         ${FX_JOIN}
         WHERE u.id = $1`,
       [userId],
     );
@@ -146,6 +148,8 @@ router.get('/:id/public', async (req, res) => {
       // В чужом профиле показывается вся карточка факультета, а не только
       // плашка: это единственное место, где её вообще видно у другого человека.
       faculty: facultyCard(row.faculty),
+      // Кастомизация — рамка и эффект видны всем, как и аватар.
+      fx: fxOf(row),
       stats,
       achievements,
     });

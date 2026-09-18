@@ -41,6 +41,7 @@
       <option value="hufflepuff">Пуффендуй</option>
     </select>
     <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-pri" id="dev-shop">Магазин</button>
   </div>
   <div class="profile-content" id="dev-out"></div>
 
@@ -52,6 +53,7 @@
     import { facultyCardHtml } from './src/faculty.js';
     import { openAchievementsModal } from './src/achievements.js';
     import { openProfileSettings } from './src/profileSettings.js';
+    import { openFxShop } from './src/profileFx.js';
     import { facultyPrefixHtml } from './src/namePrefix.js';
     import { facultyById } from '../shared/faculties.js';
 
@@ -67,6 +69,9 @@
 
     const out = document.getElementById('dev-out');
 
+    // Выбор эффектов живёт в памяти страницы — на проде его хранит сервер.
+    let fx = { avatar: 'neon', profile: 'stars' };
+
     function render() {
       const faculty = facultyById(document.getElementById('dev-house').value);
       out.innerHTML = `
@@ -79,6 +84,7 @@
             faculty,
             subtitle: '@dezhurny',
             withSettings: true,
+            fx,
           })}
           ${profileSectionHtml({
             title: 'Факультет',
@@ -100,7 +106,21 @@
       });
       const achTile = document.getElementById('profile-ach-tile');
       if (achTile) achTile.onclick = () => openAchievementsModal(ACHIEVEMENTS);
+      const shopBtn = document.getElementById('btn-profile-shop');
+      if (shopBtn) shopBtn.onclick = openShop;
     }
+
+    function openShop() {
+      openFxShop({
+        apiFetch: async (path, { body } = {}) => {
+          console.log('dev: apiFetch', path, body);
+          return { fx: body }; // сервера нет — «сохраняем» как есть
+        },
+        fx,
+        onChanged: (next) => { fx = next; render(); },
+      });
+    }
+    document.getElementById('dev-shop').onclick = openShop;
 
     document.getElementById('dev-house').onchange = render;
     document.getElementById('dev-theme').onclick = () =>
