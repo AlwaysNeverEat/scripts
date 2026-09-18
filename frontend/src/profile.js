@@ -100,6 +100,8 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     faculty: user.faculty,
                     subtitle: user.login ? '@' + esc(user.login) : '',
                     withSettings: true,
+                    // Магазин пока только модераторам — см. POST /api/profile/fx.
+                    withShop: isMod,
                     fx: user.fx,
                 })}
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>

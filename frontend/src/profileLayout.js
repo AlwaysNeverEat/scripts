@@ -54,12 +54,14 @@ export function plural(n, forms) {
 // ложится в контейнер аватара, эффект — слоем в шапку. Разметку обоих даёт
 // profileFx.js — та же, что в топе и в превью магазина.
 //
-// withSettings — шестерёнка и магазин на шапке (только свой профиль):
-// обработчики вешает profile.js.
+// withSettings — шестерёнка на шапке (только свой профиль); withShop —
+// кнопка магазина рядом с ней (пока только модераторам: валюты нет, и без
+// замка бесплатные эффекты мгновенно стали бы у всех — см. routes/profile.js).
+// Обработчики вешает profile.js.
 export function profileHeroHtml({
     avatarInner, nameInner, added = 0, edited = 0, achievements = [],
     editable = false, faculty = null, subtitle = '', withSettings = false,
-    fx = null,
+    withShop = false, fx = null,
 }) {
     const avatar = `<div class="profile-avatar">${avatarInner}</div>`;
     const fxRing = avatarFxHtml(fx?.avatar);
@@ -71,11 +73,13 @@ export function profileHeroHtml({
     const nameBlock = editable
         ? `<div class="profile-name" id="profile-name-view" title="Кликните, чтобы поменять ник">${nameInner}</div>`
         : `<div class="profile-name profile-name-static">${nameInner}</div>`;
-    const settingsBtn = withSettings
+    const shopBtn = withShop
         ? `<button type="button" class="profile-settings-btn" id="btn-profile-shop" title="Магазин" aria-label="Магазин">
                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-           </button>
-           <button type="button" class="profile-settings-btn" id="btn-profile-settings" title="Настройки" aria-label="Настройки">
+           </button>`
+        : '';
+    const settingsBtn = withSettings
+        ? `${shopBtn}<button type="button" class="profile-settings-btn" id="btn-profile-settings" title="Настройки" aria-label="Настройки">
                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
            </button>`
         : '';

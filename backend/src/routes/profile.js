@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { query } from '../db/client.js';
 import { validateDisplayName } from '../auth/validate.js';
+import { requireRole } from '../auth/middleware.js';
 import { loadPublicUser } from '../auth/sessions.js';
 import {
   uploadAvatarOriginal, uploadAvatarCropped, isAllowedAvatarMime, AVATAR_MAX_BYTES,
@@ -51,12 +52,15 @@ router.patch('/', async (req, res) => {
 
 // ── POST /api/profile/fx ──────────────────────────────────────────────────────
 // Надеть/снять рамку аватара и эффект обложки (body { avatar, profile } —
-// id из shared/profileFx.js или null). Валюты пока нет, поэтому проверки
-// «куплено ли» тоже нет — когда появится, она встанет здесь, до saveFx.
+// id из shared/profileFx.js или null). Пока магазин ТОЛЬКО ДЛЯ МОДЕРАТОРОВ:
+// валюты нет, всё бесплатно, и без замка эффекты мгновенно стали бы у всех —
+// а вместе с ними исчез бы смысл будущей валюты. Смотреть чужие эффекты можно
+// всем, надевать — mod/admin; замок снимется вместе с появлением валюты, и
+// тогда здесь же, до saveFx, встанет проверка «куплено ли».
 // Незнакомый id молча превращается в null (normalizeFx) — мусор из консоли
 // не долетает до базы и не роняет запрос.
 
-router.post('/fx', async (req, res) => {
+router.post('/fx', requireRole('mod', 'admin'), async (req, res) => {
   try {
     const fx = await saveFx(req.user.id, {
       avatar: req.body?.avatar ?? null,
