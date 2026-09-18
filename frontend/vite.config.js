@@ -32,9 +32,12 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: '.',
-    // относительные пути ассетов — сайт работает и с корня, и с подпапки
-    // (GitHub Pages отдаёт его с https://<user>.github.io/<repo>/)
-    base: './',
+    // Пути ассетов — АБСОЛЮТНЫЕ от корня: роутинг живёт на путях без решётки
+    // (/car/<id>, /gtrixoff — см. src/router.js), и относительный ./assets с
+    // такой страницы резолвился бы в /car/assets. Относительная база была
+    // нужна GitHub Pages (сайт из подпапки) — этот путь деплоя мёртв, прод
+    // живёт на корне домена (deploy/nginx.conf).
+    base: '/',
     plugins: [stripProdComments()],
     build: {
       outDir: 'dist',

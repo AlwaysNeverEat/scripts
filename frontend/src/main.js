@@ -1,3 +1,4 @@
+import { initRouter, onRoute, navigate, currentPath } from './router.js';
 import { initCarPage } from './carPage.js';
 import { startSphere } from './sphere.js';
 import { bootScreen } from './bootScreen.js';
@@ -235,16 +236,16 @@ function renderUserBar() {
 // открытая станция в записях — всё остаётся ровно таким, каким его оставили.
 
 const DEFAULT_TAB_ROUTE = {
-    profile: '#/profile',
-    calc:    '#/',
-    records: '#/records',
-    // leads:   '#/leads', // отложено
-    client:  '#/client',
-    stock:   '#/stock',
-    // scripts: '#/scripts', // выключено
-    news:    '#/news',
-    top:     '#/top',
-    admin:   '#/admin',
+    profile: '/profile',
+    calc:    '/',
+    records: '/records',
+    // leads:   '/leads', // отложено
+    client:  '/client',
+    stock:   '/stock',
+    // scripts: '/scripts', // выключено
+    news:    '/news',
+    top:     '/top',
+    admin:   '/admin',
 };
 const lastRoute = { ...DEFAULT_TAB_ROUTE };
 
@@ -252,17 +253,47 @@ const lastRoute = { ...DEFAULT_TAB_ROUTE };
 const scrollByRoute = new Map();
 let currentRoute = null;
 
-function tabOfHash(hash) {
-    if (hash.startsWith('#/records')) return 'records';
-    // if (hash === '#/leads') return 'leads'; // отложено: #/leads уходит в калькулятор
-    if (hash === '#/client') return 'client';
-    if (hash === '#/stock') return 'stock';
-    // if (hash === '#/scripts') return 'scripts'; // выключено: #/scripts уходит в калькулятор
-    if (hash === '#/news') return 'news';
-    if (hash === '#/top') return 'top';
-    if (hash === '#/admin') return 'admin';
-    if (hash === '#/profile' || /^#\/user\/[0-9a-f-]{10,}/i.test(hash)) return 'profile';
-    return 'calc'; // #/ и #/car/:id
+// «Записи» — сам раздел и ссылка на запись (/records?date=…), но НЕ логин
+// вида recordsman: у роутов и логинов теперь один namespace, и голый
+// startsWith съедал бы чужие профили.
+function isRecordsPath(path) {
+    return path === '/records' || path.startsWith('/records?');
+}
+
+function tabOfPath(path) {
+    if (isRecordsPath(path)) return 'records';
+    // if (path === '/leads') return 'leads'; // отложено: /leads уходит в калькулятор
+    if (path === '/client') return 'client';
+    if (path === '/stock') return 'stock';
+    // if (path === '/scripts') return 'scripts'; // выключено: /scripts уходит в калькулятор
+    if (path === '/news') return 'news';
+    if (path === '/top') return 'top';
+    if (path === '/admin') return 'admin';
+    if (path === '/profile' || /^\/user\/[0-9a-f-]{10,}/i.test(path)) return 'profile';
+    if (loginOfPath(path)) return 'profile'; // /<login> — человеческий адрес профиля
+    return 'calc'; // / и /car/:id
+}
+
+// ── Адрес профиля по логину: /<login> ─────────────────────────────────────────
+// Человеческая ссылка на профиль (k-spot.ru/gtrixoff) вместо uuid. Сегмент
+// считается логином, только если он похож на логин (те же правила, что при
+// регистрации — backend/src/auth/validate.js) и не занят разделом сайта:
+// логин «records» зарегистрировать можно, а вот адрес ему достанется старый,
+// /user/<id> — раздел важнее. Кириллица в адресе приезжает процентами, поэтому
+// сперва decodeURIComponent.
+const ROUTE_WORDS = new Set([
+    'profile', 'user', 'car', 'records', 'client', 'stock',
+    'news', 'top', 'admin', 'scripts', 'leads',
+]);
+const LOGIN_SEG_RE = /^[a-zA-Zа-яА-ЯёЁ0-9._-]{3,40}$/;
+
+function loginOfPath(path) {
+    const m = (path || '').match(/^\/([^/?#]+)$/);
+    if (!m) return null;
+    let seg;
+    try { seg = decodeURIComponent(m[1]); } catch { return null; }
+    if (ROUTE_WORDS.has(seg.toLowerCase())) return null;
+    return LOGIN_SEG_RE.test(seg) ? seg : null;
 }
 
 function setActiveTab(tab) {
@@ -277,46 +308,48 @@ appTabs.querySelectorAll('.app-tab').forEach(btn => {
     btn.onclick = () => {
         const tab = btn.dataset.tab;
         // Клик по активной вкладке ничего не сбрасывает: это её же экран.
-        if (lastRoute[tab] === location.hash) return;
-        location.hash = lastRoute[tab];
+        if (lastRoute[tab] === currentPath()) return;
+        navigate(lastRoute[tab]);
     };
 });
 
-function restoreScroll(hash) {
-    window.scrollTo(0, scrollByRoute.get(hash) || 0);
+function restoreScroll(route) {
+    window.scrollTo(0, scrollByRoute.get(route) || 0);
 }
 
-// ── Hash routing ──────────────────────────────────────────────────────────────
-//   #/            — поиск (вкладка «Калькулятор»)
-//   #/car/:id     — страница машины (прямая ссылка переживает F5)
-//   #/profile     — свой профиль (редактируемый)
-//   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
-//   #/records     — записи по станциям (с ?date=…&station=… открывает запись)
-//   #/client      — клиент из CRM по телефону или гос. номеру
-//   #/stock       — остатки склада CRM по станциям
-//   #/scripts     — фид юзерскриптов (выключен)
-//   #/news        — «Новости»: посты об изменениях сайта
-//   #/top         — рейтинг пользователей
+// ── Роуты (пути, без решётки — см. router.js) ─────────────────────────────────
+//   /             — поиск (вкладка «Калькулятор»)
+//   /car/:id      — страница машины (прямая ссылка переживает F5)
+//   /profile      — свой профиль (редактируемый)
+//   /user/:id     — чужой профиль (read-only, из топа/ленты машины)
+//   /<login>      — тот же чужой профиль по логину (человеческая ссылка);
+//                   открытый по id профиль сам переписывает адрес на эту форму
+//   /records      — записи по станциям (с ?date=…&station=… открывает запись)
+//   /client       — клиент из CRM по телефону или гос. номеру
+//   /stock        — остатки склада CRM по станциям
+//   /scripts      — фид юзерскриптов (выключен)
+//   /news         — «Новости»: посты об изменениях сайта
+//   /top          — рейтинг пользователей
 
 let renderedCarId = null;  // машина, уже отрисованная на #page-calc
 let profileKey = null;     // 'self' или id чужого профиля на #page-profile
 
 async function renderRoute() {
-    const hash = location.hash || '#/';
-    if (currentRoute && currentRoute !== hash) scrollByRoute.set(currentRoute, window.scrollY);
-    currentRoute = hash;
+    const route = currentPath();
+    if (currentRoute && currentRoute !== route) scrollByRoute.set(currentRoute, window.scrollY);
+    currentRoute = route;
 
-    const tab = tabOfHash(hash);
-    // Вкладка «Профиль» всегда ведёт к своему профилю: чужой (#/user/:id)
+    const tab = tabOfPath(route);
+    // Вкладка «Профиль» всегда ведёт к своему профилю: чужой (/user/:id)
     // открывается из топа и ленты, но вкладкой не запоминается.
-    if (tab !== 'profile' || hash === '#/profile') lastRoute[tab] = hash;
+    if (tab !== 'profile' || route === '/profile') lastRoute[tab] = route;
     setActiveTab(tab);
 
     // Записи живут до гейта: у них свой вход — общий логин/пароль админки
     // ZMS, аккаунт сайта для них не нужен (см. backend/src/routes/records.js).
     if (tab === 'records') {
         await showRecords();
-        restoreScroll(hash);
+        restoreScroll(route);
         return;
     }
     // Уходим с записей — гасим их опросы, но раздел оставляем собранным.
@@ -324,22 +357,42 @@ async function renderRoute() {
     // Без сессии сайта всё остальное закрыто.
     if (!unlocked) { showGate(); return; }
 
-    const carMatch = hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
-    const userMatch = hash.match(/^#\/user\/([0-9a-f-]{10,})/i);
+    const carMatch = route.match(/^\/car\/([0-9a-f-]{10,})/i);
+    const userMatch = route.match(/^\/user\/([0-9a-f-]{10,})/i);
+    const loginSeg = loginOfPath(route);
 
     if (tab === 'profile') {
-        // Клик по самому себе (в топе, в фиде машины) — открываем свой
-        // редактируемый профиль, а не свою «зрительскую» страницу.
+        // Клик по самому себе (в топе, в фиде машины) — и свой логин в
+        // адресе — открывают свой редактируемый профиль, а не «зрительский».
         if (userMatch && currentUser && userMatch[1] === currentUser.id) {
-            location.hash = '#/profile';
+            navigate('/profile', { replace: true });
+            return;
+        }
+        if (loginSeg && currentUser?.login && loginSeg.toLowerCase() === currentUser.login.toLowerCase()) {
+            navigate('/profile', { replace: true });
             return;
         }
         showPage(pageProfile);
-        const key = userMatch ? userMatch[1] : 'self';
+        const key = userMatch ? userMatch[1] : loginSeg ? 'login:' + loginSeg.toLowerCase() : 'self';
         if (profileKey !== key) {
             profileKey = key;
-            if (userMatch) await initPublicProfilePage({ apiFetch, userId: userMatch[1], viewer: currentUser });
-            else await initSelfProfilePage();
+            if (userMatch || loginSeg) {
+                const shown = await initPublicProfilePage({
+                    apiFetch, userKey: userMatch ? userMatch[1] : loginSeg, viewer: currentUser,
+                });
+                // Открыли по uuid — переписываем адрес на человеческий
+                // /<login>, чтобы из строки копировалась нормальная ссылка.
+                // Голый replaceState, а не navigate: перерисовывать страницу
+                // заново незачем, меняется только адрес. Логин-разделы
+                // (см. ROUTE_WORDS) остаются на старой форме.
+                if (userMatch && shown?.login && loginOfPath('/' + shown.login)) {
+                    history.replaceState(null, '', '/' + shown.login);
+                    currentRoute = currentPath();
+                    profileKey = 'login:' + shown.login.toLowerCase();
+                }
+            } else {
+                await initSelfProfilePage();
+            }
         }
     // } else if (tab === 'leads') {          // отложено вместе со вкладкой
     //     showPage(pageLeads);
@@ -364,9 +417,9 @@ async function renderRoute() {
         showPage(pageTop);
         showTopPage({ apiFetch }); // из кеша мгновенно, свежие данные подтянутся
     } else if (tab === 'admin') {
-        // Не модератор набрал #/admin руками — уводим на поиск. Сервер такому
+        // Не модератор набрал /admin руками — уводим на поиск. Сервер такому
         // всё равно ответит 403, показывать пустой раздел незачем.
-        if (!isModerator(currentUser)) { location.hash = '#/'; return; }
+        if (!isModerator(currentUser)) { navigate('/', { replace: true }); return; }
         showPage(pageAdmin);
         // Заявки живут 30 минут, а роли меняются прямо сейчас — раздел
         // перечитывается на каждый заход, кеш тут только вредил бы.
@@ -383,7 +436,7 @@ async function renderRoute() {
         // её на экране нет вовсе, а фокус увёл бы прокрутку.
         if (!searchBoxEl.classList.contains('hidden')) searchInput.focus();
     }
-    restoreScroll(hash);
+    restoreScroll(route);
 }
 
 async function loadCarPage(carId) {
@@ -416,7 +469,7 @@ function initSelfProfilePage() {
             unlocked = false;
             setToken('');
             currentUser = null;
-            location.hash = '#/';
+            navigate('/');
             showGate();
         },
     });
@@ -434,29 +487,29 @@ let recordsMounted = false; // раздел собран в #page-records
 let recordsRunning = false; // ...и его таймеры сейчас живы
 let recordsLoading = null;
 
-// Ссылка на конкретную запись: #/records?date=YYYY-MM-DD&station=3&time=14:00
+// Ссылка на конкретную запись: /records?date=YYYY-MM-DD&station=3&time=14:00
 // &record=102 — её ставят карточки сделанных записей в профиле
 // (frontend/src/activityFeed.js). Разбираем здесь, а применяет раздел
 // (focusRecords): ему решать, дождаться доски или сначала сменить день.
-function recordsTarget(hash) {
-    const q = hash.indexOf('?');
+function recordsTarget(route) {
+    const q = route.indexOf('?');
     if (q === -1) return null;
-    const p = new URLSearchParams(hash.slice(q + 1));
+    const p = new URLSearchParams(route.slice(q + 1));
     const date = p.get('date');
     return date ? { date, stationId: p.get('station'), time: p.get('time'), recordId: p.get('record') } : null;
 }
 
 async function showRecords() {
     showPage(pageRecords);
-    const target = recordsTarget(location.hash);
+    const target = recordsTarget(currentPath());
     if (!(await mountRecords())) return;
     if (!target) return;
-    // Ссылка ОДНОРАЗОВАЯ: применили — и адрес снова обычный #/records. Иначе
+    // Ссылка ОДНОРАЗОВАЯ: применили — и адрес снова обычный /records. Иначе
     // клик по вкладке «Записи» через час снова открывал бы ту же запись, а
     // выбранный внутри раздела день с адресом в строке и так не сверяется.
-    lastRoute.records = '#/records';
-    currentRoute = '#/records';
-    history.replaceState(null, '', '#/records');
+    lastRoute.records = '/records';
+    currentRoute = '/records';
+    history.replaceState(null, '', '/records');
     recordsMod.focusRecords(target);
 }
 
@@ -481,7 +534,7 @@ async function mountRecords() {
         }
         recordsLoading = null;
         // Пока грузился модуль, могли уйти на другой роут.
-        if (!location.hash.startsWith('#/records')) return false;
+        if (!isRecordsPath(currentPath())) return false;
     }
     recordsMod.startRecords(pageRecords);
     recordsMounted = true;
@@ -669,18 +722,18 @@ function renderResults(cars) {
     // Запрос и выдачу не стираем: вернувшись на вкладку «Калькулятор», человек
     // видит тот же список, из которого уходил, и может открыть соседнюю машину.
     renderCarList(searchResults, cars, {
-        onPick: (id) => { location.hash = '#/car/' + id; },
+        onPick: (id) => { navigate('/car/' + id); },
         empty: 'К сожалению, такой машины ещё нет в базе',
     });
 }
 
 // ── Back button ───────────────────────────────────────────────────────────────
-document.getElementById('btn-back').onclick = () => { location.hash = '#/'; };
+document.getElementById('btn-back').onclick = () => { navigate('/'); };
 // Профиль открывают и с вкладки, и из топа/ленты машины — возвращаем туда,
 // откуда пришли, а не жёстко на поиск.
 document.getElementById('btn-profile-back').onclick = () => {
     if (history.length > 1) history.back();
-    else location.hash = '#/';
+    else navigate('/');
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -780,7 +833,7 @@ const tagSearchEl   = document.getElementById('tag-search');
 
 const tagSearch = initTagSearch({
     getCars: () => loadSnapshot().then(s => s.cars),
-    onPick: id => { location.hash = '#/car/' + id; },
+    onPick: id => { navigate('/car/' + id); },
     sphere: {
         setNodes: nodes => sphereController?.setNodes(nodes.slice(0, SPHERE_NODE_LIMIT)),
         setVisible: v => sphereController?.setVisible(v),
@@ -817,12 +870,12 @@ modeBtnTags.onclick = () => setSearchMode('tags');
 document.getElementById('btn-add-car').onclick = () => {
     openCarCreator({
         apiFetch,
-        onOpenCar: (id) => { location.hash = '#/car/' + id; },
+        onOpenCar: (id) => { navigate('/car/' + id); },
         onCreated: (car) => {
             // Снимок базы устарел на одну машину: без принудительного обновления
             // она не найдётся ни поиском, ни в тегах до следующего TTL.
             loadSnapshot(true).catch(() => {});
-            if (car && car.id) location.hash = '#/car/' + car.id;
+            if (car && car.id) navigate('/car/' + car.id);
         },
     });
 };
@@ -835,7 +888,7 @@ document.getElementById('btn-add-car').onclick = () => {
 async function bootPrepare(log) {
     // На записи заходят и без аккаунта сайта, и база машин там не нужна —
     // не заставляем ждать её загрузку.
-    const recordsFirst = location.hash.startsWith('#/records');
+    const recordsFirst = isRecordsPath(currentPath());
     const authLine = log.line('Authenticating session...');
     try {
         const me = await apiFetch('/api/auth/me');
@@ -858,8 +911,10 @@ async function bootPrepare(log) {
 
 // Роутер слушаем всегда, а не только после входа: раздел «Записи» открыт и
 // без аккаунта сайта, и переключение туда-обратно не должно перезагружать
-// приложение.
-window.addEventListener('hashchange', renderRoute);
+// приложение. initRouter заодно переписывает старые адреса с решёткой
+// (#/car/…) на пути и перехватывает клики по внутренним ссылкам — см. router.js.
+onRoute(renderRoute);
+initRouter();
 
 bootScreen((API_BASE || '') + '/health', { prepare: bootPrepare }).then(async (result) => {
     let authed = result && result.authed;
@@ -874,6 +929,6 @@ bootScreen((API_BASE || '') + '/health', { prepare: bootPrepare }).then(async (r
         }
     }
     if (authed) enterApp();
-    else if (location.hash.startsWith('#/records')) renderRoute(); // записи без гейта
+    else if (isRecordsPath(currentPath())) renderRoute(); // записи без гейта
     else showGate();
 });

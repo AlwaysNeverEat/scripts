@@ -17,6 +17,7 @@
 // затирают работу друг друга.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { navigate } from './router.js';
 import { SERVICE_FLAGS } from '../../shared/serviceFlags.js';
 import { fuelSelectOptions, normalizeFuelCode } from '../../shared/fuel.js';
 import {
@@ -827,7 +828,7 @@ function bindSave(win, record, ctx, state, close) {
         errBox.querySelector('[data-ed-open-dup]').onclick = () => {
             close();
             if (ctx.onOpenCar) ctx.onOpenCar(car.id);
-            else location.hash = '#/car/' + car.id;
+            else navigate('/car/' + car.id);
         };
     };
 

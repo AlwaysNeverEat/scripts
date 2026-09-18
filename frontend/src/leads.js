@@ -31,6 +31,8 @@
 // Разбор протокола и все ловушки Битрикса — docs/BITRIX.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { navigate } from './router.js';
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -106,7 +108,7 @@ function showCallToast(call) {
         <button type="button" class="lead-toast-x" aria-label="Скрыть">${ICON.close(15)}</button>`;
     box.onclick = () => {
         box.remove();
-        location.hash = '#/leads';
+        navigate('/leads');
         if (call.leadId) openLead(call.leadId);
     };
     // Крестик убирает только плашку: звонок при этом идёт дальше, и карточку

@@ -4,6 +4,13 @@
 // зрителя — только аватар/ник/статистика; модератору/админу дополнительно
 // показывается панель управления: «Назначить машины» (массово, с галочками)
 // и «Забанить/Разбанить» (админа банить нельзя, модератора — только админ).
+//
+// userKey — id ИЛИ логин: страница открывается и по старой ссылке #/user/<id>,
+// и по человеческому адресу #/<login>. Ключ разбирает сервер (resolveUserId в
+// backend/src/routes/users.js), все три ручки профиля принимают обе формы.
+// Возвращает загруженного пользователя — main.js по его логину переписывает
+// адрес на канонический #/<login>, чтобы из адресной строки всегда копировалась
+// человеческая ссылка.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { openAssignCarsModal } from './assignCars.js';
@@ -18,24 +25,25 @@ function esc(s) {
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
+export async function initPublicProfilePage({ apiFetch, userKey, viewer }) {
     const box = document.getElementById('profile-content');
     const titleEl = document.getElementById('page-profile-title');
     if (titleEl) titleEl.textContent = 'Профиль пользователя';
     box.innerHTML = '<div class="search-empty">Загрузка…</div>';
 
+    const key = encodeURIComponent(userKey);
     let user;
     let activity = null;
     try {
-        // Лента активности — отдельным запросом (см. GET /api/users/:id/activity).
+        // Лента активности — отдельным запросом (см. GET /api/users/:key/activity).
         // Профиль без неё показать можно, поэтому её ошибку глотаем отдельно.
         [user, activity] = await Promise.all([
-            apiFetch('/api/users/' + userId + '/public'),
-            apiFetch('/api/users/' + userId + '/activity').catch(() => null),
+            apiFetch('/api/users/' + key + '/public'),
+            apiFetch('/api/users/' + key + '/activity').catch(() => null),
         ]);
     } catch (e) {
         box.innerHTML = `<div class="search-empty">Не удалось загрузить профиль: ${esc(e.message)}</div>`;
-        return;
+        return null;
     }
 
     const viewerIsMod = viewer && (viewer.role === 'mod' || viewer.role === 'admin');
@@ -72,7 +80,7 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
                 edited: user.stats.edited ?? 0,
                 achievements: user.achievements,
                 faculty: user.faculty,
-                subtitle: esc(user.faculty?.name || ''),
+                subtitle: user.login ? '@' + esc(user.login) : '',
             })}
 
             ${user.faculty ? profileSectionHtml({
@@ -91,15 +99,15 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
         </div>
     `;
     // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).
-    attachActivityFeed(box, { loadDay: date => apiFetch('/api/users/' + userId + '/day/' + date) });
+    attachActivityFeed(box, { loadDay: date => apiFetch('/api/users/' + key + '/day/' + date) });
 
     const achTile = document.getElementById('profile-ach-tile');
     if (achTile) achTile.onclick = () =>
         openAchievementsModal(user.achievements, { emptyText: 'Пока нет достижений' });
 
-    if (!viewerIsMod) return;
+    if (!viewerIsMod) return user;
 
-    const reload = () => initPublicProfilePage({ apiFetch, userId, viewer });
+    const reload = () => initPublicProfilePage({ apiFetch, userKey, viewer });
     const errBox = document.getElementById('mod-panel-error');
 
     document.getElementById('btn-mod-assign-cars').onclick = () => {
@@ -129,4 +137,6 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
             banBtn.disabled = false;
         }
     };
+
+    return user;
 }
