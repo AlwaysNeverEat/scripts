@@ -262,7 +262,30 @@ function tabOfHash(hash) {
     if (hash === '#/top') return 'top';
     if (hash === '#/admin') return 'admin';
     if (hash === '#/profile' || /^#\/user\/[0-9a-f-]{10,}/i.test(hash)) return 'profile';
+    if (loginOfHash(hash)) return 'profile'; // #/<login> — человеческий адрес профиля
     return 'calc'; // #/ и #/car/:id
+}
+
+// ── Адрес профиля по логину: #/<login> ────────────────────────────────────────
+// Человеческая ссылка на профиль (k-spot.ru/#/gtrixoff) вместо uuid. Сегмент
+// считается логином, только если он похож на логин (те же правила, что при
+// регистрации — backend/src/auth/validate.js) и не занят разделом сайта:
+// логин «records» зарегистрировать можно, а вот адрес ему достанется старый,
+// #/user/<id> — раздел важнее. Кириллица в hash приезжает процентами, поэтому
+// сперва decodeURIComponent.
+const ROUTE_WORDS = new Set([
+    'profile', 'user', 'car', 'records', 'client', 'stock',
+    'news', 'top', 'admin', 'scripts', 'leads',
+]);
+const LOGIN_SEG_RE = /^[a-zA-Zа-яА-ЯёЁ0-9._-]{3,40}$/;
+
+function loginOfHash(hash) {
+    const m = (hash || '').match(/^#\/([^/?#]+)$/);
+    if (!m) return null;
+    let seg;
+    try { seg = decodeURIComponent(m[1]); } catch { return null; }
+    if (ROUTE_WORDS.has(seg.toLowerCase())) return null;
+    return LOGIN_SEG_RE.test(seg) ? seg : null;
 }
 
 function setActiveTab(tab) {
@@ -291,6 +314,8 @@ function restoreScroll(hash) {
 //   #/car/:id     — страница машины (прямая ссылка переживает F5)
 //   #/profile     — свой профиль (редактируемый)
 //   #/user/:id    — чужой профиль (read-only, из топа/ленты машины)
+//   #/<login>     — тот же чужой профиль по логину (человеческая ссылка);
+//                   открытый по id профиль сам переписывает адрес на эту форму
 //   #/records     — записи по станциям (с ?date=…&station=… открывает запись)
 //   #/client      — клиент из CRM по телефону или гос. номеру
 //   #/stock       — остатки склада CRM по станциям
@@ -326,20 +351,40 @@ async function renderRoute() {
 
     const carMatch = hash.match(/^#\/car\/([0-9a-f-]{10,})/i);
     const userMatch = hash.match(/^#\/user\/([0-9a-f-]{10,})/i);
+    const loginSeg = loginOfHash(hash);
 
     if (tab === 'profile') {
-        // Клик по самому себе (в топе, в фиде машины) — открываем свой
-        // редактируемый профиль, а не свою «зрительскую» страницу.
+        // Клик по самому себе (в топе, в фиде машины) — и свой логин в
+        // адресе — открывают свой редактируемый профиль, а не «зрительский».
         if (userMatch && currentUser && userMatch[1] === currentUser.id) {
             location.hash = '#/profile';
             return;
         }
+        if (loginSeg && currentUser?.login && loginSeg.toLowerCase() === currentUser.login.toLowerCase()) {
+            location.hash = '#/profile';
+            return;
+        }
         showPage(pageProfile);
-        const key = userMatch ? userMatch[1] : 'self';
+        const key = userMatch ? userMatch[1] : loginSeg ? 'login:' + loginSeg.toLowerCase() : 'self';
         if (profileKey !== key) {
             profileKey = key;
-            if (userMatch) await initPublicProfilePage({ apiFetch, userId: userMatch[1], viewer: currentUser });
-            else await initSelfProfilePage();
+            if (userMatch || loginSeg) {
+                const shown = await initPublicProfilePage({
+                    apiFetch, userKey: userMatch ? userMatch[1] : loginSeg, viewer: currentUser,
+                });
+                // Открыли по uuid — переписываем адрес на человеческий
+                // #/<login>, чтобы из строки копировалась нормальная ссылка.
+                // replaceState, а не location.hash: перерисовывать страницу
+                // заново незачем, меняется только адрес. Логин-разделы
+                // (см. ROUTE_WORDS) остаются на старой форме.
+                if (userMatch && shown?.login && loginOfHash('#/' + shown.login)) {
+                    history.replaceState(null, '', '#/' + shown.login);
+                    currentRoute = location.hash;
+                    profileKey = 'login:' + shown.login.toLowerCase();
+                }
+            } else {
+                await initSelfProfilePage();
+            }
         }
     // } else if (tab === 'leads') {          // отложено вместе со вкладкой
     //     showPage(pageLeads);
@@ -860,6 +905,18 @@ async function bootPrepare(log) {
 // без аккаунта сайта, и переключение туда-обратно не должно перезагружать
 // приложение.
 window.addEventListener('hashchange', renderRoute);
+
+// Чистый путь как ссылка на профиль: k-spot.ru/gtrixoff. nginx на любой путь
+// отдаёт index.html (SPA), а здесь путь превращается в #/<login> — replace,
+// чтобы «Назад» не возвращал на страницу, которая тут же уезжает снова.
+// Не похожий на логин путь не трогаем: /records.html и прочие файлы nginx
+// отдаёт сам и досюда они не доходят.
+try {
+    const seg = decodeURIComponent(location.pathname.replace(/^\/+|\/+$/g, ''));
+    if (seg && !seg.includes('/') && loginOfHash('#/' + seg) && !location.hash) {
+        location.replace('/#/' + seg);
+    }
+} catch { /* кривые проценты в пути — не наш адрес, ничего не делаем */ }
 
 bootScreen((API_BASE || '') + '/health', { prepare: bootPrepare }).then(async (result) => {
     let authed = result && result.authed;

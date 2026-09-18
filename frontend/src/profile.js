@@ -97,7 +97,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     achievements,
                     editable: true,
                     faculty: user.faculty,
-                    subtitle: esc(user.faculty?.name || ''),
+                    subtitle: user.login ? '@' + esc(user.login) : '',
                     withSettings: true,
                 })}
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>

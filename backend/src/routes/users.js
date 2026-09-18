@@ -70,21 +70,44 @@ router.get('/', requireRole('mod', 'admin'), async (req, res) => {
   }
 });
 
-// ── GET /api/users/:id/public ─────────────────────────────────────────────────
+// ── Ключ публичных ручек: id ИЛИ логин ────────────────────────────────────────
+// Профиль открывается и по #/user/<id> (старые ссылки, клики по строкам топа),
+// и по человеческому адресу #/<login>. Обе формы принимает ОДИН параметр:
+// похожее на uuid сперва ищется как id, всё остальное — как логин (регистр не
+// важен, как при входе). Сравнение id идёт через ::text — иначе логин из
+// hex-символов уронил бы запрос ошибкой каста uuid, а не ответил 404.
+const UUID_LIKE_RE = /^[0-9a-f-]{32,36}$/i;
+
+async function resolveUserId(key) {
+  const k = String(key || '').trim();
+  if (!k) return null;
+  if (UUID_LIKE_RE.test(k)) {
+    const r = await query('SELECT id FROM users WHERE id::text = lower($1)', [k]);
+    if (r.rows.length) return r.rows[0].id;
+  }
+  const r = await query('SELECT id FROM users WHERE lower(login) = lower($1)', [k]);
+  return r.rows.length ? r.rows[0].id : null;
+}
+
+// ── GET /api/users/:key/public ────────────────────────────────────────────────
 // Публичный (read-only) профиль ЧУЖОГО пользователя — для клика по строке в
-// топе и по автору в ленте машины. Ничего чувствительного (логин/роль как
-// таковая тут не нужна) — только то, что уже и так видно на сайте.
+// топе и по автору в ленте машины. Ничего чувствительного — только то, что уже
+// и так видно на сайте; логин отдаётся сознательно: он и есть публичный адрес
+// профиля (#/<login>) и подпись под ником.
 
 router.get('/:id/public', async (req, res) => {
   try {
+    const userId = await resolveUserId(req.params.id);
+    if (!userId) return res.status(404).json({ error: 'not found' });
+
     const userR = await query(
-      `SELECT u.id, u.display_name, u.avatar, u.role, u.banned_at,
+      `SELECT u.id, u.display_name, u.login, u.avatar, u.role, u.banned_at,
               rl.prefix_label, rl.color, rl.tooltip, ${FACULTY_COLUMNS}
          FROM users u
          LEFT JOIN role_labels rl ON rl.role = u.role
          ${FACULTY_JOIN}
         WHERE u.id = $1`,
-      [req.params.id],
+      [userId],
     );
     if (!userR.rows.length) return res.status(404).json({ error: 'not found' });
     const row = userR.rows[0];
@@ -96,7 +119,7 @@ router.get('/:id/public', async (req, res) => {
          count(*)               FILTER (WHERE type = 'added')  ::int AS added,
          count(DISTINCT car_id) FILTER (WHERE type = 'edited') ::int AS edited
        FROM car_events WHERE user_id = $1`,
-      [req.params.id],
+      [userId],
     );
     const stats = statsR.rows[0];
 
@@ -105,12 +128,13 @@ router.get('/:id/public', async (req, res) => {
     // устаревший (или пустой) список. Себе такой же синк делает поллер
     // pending-ачивок; тут он ещё и не даёт разъехаться цифрам статистики
     // и медалям на одной странице.
-    await syncAchievementsSafe(req.params.id);
-    const achievements = await listUserAchievements(req.params.id);
+    await syncAchievementsSafe(userId);
+    const achievements = await listUserAchievements(userId);
 
     res.json({
       id: row.id,
       display_name: row.display_name,
+      login: row.login,
       avatar: row.avatar,
       // role/banned нужны модераторским кнопкам на странице юзера («кого можно
       // банить»); чувствительного тут нет — роль и так видна в role_prefix.
@@ -131,7 +155,7 @@ router.get('/:id/public', async (req, res) => {
   }
 });
 
-// ── GET /api/users/:id/activity ───────────────────────────────────────────────
+// ── GET /api/users/:key/activity ──────────────────────────────────────────────
 // Лента активности ЧУЖОГО профиля — то же самое, что GET /api/profile/activity
 // у себя. Отдельным запросом, а не полем в /public: сетка на год весит заметно
 // больше остального профиля, и грузить её незачем тем страницам, где её нет.
@@ -139,7 +163,9 @@ router.get('/:id/public', async (req, res) => {
 
 router.get('/:id/activity', async (req, res) => {
   try {
-    res.json(await loadActivity(req.params.id));
+    const userId = await resolveUserId(req.params.id);
+    if (!userId) return res.status(404).json({ error: 'not found' });
+    res.json(await loadActivity(userId));
   } catch (err) {
     console.error('GET /api/users/:id/activity', err);
     res.status(500).json({ error: err.message });
@@ -157,7 +183,9 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 router.get('/:id/day/:date', async (req, res) => {
   if (!DAY_RE.test(req.params.date)) return res.status(400).json({ error: 'date: YYYY-MM-DD' });
   try {
-    res.json(await loadDayRecords(req.params.id, req.params.date));
+    const userId = await resolveUserId(req.params.id);
+    if (!userId) return res.status(404).json({ error: 'not found' });
+    res.json(await loadDayRecords(userId, req.params.date));
   } catch (err) {
     console.error('GET /api/users/:id/day', err);
     res.status(500).json({ error: err.message });
