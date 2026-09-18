@@ -72,7 +72,9 @@ export async function initPublicProfilePage({ apiFetch, userId, viewer }) {
                 nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
                 added: user.stats.added ?? 0,
                 edited: user.stats.edited ?? 0,
+                medals,
                 faculty: user.faculty,
+                subtitle: esc(user.faculty?.name || ''),
             })}
 
             ${user.faculty ? profileSectionHtml({

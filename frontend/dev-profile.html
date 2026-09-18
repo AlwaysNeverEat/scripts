@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!-- Дев-песочница страницы профиля: обложка с цветной шапкой, панели и окно
+     настроек — без входа и без базы.
+     Открыть: npx vite → /dev-profile.html
+
+     Проверять здесь нужно ВЁРСТКУ: как обложка красится домом и акцентом, как
+     аватар ложится на шапку, как читаются плитки статистики и панели, как
+     открывается окно настроек с шестерёнки. Данные выдуманные; выход в окне
+     настроек ничего не выходит, а пишет в консоль.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: профиль</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      // и акцент — по той же причине и из того же места (см. src/accent.js)
+      const acc = localStorage.getItem('cars_db_accent');
+      if (acc !== null && isFinite(Number(acc))) {
+        const deg = (x) => String(((Math.round(x) % 360) + 360) % 360);
+        document.documentElement.style.setProperty('--accent-h', deg(Number(acc)));
+        document.documentElement.style.setProperty('--accent-h-light', deg(Number(acc) - 21));
+      }
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Профиль — песочница</h2>
+    <p class="page-sub">Обложка, панели и окно настроек на выдуманных данных.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <select class="btn btn-sec" id="dev-house">
+      <option value="">Без факультета</option>
+      <option value="gryffindor" selected>Гриффиндор</option>
+      <option value="slytherin">Слизерин</option>
+      <option value="ravenclaw">Когтевран</option>
+      <option value="hufflepuff">Пуффендуй</option>
+    </select>
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+  </div>
+  <div class="profile-content" id="dev-out"></div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, applyTheme, currentTheme } from './src/theme.js';
+    import { initSegmented } from './src/segmented.js';
+    import { profileHeroHtml, profileSectionHtml } from './src/profileLayout.js';
+    import { facultyCardHtml } from './src/faculty.js';
+    import { achievementsFeedHtml, attachFeedParticles } from './src/achievements.js';
+    import { openProfileSettings } from './src/profileSettings.js';
+    import { facultyPrefixHtml } from './src/namePrefix.js';
+    import { facultyById } from '../shared/faculties.js';
+
+    initTheme();
+    initSegmented();
+
+    const ACHIEVEMENTS = [
+      { id: 'first_car', title: 'Первая машина', unlockedAt: '2026-03-02', description: 'Добавлена первая машина' },
+      { id: 'edits_100', title: 'Сто правок', unlockedAt: '2026-05-14', description: '100 отредактированных машин' },
+      { id: 'wordle_1', title: 'Слово дня', unlockedAt: '2026-06-01', description: 'Первая победа в вордле' },
+    ];
+
+    const out = document.getElementById('dev-out');
+
+    function render() {
+      const faculty = facultyById(document.getElementById('dev-house').value);
+      out.innerHTML = `
+        <div class="profile-page">
+          ${profileHeroHtml({
+            avatarInner: '<span class="profile-avatar-default"></span>',
+            nameInner: `<span class="role-prefix role-prefix-green" title="модератор">mod</span> ${facultyPrefixHtml(faculty)}Дежурный по станции`,
+            added: 128, edited: 342, medals: ACHIEVEMENTS.length,
+            editable: true,
+            faculty,
+            subtitle: faculty ? faculty.name : '',
+            withSettings: true,
+          })}
+          ${profileSectionHtml({
+            title: 'Факультет',
+            meta: faculty ? 'закреплён навсегда' : 'распределяющая шляпа',
+            cls: 'profile-sec-faculty',
+            body: faculty ? facultyCardHtml(faculty, { own: true }) : '<div class="search-empty">Тест не пройден</div>',
+          })}
+          ${profileSectionHtml({
+            title: 'Достижения',
+            meta: `${ACHIEVEMENTS.length} медали`,
+            body: `<div class="achievements-feed">${achievementsFeedHtml(ACHIEVEMENTS, 'Пока пусто')}</div>`,
+          })}
+          ${profileSectionHtml({
+            title: 'Модератор',
+            meta: 'видно только модераторам',
+            cls: 'profile-sec-mod',
+            body: '<button class="btn btn-sec profile-mod-assign">Записать себе незанятые машины</button>',
+          })}
+        </div>`;
+      attachFeedParticles(out);
+      const gear = document.getElementById('btn-profile-settings');
+      if (gear) gear.onclick = () => openProfileSettings({
+        apiFetch: async (path) => { console.log('dev: apiFetch', path); return {}; },
+        onLogout: () => console.log('dev: onLogout'),
+      });
+    }
+
+    document.getElementById('dev-house').onchange = render;
+    document.getElementById('dev-theme').onclick = () =>
+      applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+    render();
+  </script>
+</body>
+</html>
