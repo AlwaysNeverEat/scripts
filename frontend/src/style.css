@@ -3106,6 +3106,38 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   animation: afx-spin 14s linear infinite reverse;
 }
 
+/* Разряд: рваное кольцо-дуга, прыгающее ступенями, — электричество мигает,
+   а не течёт, поэтому spin идёт через steps, а не плавно. Ядро белёсое,
+   ореол акцентный: чистый акцент здесь читался бы вторым «Неоном». */
+.afx-volt {
+  background: repeating-conic-gradient(from 8deg,
+    color-mix(in oklab, var(--accent) 30%, #fff) 0deg 3deg, transparent 3deg 11deg,
+    color-mix(in oklab, var(--accent) 30%, #fff) 11deg 26deg, transparent 26deg 47deg);
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+          mask: radial-gradient(closest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  filter: drop-shadow(0 0 5px var(--accent));
+  animation: afx-spin 3.4s steps(9) infinite, afx-volt .28s steps(2, jump-none) infinite;
+}
+@keyframes afx-volt {
+  50% { opacity: .55; }
+}
+
+/* Сверхновая: у ядра ровное свечение, взрывная волна — отдельное кольцо,
+   расходящееся за край и гаснущее по пути. */
+.afx-nova {
+  box-shadow: 0 0 14px 2px color-mix(in oklab, var(--accent) 55%, transparent);
+}
+.afx-nova i {
+  position: absolute; inset: 0;
+  border-radius: var(--r-circle);
+  border: 2px solid var(--accent);
+  animation: afx-nova 2.6s ease-out infinite;
+}
+@keyframes afx-nova {
+  from { transform: scale(.86); opacity: .9; }
+  to { transform: scale(1.45); opacity: 0; }
+}
+
 /* Эффект обложки: слой поверх .profile-cover, частицы — <i> с инлайновыми
    left/задержками (детерминированный псевдослучай — см. profileFx.js). */
 .pfx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
@@ -3185,6 +3217,68 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   to { top: 115%; transform: rotate(540deg); }
 }
 
+/* Пузырьки: контур с бликом, а не заливка — пузырёк прозрачный. Покачивание
+   идёт margin-left, потому что transform занят инлайновым scale частицы. */
+.pfx-bubbles i {
+  top: 108%;
+  width: 9px; height: 9px;
+  border-radius: var(--r-circle);
+  border: 1.5px solid rgba(185, 225, 255, .75);
+  background: radial-gradient(circle at 32% 30%, rgba(255, 255, 255, .55), transparent 55%);
+  animation: pfx-bubble linear infinite;
+}
+@keyframes pfx-bubble {
+  0% { top: 108%; margin-left: 0; }
+  50% { margin-left: 6px; }
+  100% { top: -12%; margin-left: -4px; }
+}
+
+/* Клад: четырёхлучевые блики, как на золоте. Цвет свой, не акцент, — по той
+   же причине, что у уголька: синее золото это не золото. */
+.pfx-gold i {
+  width: 9px; height: 9px;
+  background: #ffd166;
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  filter: drop-shadow(0 0 4px rgba(255, 190, 70, .8));
+  animation: pfx-glint ease-in-out infinite;
+}
+@keyframes pfx-glint {
+  0%, 100% { opacity: .1; transform: scale(.45) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.05) rotate(45deg); }
+}
+
+/* Гроза: молнии вырезаны clip-path из узкой полосы, сполох — общий слой на
+   всю обложку. Периоды у молний разные и не кратные, чтобы рисунок вспышек
+   не читался как зацикленный. База — opacity 0: молния это вспышка. */
+.pfx-storm i {
+  top: 6%;
+  width: 24px; height: 58%;
+  background: linear-gradient(180deg, #eaf3ff, rgba(150, 200, 255, .75));
+  clip-path: polygon(62% 0, 30% 46%, 52% 49%, 22% 100%, 34% 58%, 14% 54%, 46% 0);
+  filter: drop-shadow(0 0 6px rgba(160, 205, 255, .9));
+  opacity: 0;
+}
+.pfx-storm i:first-child { left: 22%; animation: pfx-bolt 6.4s linear infinite; }
+.pfx-storm i:nth-child(2) { left: 68%; transform: scaleX(-.8); animation: pfx-bolt 9.7s linear infinite 3.1s; }
+@keyframes pfx-bolt {
+  0%, 90% { opacity: 0; }
+  91% { opacity: 1; }
+  93% { opacity: .25; }
+  95% { opacity: .85; }
+  100% { opacity: 0; }
+}
+.pfx-storm .pfx-flash {
+  position: absolute; inset: 0;
+  background: linear-gradient(200deg, rgba(200, 225, 255, .9), transparent 65%);
+  opacity: 0;
+  animation: pfx-sheet 6.4s linear infinite;
+}
+@keyframes pfx-sheet {
+  0%, 90% { opacity: 0; }
+  92% { opacity: .28; }
+  100% { opacity: 0; }
+}
+
 /* Сияние: три размытые ленты, гуляющие поперёк шапки. Ленты, а не частицы —
    сияние это волны, и blur из трёх градиентов даёт их дешевле любого канваса. */
 .pfx-aurora i {
@@ -3204,7 +3298,10 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 
 /* Кому мельтешение мешает — эффекты замирают, но остаются видимыми. */
 @media (prefers-reduced-motion: reduce) {
-  .afx, .afx i, .pfx i, .pfx-stars .pfx-shoot { animation: none; }
+  .afx, .afx i, .pfx i, .pfx-stars .pfx-shoot, .pfx-storm .pfx-flash { animation: none; }
+  /* Молнии без анимации не замирают, а пропадают (их база — opacity 0),
+     поэтому грозе оставляется одна застывшая. */
+  .pfx-storm i:first-child { opacity: .6; }
 }
 
 /* ── Окно магазина (openFxShop в profileFx.js) ──────────────────── */

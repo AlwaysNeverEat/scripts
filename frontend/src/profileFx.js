@@ -43,6 +43,8 @@ export function avatarFxHtml(id) {
         inner = particles(5, 7, (i, r) =>
             `left:${12 + r(1) * 76}%;animation-delay:${(r(2) * 2.4).toFixed(2)}s;animation-duration:${(1.6 + r(3) * 1.4).toFixed(2)}s`);
     }
+    // Сверхновая: волна — отдельный узел, у самого кольца только свечение.
+    if (fx.id === 'nova') inner = '<i></i>';
     return `<span class="afx afx-${esc(fx.id)}" aria-hidden="true">${inner}</span>`;
 }
 
@@ -72,6 +74,19 @@ export function profileFxHtml(id) {
         case 'confetti':
             inner = particles(16, 5, (i, r) =>
                 `left:${(r(1) * 98).toFixed(1)}%;animation-delay:${(-r(2) * 4).toFixed(2)}s;animation-duration:${(2.6 + r(3) * 2.2).toFixed(2)}s;--cf-h:${Math.round(r(4) * 360)}`);
+            break;
+        case 'bubbles':
+            inner = particles(12, 6, (i, r) =>
+                `left:${(3 + r(1) * 94).toFixed(1)}%;animation-delay:${(-r(2) * 6).toFixed(2)}s;animation-duration:${(3.5 + r(3) * 3.5).toFixed(2)}s;transform:scale(${(0.5 + r(4) * 0.9).toFixed(2)})`);
+            break;
+        case 'gold':
+            inner = particles(13, 8, (i, r) =>
+                `left:${(2 + r(1) * 94).toFixed(1)}%;top:${(8 + r(2) * 80).toFixed(1)}%;animation-delay:${(-r(3) * 4).toFixed(2)}s;animation-duration:${(1.6 + r(4) * 2.6).toFixed(2)}s`);
+            break;
+        // Гроза: две молнии в своих местах и общий сполох на всю обложку —
+        // частицам тут взяться неоткуда, вспышка это событие, а не осадки.
+        case 'storm':
+            inner = '<i></i><i></i><b class="pfx-flash" aria-hidden="true"></b>';
             break;
         case 'aurora':
             inner = '<i></i><i></i><i></i>';
