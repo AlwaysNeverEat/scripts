@@ -8241,14 +8241,6 @@ a.diff-val-new:hover { border-color: var(--green); }
   width: 5px; height: 5px; border-radius: var(--r-circle);
   background: var(--house-ink);
 }
-.faculty-watch {
-  margin-top: var(--s-3); padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-3);
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  font-size: 12.5px; line-height: 1.45; color: var(--sub);
-}
-.faculty-watch b { color: var(--text); }
 .faculty-card-foot { margin-top: var(--s-3); font-size: 11.5px; color: var(--sub); }
 .faculty-card-note { margin-top: var(--s-2); font-size: 11.5px; color: var(--sub); opacity: .85; }
 

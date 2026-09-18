@@ -68,7 +68,6 @@ export function facultyCardHtml(faculty, { own = false } = {}) {
             <div class="faculty-qualities">${qualities}</div>
             <p class="faculty-about">${esc(faculty.about || '')}</p>
             ${strengths ? `<ul class="faculty-strengths">${strengths}</ul>` : ''}
-            ${faculty.watch ? `<div class="faculty-watch"><b>За чем следить.</b> ${esc(faculty.watch)}</div>` : ''}
             <div class="faculty-card-foot">
                 ${esc(faculty.symbol || '')}${faculty.colors ? ` · ${esc(faculty.colors)}` : ''}${
                     faculty.founder ? ` · основатель — ${esc(faculty.founder)}` : ''}
