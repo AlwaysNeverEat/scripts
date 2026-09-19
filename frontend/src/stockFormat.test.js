@@ -40,7 +40,32 @@ test('copyLine: тип позиции по названию, иначе тип �
     );
     assert.equal(copyLine({ name: 'NSIN0000000002 Что-то без типа', priceRaw: 10 }, null), 'Что-то без типа - 10р');
     // масло в строку уходит с ценой за литр и БЕЗ «мф»: «масл» в названии — не масляный фильтр
-    assert.equal(copyLine({ name: OIL, priceRaw: 180 }, 'мф'), 'Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L) - 1800р');
+    assert.equal(copyLine({ name: OIL, priceRaw: 180 }, 'мф'), 'Mobil 5W-30 Super 3000 FE - 1800р');
+});
+
+// Цена масла в строке — за литр, поэтому слова «Моторное масло» и фасовка
+// («4l (4x4L)», «(200л)») из имени убираются: объём канистры рядом с ценой
+// литра обманывает, а тип виден по вязкости.
+test('copyLine: у масла убираются слова типа и фасовка', () => {
+    assert.equal(
+        copyLine({ name: '202665 Трансмиссионное масло ZIC ATF Multi LF (200л)', priceRaw: 140 }, null),
+        'ZIC ATF Multi LF - 1400р',
+    );
+    // без кода CRM и с литровой канистрой без скобок
+    assert.equal(
+        copyLine({ name: 'Моторное масло Motul 8100 X-clean 5W40 1L', priceRaw: 95 }, null),
+        'Motul 8100 X-clean 5W40 - 950р',
+    );
+});
+
+// Код CRM бывает с дефисом («104787-200 Моторное масло ROLF…»): такая позиция
+// обязана распознаваться как масло из бочки — литры и цена за литр, а не
+// «556 шт» по 175 ₽.
+test('масло с дефисным кодом CRM: литры, цена за литр, чистая строка', () => {
+    const ROLF = '104787-200 Моторное масло ROLF Professional SAE 5W-30 API SN, ACEA C3 (200л)';
+    assert.equal(fmtQty(ROLF, 556), '55,6 л');
+    assert.equal(fmtPrice(ROLF, 175), '1 750 ₽/л');
+    assert.equal(copyLine({ name: ROLF, priceRaw: 175 }, null), 'ROLF Professional SAE 5W-30 API SN, ACEA C3 - 1750р');
 });
 
 test('parseList: по строке на артикул, без пустых, повторов и лишних пробелов', () => {

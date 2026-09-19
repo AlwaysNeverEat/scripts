@@ -295,11 +295,18 @@ test('stripCrmCode: внутренний код CRM в начале назван
     assert.equal(stripCrmCode('NSII0009945161 03770 Щуп уровня масла Metalcaucho'), '03770 Щуп уровня масла Metalcaucho');
     assert.equal(stripCrmCode('Услуги SPOT Замена ATF в ГУР'), 'Услуги SPOT Замена ATF в ГУР');
     assert.equal(stripCrmCode('5W-30 Motul 8100'), '5W-30 Motul 8100');
+    // код с дефисом — тоже код
+    assert.equal(
+        stripCrmCode('104787-200 Моторное масло ROLF Professional SAE 5W-30 API SN, ACEA C3 (200л)'),
+        'Моторное масло ROLF Professional SAE 5W-30 API SN, ACEA C3 (200л)',
+    );
 });
 
 test('isBulkOil / stockQuantity: масло из бочки — литры, остальное — штуки', () => {
     assert.equal(isBulkOil('151527 Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)'), true);
     assert.equal(isBulkOil('202665 Трансмиссионное масло ZIC ATF Multi LF (200л)'), true);
+    // код с дефисом перед словами типа не мешает распознаванию
+    assert.equal(isBulkOil('104787-200 Моторное масло ROLF Professional SAE 5W-30 API SN, ACEA C3 (200л)'), true);
     assert.equal(isBulkOil('990561 Антифриз SINTEC MULTIFREEZE 1 кг (12x1L)'), false);
     assert.equal(isBulkOil('NSIN0023136124 Масляный фильтр Mann W 712/95 (5)'), false);
     assert.equal(isBulkOil('Услуги SPOT Замена ATF в ГУР'), false);
