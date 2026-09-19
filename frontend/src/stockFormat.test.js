@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtPrice, fmtQty, copyLine, parseList, dominantType, MAX_LIST } from './stockFormat.js';
+import { fmtPrice, fmtQty, copyLine, parseList, dominantType, simpleName, MAX_LIST } from './stockFormat.js';
 
 const FILTER = 'NSIN0023136124 Масляный фильтр Mann W 712/95 (5)';
 const OIL = '151527 Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)';
@@ -66,6 +66,26 @@ test('масло с дефисным кодом CRM: литры, цена за �
     assert.equal(fmtQty(ROLF, 556), '55,6 л');
     assert.equal(fmtPrice(ROLF, 175), '1 750 ₽/л');
     assert.equal(copyLine({ name: ROLF, priceRaw: 175 }, null), 'ROLF Professional SAE 5W-30 API SN, ACEA C3 - 1750р');
+    // короткий код («9044») stripCrmCode не трогает, но из имени масла он
+    // всё равно уходит — в буфере он торчал перед «Моторное масло»
+    assert.equal(
+        copyLine({ name: '9044 Моторное масло Liqui Moly 5W-30 Molygen New Generation 4l (4x4L)', priceRaw: 245 }, null),
+        'Liqui Moly 5W-30 Molygen New Generation - 2450р',
+    );
+});
+
+// Упрощённый вид таблицы: масло — как в строке буфера, фильтры — без кода и
+// слов типа (тип возмещает бейдж), а имена, которые начинаются НЕ с кода
+// («Услуги…», «Антифриз…»), не теряют первое слово.
+test('simpleName: без кодов, слов типа и фасовки; не-коды не трогаются', () => {
+    assert.equal(simpleName(OIL), 'Mobil 5W-30 Super 3000 FE');
+    assert.equal(
+        simpleName('9044 Моторное масло Liqui Moly 5W-30 Molygen New Generation 4l (4x4L)'),
+        'Liqui Moly 5W-30 Molygen New Generation',
+    );
+    assert.equal(simpleName(FILTER), 'Mann W 712/95');
+    assert.equal(simpleName('Услуги SPOT Замена ATF в ГУР'), 'Услуги SPOT Замена ATF в ГУР');
+    assert.equal(simpleName('990561 Антифриз SINTEC MULTIFREEZE 1 кг (12x1L)'), 'Антифриз SINTEC MULTIFREEZE 1 кг (12x1L)');
 });
 
 test('parseList: по строке на артикул, без пустых, повторов и лишних пробелов', () => {

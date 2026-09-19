@@ -201,18 +201,21 @@ export function detectFilterType(name) {
 }
 
 // Название фильтра для отображения: без ведущего артикула и слов типа фильтра.
-export function cleanFilterName(raw) {
-    let s = stripTags(raw).replace(/^[A-ZА-Я0-9/-]+\s+/i, '').trim();
+// Ведущие слова типа фильтра («Масляный фильтр …») — тип и так показан
+// бейджем, а в названии он только съедает место у артикула.
+export function stripFilterTypeWords(s) {
     const filterTypes = [
         'Воздушный фильтр салона', 'Фильтр салона', 'Салонный фильтр',
         'Воздушный фильтр', 'Масляный фильтр', 'Топливный фильтр',
     ];
     for (const ft of filterTypes) {
-        if (s.toLowerCase().startsWith(ft.toLowerCase())) {
-            s = s.slice(ft.length).trim();
-            break;
-        }
+        if (s.toLowerCase().startsWith(ft.toLowerCase())) return s.slice(ft.length).trim();
     }
+    return s;
+}
+
+export function cleanFilterName(raw) {
+    let s = stripFilterTypeWords(stripTags(raw).replace(/^[A-ZА-Я0-9/-]+\s+/i, '').trim());
     s = s.replace(/\s*\(\d+\)\s*$/, '').trim();
     return s || stripTags(raw);
 }
