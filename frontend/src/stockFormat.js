@@ -6,6 +6,7 @@
 
 import {
     stockQuantity, detectFilterType, cleanFilterName, isBulkOil, crmOilPricePerLiter,
+    stripCrmCode,
 } from '../../shared/crmAnalyse.js';
 
 // Сколько артикулов берём из списка за раз: больше — это уже не «три
@@ -43,11 +44,34 @@ export function filterTypeOf(name) {
     return isBulkOil(name) ? null : detectFilterType(name);
 }
 
+// Слова типа и фасовка в названии масла: «Моторное масло … 4l (4x4L)».
+// В строке буфера они лишние: тип масла виден по вязкости и линейке, а цена
+// в строке — ЗА ЛИТР, и объём канистры рядом с ней только обманывает.
+const OIL_WORDS_RE = /^(?:моторное|трансмиссионное)\s+масло\s*/i;
+const OIL_PACK_PAREN_RE = /\s*\(\s*\d+(?:[.,]\d+)?\s*(?:[xх×]\s*\d+(?:[.,]\d+)?\s*)?[lл]\s*\)/gi;
+// Лукахед вместо \b: границу слова JS считает по латинице, после «л» она не срабатывает.
+const OIL_PACK_RE = /(?:^|\s)\d+(?:[.,]\d+)?\s*[lл](?=\s|$)/gi;
+
+// Имя масла для буфера: без кода CRM, слов «Моторное/Трансмиссионное масло»
+// и фасовки — остаётся «Mobil 5W-30 Super 3000 FE».
+function cleanOilName(raw) {
+    const s = stripCrmCode(raw)
+        .replace(OIL_WORDS_RE, '')
+        .replace(OIL_PACK_PAREN_RE, ' ')
+        .replace(OIL_PACK_RE, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return s || stripCrmCode(raw);
+}
+
 // Строка для буфера — в формате вставки калькулятора: «вф <имя> - <цена>р».
 // Тип — у самой позиции, если по названию понятен; иначе тип группы.
 export function copyLine(row, groupType) {
     // Маслу префикс не положен вовсе — ни свой, ни от группы.
-    const type = isBulkOil(row.name) ? '' : (filterTypeOf(row.name) || groupType || '');
+    if (isBulkOil(row.name)) {
+        return `${cleanOilName(row.name)} - ${priceOf(row.name, row.priceRaw)}р`;
+    }
+    const type = filterTypeOf(row.name) || groupType || '';
     return `${type ? type + ' ' : ''}${cleanFilterName(row.name)} - ${priceOf(row.name, row.priceRaw)}р`;
 }
 
