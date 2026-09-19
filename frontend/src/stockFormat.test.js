@@ -58,6 +58,16 @@ test('copyLine: у масла убираются слова типа и фасо
     );
 });
 
+// Код CRM бывает с дефисом («104787-200 Моторное масло ROLF…»): такая позиция
+// обязана распознаваться как масло из бочки — литры и цена за литр, а не
+// «556 шт» по 175 ₽.
+test('масло с дефисным кодом CRM: литры, цена за литр, чистая строка', () => {
+    const ROLF = '104787-200 Моторное масло ROLF Professional SAE 5W-30 API SN, ACEA C3 (200л)';
+    assert.equal(fmtQty(ROLF, 556), '55,6 л');
+    assert.equal(fmtPrice(ROLF, 175), '1 750 ₽/л');
+    assert.equal(copyLine({ name: ROLF, priceRaw: 175 }, null), 'ROLF Professional SAE 5W-30 API SN, ACEA C3 - 1750р');
+});
+
 test('parseList: по строке на артикул, без пустых, повторов и лишних пробелов', () => {
     assert.deepEqual(parseList('C 21 014\n\n  W   712/95 \nc 21 014\nCU 26 010\r'), ['C 21 014', 'W 712/95', 'CU 26 010']);
     assert.deepEqual(parseList(''), []);
