@@ -6,7 +6,7 @@
 
 import {
     stockQuantity, detectFilterType, cleanFilterName, isBulkOil, crmOilPricePerLiter,
-    stripCrmCode,
+    stripCrmCode, stripFilterTypeWords,
 } from '../../shared/crmAnalyse.js';
 
 // Сколько артикулов берём из списка за раз: больше — это уже не «три
@@ -47,7 +47,10 @@ export function filterTypeOf(name) {
 // Слова типа и фасовка в названии масла: «Моторное масло … 4l (4x4L)».
 // В строке буфера они лишние: тип масла виден по вязкости и линейке, а цена
 // в строке — ЗА ЛИТР, и объём канистры рядом с ней только обманывает.
-const OIL_WORDS_RE = /^(?:моторное|трансмиссионное)\s+масло\s*/i;
+// Ленивый хвост перед словами типа — это код CRM ЛЮБОЙ формы: stripCrmCode
+// сознательно не трогает короткие («9044»), а isBulkOil уже гарантирует, что
+// слова типа стоят в начале, самое большее — за одним токеном кода.
+const OIL_WORDS_RE = /^.*?(?:моторное|трансмиссионное)\s+масло\s*/i;
 const OIL_PACK_PAREN_RE = /\s*\(\s*\d+(?:[.,]\d+)?\s*(?:[xх×]\s*\d+(?:[.,]\d+)?\s*)?[lл]\s*\)/gi;
 // Лукахед вместо \b: границу слова JS считает по латинице, после «л» она не срабатывает.
 const OIL_PACK_RE = /(?:^|\s)\d+(?:[.,]\d+)?\s*[lл](?=\s|$)/gi;
@@ -62,6 +65,17 @@ function cleanOilName(raw) {
         .replace(/\s+/g, ' ')
         .trim();
     return s || stripCrmCode(raw);
+}
+
+// Имя позиции для упрощённого вида таблицы: у масла — то же, что уходит в
+// строку буфера, у остального — без кода CRM, ведущих слов типа (тип встаёт
+// бейджем рядом) и счётчика «(2)» в конце. Именно stripCrmCode, а не слепой
+// срез первого токена, как в cleanFilterName: в общей таблице бывают и
+// «Услуги SPOT …», и «Антифриз SINTEC …» — их первое слово не код.
+export function simpleName(name) {
+    if (isBulkOil(name)) return cleanOilName(name);
+    const s = stripFilterTypeWords(stripCrmCode(name)).replace(/\s*\(\d+\)\s*$/, '').trim();
+    return s || stripCrmCode(name);
 }
 
 // Строка для буфера — в формате вставки калькулятора: «вф <имя> - <цена>р».

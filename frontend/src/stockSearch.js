@@ -31,9 +31,13 @@
 
 import './stockSearch.css';
 import { stripCrmCode, sortFilterRows, cleanFilterName } from '../../shared/crmAnalyse.js';
-import { fmtPrice, fmtQty, copyLine, parseList, dominantType, filterTypeOf } from './stockFormat.js';
+import { fmtPrice, fmtQty, copyLine, parseList, dominantType, filterTypeOf, simpleName } from './stockFormat.js';
 
 const STATIONS_KEY = 'cars_db_stock_stations';
+// Упрощённый вид таблицы: имена без кодов CRM, слов типа и фасовки — как в
+// строке буфера. Помнится на устройстве, как выбор станций; включён по
+// умолчанию: полное имя всегда остаётся в подсказке (title).
+const SIMPLE_KEY = 'cars_db_stock_simple';
 // Сколько подсказок истории показываем разом.
 const HISTORY_SHOWN = 8;
 // Список артикулов идёт по одному запросу на строку; двух в полёте хватает,
@@ -88,6 +92,14 @@ function saveStations(ids) {
     try { localStorage.setItem(STATIONS_KEY, JSON.stringify(ids)); } catch { /* приватный режим */ }
 }
 
+function loadSimple() {
+    try { return localStorage.getItem(SIMPLE_KEY) !== '0'; } catch { return true; }
+}
+
+function saveSimple(on) {
+    try { localStorage.setItem(SIMPLE_KEY, on ? '1' : '0'); } catch { /* приватный режим */ }
+}
+
 async function toClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
@@ -117,6 +129,7 @@ export function initStockSearch({ apiFetch }) {
         result: null,       // ответ /stock/search в режиме «товар»
         groups: [],         // режим «списком»: [{ query, status, rows, columns, type, picked, message }]
         stale: false,       // станции сменили после поиска списком — результат устарел
+        simple: loadSimple(),   // упрощённые имена в таблице «товар»
         error: '',
         authNote: '',
         loggingIn: false,
@@ -578,6 +591,12 @@ export function initStockSearch({ apiFetch }) {
                 const rowType = filterTypeOf(r.name);
                 nameHtml = (rowType && rowType !== groupType ? `<span class="ss-type ss-type-row">${esc(rowType)}</span> ` : '')
                     + esc(cleanFilterName(r.name));
+            } else if (state.simple) {
+                // Упрощённый вид — то же имя, что уходит в буфер: срезанные
+                // слова типа возмещает бейдж, полное имя остаётся в title.
+                const rowType = filterTypeOf(r.name);
+                nameHtml = (rowType ? `<span class="ss-type ss-type-row">${esc(rowType)}</span> ` : '')
+                    + esc(simpleName(r.name));
             }
             // Кнопка «скопировать строку» у КАЖДОЙ позиции, в обоих режимах:
             // та же строка «мф <имя> - <цена>р», что уходит из списка пачкой,
@@ -606,6 +625,10 @@ export function initStockSearch({ apiFetch }) {
                     <span class="ss-head-q">${esc(r.query)}</span>
                     <span class="ss-dim">${n} ${plural(n, 'позиция', 'позиции', 'позиций')} · ${whereText()}</span>
                     ${more}
+                    <label class="ss-simple" title="Имена без кодов CRM, слов типа и фасовки; полное имя — в подсказке строки">
+                        <input type="checkbox" data-act="simple"${state.simple ? ' checked' : ''}>
+                        упрощённый вид
+                    </label>
                 </div>
                 ${tableHtml(r.rows, r.columns)}
             </div>`;
@@ -666,6 +689,12 @@ export function initStockSearch({ apiFetch }) {
     function bindBody() {
         body.querySelector('[data-act="research"]')?.addEventListener('click', () => run());
         body.querySelector('[data-act="copy"]')?.addEventListener('click', () => copySelected());
+        const simpleBox = body.querySelector('[data-act="simple"]');
+        if (simpleBox) simpleBox.onchange = () => {
+            state.simple = simpleBox.checked;
+            saveSimple(state.simple);
+            renderBody();
+        };
         body.querySelectorAll('input[data-pick]').forEach(box => {
             box.onchange = () => {
                 const g = state.groups[Number(box.dataset.pick)];
