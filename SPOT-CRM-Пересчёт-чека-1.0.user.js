@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM: Пересчёт чека
 // @namespace    zamena-masla-spot.ru
-// @version      1.7.828
+// @version      1.7.103
 // @description  Пересчёт стоимости услуги по чеку /sale/{id} по актуальным ценам
 // @match        *://crm.zamena-masla-spot.ru/sale/*
 // @match        *://crm.zamena-masla-spot.ru/for-sale/*
@@ -21,7 +21,7 @@
       {
         b: "Liqui Moly",
         n: "5W-30 Top Tec",
-        price: 2400,
+        price: 2500,
         v: "5W-30",
         a: ["API SP", "ACEA C2", "ACEA C3", "LL 04", "LL 01", "MB 229.31", "MB 229.51", "MB 229.52", "FIAT 9.55535-S3", "FORD WSS-M2C 917-A", "VW 502 00", "VW 505 00", "VW 505 01", "VW 504 00", "VW 507 00", "PORSCHE C30"],
         ad: ["износ", "отложения", "температура", "топливо", "масло-угар"]
@@ -37,7 +37,7 @@
       {
         b: "Liqui Moly",
         n: "Leichtlauf HC 7 5W-30",
-        price: 2e3,
+        price: 2050,
         v: "5W-30",
         a: ["ACEA A3/B4", "API SN", "LL 98", "MB 229.3", "RN 0700", "RN 0710", "VW 502 00", "VW 505 00", "GM LL-A-025", "GM LL-B-025"],
         ad: ["стиль вождения", "износ", "отложения", "топливо", "масло-угар"]
@@ -53,7 +53,7 @@
       {
         b: "Liqui Moly",
         n: "5W-30 Molygen",
-        price: 2350,
+        price: 2450,
         v: "5W-30",
         a: ["API SP", "ILSAC GF-6A", "FIAT 9.55535-CR1", "FORD WSS-M2C 961-A1", "FORD WSS-M2C 946-A", "FORD WSS-M2C 946-B1"],
         ad: ["Америка/Азия", "износ", "отложения", "топливо", "масло-угар", "антифрикционные"]
@@ -61,7 +61,7 @@
       {
         b: "Liqui Moly",
         n: "5W-40 Molygen",
-        price: 2200,
+        price: 2250,
         v: "5W-40",
         a: ["API SN", "ACEA A3/B4", "LL 01", "FIAT 9.55535-Z2", "FIAT 9.55535-H2", "FIAT 9.55535-N2", "MB 229.5", "PORSCHE A40", "RN 0700", "RN 0710", "VW 502 00", "VW 505 00", "GM LL-B-025"],
         ad: ["Америка/Азия", "износ", "отложения", "топливо", "масло-угар", "антифрикционные"]
@@ -70,7 +70,7 @@
       {
         b: "ROLF",
         n: "Professional 5W-30 A5/B5",
-        price: 1500,
+        price: 1550,
         v: "5W-30",
         a: ["API SP", "ACEA A5/B5", "FORD WSS-M2C913-A", "FORD WSS-M2C913-B", "FORD WSS-M2C913-C", "FORD WSS-M2C913-D", "JAGUAR STJLR.03.5003"],
         ad: ["внедорожники", "пуск в мороз", "износ", "отложения", "масло-угар"]
@@ -235,7 +235,7 @@
       {
         b: "Idemitsu",
         n: "ZEPRO TOURING FS",
-        price: 2250,
+        price: 2300,
         v: "5W-30",
         a: ["API SP", "ILSAC GF-6A"],
         ad: ["отложения", "осадки", "топливо", "масло-угар"]
@@ -243,7 +243,7 @@
       {
         b: "Idemitsu",
         n: "ZEPRO EURO SPEC FS",
-        price: 2250,
+        price: 2300,
         v: "5W-30",
         a: ["API SP", "ACEA C3"],
         ad: ["отложения", "сажа", "топливо", "масло-угар"]
