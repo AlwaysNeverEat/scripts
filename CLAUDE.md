@@ -982,6 +982,7 @@ DOM до последней фазы висит старая картинка �
 | API | `backend/src/routes/faculty.js` |
 | Окно теста и карточка | `frontend/src/faculty.js`, песочница `frontend/dev-faculty.html` |
 | Гербы домов (картинки) | `design/faculty-crests/README.md` → `assets/faculty-*.png` |
+| Знамёна домов на обложке профиля | `design/faculty-covers/README.md` → `assets/faculty-cover-*.png` |
 | Плашки перед ником (роль + факультет) | `frontend/src/namePrefix.js` — ОДНО место на весь сайт |
 
 Устройство теста и почему оно такое — в шапке `quiz.js`, коротко:

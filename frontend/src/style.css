@@ -8155,11 +8155,14 @@ a.diff-val-new:hover { border-color: var(--green); }
    --house-ink  — цвет текста поверх фона ТЕМЫ (а не поверх заливки дома),
                   поэтому в светлой теме он тёмный, а в тёмной светлый;
    --house-metal — второй канонический цвет (золото/серебро/бронза/чёрный):
-                  только на гербе, где под ним всегда заливка дома.       */
-.faculty-gryffindor { --house: #a0231f; --house-ink: #e8b04b; --house-metal: #d3a625; }
-.faculty-slytherin  { --house: #14663f; --house-ink: #6fd39b; --house-metal: #c8d0d6; }
-.faculty-ravenclaw  { --house: #1b2a63; --house-ink: #86aaff; --house-metal: #b3812f; }
-.faculty-hufflepuff { --house: #c99a1e; --house-ink: #f0c33c; --house-metal: #2a241f; }
+                  только на гербе, где под ним всегда заливка дома;
+   --house-cover — знамя дома на шапке обложки профиля (нарезка листа —
+                  design/faculty-covers/README.md). Картинка одна на обе
+                  темы: это рисунок, а не поверхность сайта.              */
+.faculty-gryffindor { --house: #a0231f; --house-ink: #e8b04b; --house-metal: #d3a625; --house-cover: url('./assets/faculty-cover-gryffindor.png'); }
+.faculty-slytherin  { --house: #14663f; --house-ink: #6fd39b; --house-metal: #c8d0d6; --house-cover: url('./assets/faculty-cover-slytherin.png'); }
+.faculty-ravenclaw  { --house: #1b2a63; --house-ink: #86aaff; --house-metal: #b3812f; --house-cover: url('./assets/faculty-cover-ravenclaw.png'); }
+.faculty-hufflepuff { --house: #c99a1e; --house-ink: #f0c33c; --house-metal: #2a241f; --house-cover: url('./assets/faculty-cover-hufflepuff.png'); }
 
 :root[data-theme="light"] .faculty-gryffindor { --house: #7f0909; --house-ink: #8e1c14; --house-metal: #a9821c; }
 :root[data-theme="light"] .faculty-slytherin  { --house: #14532d; --house-ink: #14653b; --house-metal: #6b7780; }
@@ -8192,10 +8195,20 @@ a.diff-val-new:hover { border-color: var(--green); }
 
 /* «Подложка» под цвет дома: шапка обложки профиля и строка топа. Красим
    ШАПКУ, а не карточку целиком — имя и цифры должны читаться одинаково у
-   всех, а дом виден с одного взгляда. */
+   всех, а дом виден с одного взгляда.
+
+   Поверх градиента — ЗНАМЯ дома (--house-cover): зверь, замок и герб, сшитые
+   из кусков рисованного листа примерно под пропорции самой шапки
+   (design/faculty-covers/README.md), поэтому cover по центру показывает
+   композицию целиком, а не вырезанную середину. Градиенты остаются ПОД
+   картинкой, а не выброшены: они того же
+   цвета и видны, пока полмегабайта знамени едут по сети, — шапка не мигает
+   серым. Факультет без знамени (var-фолбэк none) остаётся на одном градиенте,
+   как раньше. */
 .profile-hero.faculty-tint { border-color: color-mix(in oklab, var(--house) 40%, var(--border)); }
 .profile-hero.faculty-tint .profile-cover {
   background:
+    var(--house-cover, none) center / cover no-repeat,
     radial-gradient(120% 170% at 85% -20%, color-mix(in oklab, var(--house) 55%, transparent) 0%, transparent 55%),
     linear-gradient(120deg, color-mix(in oklab, var(--house) 46%, transparent) 0%, color-mix(in oklab, var(--house) 14%, transparent) 70%);
 }
