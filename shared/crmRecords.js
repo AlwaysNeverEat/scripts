@@ -355,8 +355,12 @@ export function contiguousFreeSlots(fromTime, timeSlots, isFree) {
 }
 
 // План операций для записи длиной durationMinutes: первый слот — «настоящая»
-// запись с реальным телефоном клиента, остальные — продолжения с телефоном-
-// заглушкой (как это делает оригинальный скрипт «Продлить запись»).
+// запись, остальные — продолжения с ТЕМ ЖЕ телефоном клиента. Раньше в
+// продолжения ставилась заглушка +71111111111 (как в оригинальном скрипте
+// «Продлить запись»), но номера из одной цифры портят статистику CRM, и их
+// попросили не ставить вовсе. Цепочку доска и топ собирают по слотам встык с
+// тем же именем и номером (detectChains / extendsExistingRecord) — заглушка
+// для этого не нужна, а старые продолжения с ней распознаются по-прежнему.
 // base = { addressId, date, time, name, phone, carNumber, comment }
 export function buildExtensionOps(base, durationMinutes) {
     const nSlots = Math.max(1, Math.ceil(durationMinutes / SLOT_MINUTES));
@@ -367,7 +371,7 @@ export function buildExtensionOps(base, durationMinutes) {
             date: base.date,
             time: addMinutes(base.time, i * SLOT_MINUTES),
             name: base.name,
-            phone: i === 0 ? (base.phone || '') : EXTENSION_STUB_PHONE,
+            phone: base.phone || '',
             carNumber: i === 0 ? (base.carNumber || '') : '',
             comment: i === 0 ? (base.comment || '') : '',
         });
@@ -376,8 +380,10 @@ export function buildExtensionOps(base, durationMinutes) {
 }
 
 // Продолжение уже существующей записи или новая запись? Отличаем по телефону-
-// заглушке: «Продлить» (и добор хвоста при правке длины) ставит слоты именно с
-// ней, у новой записи телефон свой — реальный или пустой.
+// заглушке. Новые продолжения ставятся с реальным номером клиента и ловятся
+// доской (extendsExistingRecord), но заглушку по-прежнему может прислать
+// старая операция из очереди или оператор руками — такой слот новой записью
+// не считается.
 // Нужно топу (backend/src/routes/top.js): продлённая запись — всё ещё одна
 // запись, поэтому её продолжения в счёт не идут.
 export function isExtensionCreate(payload) {
