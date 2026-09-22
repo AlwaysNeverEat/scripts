@@ -238,7 +238,8 @@ test('assignLanes: переполнение боксов добавляет до
 
 // ── Продление / длинные записи ───────────────────────────────────────────────
 
-test('buildExtensionOps: запись на 1.5 часа = 1 настоящая + 2 заглушки', () => {
+test('buildExtensionOps: продолжения дублируют номер клиента, а не заглушку', () => {
+    // Заглушки +7111… в новые слоты не ставятся — портят статистику CRM.
     const ops = buildExtensionOps(
         { addressId: '3', date: '25.07.2026', time: '10:00', name: 'Иван', phone: '+79211112233', carNumber: 'А123БВ', comment: 'ДВС' },
         90,
@@ -247,9 +248,9 @@ test('buildExtensionOps: запись на 1.5 часа = 1 настоящая +
     assert.deepEqual(ops.map(o => o.time), ['10:00', '10:30', '11:00']);
     assert.equal(ops[0].phone, '+79211112233');
     assert.equal(ops[0].comment, 'ДВС');
-    assert.equal(ops[1].phone, EXTENSION_STUB_PHONE);
+    assert.equal(ops[1].phone, '+79211112233');
     assert.equal(ops[1].comment, '');
-    assert.equal(ops[2].phone, EXTENSION_STUB_PHONE);
+    assert.equal(ops[2].phone, '+79211112233');
 });
 
 test('isExtensionCreate: продолжение — по телефону-заглушке, новая запись — нет', () => {

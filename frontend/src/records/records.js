@@ -26,7 +26,7 @@ import {
 import {
     detectChains, assignLanes, flattenAddressRecords, buildCopyLine,
     timeToMin, addMinutes, formatRuPhone, isBookableTime,
-    EXTENSION_STUB_PHONE, SLOT_MINUTES, MAX_DURATION_MIN, copyOperatorFor,
+    SLOT_MINUTES, MAX_DURATION_MIN, copyOperatorFor,
     LAST_START_TIME,
 } from '../../../shared/crmRecords.js';
 import { filterStations, stationMatch } from './stationFilter.js';
@@ -2152,7 +2152,8 @@ function modalEdit(m) {
                     <div class="rc-pick-hint">Клик по свободному получасу — новое начало, длина записи едет следом.
                         Длину меняют кнопками ±, вводом или Shift+кликом по концу окна:
                         лишние слоты снимутся, недостающие допишутся продолжением.
-                        Продолжения создаются слотами с телефоном-заглушкой — SMS клиенту не уйдёт.</div>
+                        Продолжения создаются слотами с тем же номером телефона, что у записи, —
+                        заглушки вроде +7 111… больше не ставятся, они портят статистику.</div>
                 </div>
             </div>
 
@@ -3575,9 +3576,14 @@ async function submitEdit() {
             : Boolean(carNumber) || Boolean(comment));
 
     const records = keep.map((p, i) => {
+        // Имя и телефон — на ВСЕ слоты цепочки, а не только на голову: с тех
+        // пор как продолжения ставятся с реальным номером, правка телефона
+        // только в голове разорвала бы червячка (detectChains собирает его по
+        // одинаковому номеру). Заодно правка выводит заглушку +7111… из старых
+        // продолжений. Госномер и комментарий остаются полями головы.
         const r = { id: p.id, name };
+        if (phone) r.phone = phone;
         if (i === 0) {
-            if (phone) r.phone = phone;
             if (known || carNumber) r.carNumber = carNumber;
             if (known || comment) r.comment = comment;
         }
@@ -3603,14 +3609,17 @@ async function submitEdit() {
         if (drop.length) await postOp('delete', { records: drop.map(p => ({ id: p.id, deleteUrl: p.deleteUrl })) });
         if (moved || fieldsChanged) await postOp('update', { records });
         if (nNew > nOld) {
-            // Добавка — слоты-продолжения с телефоном-заглушкой: SMS клиенту с
-            // них не уйдёт (так же было в «Продлить» оригинального скрипта).
+            // Добавка — слоты-продолжения с ТЕМ ЖЕ номером клиента. Раньше сюда
+            // ставилась заглушка +71111111111, но номера из одной цифры портят
+            // статистику CRM — попросили не ставить. Продлением для топа такой
+            // слот остаётся: он встык к записи того же клиента с тем же номером
+            // (extendsExistingRecord в shared/crmRecords.js).
             await postOp('create', {
                 addressId,
                 date,
                 time: timeAt(nOld),
                 name,
-                phone: EXTENSION_STUB_PHONE,
+                phone: phone || headPhone,
                 carNumber: '',
                 comment: '',
                 durationMinutes: (nNew - nOld) * SLOT_MINUTES,
