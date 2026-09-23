@@ -1851,7 +1851,7 @@
 .rc-queue { display: flex; flex-direction: column; gap: var(--s-2); }
 .rc-queue-item {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--s-3);
     padding: var(--s-2) var(--s-3);
     border: 1px solid var(--border);
@@ -1863,7 +1863,6 @@
 /* «отменить» / «другое время» — кнопка не сжимается в многоточие на узком экране */
 .rc-queue-item .rc-mini-btn { flex: none; white-space: nowrap; }
 .rc-queue-sub { color: var(--sub); font-size: 10.5px; margin-top: 2px; }
-.rc-queue-done { opacity: 0.55; }
 .rc-queue-failed { border-color: var(--red-dim); }
 
 /* Карта: плашки-станции */
@@ -2195,9 +2194,9 @@
     .rc-modal .modal-actions:not(.rc-actions-float) { padding-bottom: env(safe-area-inset-bottom); }
 }
 
-/* ── Очередь операций: кнопка «Записываю…» и уведомления об исходе ────────
+/* ── Очередь операций: кнопка «Записываю…», плашка отказа, строки очереди ──
    Операция ставится в очередь на сервере, окно закрывается сразу, а исход
-   приезжает уведомлением (records.js → «Очередь операций», opNotices.js). */
+   живёт в самой вкладке (records.js → «Очередь операций», opQueue.js). */
 
 .rc-btn-busy { cursor: progress; opacity: 0.85; }
 
@@ -2212,62 +2211,34 @@
 }
 @keyframes rc-spin { to { transform: rotate(360deg); } }
 
-/* Лежат в <body>, а не в разделе: видны на любой вкладке сайта и переживают
-   перерисовки доски. Снизу справа — там, где не закрывают ни шапку, ни окно
-   записи с его кнопкой. */
-.rc-notices {
-    position: fixed;
-    right: var(--s-4);
-    bottom: var(--s-4);
-    z-index: 1200;
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-2);
-    width: min(360px, calc(100vw - 2 * var(--s-4)));
-    pointer-events: none;
+/* Плашка «не прошло» в шапке раздела. Тот же красный, что у «CRM лежит», —
+   это тоже «работа не сделана», — но строки в ней про конкретных клиентов:
+   по ней перезванивают, поэтому телефон и станция читаются первыми. */
+/* ЛИПНЕТ под рядом вкладок: оператор обычно прокручен в расписание станции, и
+   плашка, уехавшая вверх вместе с шапкой, — та же незамеченная всплывашка.
+   Поэтому и фон непрозрачный: под ней едет доска. */
+.rc-banner-slot:has(.rc-banner-fail) {
+    position: sticky;
+    top: calc(var(--tabs-h) + var(--s-2));
+    z-index: 60;
 }
-.rc-notices:empty { display: none; }
+.rc-banner-fail {
+    border-color: color-mix(in oklab, var(--red) 55%, transparent);
+    background: color-mix(in oklab, var(--red) 16%, var(--bg));
+    box-shadow: var(--shadow-1);
+}
+.rc-fail-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.rc-fail-row + .rc-fail-row { padding-top: var(--s-2); border-top: 1px solid var(--red-dim); }
+.rc-fail-where { font-weight: 600; }
+.rc-fail-why { color: var(--sub); font-size: 11.5px; }
 
-.rc-notice {
-    pointer-events: auto;
-    display: flex;
-    gap: var(--s-3);
-    align-items: flex-start;
-    padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
-    border-radius: var(--r-3);
-    border: 1px solid var(--border);
-    background: var(--bg2);
-    color: var(--text);
-    box-shadow: var(--shadow-2);
-    font-size: 12.5px;
-    line-height: 1.45;
-    animation: rc-notice-in 0.22s cubic-bezier(.32, .72, 0, 1);
-}
-@keyframes rc-notice-in { from { transform: translateY(8px); opacity: 0; } }
-
-/* Цвет — смысл, а не украшение: зелёный «встало», красный «не встало» —
-   тот же язык, что у статусов на доске. */
-.rc-notice-ok { border-color: color-mix(in oklab, var(--green) 45%, transparent); }
-.rc-notice-err { border-color: color-mix(in oklab, var(--red) 55%, transparent); background: color-mix(in oklab, var(--red) 10%, var(--bg2)); }
-.rc-notice-ico { flex: none; margin-top: 1px; }
-.rc-notice-ok .rc-notice-ico, .rc-notice-ok b { color: var(--green); }
-.rc-notice-err .rc-notice-ico, .rc-notice-err b { color: var(--red); }
-.rc-notice-body { flex: 1; min-width: 0; }
-.rc-notice-body b { display: block; font-size: 13px; }
-.rc-notice-reason { font-weight: 600; margin-bottom: var(--s-1); }
-.rc-notice-line { color: var(--text); overflow-wrap: anywhere; }
-.rc-notice-line:last-child { opacity: 0.75; }
-.rc-notice-x {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    border: 0;
-    border-radius: var(--r-2);
-    background: transparent;
-    color: inherit;
-    opacity: 0.6;
-    cursor: pointer;
-}
-.rc-notice-x:hover { opacity: 1; background: var(--bg3); }
+.rc-queue-title { font-weight: 600; overflow-wrap: anywhere; }
+.rc-queue-line { overflow-wrap: anywhere; }
+.rc-queue-outcome { font-size: 11.5px; font-weight: 600; margin-top: 2px; }
+.rc-queue-pending .rc-queue-outcome { color: var(--accent); }
+.rc-queue-done .rc-queue-outcome { color: var(--green); }
+.rc-queue-failed .rc-queue-outcome { color: var(--red); }
+.rc-queue-failed { background: color-mix(in oklab, var(--red) 8%, transparent); }
+/* Свои строки — полоской слева: в общем списке своё ищут первым. */
+.rc-queue-mine { box-shadow: inset 3px 0 0 var(--accent); }
+.rc-queue-foot { color: var(--sub); font-size: 11px; margin-top: var(--s-2); }

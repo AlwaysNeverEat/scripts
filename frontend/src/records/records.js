@@ -33,7 +33,7 @@ import { filterStations, stationMatch } from './stationFilter.js';
 import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
-import { settledSince, noticeOf } from './opNotices.js';
+import { settledSince, unitsOf, unitStatus, describeUnit, unseenFailures } from './opQueue.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -326,13 +326,15 @@ async function loadOps() {
 // Операция уходит на сервер и ставится в очередь (journalQueue.js): POST
 // отвечает сразу, окно закрывается, и человек берёт следующий звонок, а не
 // смотрит, как CRM думает. Пока в очереди есть невыполненное, раздел опрашивает
-// её раз в секунду; доработавшее действие даёт уведомление (opNotices.js) —
-// с именем, телефоном, станцией, временем и ответственным, — а запись,
-// вставшая в CRM, перечитывает доску.
-//
-// Опрос живёт и когда раздел скрыт (ушли на калькулятор): «не записалось»
-// нужно узнать сразу, а не когда вернёшься на вкладку. Длится он ровно пока
-// есть невыполненное — это секунды.
+// её раз в секунду. Исход живёт В САМОЙ ВКЛАДКЕ, а не во всплывающих
+// уведомлениях — те гаснут, и через час уже не найти, кого, куда и кто
+// записывал:
+//   • встало — доска перечитывается, строка в «Очереди» становится «записано»;
+//   • не встало — красная плашка в шапке раздела с клиентом, телефоном,
+//     станцией, временем, ответственным и причиной, и висит она, пока её не
+//     прочитали («Понятно» или открыли «Очередь»); красный бейдж на кнопке
+//     «Очередь» — то же самое.
+// Строки очереди описывает opQueue.js.
 const OPS_POLL_MS = 1000;
 let opsTimer = null;
 
@@ -368,64 +370,23 @@ async function pollOps() {
 // доработавших, и перечитываем доску, если что-то встало в CRM.
 function applyOps(next, { reload = true } = {}) {
     const units = settledSince(state.ops, next);
+    const changed = units.length || next.length !== state.ops.length;
     state.ops = next;
-    for (const unit of units) pushNotice(noticeOf(unit));
     if (reload && units.some(u => u.some(o => o.status === 'done'))) {
         loadBoard({ silent: true, spareModal: true });
     } else if (units.length && root && !state.modal) {
         render(); // призрак «записываю…» ушёл, а доска не менялась — отказ
     }
+    // Открыто окно записи — оно не перерисовывается (там набирают), но плашка
+    // «не прошло» в шапке правится на месте: закроют окно — она уже там.
+    if (units.length && state.modal) patchStatus();
+    // Открыта сама «Очередь» — она живая: строки меняют статус на глазах.
+    if (changed && state.modal?.kind === 'queue') render();
     watchOps();
 }
 
-// Уведомления лежат отдельным узлом в <body>, а не в разделе: render()
-// пересобирает раздел целиком, и живи они внутри — исчезали бы на каждом тике
-// доски. И видны они на ЛЮБОЙ вкладке сайта: запись ставили и ушли на
-// калькулятор — «не записалось» должно догнать и там.
-const NOTICE_OK_MS = 15_000; // удача гаснет сама, отказ висит, пока не закроют
-const NOTICE_MAX = 5;
-const notices = [];
-let noticesEl = null;
-
-function pushNotice(n) {
-    notices.unshift(n);
-    notices.splice(NOTICE_MAX);
-    if (n.ok) setTimeout(() => dropNotice(n.key), NOTICE_OK_MS);
-    renderNotices();
-}
-
-function dropNotice(key) {
-    const i = notices.findIndex(n => n.key === key);
-    if (i === -1) return;
-    notices.splice(i, 1);
-    renderNotices();
-}
-
-function renderNotices() {
-    if (!noticesEl) {
-        noticesEl = document.createElement('div');
-        noticesEl.className = 'rc-notices';
-        noticesEl.setAttribute('aria-live', 'polite');
-        noticesEl.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-notice]');
-            if (btn) dropNotice(btn.dataset.notice);
-        });
-        document.body.appendChild(noticesEl);
-    }
-    noticesEl.innerHTML = notices.map(n => `
-        <div class="rc-notice ${n.ok ? 'rc-notice-ok' : 'rc-notice-err'}" role="${n.ok ? 'status' : 'alert'}">
-            <span class="rc-notice-ico">${n.ok ? icons.check(15) : icons.alert(15)}</span>
-            <div class="rc-notice-body">
-                <b>${esc(n.title)}</b>
-                ${n.reason ? `<div class="rc-notice-reason">${esc(n.reason)}</div>` : ''}
-                ${n.lines.map(l => `<div class="rc-notice-line">${esc(l)}</div>`).join('')}
-            </div>
-            <button class="rc-notice-x" data-notice="${esc(n.key)}" title="Скрыть" aria-label="Скрыть">${icons.x(13)}</button>
-        </div>`).join('');
-}
-
-// Подпись операции для уведомления — собирается в момент нажатия, пока окно
-// ещё открыто и всё известно (см. opNotices.js).
+// Подпись операции для списка «Очередь» и плашки отказа — собирается в
+// момент нажатия, пока окно ещё открыто и всё известно (см. opQueue.js).
 function opNote(kind, { name, phone, addressId, date, time, minutes }) {
     const st = stationById(addressId);
     return {
@@ -630,16 +591,15 @@ function nameHistoryHtml() {
 const SEEN_OP_KEY = 'zm_records_seen_op';
 let seenOpId = Number(localStorage.getItem(SEEN_OP_KEY) || 0);
 
+// Жёлтое число — сколько действий сейчас выполняется (у всех: очередь общая),
+// красное — сколько СВОИХ не прошло и ещё не прочитано.
 function unseenOps() {
-    let pending = 0;
-    let failed = 0;
-    for (const op of state.ops) {
-        if (Number(op.id) <= seenOpId) continue;
-        if (op.status === 'pending') pending++;
-        else if (op.status === 'failed' && !op.lastError.includes('отменена')) failed++;
-    }
+    const pending = unitsOf(state.ops).filter(u => unitStatus(u) === 'pending').length;
+    const failed = unseenFailures(state.ops, seenOpId).length;
     return { pending, failed };
 }
+
+const stationTitleOf = (id) => stationById(id)?.title || '';
 
 function markOpsSeen() {
     const maxId = state.ops.reduce((m, o) => Math.max(m, Number(o.id) || 0), 0);
@@ -1076,8 +1036,40 @@ function renderTopBar() {
     </header>`;
 }
 
+// Свои непрошедшие операции — В ШАПКЕ РАЗДЕЛА, а не всплывашкой: всплывашка
+// гаснет и уезжает, а по этой плашке перезванивают клиенту. Поэтому в ней всё:
+// кто клиент и его телефон, станция, время, ответственный и причина отказа.
+// Висит, пока не прочитали — «Понятно» или открыли «Очередь».
+const FAILS_SHOWN = 3;
+
+function failuresHtml() {
+    const fails = unseenFailures(state.ops, seenOpId);
+    if (!fails.length) return '';
+    const rows = fails.slice(0, FAILS_SHOWN).map(u => {
+        const d = describeUnit(u, { stationTitle: stationTitleOf });
+        return `
+        <div class="rc-fail-row">
+            <div><b>${esc(d.outcome[0].toUpperCase() + d.outcome.slice(1))}:</b> ${esc(d.client || 'без имени')}</div>
+            <div class="rc-fail-where">${esc([d.station, d.when].filter(Boolean).join(' · '))}</div>
+            <div class="rc-fail-why">${esc(d.reason)}${d.author ? ` · ответственный: ${esc(d.author)}` : ''}${d.queuedAt ? ` · нажато в ${esc(d.queuedAt)}` : ''}</div>
+        </div>`;
+    }).join('');
+    const more = fails.length > FAILS_SHOWN ? `<div class="rc-fail-why">и ещё ${fails.length - FAILS_SHOWN} — в «Очереди»</div>` : '';
+    return `
+    <div class="rc-banner rc-banner-fail" role="alert">
+        ${icons.alert(18)}
+        <div class="rc-fail-body">
+            ${rows}${more}
+            <div class="rc-copyfail-row">
+                <button class="btn btn-sec rc-copyfail-btn" data-action="open-queue">${icons.list(13)} Открыть очередь</button>
+                <button class="btn btn-sec rc-copyfail-btn" data-action="ack-fails">Понятно</button>
+            </div>
+        </div>
+    </div>`;
+}
+
 function bannerHtml() {
-    const fail = copyFailHtml();
+    const fail = failuresHtml() + copyFailHtml();
     if (state.credsNeeded || !isDown()) return fail;
     // Очереди больше нет: CRM отвечает сразу, и операция, которую она не
     // приняла, возвращается ошибкой в том же окне. Поэтому честно: пока CRM
@@ -2367,49 +2359,46 @@ function moveTargetOf(op) {
     return first && first.addressId != null && first.date && first.time ? first : null;
 }
 
+// Список «Очередь» — журнал того, что делали с записями за смену, у всех
+// операторов сразу. Смысл его в том, чтобы и через час найти, кто, кого, куда
+// и на какое время записывал и чем кончилось: поэтому в строке клиент с
+// телефоном, станция, время, ответственный и исход с причиной. Свои строки
+// отмечены — только их можно отменить, пока они не ушли в CRM.
 function modalQueue(m) {
-    const ops = state.ops;
-    const opLabel = (op) => {
-        const p = op.payload || {};
-        const n = (p.records || []).length;
-        if (op.type === 'create') return `Создать: ${p.name || ''} · ${p.date || ''} ${p.time || ''} (${(Number(p.durationMinutes) || 30)} мин)`;
-        if (op.type === 'delete') return `Удалить: ${n} слот(ов)`;
-        if (op.type === 'update') {
-            const to = moveTargetOf(op);
-            if (!to) return `Правка данных: ${n} слот(ов)`;
-            const st = stationById(to.addressId);
-            const meta = st ? findStationMeta(st.title) : null;
-            const where = meta?.short || st?.title || `станция ${to.addressId}`;
-            return `Перенос: ${n > 1 ? `вся запись (${n} слотов) ` : ''}→ ${to.date} ${to.time}, ${where}`;
-        }
-        return op.type;
-    };
-    const stIcon = (op) => op.status === 'pending' ? `<span class="rc-st rc-st-new">${icons.clock(11)}</span>`
-        : op.status === 'done' ? `<span class="rc-st rc-st-ok">${icons.check(11)}</span>`
+    const units = unitsOf(state.ops);
+    const stIcon = (st) => st === 'pending' ? `<span class="rc-st rc-st-new">${icons.clock(11)}</span>`
+        : st === 'done' ? `<span class="rc-st rc-st-ok">${icons.check(11)}</span>`
         : `<span class="rc-st rc-st-late">${icons.x(11)}</span>`;
+    const rows = units.map(unit => {
+        const d = describeUnit(unit, { stationTitle: stationTitleOf });
+        const cancellable = d.mine && unit.find(o => o.status === 'pending' && !o.running);
+        const move = d.status === 'failed' && unit.find(o => moveTargetOf(o));
+        const when = d.status === 'pending' ? `нажато в ${d.queuedAt}`
+            : `нажато в ${d.queuedAt}${d.doneAt && d.doneAt !== d.queuedAt ? `, ответ CRM в ${d.doneAt}` : ''}`;
+        return `
+            <div class="rc-queue-item rc-queue-${d.status}${d.mine ? ' rc-queue-mine' : ''}">
+                ${stIcon(d.status)}
+                <div class="rc-queue-main">
+                    <div class="rc-queue-title">${esc(d.title)}</div>
+                    ${d.station || d.when ? `<div class="rc-queue-line">${esc([d.station, d.when].filter(Boolean).join(' · '))}</div>` : ''}
+                    <div class="rc-queue-outcome">${esc(d.outcome)}${d.reason ? `: ${esc(d.reason)}` : ''}</div>
+                    <div class="rc-queue-sub">${d.author ? `ответственный: ${esc(d.author)} · ` : ''}${esc(when)}</div>
+                </div>
+                ${cancellable
+                    ? `<button class="btn btn-sec rc-mini-btn" data-action="cancel-op" data-id="${cancellable.id}">${icons.x(12)} отменить</button>`
+                    : ''}
+                ${move && d.mine
+                    ? `<button class="btn btn-sec rc-mini-btn" data-action="retry-move" data-id="${move.id}">${icons.move(12)} другое время</button>`
+                    : ''}
+            </div>`;
+    }).join('');
     const body = `
     <div class="rc-queue">
         ${m?.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
-        ${ops.length ? ops.map(op => `
-            <div class="rc-queue-item rc-queue-${op.status}">
-                ${stIcon(op)}
-                <div class="rc-queue-main">
-                    <div>${esc(opLabel(op))}</div>
-                    <div class="rc-queue-sub">${new Date(op.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                        ${op.rollingBack ? ' · отменяю и возвращаю слоты на место' : ''}
-                        ${op.status === 'failed' && op.lastError ? ` · ${esc(op.lastError)}` : ''}
-                        ${op.status === 'pending' && !op.rollingBack && op.attempts > 0 ? ` · попыток: ${op.attempts}` : ''}</div>
-                </div>
-                ${op.status === 'pending' && !op.rollingBack
-                    ? `<button class="btn btn-sec rc-mini-btn" data-action="cancel-op" data-id="${op.id}">${icons.x(12)} отменить</button>`
-                    : ''}
-                ${op.status === 'failed' && moveTargetOf(op)
-                    ? `<button class="btn btn-sec rc-mini-btn" data-action="retry-move" data-id="${op.id}">${icons.move(12)} другое время</button>`
-                    : ''}
-            </div>`).join('')
-            : '<div class="rc-empty-note">Операций пока не было</div>'}
+        ${rows || '<div class="rc-empty-note">Операций пока не было</div>'}
+        <div class="rc-queue-foot">Показаны операции всех операторов за последние 12 часов. После перезапуска сервера список начинается заново — сами записи от этого не пропадают, они в CRM.</div>
     </div>`;
-    return modalShell('Очередь операций', body);
+    return modalShell('Очередь операций', body, { wide: true });
 }
 
 function modalMap(m) {
@@ -3332,6 +3321,10 @@ async function handleAction(btn, ev) {
         return render();
     }
     if (a === 'open-map') { state.modal = { kind: 'map' }; return render(); }
+    if (a === 'ack-fails') {
+        markOpsSeen();
+        return render();
+    }
     if (a === 'open-queue') {
         await loadOps();
         markOpsSeen(); // окно открыли — бейдж гасим до следующей операции

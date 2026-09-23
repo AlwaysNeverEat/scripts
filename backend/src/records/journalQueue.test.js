@@ -25,9 +25,10 @@ test('постановка отвечает сразу — операция ещ
     const op = q.enqueue('u1', { type: 'create', payload: { time: '14:00' }, author: 'Серёга' });
     assert.equal(op.status, 'pending');
     assert.equal(op.author, 'Серёга');
-    assert.equal(op.userId, undefined, 'чей это аккаунт — наружу не уезжает');
-    assert.equal(q.list('u1').length, 1);
-    assert.equal(q.list('u2').length, 0, 'чужие операции не видны');
+    assert.equal(op.userId, undefined, 'id аккаунта наружу не уезжает');
+    assert.equal(q.list('u1')[0].mine, true);
+    assert.equal(q.list('u2')[0].mine, false, 'чужую видно (кто кого куда записал), но она не своя');
+    assert.equal(q.list('u2')[0].author, 'Серёга');
 });
 
 test('операции одного человека идут строго по очереди', async () => {
@@ -56,6 +57,7 @@ test('исход: удача с ответом CRM, отказ с её текс�
     q.enqueue('u1', { type: 'create', payload: {} });
     await q.idle();
     const [second, first] = q.list('u1');
+    assert.equal(first.mine, true);
     assert.equal(first.status, 'done');
     assert.equal(first.result.author, 'Иванов Иван Иванович');
     assert.equal(second.status, 'failed');
@@ -124,7 +126,7 @@ test('исполненные забываются через полсуток, �
     assert.equal(q.list('u1').length, 0);
 });
 
-test('подпись для уведомления: только короткие строки из известных полей', () => {
+test('подпись операции: только короткие строки из известных полей', () => {
     assert.equal(cleanNote(null), null);
     assert.equal(cleanNote('текст'), null);
     const n = cleanNote({ kind: 'create', name: ' Андрей ', phone: '+7 (911) 791-71-47', station: 'x'.repeat(500), evil: '<b>', time: 14 });

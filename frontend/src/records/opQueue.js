@@ -1,79 +1,115 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Уведомления об исходе операций раздела «Записи».
+// Очередь операций раздела «Записи» глазами оператора.
 //
 // Операция уходит в очередь на сервере (backend/src/records/journalQueue.js),
-// окно закрывается сразу, и человек занимается следующим звонком. Узнать, что
-// запись встала или НЕ встала, ему остаётся только отсюда — поэтому в
-// уведомлении всё, чтобы действовать, не открывая доску: кто клиент и его
-// телефон, какая станция, на какое время и кто записывал. Без телефона
-// «не записалось» бесполезно: перезванивать-то надо клиенту, а окно уже
-// закрыто.
+// окно закрывается сразу, и человек берёт следующий звонок. Узнать, встала ли
+// запись, ему остаётся из самой вкладки: из списка «Очередь» и из красной
+// плашки в шапке раздела, если что-то НЕ встало. Всплывающих уведомлений тут
+// нет сознательно: уведомление гаснет и уезжает, а непрошедшую запись надо
+// найти и через час — кто записывал, кого, куда и на какое время.
 //
-// Чистые функции без DOM — их проверяет opNotices.test.js.
+// Поэтому у каждой строки очереди всё, чтобы действовать, не открывая доску:
+// клиент и его телефон (перезванивать-то ему), адрес станции, дата и время,
+// ответственный и исход с причиной.
+//
+// Чистые функции без DOM — их проверяет opQueue.test.js.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Одна правка записи — это до трёх операций с общей меткой `group` (снять
 // хвост, перенести, дописать), а для человека это одно действие. Поэтому и
-// уведомление одно на группу, и приходит оно, когда исполнилась вся группа.
+// строка в очереди одна на группу.
 export const unitKey = (op) => (op.group ? `g:${op.group}` : `op:${op.id}`);
 
-function groupUnits(ops) {
+// Действия (группы операций) свежими вперёд — в том порядке, в каком их
+// отдаёт сервер.
+export function unitsOf(ops) {
     const units = new Map();
     for (const op of ops || []) {
         const k = unitKey(op);
         if (!units.has(k)) units.set(k, []);
         units.get(k).push(op);
     }
-    return units;
+    return [...units.values()];
 }
 
 const settled = (unit) => unit.every(o => o.status !== 'pending');
+export const unitStatus = (unit) => unit.some(o => o.status === 'failed') ? 'failed'
+    : settled(unit) ? 'done' : 'pending';
+const unitMaxId = (unit) => Math.max(...unit.map(o => Number(o.id) || 0));
 
 // Какие действия ДОРАБОТАЛИ между двумя опросами: в прошлом списке у них было
-// что-то невыполненное, в новом — всё исполнено. Действие, которого в прошлом
-// списке не было вовсе, уведомления не даёт: это чужая вкладка или
-// перезагрузка страницы, и рассказывать о старом как о новом нельзя.
+// что-то невыполненное, в новом — всё исполнено. По ним раздел перечитывает
+// доску (встало) или зажигает плашку (не встало).
 export function settledSince(prevOps, nextOps) {
-    const before = groupUnits(prevOps);
-    const out = [];
-    for (const [k, unit] of groupUnits(nextOps)) {
-        const was = before.get(k);
-        if (!was || settled(was)) continue;
-        if (settled(unit)) out.push(unit);
-    }
-    return out;
+    const before = new Map(unitsOf(prevOps).map(u => [unitKey(u[0]), u]));
+    return unitsOf(nextOps).filter(unit => {
+        const was = before.get(unitKey(unit[0]));
+        return was && !settled(was) && settled(unit);
+    });
 }
 
-const TITLES = {
-    create: ['Записано', 'Не записалось'],
-    edit: ['Сохранено', 'Не сохранилось'],
-    move: ['Перенесено', 'Не перенеслось'],
-    delete: ['Удалено', 'Не удалилось'],
+// Свои НЕ прошедшие действия, которых человек ещё не видел (не открывал
+// очередь и не нажал «Понятно»): они висят плашкой в шапке раздела.
+// Отменённое руками — не отказ: его отменили, глядя на него.
+export function unseenFailures(ops, seenId) {
+    return unitsOf(ops).filter(u => u[0].mine !== false
+        && unitStatus(u) === 'failed'
+        && unitMaxId(u) > seenId
+        && !u.some(o => o.lastError === 'отменена вручную'));
+}
+
+const KIND = {
+    create: { verb: 'Запись', ok: 'записано', bad: 'не записалось' },
+    edit: { verb: 'Правка', ok: 'сохранено', bad: 'не сохранилось' },
+    move: { verb: 'Перенос', ok: 'перенесено', bad: 'не перенеслось' },
+    delete: { verb: 'Удаление', ok: 'удалено', bad: 'не удалилось' },
 };
 
-// Что писать в уведомлении. Подпись (`note`) раздел кладёт к операции в момент
-// нажатия — после исполнения окна уже нет, и взять эти данные больше неоткуда.
-export function noticeOf(unit) {
-    const failed = unit.find(o => o.status === 'failed');
-    const ok = !failed;
-    const note = unit.find(o => o.note)?.note || {};
-    const kind = TITLES[note.kind] ? note.kind : (unit[0]?.type === 'create' ? 'create' : unit[0]?.type === 'delete' ? 'delete' : 'edit');
-    const title = TITLES[kind][ok ? 0 : 1];
+function kindOf(unit, note) {
+    if (KIND[note.kind]) return note.kind;
+    if (unit.length === 1 && unit[0].type === 'create') return 'create';
+    if (unit.length === 1 && unit[0].type === 'delete') return 'delete';
+    return 'edit';
+}
 
-    const who = [note.name, note.phone].filter(Boolean).join(' · ');
+const hhmm = (iso) => {
+    const d = new Date(iso || '');
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+};
+
+// Что писать в строке очереди и в плашке. Подпись (`note`) раздел кладёт к
+// операции в момент нажатия. У операции без подписи (поставлена до этой
+// версии) выручает то, что есть в самой операции создания.
+export function describeUnit(unit, { stationTitle = () => '' } = {}) {
+    const status = unitStatus(unit);
+    const failed = unit.find(o => o.status === 'failed');
+    const create = unit.find(o => o.type === 'create')?.payload || {};
+    const note = unit.find(o => o.note)?.note
+        || { name: create.name, phone: create.phone, station: stationTitle(create.addressId), date: create.date, time: create.time };
+    const kind = kindOf(unit, note);
+    const k = KIND[kind];
+
+    const client = [note.name, note.phone].filter(Boolean).join(' · ');
     const when = [note.date, note.time && (note.duration ? `${note.time}, ${note.duration}` : note.time)]
         .filter(Boolean).join(' ');
     // Ответственный — тот, чьей учёткой CRM ушла запись: CRM назвала его
     // сама в ответе на создание. Нет её ответа — тот, кто нажал на сайте.
     const author = unit.map(o => o.result?.author).find(Boolean) || unit[0]?.author || '';
+    const last = unit.map(o => o.appliedAt).filter(Boolean).sort().pop();
 
-    const lines = [who, note.station, when].filter(Boolean);
-    if (author) lines.push(`ответственный: ${author}`);
     return {
         key: unitKey(unit[0]),
-        ok,
-        title,
-        lines,
+        kind,
+        status,
+        mine: unit[0]?.mine !== false,
+        title: `${k.verb}: ${client || 'без имени'}`,
+        client,
+        station: note.station || '',
+        when,
+        author,
+        queuedAt: hhmm(unit[0]?.createdAt),
+        doneAt: hhmm(last),
+        outcome: status === 'pending' ? 'выполняется…' : status === 'done' ? k.ok : k.bad,
         reason: failed ? (failed.lastError || 'CRM не приняла') : '',
     };
 }
