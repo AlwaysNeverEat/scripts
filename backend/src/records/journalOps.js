@@ -256,6 +256,31 @@ async function applyDelete(userId, p, deps) {
     return { deleted };
 }
 
+// Проверка ДО очереди — то, что решается без CRM: формат дат и запас в час.
+// Операция уходит в очередь и исполняется фоном (journalQueue.js), а об
+// отказе, который можно было сказать сразу, человек должен узнать в том же
+// окне, а не красной плашкой через секунду после того, как окно закрылось.
+// Всё это applyJournalOp проверит ещё раз — здесь только ранний ответ.
+export function precheckJournalOp(type, payload = {}, now = Date.now()) {
+    if (type === 'create') {
+        const iso = requireDate(payload.date, 'запись');
+        if (!payload.time) throw new OpRefused('не выбрано время');
+        requireLead(iso, payload.time, now);
+        return;
+    }
+    const list = Array.isArray(payload.records) ? payload.records : [];
+    if (!list.length) throw new OpRefused(type === 'delete' ? 'нечего удалять' : 'нечего менять');
+    if (type !== 'update') return;
+    for (const r of list) {
+        // Где запись была, известно только при переносе (`from`); правка
+        // полей без переноса запасом не ограничена.
+        if (!r.from || !r.date || !r.time) continue;
+        const moved = r.from.date !== r.date || r.from.time !== r.time
+            || String(r.from.addressId) !== String(r.addressId);
+        if (moved) requireLead(requireDate(r.date, 'перенос'), r.time, now);
+    }
+}
+
 // ── Вход ─────────────────────────────────────────────────────────────────────
 
 export async function applyJournalOp(userId, type, payload, deps = {}) {

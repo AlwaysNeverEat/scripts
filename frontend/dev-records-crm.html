@@ -6,7 +6,10 @@
      (`section=journal`), и честно применяет операции раздела: создаёт слоты
      цепочки, двигает, удаляет и подписывает их автором из «сессии». Доска
      собирается настоящим journalToBoard — то есть песочница проверяет тот же
-     путь данных, что и бой. Все запросы раздела копятся в window.__ops.
+     путь данных, что и бой. Операции идут через очередь, как на сервере:
+       ?delay=5000 — CRM «думает» 5 с (по умолчанию 2);
+       ?fail=1 — часть записей получает отказ «нет свободного поста».
+     Все запросы раздела копятся в window.__ops.
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -51,8 +54,9 @@
 
     // Применение операций — так, как это делает бэкенд (records/journalOps.js),
     // только без сети: слоты цепочки, автор из «сессии», удаление по id.
-    const tooSoon = (iso, time) => json({ error: { code: 'refused',
-      message: `на ${time} уже не записать — записываем не позднее чем за ${BOOKING_LEAD_MIN} минут до визита` } }, 409);
+    // Отказ по делу — как у настоящей очереди: текст уезжает в lastError.
+    const refuse = (message) => { throw new Error(message); };
+    const tooSoon = (iso, time) => refuse(`на ${time} уже не записать — записываем не позднее чем за ${BOOKING_LEAD_MIN} минут до визита`);
 
     function applyOp({ type, payload: p }) {
       if (type === 'create') {
@@ -65,7 +69,7 @@
           const time = `${pad(Math.floor(t / 60))}:${pad(t % 60)}`;
           const busy = records.filter(r => r.address_id === String(p.addressId) && r.record_time.startsWith(iso) && r.time === time).length;
           const posts = Number(stations.find(s => s.id === String(p.addressId)).posts_count);
-          if (busy >= posts) return json({ error: { code: 'refused', message: `в ${time} на станции нет свободного поста` } }, 409);
+          if (busy >= posts) return refuse(`в ${time} на станции нет свободного поста`);
         }
         const ids = [];
         for (let i = 0; i < n; i++) {
@@ -78,12 +82,12 @@
             car_number: i ? '' : (p.carNumber || ''), comment: i ? '' : (p.comment || ''),
             creator: ME, st: '', is_new: 1 });
         }
-        return json({ ok: true, created: ids, author: ME });
+        return { created: ids, author: ME };
       }
       if (type === 'update') {
         for (const r of p.records) {
           const rec = records.find(x => x.id === String(r.id));
-          if (!rec) return json({ error: { code: 'refused', message: 'этой записи больше нет — обновите доску' } }, 409);
+          if (!rec) return refuse('этой записи больше нет — обновите доску');
           const toDate = r.date ? toIso(r.date) : rec.record_time.slice(0, 10);
           const moved = (r.time && r.time !== rec.time) || toDate !== rec.record_time.slice(0, 10)
             || (r.addressId && String(r.addressId) !== rec.address_id);
@@ -99,16 +103,44 @@
           if ('carNumber' in r) rec.car_number = r.carNumber;
           if ('comment' in r) rec.comment = r.comment;
         }
-        return json({ ok: true, updated: p.records.length });
+        return { updated: p.records.length };
       }
       if (type === 'delete') {
         for (const r of p.records) {
           const i = records.findIndex(x => x.id === String(r.id));
           if (i >= 0) records.splice(i, 1);
         }
-        return json({ ok: true, deleted: p.records.length });
+        return { deleted: p.records.length };
       }
-      return json({ error: { code: 'refused', message: 'неизвестная операция' } }, 409);
+      return refuse('неизвестная операция');
+    }
+
+    // Очередь как на сервере (journalQueue.js): POST ставит и отвечает сразу,
+    // исполнение — через ?delay= мс (по умолчанию 2 с), по одной за раз.
+    // ?fail=1 — каждая вторая операция получает отказ «нет свободного поста».
+    const DELAY = Number(params.get('delay') || 2000);
+    const queue = [];
+    let chain = Promise.resolve();
+    let nOps = 0;
+    function enqueue(steps, note) {
+      const group = steps.length > 1 ? 'g' + Date.now() : null;
+      let broken = false;
+      return steps.map(st => {
+        const op = { id: Date.now() * 10 + (nOps++ % 10), type: st.type, payload: st.payload, status: 'pending', running: false,
+          lastError: '', author: 'Серёга', group, note, createdAt: new Date().toISOString(), appliedAt: null, result: null };
+        queue.unshift(op);
+        chain = chain.then(() => new Promise(r => setTimeout(r, DELAY))).then(() => {
+          if (op.status !== 'pending') return;
+          if (broken) { op.status = 'failed'; op.lastError = 'не выполнено: предыдущий шаг этой правки не прошёл'; return; }
+          try {
+            if (params.get('fail') && nOps % 2 === 0 && st.type === 'create') refuse(`в ${st.payload.time} на станции нет свободного поста`);
+            op.result = applyOp(st);
+            op.status = 'done';
+          } catch (err) { op.status = 'failed'; op.lastError = err.message; broken = true; }
+          op.appliedAt = new Date().toISOString();
+        });
+        return op;
+      });
     }
 
     const realFetch = window.fetch;
@@ -127,14 +159,29 @@
         for (const byTime of Object.values(board.cells)) for (const c of Object.values(byTime)) for (const r of c.records) {
           if (r.creator) authors[r.id] = { id: null, display_name: r.creator, avatar: null, counted: true, crm: true };
         }
-        return json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: [], authors });
+        return json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: queue.map(o => ({ ...o })), authors });
       }
       if (u.includes('/api/journal/ops') && init?.method === 'POST') {
         const body = JSON.parse(init.body);
         window.__ops.push(body);
-        return applyOp(body);
+        const steps = body.ops || [{ type: body.type, payload: body.payload }];
+        // Проверка до очереди — запас в час, как precheckJournalOp.
+        for (const st of steps) {
+          const p = st.payload;
+          if (st.type === 'create' && !bookingOpen(toIso(p.date), p.time)) {
+            return json({ error: { code: 'refused', message: `на ${p.time} уже не записать — записываем не позднее чем за ${BOOKING_LEAD_MIN} минут до визита` } }, 409);
+          }
+        }
+        await new Promise(r => setTimeout(r, 400)); // сеть до нашего сервера — чтобы «Записываю…» было видно
+        const ops = enqueue(steps, body.note);
+        return json({ ok: true, op: ops[ops.length - 1], ops }, 202);
       }
-      if (u.includes('/api/journal/ops')) return json({ ops: [] });
+      if (u.includes('/api/journal/ops/') && init?.method === 'DELETE') {
+        const op = queue.find(o => String(o.id) === u.split('/').pop());
+        if (op && op.status === 'pending') { op.status = 'failed'; op.lastError = 'отменена вручную'; }
+        return json({ ok: true });
+      }
+      if (u.includes('/api/journal/ops')) return json({ ops: queue.map(o => ({ ...o })) });
       if (u.includes('/api/records/stations')) return json({ stations: {} });
       if (u.includes('/api/crm/login')) return json({ ok: true, linked: true });
       return realFetch(url, init);

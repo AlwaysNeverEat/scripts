@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { applyJournalOp, moveOrder, ddmmToIso, isoToDdmm, OpRefused } from './journalOps.js';
+import { applyJournalOp, moveOrder, ddmmToIso, isoToDdmm, OpRefused, precheckJournalOp } from './journalOps.js';
 import { forgetActor } from '../crm/journal.js';
 import { parseJournal } from '../../../shared/crmJournal.js';
 
@@ -291,4 +291,23 @@ test('правка полей у близкой записи — можно: к�
         boardDate: '01.10.2026', records: [{ id: '11', name: 'Андрей', carNumber: 'К753АЕ198' }],
     }, s.deps);
     assert.equal(s.saves()[0].car_number, 'К753АЕ198');
+});
+
+// ── Проверка до очереди ─────────────────────────────────────────────────────
+// Операция исполняется фоном, и отказ, известный без CRM, должен прийти в том
+// же окне, а не плашкой после того, как окно закрылось.
+
+test('до очереди отказывается то, что решается без CRM', () => {
+    assert.throws(() => precheckJournalOp('create', { ...CREATE, time: '09:30' }, NOW), /уже не записать/);
+    assert.throws(() => precheckJournalOp('create', { ...CREATE, date: '2026-10-01' }, NOW), /ДД\.ММ\.ГГГГ/);
+    assert.doesNotThrow(() => precheckJournalOp('create', CREATE, NOW));
+    assert.throws(() => precheckJournalOp('delete', { records: [] }, NOW), /нечего удалять/);
+});
+
+test('до очереди: перенос ближе часа — отказ, правка полей близкой записи — можно', () => {
+    const move = { boardDate: '01.10.2026', records: [{ id: '11', addressId: '1', date: '01.10.2026', time: '09:30',
+        from: { addressId: '1', date: '01.10.2026', time: '15:00' } }] };
+    assert.throws(() => precheckJournalOp('update', move, NOW), /на 09:30 уже не записать/);
+    const fields = { boardDate: '01.10.2026', records: [{ id: '11', name: 'Андрей', carNumber: 'К1' }] };
+    assert.doesNotThrow(() => precheckJournalOp('update', fields, NOW));
 });

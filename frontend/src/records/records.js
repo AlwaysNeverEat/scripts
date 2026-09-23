@@ -33,6 +33,7 @@ import { filterStations, stationMatch } from './stationFilter.js';
 import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
+import { settledSince, noticeOf } from './opNotices.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -208,7 +209,7 @@ async function loadStatus() {
 // доску.
 let boardReq = 0;
 
-async function loadBoard({ silent = false } = {}) {
+async function loadBoard({ silent = false, spareModal = false } = {}) {
     if (!state.date) return;
     const req = ++boardReq;
     const date = state.date;
@@ -222,7 +223,7 @@ async function loadBoard({ silent = false } = {}) {
         state.fetchedAt = data.fetchedAt;
         state.boardOk = data.ok;
         state.boardError = data.error || '';
-        state.ops = data.ops || [];
+        applyOps(data.ops || [], { reload: false });
         state.authors = data.authors || {};
         state.credsNeeded = false;
         // Доска появилась на пустом месте (первый заход или смена дня) —
@@ -248,6 +249,11 @@ async function loadBoard({ silent = false } = {}) {
         }
     }
     state.boardLoading = false;
+    // Доску перечитала доработавшая операция, а человек уже набирает в окне
+    // следующую запись: перерисовка выбросила бы окно вместе с фокусом и
+    // кареткой. Данные при этом уже свежие — окно закроют, и render() их
+    // покажет.
+    if (spareModal && state.modal) return;
     render();
     // Пришли по ссылке из профиля — доска приехала, можно открывать запись.
     applyFocus();
@@ -312,24 +318,136 @@ function dropDetails(ids) {
 async function loadOps() {
     try {
         const data = await apiFetch('/api/journal/ops');
-        state.ops = data.ops || [];
+        applyOps(data.ops || []);
     } catch { /* очередь — вспомогательная информация */ }
 }
 
-// После постановки операции: доска перечитывается с задержками, чтобы успел
-// отработать «пинок» очереди на бэкенде.
-function scheduleBoardReload() {
-    for (const t of boardReloadTimers) clearTimeout(t);
-    boardReloadTimers = [4_000, 12_000].map(ms =>
-        setTimeout(() => loadBoard({ silent: true }), ms));
+// ── Очередь операций ─────────────────────────────────────────────────────────
+// Операция уходит на сервер и ставится в очередь (journalQueue.js): POST
+// отвечает сразу, окно закрывается, и человек берёт следующий звонок, а не
+// смотрит, как CRM думает. Пока в очереди есть невыполненное, раздел опрашивает
+// её раз в секунду; доработавшее действие даёт уведомление (opNotices.js) —
+// с именем, телефоном, станцией, временем и ответственным, — а запись,
+// вставшая в CRM, перечитывает доску.
+//
+// Опрос живёт и когда раздел скрыт (ушли на калькулятор): «не записалось»
+// нужно узнать сразу, а не когда вернёшься на вкладку. Длится он ровно пока
+// есть невыполненное — это секунды.
+const OPS_POLL_MS = 1000;
+let opsTimer = null;
+
+async function enqueueOps(steps, note) {
+    const data = await apiFetch('/api/journal/ops', { method: 'POST', body: { ops: steps, note } });
+    const fresh = [...(data.ops || [])].reverse(); // список свежими вперёд
+    state.ops = [...fresh, ...state.ops.filter(o => !fresh.some(f => f.id === o.id))];
+    watchOps();
+    return data.ops || [];
 }
 
-// Операция уходит в CRM СРАЗУ и под учёткой того, кто нажал: ответ — это уже
-// результат, а не «поставлено в очередь». Поэтому после неё доска
-// перечитывается тут же, без отложенных повторов.
-async function postOp(type, payload) {
-    await apiFetch('/api/journal/ops', { method: 'POST', body: { type, payload } });
-    await loadBoard({ silent: true });
+function postOp(type, payload, note) {
+    return enqueueOps([{ type, payload }], note);
+}
+
+function watchOps() {
+    if (opsTimer || !state.ops.some(o => o.status === 'pending')) return;
+    opsTimer = setTimeout(pollOps, OPS_POLL_MS);
+}
+
+async function pollOps() {
+    opsTimer = null;
+    try {
+        const data = await apiFetch('/api/journal/ops');
+        applyOps(data.ops || []);
+    } catch {
+        // Сеть моргнула — очередь на сервере от этого не встала; спросим позже.
+        opsTimer = setTimeout(pollOps, OPS_POLL_MS * 3);
+    }
+}
+
+// Новый список операций: сравниваем с прошлым, чтобы рассказать о
+// доработавших, и перечитываем доску, если что-то встало в CRM.
+function applyOps(next, { reload = true } = {}) {
+    const units = settledSince(state.ops, next);
+    state.ops = next;
+    for (const unit of units) pushNotice(noticeOf(unit));
+    if (reload && units.some(u => u.some(o => o.status === 'done'))) {
+        loadBoard({ silent: true, spareModal: true });
+    } else if (units.length && root && !state.modal) {
+        render(); // призрак «записываю…» ушёл, а доска не менялась — отказ
+    }
+    watchOps();
+}
+
+// Уведомления лежат отдельным узлом в <body>, а не в разделе: render()
+// пересобирает раздел целиком, и живи они внутри — исчезали бы на каждом тике
+// доски. И видны они на ЛЮБОЙ вкладке сайта: запись ставили и ушли на
+// калькулятор — «не записалось» должно догнать и там.
+const NOTICE_OK_MS = 15_000; // удача гаснет сама, отказ висит, пока не закроют
+const NOTICE_MAX = 5;
+const notices = [];
+let noticesEl = null;
+
+function pushNotice(n) {
+    notices.unshift(n);
+    notices.splice(NOTICE_MAX);
+    if (n.ok) setTimeout(() => dropNotice(n.key), NOTICE_OK_MS);
+    renderNotices();
+}
+
+function dropNotice(key) {
+    const i = notices.findIndex(n => n.key === key);
+    if (i === -1) return;
+    notices.splice(i, 1);
+    renderNotices();
+}
+
+function renderNotices() {
+    if (!noticesEl) {
+        noticesEl = document.createElement('div');
+        noticesEl.className = 'rc-notices';
+        noticesEl.setAttribute('aria-live', 'polite');
+        noticesEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-notice]');
+            if (btn) dropNotice(btn.dataset.notice);
+        });
+        document.body.appendChild(noticesEl);
+    }
+    noticesEl.innerHTML = notices.map(n => `
+        <div class="rc-notice ${n.ok ? 'rc-notice-ok' : 'rc-notice-err'}" role="${n.ok ? 'status' : 'alert'}">
+            <span class="rc-notice-ico">${n.ok ? icons.check(15) : icons.alert(15)}</span>
+            <div class="rc-notice-body">
+                <b>${esc(n.title)}</b>
+                ${n.reason ? `<div class="rc-notice-reason">${esc(n.reason)}</div>` : ''}
+                ${n.lines.map(l => `<div class="rc-notice-line">${esc(l)}</div>`).join('')}
+            </div>
+            <button class="rc-notice-x" data-notice="${esc(n.key)}" title="Скрыть" aria-label="Скрыть">${icons.x(13)}</button>
+        </div>`).join('');
+}
+
+// Подпись операции для уведомления — собирается в момент нажатия, пока окно
+// ещё открыто и всё известно (см. opNotices.js).
+function opNote(kind, { name, phone, addressId, date, time, minutes }) {
+    const st = stationById(addressId);
+    return {
+        kind,
+        name: name || '',
+        phone: phone || '',
+        station: st?.title || '',
+        date: date || '',
+        time: time || '',
+        duration: minutes ? fmtDuration(minutes) : '',
+    };
+}
+
+// Кнопка окна отвечает на нажатие сразу: пока операция ставится, на ней
+// «Записываю…» и второй раз её не нажать. Правим кнопку на месте, а не через
+// render(): перерисовка окна сбросила бы фокус и набранное.
+function busyButton(action, label) {
+    const btn = root?.querySelector(`[data-action="${action}"]`);
+    if (!btn) return;
+    btn.disabled = true;
+    btn.classList.add('rc-btn-busy');
+    btn.innerHTML = `<span class="rc-spin" aria-hidden="true"></span>${esc(label)}`;
 }
 
 // ── Производные данные ───────────────────────────────────────────────────────
@@ -947,6 +1065,11 @@ function renderTopBar() {
         </div>
         <div class="rc-topbtns">
             <button class="btn btn-sec" data-action="open-map" title="Карта станций">${icons.map(15)}<span class="rc-btn-label">Карта</span></button>
+            ${state.ops.length ? `<button class="btn btn-sec" data-action="open-queue" title="Мои операции: что записывается сейчас и что не записалось">
+                ${icons.list(15)}<span class="rc-btn-label">Очередь</span>
+                ${pending ? `<span class="rc-queue-badge">${pending}</span>` : ''}
+                ${failed ? `<span class="rc-queue-badge rc-queue-badge-err">${failed}</span>` : ''}
+            </button>` : ''}
             <button class="btn btn-sec rc-icon-btn" data-action="refresh" title="Обновить сейчас">${icons.refresh(15)}</button>
 
         </div>
@@ -1326,7 +1449,7 @@ function overviewCard(addr, meta, i = 0) {
             <span class="rc-pill ${freeTone}">${free} свободно</span>
             <span class="rc-pill rc-pill-boxes">${boxes} ${boxes === 1 ? 'бокс' : boxes < 5 ? 'бокса' : 'боксов'}</span>
             ${meta?.height ? `<span class="rc-pill rc-pill-gate" title="Высота ворот">ворота ${esc(meta.height)}</span>` : ''}
-            ${ghosts.length ? `<span class="rc-pill rc-pill-queue">${icons.clock(10)}${ghosts.length} в очереди</span>` : ''}
+            ${ghosts.length ? `<span class="rc-pill rc-pill-queue">${icons.clock(10)}${ghosts.length} записываю…</span>` : ''}
         </div>
     </button>`;
 }
@@ -1463,9 +1586,9 @@ function renderStation() {
         if (i0 === -1) return '';
         return `
         <div class="rc-cap rc-cap-ghost" style="${laneStyle(g.lane || 0, i0, g.parts)}"
-             title="В очереди — создастся, когда админка оживёт">
+             title="Записываю — CRM ещё не ответила">
             <span class="rc-cap-line1">${icons.clock(11)}<b>${esc(g.name)}</b></span>
-            <span class="rc-cap-line2">${esc(g.timeStart)}–${esc(g.timeEnd)} · в очереди</span>
+            <span class="rc-cap-line2">${esc(g.timeStart)}–${esc(g.timeEnd)} · записываю…</span>
         </div>`;
     }).join('');
 
@@ -1654,7 +1777,11 @@ function modalShell(title, body, { wide = false, map = false, note = '' } = {}) 
 // записывать до 22:30, но станции к этому времени уже не работают.
 function slotFree(addrId, t, board = state.board) {
     const cell = board?.cells?.[String(addrId)]?.[t];
-    return Boolean(cell && cell.free > 0 && isBookableTime(t));
+    // Свою запись, которая ещё только ставится, доска CRM пока не знает — но
+    // пост она уже заняла: второй раз туда же записать не дадим.
+    const queued = ghostsFor(addrId, board?.date || state.date)
+        .filter(g => timeToMin(g.timeStart) <= timeToMin(t) && timeToMin(t) < timeToMin(g.timeEnd)).length;
+    return Boolean(cell && cell.free - queued > 0 && isBookableTime(t));
 }
 
 // Доска, к которой относится окно создания: для чужой даты — своя,
@@ -1802,7 +1929,7 @@ function timelineHtml(ctx) {
             return `<i class="rc-tl-rec ${mine ? 'rc-tl-rec-mine' : `rc-tl-rec-${r.status || 'none'}`}"
                 title="${esc(label)}${r.phone && !r.isStub ? ` · ${esc(r.phone)}` : ''}">${esc(label)}</i>`;
         });
-        if (ghost) chips.push(`<i class="rc-tl-rec rc-tl-rec-ghost" title="В очереди — создастся, когда админка оживёт">${esc(ghost.name || 'в очереди')}</i>`);
+        if (ghost) chips.push(`<i class="rc-tl-rec rc-tl-rec-ghost" title="Записываю — CRM ещё не ответила">${esc(ghost.name || 'записываю…')}</i>`);
 
         const tag = afterHours ? '<i class="rc-tl-tag">не работаем</i>'
             : nobody ? '<i class="rc-tl-tag">никого</i>'
@@ -3369,7 +3496,7 @@ async function handleAction(btn, ev) {
     }
 
     if (a === 'cancel-op') {
-        try { await apiFetch(`/api/records/ops/${btn.dataset.id}`, { method: 'DELETE' }); } catch { /* уже применилась */ }
+        try { await apiFetch(`/api/journal/ops/${btn.dataset.id}`, { method: 'DELETE' }); } catch { /* уже ушла в CRM */ }
         await loadOps();
         return render();
     }
@@ -3531,11 +3658,16 @@ async function submitCreate() {
     }
     if (!String(m.name || '').trim()) { m.error = 'имя обязательно'; return render(); }
     setPickDuration(m.durationMinutes); // окно могло ужаться, пока окно открыто
+    if (m.saving) return; // второй клик, пока ставится первый
+    m.saving = true;
+    busyButton('submit-create', 'Записываю…');
     // Буфер — первым делом, до всякого await (см. bitrixLineFor). День берём
     // тот же, что уедет в операцию: в окне он мог остаться незаданным.
     const line = bitrixLineFor('create', date);
     const copied = await toClipboard(line);
     try {
+        // В CRM запись уходит фоном (см. «Очередь операций»): здесь её только
+        // ставят, и окно закрывается, не дожидаясь CRM.
         await postOp('create', {
             addressId: m.addressId,
             date,
@@ -3549,7 +3681,10 @@ async function submitCreate() {
             // обычной (backend/src/records/credits.js).
             byMaster: Boolean(m.byMaster),
             sms: m.sms !== false,
-        });
+        }, opNote('create', {
+            name: m.name.trim(), phone: m.phone.trim(), addressId: m.addressId,
+            date, time: m.time, minutes: m.durationMinutes,
+        }));
         rememberClientName(m.name);
         noteCopyResult(copied, line);
         destroyMapCtl();
@@ -3566,6 +3701,7 @@ async function submitCreate() {
             }
         }
     } catch (err) {
+        m.saving = false;
         m.error = err.message;
         render();
     }
@@ -3648,21 +3784,28 @@ async function submitEdit() {
     // Тот же порядок, что и при создании: сперва буфер, пока клик ещё «живой»
     // (см. bitrixLineFor), и уже после всех проверок — строка не должна уезжать
     // в буфер у записи, которую мы тут же откажемся сохранять.
+    if (m.saving) return;
+    m.saving = true;
+    busyButton('submit-edit', 'Сохраняю…');
     const line = bitrixLineFor('edit', date);
     const copied = await toClipboard(line);
 
+    // Шаги правки уходят ОДНОЙ пачкой: сервер проверяет их все и ставит, только
+    // если прошли все, а в очереди не прошедший шаг останавливает следующие —
+    // иначе хвост снялся бы, а перенос получил отказ.
+    const steps = [];
     try {
-        if (drop.length) await postOp('delete', { records: drop.map(p => ({ id: p.id, addressId: addr.id })) });
+        if (drop.length) steps.push({ type: 'delete', payload: { records: drop.map(p => ({ id: p.id, addressId: addr.id })) } });
         // boardDate — где запись лежит сейчас: при правке одних полей в
         // операции нет ни дня, ни времени, а CRM без них запись не сохранит.
-        if (moved || fieldsChanged) await postOp('update', { records, boardDate: state.date });
+        if (moved || fieldsChanged) steps.push({ type: 'update', payload: { records, boardDate: state.date } });
         if (nNew > nOld) {
             // Добавка — слоты-продолжения с ТЕМ ЖЕ номером клиента. Раньше сюда
             // ставилась заглушка +71111111111, но номера из одной цифры портят
             // статистику CRM — попросили не ставить. Продлением для топа такой
             // слот остаётся: он встык к записи того же клиента с тем же номером
             // (extendsExistingRecord в shared/crmRecords.js).
-            await postOp('create', {
+            steps.push({ type: 'create', payload: {
                 addressId,
                 date,
                 time: timeAt(nOld),
@@ -3673,7 +3816,12 @@ async function submitEdit() {
                 durationMinutes: (nNew - nOld) * SLOT_MINUTES,
                 // Дописали хвост к записи — клиенту это не новость.
                 sms: false,
-            });
+            } });
+        }
+        if (steps.length) {
+            await enqueueOps(steps, opNote(moved ? 'move' : 'edit', {
+                name, phone: phone || headPhone, addressId, date, time: m.targetTime, minutes: dur,
+            }));
         }
         rememberClientName(name);
         noteCopyResult(copied, line);
@@ -3683,6 +3831,7 @@ async function submitEdit() {
         render(); // окно закрываем сразу: дальше день может уехать анимацией
         if (date !== state.date) await switchDate(date);
     } catch (err) {
+        m.saving = false;
         m.error = err.message;
         render();
     }
@@ -3699,12 +3848,21 @@ async function submitDelete() {
         .filter(p => checked.has(String(p.id)))
         .map(p => ({ id: p.id, addressId: addr.id }));
     if (!records.length) { state.modal = null; return render(); }
+    if (m.saving) return;
+    m.saving = true;
+    busyButton('submit-delete', 'Удаляю…');
+    const first = chain.parts.find(p => checked.has(String(p.id)));
     try {
-        await postOp('delete', { records });
+        await postOp('delete', { records }, opNote('delete', {
+            name: chain.head.name, phone: chain.head.isStub ? '' : chain.head.phone,
+            addressId: addr.id, date: state.date, time: first?.timeStart,
+            minutes: records.length * SLOT_MINUTES,
+        }));
         dropDetails(records.map(r => r.id));
         state.modal = null;
         render();
     } catch (err) {
+        m.saving = false;
         m.error = err.message;
         render();
     }
@@ -3888,6 +4046,8 @@ export function resumeRecords() {
 
 export function stopRecords() {
     stopPolling();
+    clearTimeout(opsTimer);
+    opsTimer = null;
     pendingFocus = null;
     destroyMapCtl();
     destroyStationMapCtl();
