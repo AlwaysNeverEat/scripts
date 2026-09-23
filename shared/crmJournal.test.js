@@ -10,7 +10,7 @@ import {
     parseJournal, parseJournalRecord, recordAuthor, isSelfBooked,
     journalSavePayload, journalDeletePayload,
     parseSaveResult, parseDeleteResult, parseUserPerms,
-    journalSlots, durationSlots, DURATIONS, PRIV_RECORDS,
+    journalSlots, durationSlots, DURATIONS, PRIV_RECORDS, journalToBoard,
 } from './crmJournal.js';
 import { isJunkPhone, timeToMin, SLOT_MINUTES } from './crmRecords.js';
 
@@ -261,4 +261,111 @@ test('auth_required разбирается как отсутствие сесс�
     const p = parseUserPerms({ error: 'auth_required' });
     assert.equal(p.ok, false);
     assert.equal(p.error, 'auth_required');
+});
+
+// ── Журнал → доска раздела ──────────────────────────────────────────────────
+// Раздел рисует доску формой, которую отдавал разбор HTML старой админки.
+// Форма рабочая, менять её ради переезда незачем — журнал кладётся в неё же.
+
+test('доска собирается из журнала: адреса, сетка, ячейки', () => {
+    const b = journalToBoard(parseJournal(raw));
+    assert.equal(b.date, '2026-09-23');
+    assert.equal(b.addresses.length, 24);
+    assert.equal(b.timeSlots.length, 24);
+    assert.equal(b.timeSlots[0], '09:00');
+    assert.equal(b.timeSlots.at(-1), '20:30');
+
+    const total = Object.values(b.cells)
+        .flatMap(byTime => Object.values(byTime))
+        .reduce((n, c) => n + c.records.length, 0);
+    assert.equal(total, 144, 'ни одна запись не потерялась по дороге');
+});
+
+test('идентификаторы в доске — СТРОКИ: ими индексируются ячейки', () => {
+    const b = journalToBoard(parseJournal(raw));
+    for (const a of b.addresses) assert.equal(typeof a.id, 'string');
+    assert.ok(b.cells[b.addresses[0].id], 'ячейки находятся по id адреса');
+    const rec = Object.values(b.cells)
+        .flatMap(byTime => Object.values(byTime))
+        .flatMap(c => c.records)[0];
+    assert.equal(typeof rec.id, 'string');
+    assert.equal(typeof rec.addressId, 'string');
+});
+
+test('свободные места считаются от ЧИСЛА ПОСТОВ станции', () => {
+    const j = parseJournal(raw);
+    const b = journalToBoard(j);
+    for (const a of b.addresses) {
+        for (const t of b.timeSlots) {
+            const c = b.cells[a.id][t];
+            assert.equal(c.free, Math.max(a.posts - c.records.length, 0),
+                `${a.title} ${t}`);
+            assert.ok(c.free >= 0, 'отрицательных свободных мест не бывает');
+        }
+    }
+    // На двухпостовой станции в пустом слоте должно быть именно два места.
+    const two = b.addresses.find(a => a.posts === 2);
+    const empty = b.timeSlots.find(t => b.cells[two.id][t].records.length === 0);
+    assert.equal(b.cells[two.id][empty].free, 2);
+});
+
+test('автор доезжает до доски — раньше его на ней не было вовсе', () => {
+    const b = journalToBoard(parseJournal(raw));
+    const all = Object.values(b.cells)
+        .flatMap(byTime => Object.values(byTime)).flatMap(c => c.records);
+    const withAuthor = all.filter(r => r.creator);
+    assert.ok(withAuthor.length > 0);
+    assert.ok(all.every(r => typeof r.creator === 'string'),
+        'у записи без автора поле пустое, а не отсутствует');
+});
+
+test('госномер и комментарий приезжают СРАЗУ, без похода за формой правки', () => {
+    const b = journalToBoard(parseJournal({
+        ok: true, date: '2026-10-01',
+        stations: [{ id: '8', address: 'СПб, Выборгское шоссе 2', posts_count: '2' }],
+        records: [{
+            id: '505859', address_id: '8', time: '10:30', record_time: '2026-10-01 10:30:00',
+            name: 'Андрей', phone_d: '79117917147', phone: '+7 (911) 791-71-47',
+            car_number: 'к753ае198', comment: 'двс+акпп', services: '21,5',
+            creator: 'Иванов Иван Иванович',
+        }],
+    }));
+    const r = b.cells['8']['10:30'].records[0];
+    assert.equal(r.carNumber, 'К753АЕ198');
+    assert.equal(r.comment, 'двс+акпп');
+    assert.deepEqual(r.serviceIds, ['21', '5']);
+    assert.equal(r.creator, 'Иванов Иван Иванович');
+    assert.equal(r.timeStart, '10:30');
+    assert.equal(r.timeEnd, '11:00', 'слот всегда получас');
+    assert.equal(r.phone, '+7 (911) 791-71-47', 'показываем как набрали');
+    assert.equal(r.phoneDigits, '79117917147', 'сравниваем по цифрам');
+});
+
+test('статус визита переводится в метку, которую доска уже умеет рисовать', () => {
+    const mk = (st, isNew = 0) => journalToBoard(parseJournal({
+        ok: true, date: '2026-10-01',
+        stations: [{ id: '8', address: 'X', posts_count: '1' }],
+        records: [{ id: '1', address_id: '8', time: '09:00',
+            record_time: '2026-10-01 09:00:00', st, is_new: isNew }],
+    })).cells['8']['09:00'].records[0].status;
+
+    assert.equal(mk('checked'), 'checked');
+    assert.equal(mk('late'), 'too-late');
+    assert.equal(mk(''), '', 'ожидается — это нормальное состояние, а не метка');
+    assert.equal(mk('', 1), 'is-new');
+});
+
+test('телефон-заглушка помечается — на нём держатся продления и брони', () => {
+    const b = journalToBoard(parseJournal(raw));
+    const stubs = Object.values(b.cells)
+        .flatMap(byTime => Object.values(byTime))
+        .flatMap(c => c.records).filter(r => r.isStub);
+    assert.ok(stubs.length > 0);
+    assert.ok(stubs.every(r => isJunkPhone(r.phoneDigits)));
+});
+
+test('пустой журнал даёт пустую доску, а не падает', () => {
+    const b = journalToBoard(parseJournal({ ok: false, message: 'нет доступа' }));
+    assert.deepEqual(b.addresses, []);
+    assert.equal(b.timeSlots.length, 24, 'сетка времён есть всегда — по ней рисуют пустой день');
 });

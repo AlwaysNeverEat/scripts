@@ -20,7 +20,7 @@
 // shared/__fixtures__/crm-journal-day.json (обезличенные).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SLOT_MINUTES, timeToMin, minToTime, normPhoneDigits } from './crmRecords.js';
+import { SLOT_MINUTES, timeToMin, minToTime, addMinutes, normPhoneDigits } from './crmRecords.js';
 
 // Рабочий день станции: слоты с 09:00 до 20:30 включительно. Те же числа, что
 // и в самой CRM (`slots()` в её журнале) и что в нашей доске.
@@ -33,9 +33,14 @@ export function journalSlots() {
     return out;
 }
 
-// Длительности, которые CRM принимает в `duration`. Это не «сколько минут
-// занимает работа», а сколько ПОЛУЧАСОВЫХ СЛОТОВ подряд занять: 60 минут =
-// два слота. Первый слот создаётся с этим полем, остальные CRM ставит сама.
+// Длительности, которые предлагает окно записи: 60 минут — это два
+// получасовых слота подряд, 150 — пять.
+//
+// Поле `duration` самой CRM мы при этом НЕ используем. Проверено на живой
+// базе: `duration=150` на пустом дне создало ТРИ слота вместо пяти (13:30,
+// 14:00, 14:30), то есть полтора часа вместо двух с половиной. Клиенту
+// называют одно, на доске стоит другое. Цепочку собираем сами —
+// backend/src/crm/journal.js, createBooking.
 export const DURATIONS = [30, 60, 90, 120, 150];
 
 export function durationSlots(minutes) {
@@ -247,4 +252,87 @@ export function parseUserPerms(json) {
         privileges,
         canBook: json.is_admin === true || privileges.includes(PRIV_RECORDS),
     };
+}
+
+// ── Журнал → доска раздела «Записи» ──────────────────────────────────────────
+//
+// Раздел рисует доску из формы, которую отдавал разбор HTML старой админки
+// (`parseRecordBoard`): адреса, сетка времён и ячейки «станция × время».
+// Форма рабочая и проверенная, менять её ради переезда незачем — поэтому
+// журнал кладётся в неё же, и переключение раздела сводится к смене
+// источника, а не к переписыванию рисования.
+//
+// Два отличия от старой доски, и оба в плюс:
+//   • `creator` — автор записи с сервера. Раньше его вообще не было;
+//   • `carNumber` и `comment` приезжают СРАЗУ. Старая админка их на доске не
+//     показывала, и раздел тянул форму правки отдельным запросом на каждую
+//     открытую запись.
+//
+// Идентификаторы тут СТРОКИ, а не числа, — ровно как их отдавал
+// `parseRecordBoard`. Это не небрежность: ими индексируются ячейки, и менять
+// тип на границе значит ловить «8» !== 8 по всему разделу. Числовая модель
+// живёт в `parseJournal` и нужна бэкенду.
+
+// Статус визита CRM → метка, которую раздел уже умеет рисовать.
+function boardStatus(rec) {
+    if (rec.visit === 'checked') return 'checked';
+    if (rec.visit === 'late') return 'too-late';
+    return rec.isNew ? 'is-new' : '';
+}
+
+export function journalToBoard(journal, { stubDigits = '71111111111' } = {}) {
+    const j = journal && journal.ok ? journal : { date: '', stations: [], records: [] };
+
+    const addresses = j.stations.map(s => ({
+        id: String(s.id),
+        title: s.address,
+        // Метро и число постов старая доска выводила из своего справочника
+        // (stationsMeta). Теперь их говорит сама CRM — справочник остаётся
+        // для того, чего она не знает: этаж, ворота, гидростойка.
+        metro: s.metro,
+        posts: s.posts,
+    }));
+
+    const cells = {};
+    const cell = (aid, time) => {
+        const byAddr = cells[aid] || (cells[aid] = {});
+        return byAddr[time] || (byAddr[time] = { records: [], free: 0 });
+    };
+
+    for (const r of j.records) {
+        const aid = String(r.addressId);
+        cell(aid, r.time).records.push({
+            id: String(r.id),
+            addressId: aid,
+            timeStart: r.time,
+            timeEnd: addMinutes(r.time, SLOT_MINUTES),
+            name: r.name,
+            phone: r.phoneRaw || r.phone,
+            phoneDigits: r.phone,
+            isStub: r.phone === stubDigits,
+            status: boardStatus(r),
+            // Старая доска склеивала «имя / телефон» из текста ячейки; тут
+            // поля приходят порознь, и склейка нужна только для показа.
+            customer: [r.name, r.phoneRaw || r.phone].filter(Boolean).join(' / '),
+            deleteUrl: '',
+            // Новое, чего у старой доски не было.
+            creator: r.creator || '',
+            carNumber: r.carNumber,
+            comment: r.comment,
+            serviceIds: r.serviceIds,
+            createdAt: r.createdAt,
+        });
+    }
+
+    // Свободные места — только там, где станция вообще есть: считать их по
+    // каждому слоту заранее дешевле, чем искать станцию при каждой отрисовке.
+    const slots = journalSlots();
+    for (const a of addresses) {
+        for (const t of slots) {
+            const c = cell(a.id, t);
+            c.free = Math.max(a.posts - c.records.length, 0);
+        }
+    }
+
+    return { date: j.date, timeSlots: slots, addresses, cells };
 }
