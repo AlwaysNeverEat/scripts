@@ -396,7 +396,7 @@ async function formLoginIntoJar(jar, login, password) {
     if (!loginField || !passwordField) {
         // Формы нет — либо этот jar уже залогинен, либо разметка сменилась.
         // Для второго способа входа это не приговор, поэтому не бросаем.
-        return false;
+        return 'no-form';
     }
     // ПУСТОЙ `action` означает «на эту же страницу», а не «на путь, с которого
     // мы начали». Раньше тут стоял `entryPath`, и это работало ровно до тех
@@ -417,10 +417,13 @@ async function formLoginIntoJar(jar, login, password) {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
     });
-    if (post.status >= 400) return false;
+    if (post.status >= 400) return 'rejected';
     const check = await followRedirects(await rawFetch('/analyse/free', jar), jar);
     const checkHtml = check.status >= 300 ? '' : await check.text();
-    return Boolean(checkHtml) && !parseAnalyseFree(checkHtml).loginPage;
+    // Форму отправили, а под замок не пустили — это ИМЕННО «пароль не подошёл»,
+    // и сказать надо так. Раньше этот случай был неотличим от «формы нет», и
+    // человек получал «CRM недоступна» там, где надо менять пароль.
+    return (checkHtml && !parseAnalyseFree(checkHtml).loginPage) ? 'ok' : 'rejected';
 }
 
 // Один вход в CRM в переданный jar. Без очереди и без записи в базу — это
@@ -443,22 +446,34 @@ export async function loginIntoJar(jar, login, password) {
         try {
             api = await apiLoginIntoJar(jar, login, password);
         } catch (err) {
-            // «Логин с паролем не подошли» запоминаем: если и форма откажет,
-            // человеку надо сказать именно это, а не «разметка сменилась».
-            if (!(err instanceof CrmError) || err.code !== 'crm_auth_failed') throw err;
+            // ЛЮБАЯ беда новой ручки — не приговор входу: прежняя CRM живёт на
+            // том же хосте отдельно, и «Клиент» со «Складом» должны работать,
+            // даже если `/re/` лежит или отвечает пятисоткой. Причину
+            // запоминаем: если и форма откажет, человеку надо сказать именно
+            // её, а не общее «разметка сменилась».
+            if (!(err instanceof CrmError)) throw err;
             apiError = err;
         }
     }
-    let form = false;
+    let form = 'no-form';
+    let formError = null;
     try {
         form = await formLoginIntoJar(jar, login, password);
     } catch (err) {
         // Прежняя CRM может быть уже выключена — это не повод рушить вход в
         // новую, ради которой всё и затевалось.
-        if (!(err instanceof CrmError) || err.code !== 'crm_unavailable' || !api) throw err;
+        if (!(err instanceof CrmError)) throw err;
+        formError = err;
     }
-    if (api || form) return;
-    throw apiError
+    if (api || form === 'ok') return;
+    // Ни один не сработал. «Пароль не подошёл» важнее «CRM не отвечает»: на
+    // первое человек меняет пароль, на второе — ждёт, и перепутать их значит
+    // отправить его не туда.
+    if (form === 'rejected') {
+        throw new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
+    }
+    const failed = [apiError, formError].find(e => e && e.code === 'crm_auth_failed');
+    throw failed || apiError || formError
         || new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
 }
 

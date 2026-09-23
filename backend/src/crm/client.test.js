@@ -272,7 +272,7 @@ const OLD_LOGIN_PAGE = "<html><form action='' method='post'>"
     + '<button class="auth_submit" type=\'submit\'>Войти</button></form></html>';
 
 // Стенд CRM: журнал запросов + переключатель «вошли или нет».
-function stubCrmHost({ api = true, old = true } = {}) {
+function stubCrmHost({ api = true, old = true, apiStatus = null } = {}) {
     const seen = [];
     // Сессии У КАЖДОЙ СВОЯ — это и есть случай, ради которого мы логинимся
     // дважды: снаружи не видно, пускают ли куки одной CRM в другую.
@@ -286,6 +286,7 @@ function stubCrmHost({ api = true, old = true } = {}) {
         seen.push({ path: u.pathname, search: u.search, method, body });
 
         if (u.pathname === '/re/api.php') {
+            if (apiStatus) return new Response('', { status: apiStatus });
             if (!api) return new Response('not found', { status: 404 });
             if (method === 'POST' && /action=login/.test(body)) {
                 if (/password=verno/.test(body)) loggedApi = true;
@@ -357,6 +358,33 @@ test('вход: обе CRM разом — куки копятся в одном 
 
 test('вход: неверный пароль — crm_auth_failed, а не «разметка сменилась»', async () => {
     const s = stubCrmHost();
+    try {
+        await assert.rejects(
+            () => loginIntoJar(new Map(), 'ivanov', 'neverno'),
+            (err) => {
+                assert.equal(err.code, 'crm_auth_failed');
+                assert.match(err.message, /не приняла логин или пароль/);
+                return true;
+            },
+        );
+    } finally { s.restore(); }
+});
+
+test('вход: новая CRM лежит — прежняя всё равно пускает', async () => {
+    // Без этого пятисотка на /re/ уносила бы с собой «Клиент» и «Склад»,
+    // которые живут на прежней CRM и к журналу записи отношения не имеют.
+    const s = stubCrmHost({ apiStatus: 500 });
+    try {
+        await loginIntoJar(new Map(), 'ivanov', 'verno');
+        assert.ok(s.seen.some(r => r.path === '/' && r.method === 'POST'),
+            'логин ушёл в прежнюю CRM');
+    } finally { s.restore(); }
+});
+
+test('вход: «пароль не подошёл» важнее «CRM не отвечает»', async () => {
+    // Оба пути отказали по разным причинам. Человеку надо сказать про пароль:
+    // на него он идёт менять пароль, а на «недоступна» — ждать.
+    const s = stubCrmHost({ apiStatus: 503 });
     try {
         await assert.rejects(
             () => loginIntoJar(new Map(), 'ivanov', 'neverno'),
