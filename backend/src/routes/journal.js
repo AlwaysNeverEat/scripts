@@ -20,16 +20,14 @@
 import { Router } from 'express';
 
 import { CrmError, crmEnsureSession } from '../crm/client.js';
-import {
-    mskDate, crmActor, fetchJournal, createBooking, updateRecord, deleteBooking,
-} from '../crm/journal.js';
-import { isBookableTime, isJunkPhone, SLOT_MINUTES } from '../../../shared/crmRecords.js';
-import { DURATIONS } from '../../../shared/crmJournal.js';
+import { mskDate, crmActor, fetchJournal } from '../crm/journal.js';
+import { applyJournalOp, OpRefused, ddmmToIso, isoToDdmm } from '../records/journalOps.js';
+import { loadBoardAuthors } from '../records/credits.js';
+import { journalToBoard } from '../../../shared/crmJournal.js';
 
 const router = Router();
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^\d{2}:\d{2}$/;
 
 function bad(res, message) {
     return res.status(400).json({ error: { code: 'bad_request', message } });
@@ -106,133 +104,99 @@ router.get('/me', async (req, res) => {
     }
 });
 
+// ── Статус ───────────────────────────────────────────────────────────────────
+
+// Раздел спрашивает это первым делом: какой сегодня день (по Москве) и кто
+// работает. Раз мы здесь — замок пропустил, то есть учётка CRM живая.
+router.get('/status', async (req, res) => {
+    try {
+        const actor = await crmActor(req.user.id);
+        res.json({
+            today: isoToDdmm(mskDate()),
+            tomorrow: isoToDdmm(mskDate(Date.now() + 24 * 3600 * 1000)),
+            credentials: true,
+            // Раз замок пропустил — CRM ответила, то есть жива.
+            alive: true,
+            queue: { pending: 0, failed: 0, done: 0 },
+            crm: { user: actor.user, roleName: actor.roleName, canBook: actor.canBook },
+        });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
+
 // ── Доска ────────────────────────────────────────────────────────────────────
 
-// Весь день целиком: станции с числом постов и записи всех станций одним
-// запросом. Дата — ISO, как её понимает CRM; «сегодня» считается по Москве.
-router.get('/board', async (req, res) => {
-    const date = String(req.query.date || '') || mskDate();
-    if (!ISO_DATE_RE.test(date)) return bad(res, 'дата должна быть YYYY-MM-DD');
-    try {
-        res.json(await fetchJournal(req.user.id, date));
-    } catch (err) {
-        sendCrmError(res, err);
+// Кто записал. Два источника, и порядок у них осознанный: сперва наш зачёт —
+// там человек с сайта, с аватаркой и профилем, и это тот же человек, под чьей
+// учёткой CRM ушла запись; потом `creator` из самой CRM — он закрывает
+// записи, сделанные прямо в CRM, мимо сайта. Пусто в обоих — автора никто не
+// знает, и выдумывать его нельзя.
+export function mergeAuthors(board, fromCredits = {}) {
+    const out = { ...fromCredits };
+    for (const byTime of Object.values(board.cells || {})) {
+        for (const cell of Object.values(byTime)) {
+            for (const r of cell.records) {
+                if (out[r.id] || !r.creator) continue;
+                out[r.id] = { id: null, display_name: r.creator, avatar: null, counted: true, skipLabel: '', crm: true };
+            }
+        }
     }
-});
-
-// ── Запись ───────────────────────────────────────────────────────────────────
-
-export function readBooking(body) {
-    const addressId = parseInt(String(body?.addressId ?? ''), 10);
-    const date = String(body?.date || '');
-    const time = String(body?.time || '');
-    const durationMinutes = parseInt(String(body?.durationMinutes ?? SLOT_MINUTES), 10);
-
-    if (!Number.isFinite(addressId)) return { error: 'не указана станция' };
-    if (!ISO_DATE_RE.test(date)) return { error: 'дата должна быть YYYY-MM-DD' };
-    if (!TIME_RE.test(time)) return { error: 'время должно быть ЧЧ:ММ' };
-    if (!isBookableTime(time)) return { error: `на ${time} записать нельзя — станция уже закрыта` };
-    if (!DURATIONS.includes(durationMinutes)) {
-        return { error: `длительность бывает ${DURATIONS.join(', ')} минут` };
-    }
-    const phone = String(body?.phone || '');
-    const name = String(body?.name || '').trim();
-    // Телефон из одной и той же цифры — это «бронь» и прочие служебные
-    // записи. Мусором он считается по общему правилу сайта (isJunkPhone), и
-    // запрещать его тут нельзя: такие записи законны, просто не зачитываются.
-    if (!phone && !name) return { error: 'нужен телефон или имя' };
-
-    return {
-        fields: {
-            addressId, date, time, durationMinutes,
-            name,
-            phone,
-            carNumber: String(body?.carNumber || ''),
-            comment: String(body?.comment || ''),
-            // СМС — только если попросили ЯВНО. В самой CRM галка стоит по
-            // умолчанию и сама включается обратно при смене времени, отчего
-            // сообщение уезжает «потому что забыл снять».
-            sms: body?.sms === true,
-        },
-        junkPhone: isJunkPhone(phone),
-    };
+    return out;
 }
 
-// Создание. Длинная запись собирается НАШЕЙ цепочкой получасовых слотов
-// (createBooking), а не полем `duration` самой CRM, и продлевающие слоты
-// уходят без СМС.
-router.post('/book', async (req, res) => {
-    const parsed = readBooking(req.body);
-    if (parsed.error) return bad(res, parsed.error);
+// Доска в той же форме, что отдавал /api/records/board: раздел рисует её
+// годами, и переезд на CRM не повод переписывать рисование. Дата — как её
+// шлёт раздел (ДД.ММ.ГГГГ); ISO тоже принимаем.
+router.get('/board', async (req, res) => {
+    const raw = String(req.query.date || '');
+    const iso = raw ? (ddmmToIso(raw) || (ISO_DATE_RE.test(raw) ? raw : null)) : mskDate();
+    if (!iso) return bad(res, 'дата должна быть ДД.ММ.ГГГГ');
+    const date = isoToDdmm(iso);
     try {
-        const result = await createBooking(req.user.id, parsed.fields);
-        if (!result.ok) {
-            return res.status(409).json({
-                error: { code: 'slot_conflict', message: result.message },
-                // Если откатить созданное не вышло, фронт обязан это показать:
-                // на доске остались слоты, которых никто не заказывал.
-                orphans: result.orphans || [],
-            });
-        }
-        res.json(result);
+        const board = journalToBoard(await fetchJournal(req.user.id, iso));
+        board.date = date;
+        let credits = {};
+        try { credits = await loadBoardAuthors(date, board); } catch { /* топ не повод прятать доску */ }
+        res.json({
+            date,
+            source: 'live',
+            board,
+            fetchedAt: new Date().toISOString(),
+            ok: true,
+            error: '',
+            // Очереди больше нет: CRM отвечает сразу, и операция либо
+            // применилась, либо вернула отказ тут же, в том же запросе.
+            ops: [],
+            authors: mergeAuthors(board, credits),
+        });
     } catch (err) {
         sendCrmError(res, err);
     }
 });
 
-// Правка и перенос. Длительность тут не меняется вовсе: у существующей
-// записи её менять нечем — двигают цепочку слот за слотом.
-router.post('/move', async (req, res) => {
-    const id = parseInt(String(req.body?.id ?? ''), 10);
-    if (!Number.isFinite(id)) return bad(res, 'не указана запись');
-    const parsed = readBooking({ ...req.body, durationMinutes: SLOT_MINUTES });
-    if (parsed.error) return bad(res, parsed.error);
+// ── Операции ─────────────────────────────────────────────────────────────────
+
+// Те же create / update / delete, что шлёт раздел, но исполняются СРАЗУ и под
+// учёткой того, кто нажал: CRM ставит записи `creator` сама. Отказ по делу
+// («занято», «записи больше нет») приезжает 409 со своим текстом — его
+// показывают в окне как есть.
+router.post('/ops', async (req, res) => {
+    const type = String(req.body?.type || '');
+    const payload = req.body?.payload || {};
     try {
-        const result = await updateRecord(req.user.id, { ...parsed.fields, id });
-        if (!result.ok) {
-            return res.status(409).json({ error: { code: 'slot_conflict', message: result.message } });
-        }
-        res.json(result);
+        const result = await applyJournalOp(req.user.id, type, payload);
+        res.json({ ok: true, ...result });
     } catch (err) {
+        if (err instanceof OpRefused) {
+            return res.status(409).json({ error: { code: 'refused', message: err.message } });
+        }
         sendCrmError(res, err);
     }
 });
 
-// Удаление записи целиком, вместе с продлением.
-//
-// `ids` — вся цепочка, как её видит фронт на доске (слоты подряд, та же
-// станция, тот же клиент), первым идёт голова. Своя цепочка CRM снимается
-// одним запросом, наша — по слоту; какой случай перед нами, решает
-// deleteBooking по ответу, а не по догадке.
-//
-// Сколько слотов ушло, уезжает наружу числом: «удалил слот» и «удалил
-// полтора часа» для оператора разные вещи.
-router.delete('/record/:id', async (req, res) => {
-    const head = parseInt(String(req.params.id), 10);
-    const addressId = parseInt(String(req.query.addressId ?? ''), 10);
-    if (!Number.isFinite(head)) return bad(res, 'не указана запись');
-    if (!Number.isFinite(addressId)) return bad(res, 'не указана станция');
-
-    const rest = String(req.query.ids || '').split(',')
-        .map(x => parseInt(x.trim(), 10)).filter(Number.isFinite);
-    // Голова всегда первая и всегда одна — остальные добавляются за ней.
-    const ids = [head, ...rest.filter(id => id !== head)];
-
-    try {
-        const result = await deleteBooking(req.user.id, { ids, addressId });
-        if (!result.ok) {
-            return res.status(409).json({
-                error: { code: 'delete_failed', message: result.message },
-                // Слоты, которые снять не удалось, фронт обязан показать:
-                // молча оставленный получас на доске никто не найдёт.
-                left: result.left || [],
-                deleted: result.deleted,
-            });
-        }
-        res.json(result);
-    } catch (err) {
-        sendCrmError(res, err);
-    }
-});
+// Очереди нет — список пуст всегда. Ручка оставлена, чтобы раздел не
+// спотыкался о 404 там, где раньше показывал «в очереди».
+router.get('/ops', (_req, res) => res.json({ ops: [] }));
 
 export default router;

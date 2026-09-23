@@ -5,8 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { crmGate, readBooking } from './journal.js';
-import { DURATIONS } from '../../../shared/crmJournal.js';
+import { crmGate, mergeAuthors } from './journal.js';
 
 function mockRes() {
     const res = { statusCode: 200, body: null, done: false };
@@ -57,45 +56,32 @@ test('с живой сессией запрос идёт дальше', async ()
     assert.equal(res.done, false, 'гейт ничего не отвечает сам');
 });
 
-// ── Разбор тела ─────────────────────────────────────────────────────────────
+// ── Кто записал ─────────────────────────────────────────────────────────────
 
-const OK = { addressId: 8, date: '2026-10-01', time: '10:30', durationMinutes: 30, phone: '79117917147' };
+const board = {
+    cells: {
+        '8': {
+            '10:00': { records: [{ id: '1', creator: 'Иванов Иван Иванович' }], free: 1 },
+            '10:30': { records: [{ id: '2', creator: '' }], free: 1 },
+            '11:00': { records: [{ id: '3', creator: 'Петрова Мария Сергеевна' }], free: 1 },
+        },
+    },
+};
 
-test('нормальное тело разбирается, СМС по умолчанию НЕ шлётся', () => {
-    const r = readBooking({ ...OK, name: 'Андрей', carNumber: 'к753ае198', comment: 'двс' });
-    assert.equal(r.error, undefined);
-    assert.equal(r.fields.addressId, 8);
-    assert.equal(r.fields.sms, false, 'молчание не согласие: галку надо ставить явно');
-    assert.equal(readBooking({ ...OK, sms: true }).fields.sms, true);
-    assert.equal(readBooking({ ...OK, sms: 'да' }).fields.sms, false, 'строка галкой не считается');
+test('автор из CRM доезжает до доски, если сайт его не знает', () => {
+    const a = mergeAuthors(board, {});
+    assert.equal(a['1'].display_name, 'Иванов Иван Иванович');
+    assert.equal(a['1'].crm, true);
+    assert.equal(a['1'].id, null, 'профиля на сайте у него может и не быть');
 });
 
-test('дата, время и длительность проверяются до похода в CRM', () => {
-    assert.match(readBooking({ ...OK, date: '01.10.2026' }).error, /YYYY-MM-DD/);
-    assert.match(readBooking({ ...OK, time: '10-30' }).error, /ЧЧ:ММ/);
-    assert.match(readBooking({ ...OK, durationMinutes: 45 }).error, /длительность бывает/);
-    assert.match(readBooking({ ...OK, addressId: 'восемь' }).error, /станция/);
-    for (const d of DURATIONS) {
-        assert.equal(readBooking({ ...OK, durationMinutes: d }).error, undefined, `${d} минут`);
-    }
+test('пусто в обоих источниках — автора нет, и он не выдумывается', () => {
+    assert.equal(mergeAuthors(board, {})['2'], undefined);
 });
 
-test('после закрытия станции записать нельзя', () => {
-    assert.equal(readBooking({ ...OK, time: '20:30' }).error, undefined, '20:30 — последний слот');
-    assert.match(readBooking({ ...OK, time: '21:00' }).error, /станция уже закрыта/);
-});
-
-test('нужен телефон ИЛИ имя — пустая запись не создаётся', () => {
-    assert.match(readBooking({ ...OK, phone: '', name: '' }).error, /телефон или имя/);
-    assert.equal(readBooking({ ...OK, phone: '', name: 'Бронь' }).error, undefined,
-        'бронь без телефона — законная запись');
-});
-
-test('мусорный номер не запрещён, но помечен', () => {
-    // «Бронь» и записи мастера приходят с +7 111 111-11-11. Это законные
-    // записи — они просто не зачитываются в топ (см. creditSkipReason).
-    const r = readBooking({ ...OK, phone: '+7 111 111-11-11', name: 'Бронь' });
-    assert.equal(r.error, undefined);
-    assert.equal(r.junkPhone, true);
-    assert.equal(readBooking(OK).junkPhone, false);
+test('наш зачёт важнее: там человек с профилем и аватаркой', () => {
+    const site = { id: 'u1', display_name: 'Серёга', avatar: '/a.png', counted: true };
+    const a = mergeAuthors(board, { '3': site });
+    assert.equal(a['3'], site);
+    assert.equal(a['1'].crm, true, 'остальные — из CRM');
 });

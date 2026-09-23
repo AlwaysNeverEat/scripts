@@ -72,7 +72,7 @@ test('creditOp: пишет строку с подробностями и не п
     assert.match(calls[0].text, /INSERT INTO record_credits/);
     assert.match(calls[0].text, /ON CONFLICT \(op_id\) DO NOTHING/);
     assert.deepEqual(calls[0].params,
-        [7, 'u-1', '3', 'Охтинская 9/1', '2026-09-05', '14:00', 60, 'Иван', '79211234567', 'А123БВ178', true, '']);
+        [7, 'u-1', '3', 'Охтинская 9/1', '2026-09-05', '14:00', 60, 'Иван', '79211234567', 'А123БВ178', true, '', null]);
 
     assert.equal(await creditOp(createOp({ userId: null }), {}, { db }), false);
     assert.equal(await creditOp(createOp(), { continuation: true }, { db }), false);
@@ -85,12 +85,19 @@ test('creditOp: запись мастера всё равно пишется —
     const { db, calls } = fakeDb();
     const op = createOp({ payload: { ...createOp().payload, byMaster: true } });
     assert.equal(await creditOp(op, {}, { db }), true);
-    assert.deepEqual(calls[0].params.slice(-2), [false, 'by_master']);
+    assert.deepEqual(calls[0].params.slice(-3, -1), [false, 'by_master']);
 
     // Номер именно не заглушечный: +7 111 111-11-11 — это телефон продолжения,
     // и такая запись отсеивается раньше, как continuation.
     await creditOp(createOp({ payload: { ...createOp().payload, phone: '+7 999 999-99-99' } }), {}, { db });
-    assert.deepEqual(calls[1].params.slice(-2), [false, 'junk_phone']);
+    assert.deepEqual(calls[1].params.slice(-3, -1), [false, 'junk_phone']);
+});
+
+test('creditOp: номер записи из журнала CRM пишется сразу — синк его больше не ищет', async () => {
+    const { db, calls } = fakeDb();
+    await creditOp(createOp(), { recordId: 505859 }, { db });
+    assert.match(calls[0].text, /record_id/);
+    assert.equal(calls[0].params.at(-1), '505859', 'номер — строкой, как в колонке');
 });
 
 // ── Поиск записи на доске ────────────────────────────────────────────────────
