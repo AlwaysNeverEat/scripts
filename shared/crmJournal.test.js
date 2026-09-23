@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 import {
-    parseJournal, parseJournalRecord, recordAuthor, isSelfBooked,
+    parseJournal, parseJournalRecord, recordAuthor, crmAuthorUnknown, boardAuthor,
     journalSavePayload, journalDeletePayload,
     parseSaveResult, parseDeleteResult, parseUserPerms,
     journalSlots, durationSlots, DURATIONS, PRIV_RECORDS, journalToBoard,
@@ -89,18 +89,48 @@ test('не-ok ответ не притворяется пустым днём', (
 
 // ── Авторство: ради него всё и затевалось ────────────────────────────────────
 
-test('автор берётся С СЕРВЕРА, а пустой creator означает «записался сам»', () => {
+test('автор берётся С СЕРВЕРА, а пустой creator означает «CRM не знает»', () => {
     const j = parseJournal(raw);
-    const byStaff = j.records.filter(r => recordAuthor(r));
-    const bySelf = j.records.filter(isSelfBooked);
+    const known = j.records.filter(r => recordAuthor(r));
+    const unknown = j.records.filter(crmAuthorUnknown);
 
-    assert.equal(byStaff.length + bySelf.length, j.records.length, 'третьего не дано');
-    assert.ok(byStaff.length > 0, 'операторские записи в выгрузке есть');
-    assert.ok(bySelf.length > byStaff.length,
-        'клиентских записей за день заметно больше — это норма, а не потеря автора');
+    assert.equal(known.length + unknown.length, j.records.length, 'третьего не дано');
+    assert.ok(known.length > 0, 'записи с автором в выгрузке есть');
+    assert.ok(unknown.length > known.length, 'без автора их пока заметно больше');
 
-    for (const r of byStaff) assert.equal(typeof recordAuthor(r), 'string');
-    for (const r of bySelf) assert.equal(recordAuthor(r), null);
+    for (const r of known) assert.equal(typeof recordAuthor(r), 'string');
+    for (const r of unknown) assert.equal(recordAuthor(r), null);
+});
+
+test('пустой creator — это НЕ «записался сам»: так же выглядит запись с нашего сайта', () => {
+    // Проверено на живой базе: запись, сделанная через наш калькулятор (старая
+    // админка, общая учётка), приходит в CRM с пустым creator — неотличимо от
+    // самозаписи клиента. Автора такой записи знает только наш record_credits.
+    const r = parseJournalRecord({
+        id: '505881', address_id: '8', time: '10:30',
+        record_time: '2026-10-10 10:30:00', name: 'тест', phone_d: '71111111111',
+        creator: '',
+    });
+    assert.equal(recordAuthor(r), null, 'CRM автора не знает');
+
+    // Наш зачёт знает — и он закрывает всё, что записано до переезда.
+    const mine = boardAuthor(r, { 505881: 'Ищенко Сергей Александрович' });
+    assert.equal(mine.name, 'Ищенко Сергей Александрович');
+    assert.equal(mine.source, 'credits');
+
+    // А вот когда не знает никто — тогда и правда никто.
+    assert.equal(boardAuthor(r, {}), null);
+    assert.equal(boardAuthor(r), null);
+});
+
+test('CRM важнее нашего зачёта: она знает автора точно, мы — по совпадению', () => {
+    const r = parseJournalRecord({
+        id: '1', address_id: '8', time: '10:00', record_time: '2026-10-01 10:00:00',
+        creator: 'Иванов Иван Иванович',
+    });
+    const a = boardAuthor(r, { 1: 'Кто-то Другой' });
+    assert.equal(a.name, 'Иванов Иван Иванович');
+    assert.equal(a.source, 'crm');
 });
 
 test('автор не выдумывается из имени, телефона и станции', () => {
@@ -111,7 +141,7 @@ test('автор не выдумывается из имени, телефона
         time: '10:00', record_time: '2026-10-01 10:00:00', creator: '',
     });
     assert.equal(recordAuthor(r), null);
-    assert.equal(isSelfBooked(r), true);
+    assert.equal(crmAuthorUnknown(r), true);
 });
 
 test('пробелы вокруг ФИО не превращаются в автора', () => {
