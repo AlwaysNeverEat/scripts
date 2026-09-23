@@ -162,6 +162,26 @@ test('matchCrmOilRow сопоставляет реальные строки CRM 
     }
 });
 
+// Своё масло заводили в номенклатуру руками, поэтому пишут его как придётся —
+// латиницей, кириллицей, с сокращённым тиром. Пока кириллицы тут не было, ни
+// одна такая строка не сопоставлялась с каталогом, и калькулятор писал «нет на
+// станции» на бочку, которая стоит в каждом цеху.
+test('matchCrmOilRow: своё масло узнаётся и по-русски', () => {
+    const oils = getShopOils();
+    const cases = [
+        ['100501 Моторное масло SPOT OPTIMAL 5W-30 60l (1x60L)',   'SPOT OPTIMAL 5W-30'],
+        ['100501 Моторное масло СПОТ Оптимал 5W-30 (60л)',         'SPOT OPTIMAL 5W-30'],
+        ['100502 Моторное масло СПОТ Профешнл 5W-40 (60л)',        'SPOT PROFESSIONAL 5W-40'],
+        ['100503 Моторное масло СПОТ Профессионал 5W-30 (60л)',    'SPOT PROFESSIONAL 5W-30'],
+        ['100504 Моторное масло Спот проф 5W-40 (60л)',            'SPOT PROFESSIONAL 5W-40'],
+    ];
+    for (const [rowName, want] of cases) {
+        const m = matchCrmOilRow(rowName, oils);
+        assert.ok(m, `не сматчилось: ${rowName}`);
+        assert.equal(`${m.oil.b} ${m.oil.n}`, want, `неверный матч для: ${rowName}`);
+    }
+});
+
 test('matchCrmOilRow: без бренда/вязкости или чужой товар → null', () => {
     const oils = getShopOils();
     assert.equal(matchCrmOilRow('Моторное масло 5w-30 ESP (20l)', oils), null); // бренд не указан
