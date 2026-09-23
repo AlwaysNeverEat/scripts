@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 
 import {
     tokenSet, expandCoveredTokens, splitOilApprovals, pickEngineOils,
-    calcForAggregate, manualOilWarn, manualWarnText,
+    calcForAggregate, manualOilWarn, manualWarnText, MKPP_FILTER_COST,
 } from './calculator.js';
 import { getShopOils } from './oils.js';
 import { oilProfile, ASH_MID } from './approvals.js';
@@ -430,4 +430,122 @@ test('живые цены переворачивают выбор «самое �
         ['VW 504 00','VW 507 00','ACEA C3','API SN','MB 229.51','BMW LL-04']);
 
     assert.equal(mid.n, '5W-30 Top Tec', 'по живым ценам дешевле Top Tec');
+});
+
+// ── 0W-20: два масла вместо одного ───────────────────────────────────────────
+// На тонких вязкостях карточка была одна, и разговор в неё упирался: не
+// устроила цена — предложить взамен нечего, хотя второе масло той же вязкости
+// лежит в каталоге.
+
+test('режим 0W-20: предлагаются ДВА масла, оба нужной вязкости', () => {
+    const state = makeState({ mileage: '0w20',
+        car: { makeShort:'KIA', modelShort:'Rio', fuelType:'01', yearFrom:2020 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid, spot } = pickEngineOils(agg, getShopOils(), state, ['API SP','ILSAC GF-6A']);
+
+    assert.ok(spot, 'второе масло должно быть');
+    assert.notEqual(spot.n, mid.n, 'вторым не дублируется первое');
+    assert.equal(mid.v, '0W-20');
+    assert.equal(spot.v, '0W-20');
+});
+
+test('режим 0W-20: вторым идёт следующее по подбору, а не любое', () => {
+    // VW 508 00 — HTHS 2.6–2.9: ROLF с ACEA C5 подходит, ZIC X9 FE густоват.
+    // Первым обязан стоять подходящий, вторым — оставшийся.
+    const state = makeState({ mileage: '0w20',
+        car: { makeShort:'VOLKSWAGEN', modelShort:'Golf', fuelType:'01', yearFrom:2020 } });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { mid, spot } = pickEngineOils(agg, getShopOils(), state, ['VW 508 00','ACEA C5']);
+
+    assert.equal(mid.n, 'Professional 0W-20');
+    assert.equal(spot.n, 'X9 FE 0W-20');
+});
+
+test('режим 0W-30: второго масла в каталоге нет — карточка одна', () => {
+    const state = makeState({ mileage: '0w30' });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { spot } = pickEngineOils(agg, getShopOils(), state, ['VW 507 00']);
+    assert.equal(spot, null, 'выдумывать второе масло не из чего');
+});
+
+// ── Своё масло: ручной выбор тира ────────────────────────────────────────────
+
+test('spotTier: выбор оператора перебивает автоподбор тира', () => {
+    // Бензиновый Mercedes без C3 — автоматика взяла бы OPTIMAL.
+    const state = makeState({ spotTier: 'pro' });
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { spot } = pickEngineOils(agg, getShopOils(), state, ['MB 229.3','ACEA A3/B4']);
+    assert.equal(spot.tier, 'pro');
+
+    const auto = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const picked = pickEngineOils(auto, getShopOils(), makeState(), ['MB 229.3','ACEA A3/B4']);
+    assert.equal(picked.spot.tier, 'optimal', 'без выбора — как раньше');
+});
+
+test('spotTier: выбранный вручную, но опасный тир отдаётся С ПРЕДУПРЕЖДЕНИЕМ', () => {
+    // DPF-дизель: полнозольный OPTIMAL автоматика не предложила бы вовсе.
+    const car = { makeShort:'RENAULT', modelShort:'Megane', fuelType:'05', yearFrom:2012 };
+    const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+    const { spot } = pickEngineOils(agg, getShopOils(),
+        makeState({ car, spotTier: 'optimal' }), ['RN 0700','ACEA A3/B4','API SN']);
+
+    assert.equal(spot.tier, 'optimal', 'выбор оператора уважаем');
+    assert.ok(agg.spotWarn, 'но молчать о причине нельзя');
+    assert.ok(/вручную/.test(agg.spotWarn));
+});
+
+test('spotTier: «auto» и мусор в поле считаются автоподбором', () => {
+    const car = { makeShort:'RENAULT', modelShort:'Megane', fuelType:'05', yearFrom:2012 };
+    for (const tier of ['auto', undefined, 'чепуха']) {
+        const agg = { key: 'engine', label: 'ДВС', group: 'engine' };
+        const { spot } = pickEngineOils(agg, getShopOils(),
+            makeState({ car, spotTier: tier }), ['RN 0700','ACEA A3/B4','API SN']);
+        assert.equal(spot.tier, 'pro', `spotTier=${tier} — подбор по мотору`);
+        assert.ok(!/вручную/.test(agg.spotWarn || ''),
+            'ничего не выбирали руками — и в тексте этого быть не должно');
+    }
+});
+
+// ── МКПП: «всё равно посчитать» и фильтр ─────────────────────────────────────
+
+test('МКПП: mkppForce считает на 75W-90 и НЕ прячет предупреждение', () => {
+    const agg = () => ({ key: 'manual', label: 'МКПП', group: 'gear', volume: 2.2,
+                         motulProducts: ['Motul Motylgear 75W-85'],
+                         approvals: ['Motul Motylgear 75W-85'] });
+    const base = { volumeOverride: {}, atpVolumeManual: null, flush: 'none', mileage: '<100' };
+
+    const off = calcForAggregate(agg(), base, []);
+    assert.equal(off.costs.length, 0, 'по умолчанию всё как было');
+
+    const on = calcForAggregate(agg(), { ...base, mkppForce: true }, []);
+    assert.equal(on.costs.length, 2, 'посчитано на том, что есть на полке');
+    assert.ok(on.costs.every(c => c.oil.v === '75W-90'));
+    assert.ok(on.mkppWarn, 'предупреждение остаётся рядом с ценой');
+    assert.equal(on.mkppWarn.spec, '75W-85');
+});
+
+test('МКПП: фильтр добавляет 1700₽ и попадает в разложенную стоимость', () => {
+    const agg = () => ({ key: 'manual', label: 'МКПП', group: 'gear', volume: 2,
+                         motulProducts: ['Motul MOTYLGEAR 75W-90'],
+                         approvals: ['Motul MOTYLGEAR 75W-90'] });
+    const base = { volumeOverride: {}, atpVolumeManual: null, flush: 'none', mileage: '<100' };
+
+    const plain = calcForAggregate(agg(), base, []);
+    const withFlt = calcForAggregate(agg(), { ...base, mkppFilter: true }, []);
+
+    assert.equal(withFlt.costs[0].total - plain.costs[0].total, MKPP_FILTER_COST);
+    assert.ok(withFlt.costs[0].breakdown.includes('1700 (фильтр)'));
+    assert.ok(!plain.costs[0].breakdown.includes('фильтр'));
+});
+
+test('МКПП: фильтр — только у МКПП, раздатку и дифы не трогает', () => {
+    const base = { volumeOverride: {}, atpVolumeManual: null, flush: 'none',
+                   mileage: '<100', mkppFilter: true };
+    for (const key of ['transfer', 'diffRear']) {
+        const agg = { key, label: key, group: 'gear', volume: 1.5,
+                      motulProducts: ['Motul MOTYLGEAR 75W-90'],
+                      approvals: ['Motul MOTYLGEAR 75W-90'] };
+        const calc = calcForAggregate(agg, base, []);
+        assert.ok(!calc.costs[0].breakdown.includes('фильтр'), `${key} без фильтра МКПП`);
+    }
 });

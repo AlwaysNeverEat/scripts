@@ -179,13 +179,25 @@ function patchesByKey() {
     return out;
 }
 
+// Коды, при которых раздел закрыт замком «нужна своя учётка CRM». Раздел
+// работает ТОЛЬКО под личной учёткой: общая была причиной того, что у
+// записи нет автора (см. backend/src/routes/journal.js).
+const GATE_CODES = new Set(['crm_link_required', 'crm_auth_required', 'auth_required']);
+
+function closeGate(err) {
+    state.credsNeeded = true;
+    state.gateCode = err.code;
+    state.credsError = err.code === 'crm_link_required' ? '' : err.message;
+    state.gateMessage = err.message;
+}
+
 async function loadStatus() {
     try {
-        state.status = await apiFetch('/api/records/status');
-        state.credsNeeded = !state.status.credentials;
+        state.status = await apiFetch('/api/journal/status');
+        state.credsNeeded = false;
         if (!state.date) state.date = state.status.today;
     } catch (err) {
-        if (err.code === 'zms_credentials_required') state.credsNeeded = true;
+        if (GATE_CODES.has(err.code)) closeGate(err);
     }
     renderStatusOnly();
 }
@@ -204,7 +216,7 @@ async function loadBoard({ silent = false } = {}) {
     const hadBoard = Boolean(state.board);
     if (!silent) { state.boardLoading = true; render(); }
     try {
-        const data = await apiFetch(`/api/records/board?date=${encodeURIComponent(date)}`);
+        const data = await apiFetch(`/api/journal/board?date=${encodeURIComponent(date)}`);
         if (stale()) return;
         state.board = data.board;
         state.fetchedAt = data.fetchedAt;
@@ -218,8 +230,8 @@ async function loadBoard({ silent = false } = {}) {
         if (!hadBoard) state.enterAnim = true;
     } catch (err) {
         if (stale()) return;
-        if (err.code === 'zms_credentials_required') {
-            state.credsNeeded = true;
+        if (GATE_CODES.has(err.code)) {
+            closeGate(err);
             state.boardLoading = false;
             // Гейт уже показан? Не перерисовываем — там кто-то вводит пароль
             // (а если не модератор, то и перерисовывать нечего: гейт статичен).
@@ -267,18 +279,29 @@ async function loadDetails(id) {
     if (cached && (cached.loading || (cached.record && Date.now() - cached.at < DETAILS_FRESH_MS))) return cached;
     // Перечитываем — старое значение остаётся на экране: показывать «загружаю»
     // поверх уже известного комментария незачем.
-    state.details[key] = { loading: true, record: cached?.record || null, error: '', at: 0 };
-    try {
-        const data = await apiFetch(`/api/records/record/${encodeURIComponent(key)}`);
-        state.details[key] = { loading: false, record: data.record || null, error: '', at: Date.now() };
-    } catch (err) {
-        state.details[key] = { loading: false, record: null, error: err.message, at: Date.now() };
-    }
+    // Журнал CRM отдаёт госномер и комментарий прямо на доске, поэтому за
+    // формой правки больше не ходим: карточка собирается из того, что уже
+    // приехало. Старая админка этих полей на доске не показывала — отсюда и
+    // был отдельный запрос на каждую открытую запись.
+    const rec = boardRecordById(key);
+    state.details[key] = rec
+        ? { loading: false, record: { carNumber: rec.carNumber || '', comment: rec.comment || '' }, error: '', at: Date.now() }
+        : { loading: false, record: null, error: 'записи нет на доске — обновите её', at: Date.now() };
     if (modalRecordId(state.modal) === key) {
         keepEditFields(); // набранное в полях правки перерисовку переживает
         render();
     }
     return state.details[key];
+}
+
+function boardRecordById(id) {
+    for (const byTime of Object.values(state.board?.cells || {})) {
+        for (const cell of Object.values(byTime)) {
+            const r = cell.records.find(x => String(x.id) === String(id));
+            if (r) return r;
+        }
+    }
+    return null;
 }
 
 // Правка записи прошла — сохранённая карточка устарела.
@@ -288,7 +311,7 @@ function dropDetails(ids) {
 
 async function loadOps() {
     try {
-        const data = await apiFetch('/api/records/ops?limit=100');
+        const data = await apiFetch('/api/journal/ops');
         state.ops = data.ops || [];
     } catch { /* очередь — вспомогательная информация */ }
 }
@@ -301,10 +324,12 @@ function scheduleBoardReload() {
         setTimeout(() => loadBoard({ silent: true }), ms));
 }
 
+// Операция уходит в CRM СРАЗУ и под учёткой того, кто нажал: ответ — это уже
+// результат, а не «поставлено в очередь». Поэтому после неё доска
+// перечитывается тут же, без отложенных повторов.
 async function postOp(type, payload) {
-    await apiFetch('/api/records/ops', { method: 'POST', body: { type, payload } });
-    await loadOps();
-    scheduleBoardReload();
+    await apiFetch('/api/journal/ops', { method: 'POST', body: { type, payload } });
+    await loadBoard({ silent: true });
 }
 
 // ── Производные данные ───────────────────────────────────────────────────────
@@ -922,13 +947,8 @@ function renderTopBar() {
         </div>
         <div class="rc-topbtns">
             <button class="btn btn-sec" data-action="open-map" title="Карта станций">${icons.map(15)}<span class="rc-btn-label">Карта</span></button>
-            <button class="btn btn-sec" data-action="open-queue" title="Очередь операций">
-                ${icons.list(15)}<span class="rc-btn-label">Очередь</span>
-                ${pending ? `<span class="rc-queue-badge">${pending}</span>` : ''}
-                ${failed ? `<span class="rc-queue-badge rc-queue-badge-err">${failed}</span>` : ''}
-            </button>
             <button class="btn btn-sec rc-icon-btn" data-action="refresh" title="Обновить сейчас">${icons.refresh(15)}</button>
-            ${isMod() ? `<button class="btn btn-sec rc-icon-btn" data-action="open-creds" title="Сменить логин/пароль админки">${icons.key(15)}</button>` : ''}
+
         </div>
     </header>`;
 }
@@ -936,15 +956,16 @@ function renderTopBar() {
 function bannerHtml() {
     const fail = copyFailHtml();
     if (state.credsNeeded || !isDown()) return fail;
-    const pending = pendingOps().length;
+    // Очереди больше нет: CRM отвечает сразу, и операция, которую она не
+    // приняла, возвращается ошибкой в том же окне. Поэтому честно: пока CRM
+    // лежит, записать нельзя, — а не «встанет в очередь», которой нет.
     return `${fail}
     <div class="rc-banner">
         ${icons.wifiOff(18)}
         <div>
-            <b>Записи оригинала сейчас не работают.</b>
+            <b>CRM сейчас не отвечает.</b>
             Показаны данные, обновлённые ${esc(fmtAgo(state.fetchedAt))}.
-            Записи можно создавать и менять — изменения встанут в очередь
-            (${pending} шт.) и применятся автоматически, как только админка оживёт.
+            Записать или перенести не получится, пока она не поднимется.
         </div>
     </div>`;
 }
@@ -1893,6 +1914,17 @@ function modalCreate(m) {
             <!-- Запись мастера. Отличить её от обычной нечем: мастер звонит со
                  станции и диктует клиента, телефон при этом клиентский —
                  поэтому это переключатель, а не догадка по номеру. -->
+            <!-- СМС клиенту. По умолчанию стоит — как в самой CRM, — но
+                 уходит ТОЛЬКО за первый получас: продление клиенту не шлётся,
+                 иначе на запись в полтора часа приходят три сообщения. -->
+            <label class="chk-label rc-master">
+                <input type="checkbox" id="rc-f-sms" ${m.sms !== false ? 'checked' : ''}/>
+                <span class="rc-master-text">
+                    <b>СМС клиенту</b>
+                    <i>Одно сообщение о записи. За продление не отправляется.</i>
+                </span>
+            </label>
+
             <label class="chk-label rc-master">
                 <input type="checkbox" id="rc-f-master" ${m.byMaster ? 'checked' : ''}/>
                 <span class="rc-master-text">
@@ -1944,7 +1976,7 @@ function modalCreate(m) {
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
             <div class="modal-actions rc-actions-float" id="rc-actions">
                 <button class="btn btn-pri" data-action="submit-create"
-                    title="Запишет и положит в буфер строку для Битрикса: дата, время и адрес">${icons.plus(14)} Записать и скопировать${isDown() ? ' (встанет в очередь)' : ''}</button>
+                    title="Запишет и положит в буфер строку для Битрикса: дата, время и адрес">${icons.plus(14)} Записать и скопировать</button>
             </div>
         </div>
     </div>`;
@@ -2021,6 +2053,16 @@ function authorRowHtml(a) {
     const skip = a.counted === false
         ? `<span class="rc-author-skip" title="В месячный топ такая запись не идёт">${esc(a.skipLabel || 'не в счёт')}</span>`
         : '';
+    // Автор известен только CRM (записали прямо там, мимо сайта) — профиля
+    // на сайте у него может не быть, поэтому строка не кнопка.
+    if (!a.id) {
+        return `
+        <div class="rc-chain-row rc-chain-author" title="Автор по учётке CRM">
+            <span class="rc-author-avatar">${authorAvatarHtml(a)}</span>
+            <span>записал(а) <b>${esc(a.display_name)}</b></span>
+            <span class="rc-author-skip">CRM</span>
+        </div>`;
+    }
     return `
         <button class="rc-chain-row rc-chain-author" data-action="open-author" data-user="${esc(a.id)}"
                 title="Открыть профиль">
@@ -2160,7 +2202,7 @@ function modalEdit(m) {
             ${m.error ? `<div class="rc-form-error">${icons.alert(13)} ${esc(m.error)}</div>` : ''}
             <div class="modal-actions rc-actions-float" id="rc-actions">
                 <button class="btn btn-pri" data-action="submit-edit"
-                    title="Сохранит и положит в буфер строку для Битрикса: дата, время и адрес">${icons.check(14)} Сохранить и скопировать${isDown() ? ' (в очередь)' : ''}</button>
+                    title="Сохранит и положит в буфер строку для Битрикса: дата, время и адрес">${icons.check(14)} Сохранить и скопировать</button>
             </div>
         </div>
     </div>`;
@@ -2185,7 +2227,7 @@ function modalDelete(m) {
                 </label>`).join('')}
         </div>
         <div class="modal-actions">
-            <button class="btn btn-pri rc-btn-danger" data-action="submit-delete">${icons.trash(14)} Удалить выбранное${isDown() ? ' (в очередь)' : ''}</button>
+            <button class="btn btn-pri rc-btn-danger" data-action="submit-delete">${icons.trash(14)} Удалить выбранное</button>
         </div>
     </div>`;
     return modalShell('Удаление', body);
@@ -2275,16 +2317,16 @@ function modalCreds() {
 function credsFormHtml() {
     return `
     <form id="rc-creds-form" class="rc-creds-form">
-        <p class="rc-creds-note">Один общий логин/пароль от оригинальной админки
-        (zamena-masla-spot.ru). Вводится один раз — сервер сохранит его,
-        будет сам продлевать сессию, и страница заработает у всех сразу.</p>
+        <p class="rc-creds-note">Войдите своей учёткой CRM — записи будут
+        уходить от вашего имени, и в CRM будет видно, кто записал. Вводится один
+        раз: дальше сайт войдёт сам, как на вкладках «Клиент» и «Склад».</p>
         <label class="edit-field"><span>Логин</span>
             <input id="rc-creds-login" type="text" autocomplete="username" required/></label>
         <label class="edit-field"><span>Пароль</span>
             <input id="rc-creds-password" type="password" autocomplete="current-password" required/></label>
         <div id="rc-creds-error" class="rc-form-error ${state.credsError ? '' : 'hidden'}">${esc(state.credsError)}</div>
         <div class="modal-actions">
-            <button type="submit" class="btn btn-pri">${icons.key(14)} Сохранить и подключиться</button>
+            <button type="submit" class="btn btn-pri">${icons.key(14)} Войти в CRM</button>
         </div>
     </form>`;
 }
@@ -2292,15 +2334,25 @@ function credsFormHtml() {
 // Кредов ещё нет — без них раздел пуст. Форму показываем только модератору:
 // вводить логин/пароль оригинальной админки — его дело (и бэкенд примет их
 // только от него). Остальным честно говорим, чего ждать и от кого.
+// Раздел работает только под СВОЕЙ учёткой CRM: запись уходит от имени того,
+// кто нажал, и CRM ставит её автором. Общий логин на всех был ровно причиной
+// того, что у записей автора не было, поэтому замок тут для каждого, а не для
+// модератора. Вход тот же, что у «Клиента» и «Склада», — один раз на всё.
 function renderCredsGate() {
+    if (state.gateCode === 'auth_required') {
+        return `
+        <div class="rc-shell rc-gate">
+            <div class="rc-gate-card">
+                <div class="rc-brand rc-gate-brand">${icons.pin(20)}<span>Записи</span></div>
+                <p class="rc-creds-note">Записи ведутся от вашего имени — войдите на сайт.</p>
+            </div>
+        </div>`;
+    }
     return `
     <div class="rc-shell rc-gate">
         <div class="rc-gate-card">
             <div class="rc-brand rc-gate-brand">${icons.pin(20)}<span>Записи</span></div>
-            ${isMod() ? credsFormHtml() : `
-            <p class="rc-creds-note">Раздел ещё не подключён к оригинальной админке
-            (zamena-masla-spot.ru). Логин и пароль вводит модератор — одного раза
-            хватит, дальше записи откроются у всех.</p>`}
+            ${credsFormHtml()}
         </div>
     </div>`;
 }
@@ -2894,7 +2946,7 @@ function bindCredsForm() {
         btn.disabled = true;
         btn.textContent = 'Проверяю…';
         try {
-            await apiFetch('/api/records/credentials', { method: 'POST', body: { login, password } });
+            await apiFetch('/api/crm/login', { method: 'POST', body: { login, password, remember: true } });
             state.credsNeeded = false;
             state.credsError = '';
             state.modal = null;
@@ -2905,7 +2957,7 @@ function bindCredsForm() {
             state.credsError = err.message;
             if (errEl) { errEl.textContent = err.message; errEl.classList.remove('hidden'); }
             btn.disabled = false;
-            btn.innerHTML = `${icons.key(14)} Сохранить и подключиться`;
+            btn.innerHTML = `${icons.key(14)} Войти в CRM`;
         }
     };
 }
@@ -3077,6 +3129,7 @@ function keepCreateFields() {
     // Переключатель «запись мастера» переживает перерисовку наравне с полями:
     // станцию и дату меняют уже после того, как его поставили.
     state.modal.byMaster = document.getElementById('rc-f-master')?.checked ?? state.modal.byMaster;
+    state.modal.sms = document.getElementById('rc-f-sms')?.checked ?? state.modal.sms;
 }
 
 // Поля правки переживают перерисовку (её вызывает приехавшая карточка записи).
@@ -3142,10 +3195,7 @@ async function handleAction(btn, ev) {
         openDateFor(document.getElementById('rc-date-input'), btn);
         return;
     }
-    if (a === 'refresh') {
-        apiFetch('/api/records/refresh', { method: 'POST' }).catch(() => {});
-        return loadBoard({ silent: true });
-    }
+    if (a === 'refresh') return loadBoard({ silent: true });
     if (a === 'set-sort') return setSort(btn.dataset.sort);
     if (a === 'open-station') return openStation(btn.dataset.id);
     if (a === 'back') {
@@ -3201,7 +3251,7 @@ async function handleAction(btn, ev) {
             date: state.date,
             time: btn.dataset.time || null,
             durationMinutes: 30,
-            name: '', phone: '', carNumber: '', comment: '', byMaster: false,
+            name: '', phone: '', carNumber: '', comment: '', byMaster: false, sms: true,
         };
         return render();
     }
@@ -3365,7 +3415,7 @@ async function setCreateDate(date) {
     m.dateLoading = true;
     render();
     try {
-        const data = await apiFetch(`/api/records/board?date=${encodeURIComponent(date)}`);
+        const data = await apiFetch(`/api/journal/board?date=${encodeURIComponent(date)}`);
         if (state.modal !== m || m.date !== date) return; // дату успели сменить снова
         m.dateBoard = data.board;
         m.dateLoading = false;
@@ -3392,7 +3442,7 @@ async function setEditDate(date) {
     render();
     if (date === state.date) return;
     try {
-        const data = await apiFetch(`/api/records/board?date=${encodeURIComponent(date)}`);
+        const data = await apiFetch(`/api/journal/board?date=${encodeURIComponent(date)}`);
         if (state.modal !== m || m.targetDate !== date) return; // дату успели сменить
         m.targetBoard = data.board;
     } catch (err) {
@@ -3498,6 +3548,7 @@ async function submitCreate() {
             // Решает только зачёт в топ: в оригинал такая запись уходит
             // обычной (backend/src/records/credits.js).
             byMaster: Boolean(m.byMaster),
+            sms: m.sms !== false,
         });
         rememberClientName(m.name);
         noteCopyResult(copied, line);
@@ -3550,11 +3601,6 @@ async function submitEdit() {
     const date = m.targetDate;
     const keep = chain.parts.slice(0, Math.min(nOld, nNew));
     const drop = chain.parts.slice(Math.min(nOld, nNew));
-    // Без ссылки на удаление лишний слот останется висеть — лучше не начинать.
-    if (drop.some(p => !p.deleteUrl)) {
-        m.error = 'не вижу, как снять лишние слоты — обновите доску и повторите';
-        return render();
-    }
 
     // Запись осталась ровно там же (меняли только поля или только длину) —
     // двигать нечего, и адрес назначения в операцию не кладём вовсе.
@@ -3606,8 +3652,10 @@ async function submitEdit() {
     const copied = await toClipboard(line);
 
     try {
-        if (drop.length) await postOp('delete', { records: drop.map(p => ({ id: p.id, deleteUrl: p.deleteUrl })) });
-        if (moved || fieldsChanged) await postOp('update', { records });
+        if (drop.length) await postOp('delete', { records: drop.map(p => ({ id: p.id, addressId: addr.id })) });
+        // boardDate — где запись лежит сейчас: при правке одних полей в
+        // операции нет ни дня, ни времени, а CRM без них запись не сохранит.
+        if (moved || fieldsChanged) await postOp('update', { records, boardDate: state.date });
         if (nNew > nOld) {
             // Добавка — слоты-продолжения с ТЕМ ЖЕ номером клиента. Раньше сюда
             // ставилась заглушка +71111111111, но номера из одной цифры портят
@@ -3623,6 +3671,8 @@ async function submitEdit() {
                 carNumber: '',
                 comment: '',
                 durationMinutes: (nNew - nOld) * SLOT_MINUTES,
+                // Дописали хвост к записи — клиенту это не новость.
+                sms: false,
             });
         }
         rememberClientName(name);
@@ -3643,11 +3693,11 @@ async function submitDelete() {
     const m = state.modal;
     const found = chainByHead(m.headId);
     if (!found) return;
-    const { chain } = found;
+    const { chain, addr } = found;
     const checked = m.checked || new Set(chain.parts.map(p => String(p.id)));
     const records = chain.parts
-        .filter(p => checked.has(String(p.id)) && p.deleteUrl)
-        .map(p => ({ id: p.id, deleteUrl: p.deleteUrl }));
+        .filter(p => checked.has(String(p.id)))
+        .map(p => ({ id: p.id, addressId: addr.id }));
     if (!records.length) { state.modal = null; return render(); }
     try {
         await postOp('delete', { records });

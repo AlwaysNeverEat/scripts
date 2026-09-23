@@ -4,7 +4,7 @@ import {
     filtersTotal, anyFilterEnabled, calcForAggregate,
     pickAtfOils, totalAggLabel, totalOilLabel, computeTotalSum,
     splitOilApprovals, matchOilToReglament, manualWarnText, sapsLabel,
-    sumpCost, DISCOUNT_PCT, oilPriceFor,
+    sumpCost, DISCOUNT_PCT, oilPriceFor, MKPP_FILTER_COST,
 } from '../../shared/calculator.js';
 import { buildReport } from '../../shared/report.js';
 import { extractViscosity } from '../../shared/crmAnalyse.js';
@@ -57,6 +57,13 @@ export function initCalculator(dbRecord) {
         mileage: '<100',
         atpType: defaultPartial ? 'partial' : 'full',
         atpFilter: false,
+        // Своё масло: 'auto' — по требованиям мотора, 'optimal'/'pro' — выбор
+        // оператора (см. pickEngineOils).
+        spotTier: 'auto',
+        // МКПП: считать, даже когда нужного Motul масла у нас нет, и ставить
+        // ли фильтр коробки.
+        mkppForce: false,
+        mkppFilter: false,
         cvtFilterCoarse: false,
         cvtFilterFine: false,
         cvtAtfSp3: false,
@@ -159,10 +166,19 @@ function viscForMileage(m) {
 
 // Остаток масла на станции: null — данных нет (проверка была на другую
 // вязкость либо ещё не выполнялась), число — литры (0 = нет в наличии).
+//
+// У СВОЕГО масла отсутствие строки в CRM — это не «нет», а «CRM про бочку не
+// рассказала»: её заводят в номенклатуру по-разному и не на каждой станции, а
+// стоит она везде. Писать на неё «нет на станции» было прямым враньём — и
+// хуже того, враньём про единственную позицию, которую точно нальют. Строку
+// CRM, если она есть, показываем как у всех: низкий остаток в бочке — это
+// настоящая новость.
 function stockLiters(calcState, oil) {
     const st = calcState.crmStock;
     if (!st || extractViscosity(oil.v) !== st.visc) return null;
-    return st.stock[oil.b + '_' + oil.n] || 0;
+    const key = oil.b + '_' + oil.n;
+    if (Object.prototype.hasOwnProperty.call(st.stock, key)) return st.stock[key];
+    return oil.isSpot ? null : 0;
 }
 
 // Автовыбор масла ДВС по наличию: первое из рейтинга калькулятора (допуски →
@@ -667,9 +683,32 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
     }
 
     // МКПП: Motul требует 70W / 75W-85 / 80W-90 / LS, либо продуктов нет вовсе
-    // (product not found) — предложить нечего, вместо масел только варн.
+    // (product not found). Предупреждение остаётся на месте всегда — и когда
+    // расчёта нет, и когда его сделали кнопкой ниже: цена, посчитанная на
+    // «том, что есть», не должна выглядеть подобранной по книге.
     if (calc.mkppWarn) {
         parts.push(`<div class="warn-box">${esc(manualWarnText(calc.mkppWarn))}</div>`);
+        // Раньше на этом расчёт и кончался, и на вопрос «а сколько будет?»
+        // оператор считал в уме. Считаем на 75W-90, который реально стоит на
+        // полке, — решение назвать эту цену остаётся за человеком, поэтому
+        // это кнопка, а не поведение по умолчанию.
+        parts.push(`
+            <div class="mkpp-force">
+                <button class="btn btn-sec" data-mkpp-force="${calcState.mkppForce ? 'off' : 'on'}">
+                    ${calcState.mkppForce ? '↩ убрать расчёт' : 'Всё равно посчитать (на 75W-90)'}
+                </button>
+            </div>`);
+    }
+
+    // Фильтр МКПП — такая же галочка, как у АКПП, и с той же ценой: стоит он
+    // не на каждой коробке и меняется не всегда, поэтому в расчёт входит
+    // только по просьбе.
+    if (agg.key === 'manual' && calc.costs && calc.costs.length) {
+        parts.push(`
+            <div class="atp-flags">
+                <label class="chk-label"><input type="checkbox" data-mkpp-filter ${calcState.mkppFilter ? 'checked' : ''}/>
+                    <span>Фильтр МКПП <b>+${MKPP_FILTER_COST}₽</b></span></label>
+            </div>`);
     }
 
     // Engine: flush formula box
@@ -684,6 +723,28 @@ function renderAggBody(agg, calc, calcState, carApprovals) {
             flushLine = `Полная промывка: ${litres}л × 350₽ + 550₽ = ${cost}₽`;
         }
         if (flushLine) parts.push(`<div class="flush-formula">${flushLine}</div>`);
+    }
+
+    // Своё масло: каким тиром его предлагать. Автоматика смотрит в требования
+    // мотора, а оператор — в бочку, которая стоит у него в цеху; последнее
+    // слово за ним. Показываем только там, где выбирать есть из чего: у
+    // 0W-20, 0W-30 и 10W-40 своего масла нет вовсе.
+    if (agg.group === 'engine' && calc.costs) {
+        const spots = getShopOils().filter(o => o.isSpot && o.v === viscForMileage(calcState.mileage));
+        if (spots.length > 1) {
+            const cur = calcState.spotTier || 'auto';
+            const tierChip = (val, label, tip) =>
+                `<button class="chip${cur === val ? ' active' : ''}" data-spot-tier="${val}" title="${esc(tip)}">${label}</button>`;
+            parts.push(`
+                <div class="spot-tier">
+                    <span class="ctrl-lbl">Своё масло (SPOT):</span>
+                    <div class="seg" data-seg="spot-tier">
+                        ${tierChip('auto', 'авто', 'по требованиям мотора')}
+                        ${tierChip('optimal', 'OPTIMAL', 'предлагать OPTIMAL, что бы ни вывел подбор')}
+                        ${tierChip('pro', 'PROFESSIONAL', 'предлагать PROFESSIONAL, что бы ни вывел подбор')}
+                    </div>
+                </div>`);
+        }
     }
 
     // Oil options
@@ -1061,6 +1122,19 @@ function bindEvents(container, car, data, calcState, carApprovals) {
     });
     container.querySelectorAll('[data-atp-flag]').forEach(chk => {
         chk.onchange = () => { calcState[chk.dataset.atpFlag] = chk.checked; rerender(); };
+    });
+
+    // МКПП: «всё равно посчитать» и фильтр коробки
+    container.querySelectorAll('[data-mkpp-force]').forEach(b => {
+        b.onclick = () => { calcState.mkppForce = b.dataset.mkppForce === 'on'; rerender(); };
+    });
+    container.querySelectorAll('[data-mkpp-filter]').forEach(chk => {
+        chk.onchange = () => { calcState.mkppFilter = chk.checked; rerender(); };
+    });
+
+    // Тир своего масла
+    container.querySelectorAll('[data-spot-tier]').forEach(b => {
+        b.onclick = () => { calcState.spotTier = b.dataset.spotTier; rerender(); };
     });
 
     // Oil picker open/close/pick — открывается кликом по первой карточке масла

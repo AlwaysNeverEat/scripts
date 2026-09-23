@@ -49,6 +49,10 @@ const throttleMs = () => {
     return Number.isFinite(raw) && raw >= 0 ? raw : 400;
 };
 const FETCH_TIMEOUT_MS = Math.max(1_000, Number(process.env.CRM_FETCH_TIMEOUT_MS) || 15_000);
+// Единственная ручка переписанной CRM: всё, от логина до журнала записи, ходит
+// через неё параметром `section` (GET) или полем `action` (POST). Лежит она
+// ВНУТРИ `/re/`, а не в корне: `/api.php` отдаёт 404.
+const API_PATH = process.env.CRM_API_PATH || '/re/api.php';
 
 export class CrmError extends Error {
     constructor(code, message) {
@@ -313,29 +317,98 @@ export function parseLoginForm(html) {
     return { action, loginField, passwordField, hidden };
 }
 
+// ── JSON-ручка CRM ───────────────────────────────────────────────────────────
+// Переписанная CRM разговаривает JSON'ом через одну ручку, и это касается даже
+// входа: у формы логина НЕТ `action`, она сабмитится скриптом на `api.php` с
+// полем `action=login`. Пока вход шёл только разбором формы (parseLoginForm),
+// персональная сессия не поднималась вовсе — а без неё CRM не знает, кто
+// работает, и записи уходят без автора.
+
+// Сырой вызов ручки в переданный jar. Ответ разбираем как JSON, но 401 и
+// прочие отказы НЕ бросаем: вызывающий сам решает, что делать (перелогиниться
+// или сдаться), и ему нужен статус.
+async function apiCall(jar, { query = null, body = null } = {}) {
+    const path = query ? `${API_PATH}?${query}` : API_PATH;
+    const opts = body
+        ? {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(body).toString(),
+        }
+        : {};
+    const res = await followRedirects(await rawFetch(path, jar, opts), jar);
+    const text = res.status >= 300 ? '' : await res.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+    return { status: res.status, json, text };
+}
+
+// Живая ли сессия. Спрашиваем `userperms`, и это не «какая-нибудь страница
+// под замком», а прямой ответ CRM на «кто я»: 401 + `auth_required` означает
+// «сессии нет», а имя в ответе — того самого человека, чьим автором станет
+// запись.
+function apiSessionDead(r) {
+    if (r.status === 401 || r.status === 403) return true;
+    const err = r.json && r.json.error;
+    return err === 'auth_required' || err === 'session_expired';
+}
+
+async function apiWhoAmI(jar) {
+    const r = await apiCall(jar, { query: 'section=userperms' });
+    if (apiSessionDead(r)) return null;
+    return r.json && r.json.user ? r.json : null;
+}
+
 // ── Вход / выход / запросы ───────────────────────────────────────────────────
+
+// Вход через JSON-ручку. Возвращает false, если ручки на этом стенде нет
+// вовсе (404) — тогда пробуем старый путь по форме; бросает crm_auth_failed,
+// если ручка есть, а логин с паролем она не приняла: подбирать после этого
+// второй способ входа бессмысленно и только мешает понять причину.
+async function apiLoginIntoJar(jar, login, password) {
+    const post = await apiCall(jar, {
+        body: { action: 'login', login, password },
+    });
+    if (post.status === 404) return false;
+    if (post.status >= 400 && post.status !== 401) {
+        throw new CrmError('crm_auth_failed', `CRM ответила ${post.status} на логин`);
+    }
+    const me = await apiWhoAmI(jar);
+    if (!me) throw new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
+    return true;
+}
 
 // Один вход в CRM в переданный jar. Без очереди и без записи в базу — это
 // кирпич, из которого собраны и ручной вход, и автовход по привязке.
-async function loginIntoJar(jar, login, password) {
+//
+// Сначала JSON-ручка (нынешняя CRM), потом разбор HTML-формы (как было).
+// Порядок именно такой: форма на новой CRM парсится, но постить её некуда —
+// `action` у неё пустой, и запрос уходил на саму страницу логина, которая
+// покорно отдавала 200. Вход «удавался», сессии не появлялось.
+async function formLoginIntoJar(jar, login, password) {
     const entryPath = process.env.CRM_LOGIN_PATH || '/analyse/free';
     const res = await followRedirects(await rawFetch(entryPath, jar), jar);
-    const html = await res.text();
+    const html = res.status >= 300 ? '' : await res.text();
     const form = parseLoginForm(html);
 
     const loginField = process.env.CRM_LOGIN_FIELD || form?.loginField;
     const passwordField = process.env.CRM_PASSWORD_FIELD || form?.passwordField;
     if (!loginField || !passwordField) {
-        // формы нет — возможно, эта пара кук уже залогинена (маловероятно
-        // для пустого jar) или CRM сменила разметку
-        throw new CrmError('crm_auth_failed', 'не удалось распознать форму логина CRM');
+        // Формы нет — либо этот jar уже залогинен, либо разметка сменилась.
+        // Для второго способа входа это не приговор, поэтому не бросаем.
+        return 'no-form';
     }
-    const actionPath = form?.action
-        ? resolveCrmUrl(form.action, res.url || BASE_URL)
-        : entryPath;
+    // ПУСТОЙ `action` означает «на эту же страницу», а не «на путь, с которого
+    // мы начали». Раньше тут стоял `entryPath`, и это работало ровно до тех
+    // пор, пока форма жила на /analyse/free. Теперь /analyse/free отвечает
+    // 302 на `/`, форма приезжает оттуда с `action=''` — и логин уходил
+    // обратно на /analyse/free, где его встречал новый редирект и терял тело
+    // запроса. Вход «проходил» (200 после редиректов), сессии не появлялось,
+    // а «Клиент» и «Склад» получали «войдите в CRM».
+    const actionPath = resolveCrmUrl(form.action || '', res.url || BASE_URL);
 
     const body = new URLSearchParams({
-        ...(form?.hidden || {}),
+        ...(form.hidden || {}),
         [loginField]: login,
         [passwordField]: password,
     });
@@ -344,14 +417,64 @@ async function loginIntoJar(jar, login, password) {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
     });
-    if (post.status >= 400) {
-        throw new CrmError('crm_auth_failed', `CRM ответила ${post.status} на логин`);
-    }
+    if (post.status >= 400) return 'rejected';
     const check = await followRedirects(await rawFetch('/analyse/free', jar), jar);
     const checkHtml = check.status >= 300 ? '' : await check.text();
-    if (!checkHtml || parseAnalyseFree(checkHtml).loginPage) {
+    // Форму отправили, а под замок не пустили — это ИМЕННО «пароль не подошёл»,
+    // и сказать надо так. Раньше этот случай был неотличим от «формы нет», и
+    // человек получал «CRM недоступна» там, где надо менять пароль.
+    return (checkHtml && !parseAnalyseFree(checkHtml).loginPage) ? 'ok' : 'rejected';
+}
+
+// Один вход в CRM в переданный jar. Без очереди и без записи в базу — это
+// кирпич, из которого собраны и ручной вход, и автовход по привязке.
+//
+// Входов ДВА, и делаются оба в ОДИН jar. Это не перестраховка: на хосте живут
+// две CRM разом — переписанная (`/re/`, JSON-ручка, журнал записи) и прежняя
+// (`/analyse/free`, `/dial_clients/`, откуда берут данные «Склад» и «Клиент»).
+// Чьи куки кого пускают, снаружи не видно, поэтому не гадаем: логинимся
+// обоими способами, куки копятся в общем jar, и каждая половина сайта берёт
+// ту сессию, которая ей нужна. Достаточно, чтобы сработал хоть один, — иначе
+// поломка одной CRM уносила бы с собой вторую.
+// Экспортируется ради теста — как и closeCrmSession: вход состоит из
+// нескольких запросов подряд, и проверить его можно только на подменённом
+// fetch, а через crmLogin в тест приехала бы ещё и база.
+export async function loginIntoJar(jar, login, password) {
+    let api = false;
+    let apiError = null;
+    if (!process.env.CRM_LOGIN_PATH) {
+        try {
+            api = await apiLoginIntoJar(jar, login, password);
+        } catch (err) {
+            // ЛЮБАЯ беда новой ручки — не приговор входу: прежняя CRM живёт на
+            // том же хосте отдельно, и «Клиент» со «Складом» должны работать,
+            // даже если `/re/` лежит или отвечает пятисоткой. Причину
+            // запоминаем: если и форма откажет, человеку надо сказать именно
+            // её, а не общее «разметка сменилась».
+            if (!(err instanceof CrmError)) throw err;
+            apiError = err;
+        }
+    }
+    let form = 'no-form';
+    let formError = null;
+    try {
+        form = await formLoginIntoJar(jar, login, password);
+    } catch (err) {
+        // Прежняя CRM может быть уже выключена — это не повод рушить вход в
+        // новую, ради которой всё и затевалось.
+        if (!(err instanceof CrmError)) throw err;
+        formError = err;
+    }
+    if (api || form === 'ok') return;
+    // Ни один не сработал. «Пароль не подошёл» важнее «CRM не отвечает»: на
+    // первое человек меняет пароль, на второе — ждёт, и перепутать их значит
+    // отправить его не туда.
+    if (form === 'rejected') {
         throw new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
     }
+    const failed = [apiError, formError].find(e => e && e.code === 'crm_auth_failed');
+    throw failed || apiError || formError
+        || new CrmError('crm_auth_failed', 'CRM не приняла логин или пароль');
 }
 
 // Ручной вход из панели: логинимся и, если есть чем шифровать пароль,
@@ -551,6 +674,51 @@ export async function crmGetHtml(userId, path) {
         await dropJar(userId);
         throw new CrmError('crm_auth_required', 'сессия CRM завершена — войдите заново');
     });
+}
+
+// Вызов JSON-ручки CRM под сессией работника — тот же путь, что и у
+// crmGetHtml, только «сессии больше нет» узнаётся не приметами разметки, а
+// прямым ответом ручки (401 / `auth_required`).
+//
+// `query` — строка запроса для GET («section=journal&date=2026-10-01»),
+// `body` — поля POST («{ action: 'journal_save', … }»). Одновременно не
+// бывает: у CRM либо чтение, либо действие.
+export async function crmApi(userId, { query = null, body = null } = {}) {
+    const ready = await crmEnsureSession(userId);
+    if (!ready.loggedIn) {
+        if (ready.unavailable) throw new CrmError('crm_unavailable', ready.unavailable);
+        throw new CrmError('crm_auth_required', 'нет сессии CRM — войдите');
+    }
+    const jar = await loadJar(userId);
+    return enqueue(async () => {
+        let r = await apiCall(jar, { query, body });
+        if (!apiSessionDead(r)) return apiResult(r);
+        // Сессию завершили снаружи (в CRM выход гасит её везде) — один раз
+        // входим заново по привязке и повторяем.
+        if (await reloginIntoJar(userId, jar)) {
+            r = await apiCall(jar, { query, body });
+            if (!apiSessionDead(r)) return apiResult(r);
+        }
+        await dropJar(userId);
+        throw new CrmError('crm_auth_required', 'сессия CRM завершена — войдите заново');
+    });
+}
+
+// Ответ ручки наружу. Пустой JSON при живой сессии — это поломка на стороне
+// CRM, а не «ничего не нашлось»: молча отдать null значит показать оператору
+// пустой день вместо ошибки.
+function apiResult(r) {
+    if (r.json === null) {
+        throw new CrmError('crm_unavailable',
+            `CRM ответила не-JSON на HTTP ${r.status}`);
+    }
+    return r.json;
+}
+
+// Кто работает под этой сессией, по мнению самой CRM. Это и есть источник
+// авторства записей: имя берётся отсюда, а не с наших слов.
+export async function crmWhoAmI(userId) {
+    return crmApi(userId, { query: 'section=userperms' });
 }
 
 // Страница или '' — если CRM вместо неё показала логин (сессии больше нет).

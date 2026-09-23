@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<!-- Дев-песочница раздела «Записи» поверх журнала CRM, без бэкенда.
+     Открыть: npx vite → /dev-records-crm.html
+       ?gate=1 — замок «нужна своя учётка CRM» (как у того, кто её не привязал).
+     Фальшивая CRM держит журнал в ТОМ ЖЕ сыром формате, что отдаёт живая
+     (`section=journal`), и честно применяет операции раздела: создаёт слоты
+     цепочки, двигает, удаляет и подписывает их автором из «сессии». Доска
+     собирается настоящим journalToBoard — то есть песочница проверяет тот же
+     путь данных, что и бой. Все запросы раздела копятся в window.__ops.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: записи через CRM</title>
+</head>
+<body>
+  <div id="page-records"></div>
+  <script type="module">
+    import { parseJournal, journalToBoard } from '../shared/crmJournal.js';
+
+    const params = new URLSearchParams(location.search);
+    const ME = 'Иванов Иван Иванович';
+    const pad = (n) => String(n).padStart(2, '0');
+    const msk = new Date(Date.now() + 3 * 3600e3);
+    const ISO = `${msk.getUTCFullYear()}-${pad(msk.getUTCMonth() + 1)}-${pad(msk.getUTCDate())}`;
+    const tmr = new Date(Date.now() + 27 * 3600e3);
+    const ISO_TMR = `${tmr.getUTCFullYear()}-${pad(tmr.getUTCMonth() + 1)}-${pad(tmr.getUTCDate())}`;
+    const dd = (iso) => iso.split('-').reverse().join('.');
+    const toIso = (d) => d.split('.').reverse().join('-');
+
+    // Сырой журнал, как его отдаёт CRM: строки, `creator` пустой у самозаписи.
+    const stations = [
+      { id: '8', address: 'СПб, Выборгское шоссе 2', posts_count: '2', metro: 'Озерки' },
+      { id: '1', address: 'СПб, Фучика 23А', posts_count: '1', metro: 'Бухарестская' },
+      { id: '179', address: 'СПб, Уральская 7', posts_count: '2', metro: 'Василеостровская' },
+    ];
+    let nextId = 900000;
+    const records = [
+      { id: String(nextId++), address_id: '8', time: '10:00', record_time: `${ISO} 10:00:00`, name: 'Ольга', phone: '+7 (921) 000-11-22', phone_d: '79210001122', car_number: 'А123ВС198', comment: 'двс', creator: '', st: '', is_new: 0 },
+      { id: String(nextId++), address_id: '8', time: '12:00', record_time: `${ISO} 12:00:00`, name: 'Пётр акпп', phone_d: '79213334455', phone: '79213334455', car_number: '', comment: '', creator: 'Петрова Мария Сергеевна', st: '', is_new: 1 },
+      { id: String(nextId++), address_id: '8', time: '12:30', record_time: `${ISO} 12:30:00`, name: 'Пётр акпп', phone_d: '79213334455', phone: '79213334455', car_number: '', comment: '', creator: 'Петрова Мария Сергеевна', st: '', is_new: 1 },
+    ];
+    const journalFor = (iso) => ({
+      ok: true, date: iso, stations,
+      records: records.filter(r => r.record_time.startsWith(iso)),
+    });
+
+    window.__ops = [];
+    const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+
+    // Применение операций — так, как это делает бэкенд (records/journalOps.js),
+    // только без сети: слоты цепочки, автор из «сессии», удаление по id.
+    function applyOp({ type, payload: p }) {
+      if (type === 'create') {
+        const n = Math.max(1, Math.ceil((Number(p.durationMinutes) || 30) / 30));
+        const iso = toIso(p.date);
+        const [h, m] = p.time.split(':').map(Number);
+        for (let i = 0; i < n; i++) {
+          const t = h * 60 + m + i * 30;
+          const time = `${pad(Math.floor(t / 60))}:${pad(t % 60)}`;
+          const busy = records.filter(r => r.address_id === String(p.addressId) && r.record_time.startsWith(iso) && r.time === time).length;
+          const posts = Number(stations.find(s => s.id === String(p.addressId)).posts_count);
+          if (busy >= posts) return json({ error: { code: 'refused', message: `в ${time} на станции нет свободного поста` } }, 409);
+        }
+        const ids = [];
+        for (let i = 0; i < n; i++) {
+          const t = h * 60 + m + i * 30;
+          const time = `${pad(Math.floor(t / 60))}:${pad(t % 60)}`;
+          const id = String(nextId++);
+          ids.push(id);
+          records.push({ id, address_id: String(p.addressId), time, record_time: `${iso} ${time}:00`,
+            name: p.name, phone: p.phone, phone_d: String(p.phone || '').replace(/\D/g, ''),
+            car_number: i ? '' : (p.carNumber || ''), comment: i ? '' : (p.comment || ''),
+            creator: ME, st: '', is_new: 1 });
+        }
+        return json({ ok: true, created: ids, author: ME });
+      }
+      if (type === 'update') {
+        for (const r of p.records) {
+          const rec = records.find(x => x.id === String(r.id));
+          if (!rec) return json({ error: { code: 'refused', message: 'этой записи больше нет — обновите доску' } }, 409);
+          if (r.addressId) rec.address_id = String(r.addressId);
+          if (r.time) rec.time = r.time;
+          if (r.date || r.time) rec.record_time = `${r.date ? toIso(r.date) : rec.record_time.slice(0, 10)} ${rec.time}:00`;
+          if (r.name != null) rec.name = r.name;
+          if (r.phone) { rec.phone = r.phone; rec.phone_d = r.phone.replace(/\D/g, ''); }
+          if ('carNumber' in r) rec.car_number = r.carNumber;
+          if ('comment' in r) rec.comment = r.comment;
+        }
+        return json({ ok: true, updated: p.records.length });
+      }
+      if (type === 'delete') {
+        for (const r of p.records) {
+          const i = records.findIndex(x => x.id === String(r.id));
+          if (i >= 0) records.splice(i, 1);
+        }
+        return json({ ok: true, deleted: p.records.length });
+      }
+      return json({ error: { code: 'refused', message: 'неизвестная операция' } }, 409);
+    }
+
+    const realFetch = window.fetch;
+    window.fetch = async (url, init) => {
+      const u = String(url);
+      if (u.includes('/api/auth/me')) return json({ user: { id: 1, login: 'ivanov', display_name: 'Серёга', role: 'user' } });
+      if (u.includes('/api/journal/status')) {
+        if (params.get('gate')) return json({ error: { code: 'crm_link_required', message: 'для записи нужна своя учётка CRM — привяжите её в профиле' } }, 403);
+        return json({ today: dd(ISO), tomorrow: dd(ISO_TMR), credentials: true, alive: true, queue: {}, crm: { user: ME, canBook: true } });
+      }
+      if (u.includes('/api/journal/board')) {
+        const date = new URL(u, location.href).searchParams.get('date') || dd(ISO);
+        const board = journalToBoard(parseJournal(journalFor(toIso(date))));
+        board.date = date;
+        const authors = {};
+        for (const byTime of Object.values(board.cells)) for (const c of Object.values(byTime)) for (const r of c.records) {
+          if (r.creator) authors[r.id] = { id: null, display_name: r.creator, avatar: null, counted: true, crm: true };
+        }
+        return json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: [], authors });
+      }
+      if (u.includes('/api/journal/ops') && init?.method === 'POST') {
+        const body = JSON.parse(init.body);
+        window.__ops.push(body);
+        return applyOp(body);
+      }
+      if (u.includes('/api/journal/ops')) return json({ ops: [] });
+      if (u.includes('/api/records/stations')) return json({ stations: {} });
+      if (u.includes('/api/crm/login')) return json({ ok: true, linked: true });
+      return realFetch(url, init);
+    };
+
+    const { startRecords } = await import('/src/records/records.js');
+    startRecords(document.getElementById('page-records'));
+  </script>
+</body>
+</html>

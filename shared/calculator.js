@@ -561,8 +561,16 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
         if (!eligible0w.length) eligible0w = rated0w;
         const sufficient0w = cheapestFirst(eligible0w, calcState);
         const mid0w = sufficient0w.length ? sufficient0w[0].oil : fallback0w;
-        let second0w = null;
-        if (calcState.ignoreApprovals && rated0w.length > 1) second0w = rated0w[1].oil;
+        // Вторым вариантом показываем следующее подходящее масло той же
+        // вязкости, а не только в режиме «игнорировать допуска». Раньше на
+        // 0W-20 карточка была одна, и разговор упирался в неё: не устроила
+        // цена — предложить взамен нечего, хотя в каталоге лежит второе масло
+        // этой же вязкости. Порядок тот же, что у основного выбора: сперва то,
+        // что закрывает те же требования (внутри — дешевле сначала), потом
+        // остальное по рейтингу.
+        const rest0w = [...sufficient0w.slice(1),
+                        ...eligible0w.filter(r => !sufficient0w.includes(r))];
+        const second0w = (rest0w.find(r => r.oil !== mid0w) || {}).oil || null;
         agg.approvals = carApp0w;
         agg.allCandidates = rated0w.map(r => r.oil);
         agg.topCandidates = sufficient0w.map(r => r.oil);
@@ -678,12 +686,30 @@ export function pickEngineOils(agg, shopOils, calcState, carApprovals) {
     agg.spotWarn = null;
     const spotRated = shopOils.filter(o => o.isSpot && o.v === targetVisc).map(rateOil);
     for (const r of spotRated) r.classOk = !requiredClass || oilMeetsClass(r.oil, requiredClass);
-    const pickSpot = (list) => (list.find(r => r.oil.tier === (needPro ? 'pro' : 'optimal'))
+    // Какой тир своего масла предлагать. По умолчанию ('auto') — как и раньше,
+    // по требованиям мотора. Но в бочке на станции стоит то, что стоит, и
+    // калькулятор об этом не знает: оператор переключает тир руками, и его
+    // выбор перебивает автоматику. Молчать при этом нельзя — если выбранный
+    // тир мотору не годится, причина уезжает в spotWarn рядом с карточкой.
+    const wantTier = (calcState.spotTier === 'optimal' || calcState.spotTier === 'pro')
+        ? calcState.spotTier : null;
+    const tierPref = wantTier || (needPro ? 'pro' : 'optimal');
+    const pickSpot = (list) => (list.find(r => r.oil.tier === tierPref)
         || [...list].sort((a, b) => oilPriceFor(a.oil, calcState) - oilPriceFor(b.oil, calcState))[0]).oil;
     const spotFit = spotRated.filter(r => !r.blocked && r.classOk);
     const spotSafe = spotRated.filter(r => !r.blocked);
+    const forcedSpot = wantTier ? spotRated.find(r => r.oil.tier === wantTier) : null;
     let spot = null;
-    if (spotFit.length) {
+    if (forcedSpot) {
+        spot = forcedSpot.oil;
+        if (forcedSpot.blocked) {
+            agg.spotWarn = `${spot.b} ${spot.n} выбран вручную, но мотору не подходит: ` +
+                           `${(forcedSpot.fitNotes || []).join('; ')}`;
+        } else if (!forcedSpot.classOk) {
+            agg.spotWarn = `${spot.b} ${spot.n} выбран вручную — класса ${requiredClass} ` +
+                           'у него нет, проверь, требует его завод или только разрешает';
+        }
+    } else if (spotFit.length) {
         spot = pickSpot(spotFit);
     } else if (spotSafe.length) {
         // Класса нет, но и физического запрета нет. Отличить «завод ТРЕБУЕТ
@@ -769,6 +795,16 @@ export function manualOilWarn(agg) {
     return null;
 }
 
+// Фильтр в МКПП есть не у всех коробок и ставится не всегда, поэтому он
+// галочка, а не часть расчёта. Цена та же, что у фильтра АКПП, — это та же
+// работа и та же деталь со склада, и разводить два числа незачем.
+export const MKPP_FILTER_COST = 1700;
+
+export function mkppFilterCost(agg, calcState) {
+    return (agg && agg.key === 'manual' && calcState && calcState.mkppFilter)
+        ? MKPP_FILTER_COST : 0;
+}
+
 export function manualWarnText(warn) {
     if (!warn) return '';
     if (warn.reason === 'notFound') {
@@ -833,6 +869,10 @@ export function calcForAggregate(agg, calcState, carApprovals) {
 
     // Oil selection
     let oil1, oil2;
+    // Варн МКПП уезжает в результат и тогда, когда расчёт всё-таки сделан
+    // («всё равно посчитать»): и карточка, и текст для Битрикса обязаны
+    // показывать его рядом с ценой, а не вместо неё.
+    let mkppWarnOut = null;
     if (agg.group === 'engine') {
         const picks = pickEngineOils(agg, shopOils, calcState, carApprovals);
         oil1 = picks.mid;
@@ -858,12 +898,18 @@ export function calcForAggregate(agg, calcState, carApprovals) {
         }
     } else {
         const mkppWarn = manualOilWarn(agg);
-        if (mkppWarn) {
-            agg.mkppWarn = mkppWarn;
+        agg.mkppWarn = mkppWarn;
+        mkppWarnOut = mkppWarn;
+        // Нужного Motul масла у нас нет — но разговор на этом не кончается.
+        // Раньше калькулятор просто прятал расчёт, и на вопрос «а сколько
+        // будет?» оператор считал в уме. Теперь есть «всё равно посчитать»:
+        // считаем на том, что реально стоит на полке (75W-90), а
+        // предупреждение никуда не девается — оно остаётся и на карточке, и в
+        // тексте для Битрикса, чтобы цена не выглядела подобранной по книге.
+        if (mkppWarn && !calcState.mkppForce) {
             return { mkppWarn, costs: [], vCalc, formula, volumeStr,
                      vService, motulVol, overrideUsed };
         }
-        agg.mkppWarn = null;
         const isCvtGear = agg.rawText && /CVT/i.test(agg.rawText);
         const defs = isCvtGear ? defaults.cvt : defaults.gear75W90;
         oil1 = defs[0]; oil2 = defs[1];
@@ -918,8 +964,9 @@ export function calcForAggregate(agg, calcState, carApprovals) {
             }
         } else {
             const labor = 1900 + 550;
-            total = price * vCalc + labor;
-            breakdown = `${price} × ${vCalc} + 1900 + 550`;
+            const flt = mkppFilterCost(agg, calcState);
+            total = price * vCalc + labor + flt;
+            breakdown = `${price} × ${vCalc} + 1900 + 550${flt ? ` + ${flt} (фильтр)` : ''}`;
         }
         // ЕДИНСТВЕННОЕ место, где применяется скидка: `total` уже уценён, и
         // ниже по течению (итого, отчёт, карточки) её накидывать нельзя.
@@ -934,7 +981,8 @@ export function calcForAggregate(agg, calcState, carApprovals) {
     // вариант на 500–1000 ₽ дороже подходящего.
     if (agg.group === 'engine') costs.sort((a, b) => a.total - b.total);
 
-    return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush };
+    return { costs, vCalc, formula, volumeStr, vService, motulVol, overrideUsed, flush,
+             mkppWarn: mkppWarnOut };
 }
 
 // ── Totals ────────────────────────────────────────────────────────────────────

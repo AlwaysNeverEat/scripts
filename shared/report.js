@@ -7,7 +7,7 @@
 
 import { roundL, calcForAggregate, getAggregates, filtersTotal,
          totalAggLabel, totalOilLabel, computeTotalSum,
-         manualWarnText, sumpCost, discountNote } from './calculator.js';
+         manualWarnText, mkppFilterCost, sumpCost, discountNote } from './calculator.js';
 
 // ── Per-aggregate text block ──────────────────────────────────────────────────
 
@@ -96,7 +96,12 @@ export function formatAggText(agg, calc, calcState) {
     } else {
         const vService = roundL(calc.vService).toFixed(1);
         lines.push(`${agg.label.toLowerCase()} (${vService}л)`);
+        // Предупреждение остаётся в тексте и когда расчёт всё-таки сделан
+        // («всё равно посчитать»): цена в лиде не должна выглядеть подобранной
+        // по книге, если книга этого масла не знает.
         if (calc.mkppWarn) lines.push(manualWarnText(calc.mkppWarn));
+        const mkppFlt = mkppFilterCost(agg, calcState);
+        if (mkppFlt) lines.push(`фильтр ${mkppFlt}₽`);
         calc.costs.forEach(c => lines.push(`${c.oil.b} ${c.oil.n} ${c.price}₽/л = ${c.total}₽${discountNote(calcState)}`));
     }
     return lines.join('\n');

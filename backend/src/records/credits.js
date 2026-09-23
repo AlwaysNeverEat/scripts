@@ -90,6 +90,11 @@ export function creditDetails(op) {
 // Записать операцию: очком (counted = true) или без него, но с автором и
 // причиной. Идемпотентно по op_id: повторная отметка done не удвоит счётчик.
 // → true, если строка нужна была (и появилась), false — если писать нечего.
+//
+// `result.recordId` — номер записи, если он известен СРАЗУ. Журнал CRM отдаёт
+// его в ответе на создание, и тогда искать запись следующим синком доски
+// (resolveCreditRecordIds) не нужно; старая админка его не отдавала — там
+// поле остаётся пустым до синка.
 export async function creditOp(op, result = {}, { db = query } = {}) {
     const skip = creditSkipReason(op, result);
     if (skip && !RECORDED_SKIPS.has(skip)) return false;
@@ -97,11 +102,12 @@ export async function creditOp(op, result = {}, { db = query } = {}) {
     await db(
         `INSERT INTO record_credits
             (op_id, user_id, station_id, station_title, record_date, record_time,
-             duration_min, client_name, phone, car_number, counted, skip_reason)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             duration_min, client_name, phone, car_number, counted, skip_reason, record_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (op_id) DO NOTHING`,
         [op.id, op.userId, d.stationId, d.stationTitle, d.recordDate, d.recordTime,
-         d.durationMin, d.clientName, d.phone, d.carNumber, !skip, skip || ''],
+         d.durationMin, d.clientName, d.phone, d.carNumber, !skip, skip || '',
+         result.recordId != null ? String(result.recordId) : null],
     );
     return true;
 }

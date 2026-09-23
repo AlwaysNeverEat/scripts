@@ -1763,6 +1763,15 @@ input[data-edit-filter-absent]:checked::after {
 .atp-flags .chk-label b { color: var(--accent); font-weight: 600; }
 .atp-flag-note { display: block; font-size: 11px; color: var(--sub); margin-top: 2px; }
 
+/* МКПП: «всё равно посчитать» стоит сразу под предупреждением — это ответ
+   ровно на него, а не отдельная настройка расчёта */
+.mkpp-force { margin: var(--s-2) 0 var(--s-3); }
+.mkpp-force .btn { font-size: 12px; }
+
+/* Тир своего масла: подпись строкой над дорожкой — дорожка тянется во всю
+   ширину, как «Пробег» и «Промывка», и рядом с подписью ей места не хватает */
+.spot-tier { display: flex; flex-direction: column; gap: var(--s-1); margin: var(--s-3) 0; }
+
 /* Варианты масел */
 .oil-option {
   background: var(--bg2);
