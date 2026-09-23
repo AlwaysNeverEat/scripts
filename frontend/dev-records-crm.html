@@ -17,7 +17,7 @@
 <body>
   <div id="page-records"></div>
   <script type="module">
-    import { parseJournal, journalToBoard } from '../shared/crmJournal.js';
+    import { parseJournal, journalToBoard, bookingOpen, BOOKING_LEAD_MIN } from '../shared/crmJournal.js';
 
     const params = new URLSearchParams(location.search);
     const ME = 'Иванов Иван Иванович';
@@ -51,8 +51,12 @@
 
     // Применение операций — так, как это делает бэкенд (records/journalOps.js),
     // только без сети: слоты цепочки, автор из «сессии», удаление по id.
+    const tooSoon = (iso, time) => json({ error: { code: 'refused',
+      message: `на ${time} уже не записать — записываем не позднее чем за ${BOOKING_LEAD_MIN} минут до визита` } }, 409);
+
     function applyOp({ type, payload: p }) {
       if (type === 'create') {
+        if (!bookingOpen(toIso(p.date), p.time)) return tooSoon(toIso(p.date), p.time);
         const n = Math.max(1, Math.ceil((Number(p.durationMinutes) || 30) / 30));
         const iso = toIso(p.date);
         const [h, m] = p.time.split(':').map(Number);
@@ -80,6 +84,13 @@
         for (const r of p.records) {
           const rec = records.find(x => x.id === String(r.id));
           if (!rec) return json({ error: { code: 'refused', message: 'этой записи больше нет — обновите доску' } }, 409);
+          const toDate = r.date ? toIso(r.date) : rec.record_time.slice(0, 10);
+          const moved = (r.time && r.time !== rec.time) || toDate !== rec.record_time.slice(0, 10)
+            || (r.addressId && String(r.addressId) !== rec.address_id);
+          if (moved && !bookingOpen(toDate, r.time || rec.time)) return tooSoon(toDate, r.time || rec.time);
+        }
+        for (const r of p.records) {
+          const rec = records.find(x => x.id === String(r.id));
           if (r.addressId) rec.address_id = String(r.addressId);
           if (r.time) rec.time = r.time;
           if (r.date || r.time) rec.record_time = `${r.date ? toIso(r.date) : rec.record_time.slice(0, 10)} ${rec.time}:00`;
@@ -110,7 +121,7 @@
       }
       if (u.includes('/api/journal/board')) {
         const date = new URL(u, location.href).searchParams.get('date') || dd(ISO);
-        const board = journalToBoard(parseJournal(journalFor(toIso(date))));
+        const board = journalToBoard(parseJournal(journalFor(toIso(date))), { now: Date.now() });
         board.date = date;
         const authors = {};
         for (const byTime of Object.values(board.cells)) for (const c of Object.values(byTime)) for (const r of c.records) {

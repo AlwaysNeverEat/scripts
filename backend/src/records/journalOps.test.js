@@ -10,6 +10,8 @@ import { forgetActor } from '../crm/journal.js';
 import { parseJournal } from '../../../shared/crmJournal.js';
 
 const PERMS = { user: 'Иванов Иван Иванович', role_name: 'Call центр', privileges: [7] };
+// 1 октября 2026, 09:00 по Москве — утро того дня, на который записывают.
+const NOW = Date.parse('2026-10-01T09:00:00+03:00');
 
 // Живой день из двух станций: на 8-й два поста, на 1-й один.
 function dayWith(records = []) {
@@ -47,6 +49,9 @@ function stand({ busyAt = [], journal = dayWith() } = {}) {
         io,
         day: async () => journal,
         credit: async (op, result) => { credits.push({ op, result }); return true; },
+        // «Сейчас» прибито: иначе тест на 1 октября начал бы падать сам, как
+        // только этот день наступит.
+        now: () => NOW,
     };
     const saves = () => calls.filter(c => c.body?.action === 'journal_save').map(c => c.body);
     return { calls, deps, credits, saves };
@@ -224,4 +229,66 @@ test('удаление без станции не уходит в CRM', async ()
 
 test('неизвестная операция — отказ', async () => {
     await assert.rejects(() => applyJournalOp('u1', 'purge', {}, stand().deps), /create \| update \| delete/);
+});
+
+// ── Не позднее чем за час ───────────────────────────────────────────────────
+// Правило СЕРВЕРНОЕ: доска прячет кнопки у слотов ближе часа, но спрятанная
+// кнопка — не запрет, и запрос в обход неё обязан получить отказ здесь.
+
+test('записать ближе чем за час нельзя — даже в обход кнопки', async () => {
+    forgetActor('u1');
+    const s = stand();
+    // Сейчас 09:00: 09:30 — через полчаса.
+    await assert.rejects(
+        () => applyJournalOp('u1', 'create', { ...CREATE, time: '09:30', durationMinutes: 30 }, s.deps),
+        (err) => {
+            assert.ok(err instanceof OpRefused);
+            assert.match(err.message, /на 09:30 уже не записать/);
+            assert.match(err.message, /за 60 минут/);
+            return true;
+        },
+    );
+    assert.equal(s.saves().length, 0, 'до CRM запрос не дошёл');
+});
+
+test('ровно за час — ещё можно', async () => {
+    forgetActor('u1');
+    const s = stand();
+    await applyJournalOp('u1', 'create', { ...CREATE, time: '10:00', durationMinutes: 30 }, s.deps);
+    assert.equal(s.saves().length, 1);
+});
+
+test('в прошлое записать нельзя', async () => {
+    forgetActor('u1');
+    const s = stand();
+    await assert.rejects(
+        () => applyJournalOp('u1', 'create', { ...CREATE, date: '30.09.2026', time: '15:00' }, s.deps),
+        /уже не записать/,
+    );
+});
+
+test('перенос на время ближе часа — отказ, запись остаётся где была', async () => {
+    forgetActor('u1');
+    const journal = dayWith([{ id: '11', address_id: '1', time: '15:00', name: 'Андрей', phone_d: '79117917147' }]);
+    const s = stand({ journal });
+    await assert.rejects(
+        () => applyJournalOp('u1', 'update', {
+            boardDate: '01.10.2026',
+            records: [{ id: '11', name: 'Андрей', addressId: '1', date: '01.10.2026', time: '09:30',
+                        from: { addressId: '1', date: '01.10.2026', time: '15:00' } }],
+        }, s.deps),
+        /на 09:30 уже не записать/,
+    );
+    assert.equal(s.saves().length, 0);
+});
+
+test('правка полей у близкой записи — можно: клиент звонит уточнить госномер', async () => {
+    forgetActor('u1');
+    // До записи полчаса, но её никуда не двигают.
+    const journal = dayWith([{ id: '11', address_id: '1', time: '09:30', name: 'Андрей', phone_d: '79117917147' }]);
+    const s = stand({ journal });
+    await applyJournalOp('u1', 'update', {
+        boardDate: '01.10.2026', records: [{ id: '11', name: 'Андрей', carNumber: 'К753АЕ198' }],
+    }, s.deps);
+    assert.equal(s.saves()[0].car_number, 'К753АЕ198');
 });

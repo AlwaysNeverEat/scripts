@@ -54,6 +54,30 @@ export function journalSlots() {
 // backend/src/crm/journal.js, createBooking.
 export const DURATIONS = [30, 60, 90, 120, 150];
 
+// ── Запас до визита ──────────────────────────────────────────────────────────
+//
+// Записать можно не позднее чем за ЧАС до начала слота, по московскому
+// времени. Это НАШЕ правило, а не CRM: у неё в журнале запас 50 минут, в
+// окне «Магазина» — от нуля до трёх часов по роли, и держится всё это только
+// на кнопках, которые спрятаны в браузере. Прошлая админка просто не отдавала
+// ссылок «добавить» ближе часа, и раздел считал такие слоты закрытыми по
+// отсутствию ячейки. Журнал отдаёт день целиком, поэтому правило теперь
+// живёт здесь и проверяется ДВАЖДЫ: доска закрывает слоты (journalToBoard с
+// `now`), а сервер отказывает в операции (records/journalOps.js), даже если
+// запрос пришёл в обход кнопки.
+export const BOOKING_LEAD_MIN = 60;
+
+// Момент начала слота в миллисекундах — по Москве, а не по часам машины.
+export function slotStartMs(dateIso, time) {
+    return Date.parse(`${dateIso}T${time}:00+03:00`);
+}
+
+// Можно ли ещё записать на этот слот в момент `now`.
+export function bookingOpen(dateIso, time, now = Date.now(), leadMin = BOOKING_LEAD_MIN) {
+    const at = slotStartMs(dateIso, time);
+    return Number.isFinite(at) && at >= now + leadMin * 60_000;
+}
+
 export function durationSlots(minutes) {
     const n = Math.round(Number(minutes) / SLOT_MINUTES);
     return Number.isFinite(n) && n >= 1 ? n : 1;
@@ -310,7 +334,12 @@ function boardStatus(rec) {
     return rec.isNew ? 'is-new' : '';
 }
 
-export function journalToBoard(journal, { stubDigits = '71111111111' } = {}) {
+// `now` — момент, от которого считается запас до визита. Без него доска
+// отдаёт день как есть (так её собирают тесты и разбор); с ним слоты ближе
+// часа закрываются ровно так, как их закрывала старая админка: пустой такой
+// слот теряет ячейку (раздел рисует его «уже не записать»), а занятый
+// остаётся со своими записями, но без свободных мест.
+export function journalToBoard(journal, { stubDigits = '71111111111', now = null } = {}) {
     const j = journal && journal.ok ? journal : { date: '', stations: [], records: [] };
 
     const addresses = j.stations.map(s => ({
@@ -357,10 +386,12 @@ export function journalToBoard(journal, { stubDigits = '71111111111' } = {}) {
     // Свободные места — только там, где станция вообще есть: считать их по
     // каждому слоту заранее дешевле, чем искать станцию при каждой отрисовке.
     const slots = journalSlots();
+    const closed = (t) => now != null && !bookingOpen(j.date, t, now);
     for (const a of addresses) {
         for (const t of slots) {
             const c = cell(a.id, t);
-            c.free = Math.max(a.posts - c.records.length, 0);
+            c.free = closed(t) ? 0 : Math.max(a.posts - c.records.length, 0);
+            if (closed(t) && !c.records.length) delete cells[a.id][t];
         }
     }
 

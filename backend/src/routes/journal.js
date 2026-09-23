@@ -154,7 +154,10 @@ router.get('/board', async (req, res) => {
     if (!iso) return bad(res, 'дата должна быть ДД.ММ.ГГГГ');
     const date = isoToDdmm(iso);
     try {
-        const board = journalToBoard(await fetchJournal(req.user.id, iso));
+        // `now` закрывает слоты ближе часа — так же, как их закрывала старая
+        // админка (см. BOOKING_LEAD_MIN). Сама операция проверяет то же
+        // правило ещё раз, на случай запроса мимо кнопки.
+        const board = journalToBoard(await fetchJournal(req.user.id, iso), { now: Date.now() });
         board.date = date;
         let credits = {};
         try { credits = await loadBoardAuthors(date, board); } catch { /* топ не повод прятать доску */ }

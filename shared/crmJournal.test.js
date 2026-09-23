@@ -11,6 +11,7 @@ import {
     journalSavePayload, journalDeletePayload,
     parseSaveResult, parseDeleteResult, parseUserPerms,
     journalSlots, durationSlots, DURATIONS, PRIV_RECORDS, journalToBoard,
+    bookingOpen, BOOKING_LEAD_MIN,
 } from './crmJournal.js';
 import { isJunkPhone, timeToMin, SLOT_MINUTES } from './crmRecords.js';
 
@@ -398,4 +399,43 @@ test('пустой журнал даёт пустую доску, а не пад
     const b = journalToBoard(parseJournal({ ok: false, message: 'нет доступа' }));
     assert.deepEqual(b.addresses, []);
     assert.equal(b.timeSlots.length, 24, 'сетка времён есть всегда — по ней рисуют пустой день');
+});
+
+// ── Не позднее чем за час ───────────────────────────────────────────────────
+
+test('запас до визита — час, по московскому времени', () => {
+    assert.equal(BOOKING_LEAD_MIN, 60);
+    const now = Date.parse('2026-09-23T12:00:00+03:00');
+    assert.equal(bookingOpen('2026-09-23', '12:30', now), false, 'через полчаса — нельзя');
+    assert.equal(bookingOpen('2026-09-23', '13:00', now), true, 'ровно через час — можно');
+    assert.equal(bookingOpen('2026-09-23', '11:00', now), false, 'в прошлое — нельзя');
+    assert.equal(bookingOpen('2026-09-24', '09:00', now), true, 'завтра — можно');
+    // Машина в UTC, а в Москве уже полночь: 23:30 UTC 23-го = 02:30 МСК 24-го.
+    const lateUtc = Date.parse('2026-09-23T23:30:00Z');
+    assert.equal(bookingOpen('2026-09-24', '03:00', lateUtc), false, 'считается по Москве');
+});
+
+test('доска с `now` закрывает слоты ближе часа так же, как старая админка', () => {
+    const j = parseJournal({
+        ok: true, date: '2026-09-23',
+        stations: [{ id: '8', address: 'X', posts_count: '2' }],
+        records: [{ id: '1', address_id: '8', time: '12:30', record_time: '2026-09-23 12:30:00', name: 'Ольга' }],
+    });
+    const b = journalToBoard(j, { now: Date.parse('2026-09-23T12:00:00+03:00') });
+    const c = b.cells['8'];
+
+    // Пустой слот ближе часа — без ячейки: раздел рисует его «уже не записать».
+    assert.equal(c['12:00'], undefined);
+    // Занятый слот ближе часа — остаётся с записью, но без свободных мест.
+    assert.equal(c['12:30'].records.length, 1);
+    assert.equal(c['12:30'].free, 0, 'второй пост тоже уже не предлагаем');
+    // Через час и дальше — как обычно.
+    assert.equal(c['13:00'].free, 2);
+    // Прошлое утро — тоже без ячеек.
+    assert.equal(c['09:00'], undefined);
+});
+
+test('доска без `now` отдаёт день как есть — для разбора и тестов', () => {
+    const j = parseJournal({ ok: true, date: '2020-01-01', stations: [{ id: '8', address: 'X', posts_count: '1' }], records: [] });
+    assert.equal(journalToBoard(j).cells['8']['09:00'].free, 1);
 });
