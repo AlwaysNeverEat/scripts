@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
     parseLoginForm, buildAnalyseFreePath, resolveCrmUrl, findLogoutLink, closeCrmSession,
-    fetchPage,
+    fetchPage, loginIntoJar,
 } from './client.js';
 
 // ── Заглушка CRM для проверки выхода ────────────────────────────────────────
@@ -252,4 +252,119 @@ test('buildAnalyseFreePath кодирует станцию и запрос', () 
         buildAnalyseFreePath('45', 'W 712/95'),
         '/analyse/free?stations%5B%5D=45&stationsColumns=&withCatalogItems=W%20712%2F95'
         + '&selectionPeriod=&orderByField=price&orderByOrder=ASC');
+});
+
+// ── Вход в переписанную CRM ─────────────────────────────────────────────────
+// На хосте живут две CRM разом: новая (`/re/api.php`, JSON, журнал записи) и
+// прежняя (`/analyse/free`, `/dial_clients/` — «Склад» и «Клиент»). Логинимся
+// обоими способами в ОДИН jar, потому что снаружи не видно, чьи куки кого
+// пускают. Без персональной сессии CRM не знает, кто работает, и записи
+// уходят без автора — ради этого всё и затевалось.
+
+const CRM_PERMS = { user: 'Иванов Иван Иванович', role_name: 'Call центр', privileges: [7] };
+
+// Прежняя форма логина, снятая с живой CRM: action ПУСТОЙ (значит «на эту же
+// страницу»), рядом hidden-поле, без которого бэкенд логин не принимает.
+const OLD_LOGIN_PAGE = "<html><form action='' method='post'>"
+    + "<input type='hidden' name='user_login' value='1' />"
+    + "<input class=\"auth_input\" type='text' name='login' value='' />"
+    + "<input class=\"auth_input\" type='password' name='password' value='' />"
+    + '<button class="auth_submit" type=\'submit\'>Войти</button></form></html>';
+
+// Стенд CRM: журнал запросов + переключатель «вошли или нет».
+function stubCrmHost({ api = true, old = true } = {}) {
+    const seen = [];
+    // Сессии У КАЖДОЙ СВОЯ — это и есть случай, ради которого мы логинимся
+    // дважды: снаружи не видно, пускают ли куки одной CRM в другую.
+    let loggedApi = false;
+    let loggedOld = false;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url, opts = {}) => {
+        const u = new URL(url);
+        const method = opts.method || 'GET';
+        const body = typeof opts.body === 'string' ? opts.body : '';
+        seen.push({ path: u.pathname, search: u.search, method, body });
+
+        if (u.pathname === '/re/api.php') {
+            if (!api) return new Response('not found', { status: 404 });
+            if (method === 'POST' && /action=login/.test(body)) {
+                if (/password=verno/.test(body)) loggedApi = true;
+                return new Response(JSON.stringify({ ok: loggedApi }), { status: 200 });
+            }
+            if (u.search.includes('section=userperms')) {
+                return loggedApi
+                    ? new Response(JSON.stringify(CRM_PERMS), { status: 200 })
+                    : new Response(JSON.stringify({ error: 'auth_required' }), { status: 401 });
+            }
+            return new Response('{}', { status: 200 });
+        }
+        if (!old) return new Response('', { status: 404 });
+        // Прежняя CRM: защищённая страница уводит редиректом на корень, а форма
+        // логина приезжает уже оттуда — из-за этого пустой action и важен.
+        if (u.pathname === '/analyse/free') {
+            return loggedOld
+                ? new Response(LOGGED_IN_PAGE, { status: 200 })
+                : new Response('', { status: 302, headers: { location: '/' } });
+        }
+        if (u.pathname === '/') {
+            if (method === 'POST') {
+                if (/password=verno/.test(body)) loggedOld = true;
+                return new Response('', { status: 200 });
+            }
+            return new Response(OLD_LOGIN_PAGE, { status: 200 });
+        }
+        return new Response('', { status: 404 });
+    };
+    return { seen, restore: () => { globalThis.fetch = realFetch; } };
+}
+
+test('вход: JSON-ручка нынешней CRM — без неё сессия не персональная', async () => {
+    const s = stubCrmHost({ old: false });
+    try {
+        await loginIntoJar(new Map(), 'ivanov', 'verno');
+        const post = s.seen.find(r => r.path === '/re/api.php' && r.method === 'POST');
+        assert.ok(post, 'логин ушёл на /re/api.php');
+        assert.match(post.body, /action=login/);
+        assert.ok(s.seen.some(r => r.search.includes('section=userperms')),
+            'вход подтверждается вопросом «кто я», а не кодом 200');
+    } finally { s.restore(); }
+});
+
+test('вход: ПУСТОЙ action формы означает «на эту же страницу», а не путь входа', async () => {
+    // Регрессия. Раньше сюда подставлялся entryPath (/analyse/free), и это
+    // работало, пока форма жила там же. Теперь /analyse/free отвечает 302 на
+    // `/`, форма приезжает оттуда — и логин уходил обратно на /analyse/free,
+    // где его встречал новый редирект и терял тело запроса. Вход «проходил»,
+    // сессии не появлялось, «Клиент» и «Склад» просили войти заново.
+    const s = stubCrmHost({ api: false });
+    try {
+        await loginIntoJar(new Map(), 'ivanov', 'verno');
+        const form = s.seen.filter(r => r.method === 'POST' && r.path !== '/re/api.php');
+        assert.equal(form.length, 1, 'ровно один POST формы');
+        assert.equal(form[0].path, '/', 'логин ушёл на страницу с формой, а не на /analyse/free');
+        assert.match(form[0].body, /user_login=1/, 'hidden-поле формы уехало вместе с логином');
+    } finally { s.restore(); }
+});
+
+test('вход: обе CRM разом — куки копятся в одном jar', async () => {
+    const s = stubCrmHost();
+    try {
+        await loginIntoJar(new Map(), 'ivanov', 'verno');
+        assert.ok(s.seen.some(r => r.path === '/re/api.php' && r.method === 'POST'), 'новая');
+        assert.ok(s.seen.some(r => r.path === '/' && r.method === 'POST'), 'прежняя');
+    } finally { s.restore(); }
+});
+
+test('вход: неверный пароль — crm_auth_failed, а не «разметка сменилась»', async () => {
+    const s = stubCrmHost();
+    try {
+        await assert.rejects(
+            () => loginIntoJar(new Map(), 'ivanov', 'neverno'),
+            (err) => {
+                assert.equal(err.code, 'crm_auth_failed');
+                assert.match(err.message, /не приняла логин или пароль/);
+                return true;
+            },
+        );
+    } finally { s.restore(); }
 });
