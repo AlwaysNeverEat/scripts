@@ -21,7 +21,7 @@ import { Router } from 'express';
 
 import { CrmError, crmEnsureSession } from '../crm/client.js';
 import {
-    mskDate, crmActor, fetchJournal, createBooking, updateRecord, deleteRecord,
+    mskDate, crmActor, fetchJournal, createBooking, updateRecord, deleteBooking,
 } from '../crm/journal.js';
 import { isBookableTime, isJunkPhone, SLOT_MINUTES } from '../../../shared/crmRecords.js';
 import { DURATIONS } from '../../../shared/crmJournal.js';
@@ -198,18 +198,36 @@ router.post('/move', async (req, res) => {
     }
 });
 
-// Удаление. CRM сносит ВСЮ цепочку связанных слотов и говорит, сколько их
-// было — фронт обязан это показать: «удалил слот» и «удалил полтора часа»
-// для оператора разные вещи.
+// Удаление записи целиком, вместе с продлением.
+//
+// `ids` — вся цепочка, как её видит фронт на доске (слоты подряд, та же
+// станция, тот же клиент), первым идёт голова. Своя цепочка CRM снимается
+// одним запросом, наша — по слоту; какой случай перед нами, решает
+// deleteBooking по ответу, а не по догадке.
+//
+// Сколько слотов ушло, уезжает наружу числом: «удалил слот» и «удалил
+// полтора часа» для оператора разные вещи.
 router.delete('/record/:id', async (req, res) => {
-    const id = parseInt(String(req.params.id), 10);
+    const head = parseInt(String(req.params.id), 10);
     const addressId = parseInt(String(req.query.addressId ?? ''), 10);
-    if (!Number.isFinite(id)) return bad(res, 'не указана запись');
+    if (!Number.isFinite(head)) return bad(res, 'не указана запись');
     if (!Number.isFinite(addressId)) return bad(res, 'не указана станция');
+
+    const rest = String(req.query.ids || '').split(',')
+        .map(x => parseInt(x.trim(), 10)).filter(Number.isFinite);
+    // Голова всегда первая и всегда одна — остальные добавляются за ней.
+    const ids = [head, ...rest.filter(id => id !== head)];
+
     try {
-        const result = await deleteRecord(req.user.id, { id, addressId });
+        const result = await deleteBooking(req.user.id, { ids, addressId });
         if (!result.ok) {
-            return res.status(409).json({ error: { code: 'delete_failed', message: result.message } });
+            return res.status(409).json({
+                error: { code: 'delete_failed', message: result.message },
+                // Слоты, которые снять не удалось, фронт обязан показать:
+                // молча оставленный получас на доске никто не найдёт.
+                left: result.left || [],
+                deleted: result.deleted,
+            });
         }
         res.json(result);
     } catch (err) {

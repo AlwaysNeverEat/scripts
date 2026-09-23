@@ -235,11 +235,51 @@ export async function updateRecord(userId, fields, io = realIo) {
     return parseSaveResult(await io.api(userId, { body: journalSavePayload(fields) }));
 }
 
-// Удаление. CRM сносит ВСЮ цепочку связанных слотов и говорит, сколько их
-// было (`deleted` / `group`) — длинная запись уходит целиком, и вызывающий
-// обязан это показать: «удалил слот» и «удалил полтора часа» — разные вещи.
+// Удаление ОДНОГО слота — точнее, одного запроса: свою цепочку CRM сносит
+// целиком и говорит, сколько слотов ушло (`deleted` / `group`). «Удалил слот»
+// и «удалил полтора часа» для оператора разные вещи, поэтому числа идут
+// наружу как есть.
 export async function deleteRecord(userId, { id, addressId }, io = realIo) {
     return parseDeleteResult(await io.api(userId, {
         body: journalDeletePayload({ id, addressId }),
     }));
+}
+
+// Удаление ЦЕЛОЙ записи, включая продление.
+//
+// Тут нельзя положиться на группировку CRM, и вот почему. Свою цепочку (ту,
+// что она собрала по `duration`) она действительно сносит одним запросом по
+// id головы — проверено: три слота ушли разом. Но наши слоты создаются
+// НЕЗАВИСИМЫМИ записями, и попадут ли они в её группировку, снаружи не видно:
+// если группа хранится отдельным полем, проставленным при создании с
+// `duration`, то у наших его нет, и по голове снесётся ровно один слот.
+//
+// Поэтому: сносим голову, смотрим, сколько CRM сняла на самом деле, и
+// добираем остальные по одному. Слот, которого уже нет, ошибкой не считаем —
+// это ровно тот случай, когда группировка сработала и добирать нечего.
+export async function deleteBooking(userId, { ids, addressId }, io = realIo) {
+    const list = (Array.isArray(ids) ? ids : [ids]).filter(id => id != null);
+    if (!list.length) throw new CrmError('crm_unavailable', 'удаление записи без id');
+
+    const head = await deleteRecord(userId, { id: list[0], addressId }, io);
+    if (!head.ok) return { ok: false, deleted: 0, message: head.message, left: list };
+
+    let deleted = head.deleted || 1;
+    const left = [];
+    // CRM уже сняла всю цепочку — добирать нечего.
+    if (deleted < list.length) {
+        for (const id of list.slice(1)) {
+            const r = await deleteRecord(userId, { id, addressId }, io);
+            if (r.ok) deleted += r.deleted || 1;
+            else left.push(id);
+        }
+    }
+    return {
+        ok: left.length === 0,
+        deleted,
+        left,
+        message: left.length
+            ? `удалено слотов: ${deleted}, не удалось снять: ${left.length}`
+            : head.message,
+    };
 }

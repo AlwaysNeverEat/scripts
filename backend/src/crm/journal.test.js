@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 import {
     mskDate, crmActor, forgetActor, fetchJournal,
-    createRecord, createBooking, updateRecord, deleteRecord,
+    createRecord, createBooking, updateRecord, deleteRecord, deleteBooking,
 } from './journal.js';
 
 const PERMS = {
@@ -296,4 +296,65 @@ test('без права на запись длинная тоже не начи�
         );
         assert.equal(s.calls.filter(c => c.body).length, 0);
     } finally { forgetActor(15); }
+});
+
+// ── Удаление цепочки ────────────────────────────────────────────────────────
+// Свою цепочку (собранную по `duration`) CRM сносит одним запросом по голове —
+// проверено на живой выгрузке: три слота ушли разом. Но НАШИ слоты создаются
+// независимыми записями, и попадут ли они в её группировку, снаружи не видно.
+// Поэтому удаление обязано работать в обоих случаях.
+
+function stubDelete({ groupOf = () => 1, missing = [] } = {}) {
+    const asked = [];
+    const io = {
+        api: async (userId, req) => {
+            const id = Number(req.body.id);
+            asked.push(id);
+            if (missing.includes(id)) return { ok: false, message: 'Запись не найдена' };
+            return { ok: true, deleted: groupOf(id), group: groupOf(id), message: 'Запись удалена' };
+        },
+    };
+    return { io, asked };
+}
+
+test('CRM сгруппировала цепочку сама — добирать нечего, лишних запросов нет', async () => {
+    const s = stubDelete({ groupOf: () => 3 });
+    const r = await deleteBooking(9, { ids: [1, 2, 3], addressId: 8 }, s.io);
+    assert.equal(r.ok, true);
+    assert.equal(r.deleted, 3);
+    assert.deepEqual(s.asked, [1], 'одного запроса хватило');
+});
+
+test('CRM сняла только голову — остальные слоты добираем сами', async () => {
+    const s = stubDelete({ groupOf: () => 1 });
+    const r = await deleteBooking(9, { ids: [1, 2, 3], addressId: 8 }, s.io);
+    assert.equal(r.ok, true);
+    assert.equal(r.deleted, 3);
+    assert.deepEqual(s.asked, [1, 2, 3], 'каждый слот снесён отдельно');
+});
+
+test('слот, который не снялся, назван — молча оставлять его на доске нельзя', async () => {
+    const s = stubDelete({ groupOf: () => 1, missing: [3] });
+    const r = await deleteBooking(9, { ids: [1, 2, 3], addressId: 8 }, s.io);
+    assert.equal(r.ok, false);
+    assert.equal(r.deleted, 2);
+    assert.deepEqual(r.left, [3]);
+    assert.match(r.message, /не удалось снять: 1/);
+});
+
+test('голова не снялась — дальше не идём и говорим почему', async () => {
+    const s = stubDelete({ missing: [1] });
+    const r = await deleteBooking(9, { ids: [1, 2, 3], addressId: 8 }, s.io);
+    assert.equal(r.ok, false);
+    assert.equal(r.deleted, 0);
+    assert.deepEqual(r.left, [1, 2, 3]);
+    assert.deepEqual(s.asked, [1], 'после отказа на голове остальные не трогаем');
+});
+
+test('одиночная запись удаляется тем же путём', async () => {
+    const s = stubDelete();
+    const r = await deleteBooking(9, { ids: 505859, addressId: 8 }, s.io);
+    assert.equal(r.ok, true);
+    assert.equal(r.deleted, 1);
+    await assert.rejects(() => deleteBooking(9, { ids: [], addressId: 8 }, s.io), /без id/);
 });
