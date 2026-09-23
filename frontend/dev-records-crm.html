@@ -143,6 +143,12 @@
       });
     }
 
+    // Чужая запись в общей очереди: как её видит оператор, который её не делал.
+    queue.push({ id: Date.now() * 10 - 5, type: 'create', payload: {}, status: 'done', running: false, lastError: '',
+      author: 'Петрова Мария', group: null, createdAt: new Date(Date.now() - 20 * 60e3).toISOString(),
+      appliedAt: new Date(Date.now() - 20 * 60e3 + 4000).toISOString(), result: { author: 'Петрова Мария Сергеевна' },
+      note: { kind: 'create', name: 'Пётр акпп', phone: '+7 (921) 333-44-55', station: 'СПб, Выборгское шоссе 2', date: dd(ISO), time: '12:00', duration: '1 ч' } });
+
     const realFetch = window.fetch;
     window.fetch = async (url, init) => {
       const u = String(url);
@@ -159,7 +165,7 @@
         for (const byTime of Object.values(board.cells)) for (const c of Object.values(byTime)) for (const r of c.records) {
           if (r.creator) authors[r.id] = { id: null, display_name: r.creator, avatar: null, counted: true, crm: true };
         }
-        return json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: queue.map(o => ({ ...o })), authors });
+        return json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: queue.map(o => ({ ...o, mine: o.author === 'Серёга' })), authors });
       }
       if (u.includes('/api/journal/ops') && init?.method === 'POST') {
         const body = JSON.parse(init.body);
@@ -181,7 +187,7 @@
         if (op && op.status === 'pending') { op.status = 'failed'; op.lastError = 'отменена вручную'; }
         return json({ ok: true });
       }
-      if (u.includes('/api/journal/ops')) return json({ ops: queue.map(o => ({ ...o })) });
+      if (u.includes('/api/journal/ops')) return json({ ops: queue.map(o => ({ ...o, mine: o.author === 'Серёга' })) });
       if (u.includes('/api/records/stations')) return json({ stations: {} });
       if (u.includes('/api/crm/login')) return json({ ok: true, linked: true });
       return realFetch(url, init);
