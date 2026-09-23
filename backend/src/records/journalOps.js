@@ -23,7 +23,7 @@ import {
     fetchJournal, createBooking, updateRecord, deleteBooking,
 } from '../crm/journal.js';
 import { CrmError } from '../crm/client.js';
-import { journalToBoard } from '../../../shared/crmJournal.js';
+import { journalToBoard, bookingOpen, BOOKING_LEAD_MIN } from '../../../shared/crmJournal.js';
 import {
     extendsExistingRecord, findSlotConflict, addMinutes, timeToMin, SLOT_MINUTES,
 } from '../../../shared/crmRecords.js';
@@ -50,6 +50,16 @@ function requireDate(d, what) {
     return iso;
 }
 
+// Запас до визита — не позднее чем за час. Проверка СЕРВЕРНАЯ: доска прячет
+// кнопки у слотов ближе часа, но спрятанная кнопка — это не запрет, и запрос
+// в обход неё обязан получить отказ здесь.
+function requireLead(iso, time, now) {
+    if (!bookingOpen(iso, time, now)) {
+        throw new OpRefused(
+            `на ${time} уже не записать — записываем не позднее чем за ${BOOKING_LEAD_MIN} минут до визита`);
+    }
+}
+
 // Журналы дней, которые понадобились одной операции: правка может трогать и
 // день, откуда запись уезжает, и день, куда она едет.
 function journalCache(userId, io) {
@@ -64,6 +74,8 @@ function journalCache(userId, io) {
 
 async function applyCreate(userId, p, deps) {
     const iso = requireDate(p.date, 'запись');
+    // Хватает первого слота: остальные в цепочке идут после него.
+    requireLead(iso, p.time, deps.now());
     const journal = await deps.day(iso);
     const board = journalToBoard(journal);
 
@@ -150,6 +162,11 @@ async function applyUpdate(userId, p, deps) {
             date: r.date ? requireDate(r.date, 'перенос') : cur.date,
             time: r.time || cur.time,
         };
+        // Запас до визита проверяется только там, куда запись ЕДЕТ. Правка
+        // полей у записи, до которой полчаса, — законное дело (клиент звонит
+        // уточнить госномер), и прятать её за правилом нельзя.
+        const moved = target.addressId !== cur.addressId || target.date !== cur.date || target.time !== cur.time;
+        if (moved) requireLead(target.date, target.time, deps.now());
         moves.push({
             id: cur.id,
             cur,
@@ -245,6 +262,7 @@ export async function applyJournalOp(userId, type, payload, deps = {}) {
     const full = {
         io: deps.io,
         credit: deps.credit === undefined ? creditOp : deps.credit,
+        now: deps.now || (() => Date.now()),
     };
     full.day = deps.day || journalCache(userId, full.io);
     if (type === 'create') return applyCreate(userId, payload || {}, full);
