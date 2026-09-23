@@ -21,7 +21,8 @@ import { Router } from 'express';
 
 import { CrmError, crmEnsureSession } from '../crm/client.js';
 import { mskDate, crmActor, fetchJournal } from '../crm/journal.js';
-import { applyJournalOp, OpRefused, ddmmToIso, isoToDdmm } from '../records/journalOps.js';
+import { OpRefused, ddmmToIso, isoToDdmm, precheckJournalOp } from '../records/journalOps.js';
+import { journalQueue, OP_TYPES } from '../records/journalQueue.js';
 import { loadBoardAuthors } from '../records/credits.js';
 import { journalToBoard } from '../../../shared/crmJournal.js';
 
@@ -82,6 +83,18 @@ export function crmGate(ensure = crmEnsureSession) {
         }
     };
 }
+
+// Список своих операций — ДО замка: он живёт в памяти процесса и CRM не
+// трогает, а раздел опрашивает его раз в секунду, пока что-то исполняется.
+// Проверять на каждом опросе сессию CRM значило бы ходить в базу впустую.
+router.get('/ops', (req, res) => res.json({ ops: journalQueue.list(req.user.id) }));
+
+// Отменить операцию, которая ещё не ушла в CRM.
+router.delete('/ops/:id', (req, res) => {
+    const ok = journalQueue.cancel(req.user.id, req.params.id);
+    if (!ok) return res.status(409).json({ error: { code: 'refused', message: 'операция уже ушла в CRM — отменить нельзя' } });
+    res.json({ ok: true });
+});
 
 router.use(crmGate());
 
@@ -168,9 +181,9 @@ router.get('/board', async (req, res) => {
             fetchedAt: new Date().toISOString(),
             ok: true,
             error: '',
-            // Очереди больше нет: CRM отвечает сразу, и операция либо
-            // применилась, либо вернула отказ тут же, в том же запросе.
-            ops: [],
+            // Свои операции едут вместе с доской: призраки «записываю…»
+            // рисуются по ним, и доска без них мигнула бы пустой ячейкой.
+            ops: journalQueue.list(req.user.id),
             authors: mergeAuthors(board, credits),
         });
     } catch (err) {
@@ -180,26 +193,54 @@ router.get('/board', async (req, res) => {
 
 // ── Операции ─────────────────────────────────────────────────────────────────
 
-// Те же create / update / delete, что шлёт раздел, но исполняются СРАЗУ и под
-// учёткой того, кто нажал: CRM ставит записи `creator` сама. Отказ по делу
-// («занято», «записи больше нет») приезжает 409 со своим текстом — его
-// показывают в окне как есть.
-router.post('/ops', async (req, res) => {
-    const type = String(req.body?.type || '');
-    const payload = req.body?.payload || {};
+// Подпись операции для уведомления об исходе: кто клиент, какой телефон, какая
+// станция и на какое время. Раздел знает это в момент нажатия, а после того
+// как запись встала (или не встала) — уже нет: окно закрыто, доска могла уехать
+// на другой день. Поэтому подпись едет вместе с операцией и возвращается в
+// списке как есть. Только короткие строки — это текст на экран, не данные.
+export function cleanNote(note) {
+    if (!note || typeof note !== 'object') return null;
+    const out = {};
+    for (const k of ['kind', 'name', 'phone', 'station', 'date', 'time', 'duration']) {
+        if (note[k] == null) continue;
+        const v = String(note[k]).trim().slice(0, 160);
+        if (v) out[k] = v;
+    }
+    return Object.keys(out).length ? out : null;
+}
+
+// Те же create / update / delete, что шлёт раздел, но POST их только СТАВИТ и
+// отвечает сразу: исполняет очередь (records/journalQueue.js) фоном и под
+// учёткой того, кто нажал, — CRM ставит записи `creator` сама. Ждать CRM,
+// держа окно открытым, оператору незачем.
+//
+// Что решается без CRM (формат даты, запас в час), отказывается тут же, 409 с
+// текстом, — в том же окне, пока человек его не закрыл.
+//
+// Правка записи — это до трёх операций (снять хвост, перенести, дописать), и
+// приезжают они ОДНОЙ пачкой `{ ops: [...] }`: проверяются все до одной, а
+// ставятся только если прошли все. Иначе хвост уже снимался бы, а перенос
+// получил бы отказ — и запись осталась бы обрезанной. В очереди у пачки общая
+// метка: не прошёл шаг — следующие не исполняются.
+router.post('/ops', (req, res) => {
+    const body = req.body || {};
+    const list = Array.isArray(body.ops) ? body.ops : [{ type: body.type, payload: body.payload }];
+    if (!list.length || list.length > 5) return bad(res, 'пустая или слишком длинная пачка операций');
+    const steps = list.map(o => ({ type: String(o?.type || ''), payload: o?.payload || {} }));
+    if (steps.some(o => !OP_TYPES.has(o.type))) return bad(res, 'операция бывает create | update | delete');
     try {
-        const result = await applyJournalOp(req.user.id, type, payload);
-        res.json({ ok: true, ...result });
+        for (const o of steps) precheckJournalOp(o.type, o.payload);
     } catch (err) {
         if (err instanceof OpRefused) {
             return res.status(409).json({ error: { code: 'refused', message: err.message } });
         }
-        sendCrmError(res, err);
+        return sendCrmError(res, err);
     }
+    const author = req.user.display_name || req.user.login || '';
+    const note = cleanNote(body.note);
+    const group = steps.length > 1 ? `g${Date.now()}${Math.random().toString(36).slice(2, 6)}` : null;
+    const ops = steps.map(o => journalQueue.enqueue(req.user.id, { ...o, author, group, note }));
+    res.status(202).json({ ok: true, op: ops[ops.length - 1], ops });
 });
-
-// Очереди нет — список пуст всегда. Ручка оставлена, чтобы раздел не
-// спотыкался о 404 там, где раньше показывал «в очереди».
-router.get('/ops', (_req, res) => res.json({ ops: [] }));
 
 export default router;
