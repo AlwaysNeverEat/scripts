@@ -21,6 +21,9 @@ import {
     parseJournal, parseSaveResult, parseDeleteResult, parseUserPerms,
     journalSavePayload, journalDeletePayload,
 } from '../../../shared/crmJournal.js';
+import {
+    buildExtensionOps, isBookableTime, SLOT_MINUTES, MAX_OP_RECORDS, MAX_DURATION_MIN,
+} from '../../../shared/crmRecords.js';
 
 // Весь ввод-вывод — через `io`, как в records/opEngine.js: так журнал можно
 // гонять тестами без сети и без сессии. В бою параметр не передают вовсе.
@@ -84,14 +87,10 @@ export async function fetchJournal(userId, date, io = realIo) {
 
 // ── Запись ───────────────────────────────────────────────────────────────────
 
-// Создание. Возвращает `id` (CRM отдаёт его сразу — искать запись следующим
-// синком доски больше не нужно) и `author` — ФИО из сессии, то есть тот, кому
-// эта запись и будет подписана в самой CRM.
-//
 // Право на запись проверяем ДО похода: CRM откажет своей формулировкой уже
 // после того, как оператор заполнил окно, а «у твоей учётки нет права на
 // запись» надо говорить до того.
-export async function createRecord(userId, fields, io = realIo) {
+async function requireBooker(userId, io) {
     const actor = await crmActor(userId, {}, io);
     if (!actor.canBook) {
         throw new CrmError(
@@ -99,15 +98,130 @@ export async function createRecord(userId, fields, io = realIo) {
             `у учётки CRM «${actor.user}» (${actor.roleName || 'без роли'}) нет права создавать записи`,
         );
     }
+    return actor;
+}
+
+// ОДИН получасовой слот. Длительность всегда 30 минут — длинную запись мы
+// собираем сами (см. createBooking), а `duration` CRM не используем вовсе.
+//
+// Возвращает `id` (CRM отдаёт его сразу — искать запись следующим синком
+// доски больше не нужно) и `author` — ФИО из сессии, то есть того, кому эта
+// запись и будет подписана в самой CRM.
+export async function createRecord(userId, fields, io = realIo) {
+    const actor = await requireBooker(userId, io);
     requireIsoDate(fields.date);
     const res = parseSaveResult(await io.api(userId, {
-        body: journalSavePayload({ ...fields, id: null }),
+        body: journalSavePayload({ ...fields, id: null, durationMinutes: SLOT_MINUTES }),
     }));
     if (!res.ok) return { ...res, author: null };
     // Автор — из сессии, а не из наших полей. Если CRM когда-нибудь начнёт
     // подписывать записи иначе, это расхождение вылезет на первом же чтении
     // доски (`creator` у записи), а не спрячется в нашей догадке.
     return { ...res, author: actor.user || null };
+}
+
+// ── Длинная запись: продление НАШЕЙ сборкой ──────────────────────────────────
+//
+// У CRM для этого есть `duration`, и мы им НЕ пользуемся: её сборка цепочки
+// ведёт себя непредсказуемо, а разбираться в чужом коде, который и так
+// переписывают, дороже, чем собрать цепочку самим. Поэтому длинная запись —
+// это N отдельных получасовых записей подряд, ровно как в старой админке
+// (`buildExtensionOps`), и слоты 2..N отличаются от первого тремя вещами:
+// у них нет госномера, нет комментария и НЕ УХОДИТ СМС. Последнее — главное:
+// клиент записался один раз, и три сообщения подряд о «записи на 11:00,
+// 11:30 и 12:00» выглядят поломкой.
+//
+// Транзакций у CRM нет, поэтому цепочка собирается «всё или ничего» вручную:
+// не удался слот посреди — уже созданные сносим. Это та же причина, по
+// которой существует records/opEngine.js, только здесь всё умещается в один
+// проход: каждый слот создаётся одним запросом и сразу отдаёт свой id.
+async function rollbackSlots(userId, ids, addressId, io) {
+    const left = [];
+    for (const id of ids) {
+        try {
+            const res = await deleteRecord(userId, { id, addressId }, io);
+            if (!res.ok) left.push(id);
+        } catch {
+            // Сеть отвалилась посреди отката — молчать об этом нельзя:
+            // на доске останутся слоты, которых никто не заказывал.
+            left.push(id);
+        }
+    }
+    return left;
+}
+
+export async function createBooking(userId, fields, io = realIo) {
+    const actor = await requireBooker(userId, io);
+    const date = requireIsoDate(fields.date);
+    const minutes = Math.min(Number(fields.durationMinutes) || SLOT_MINUTES, MAX_DURATION_MIN);
+
+    const slots = buildExtensionOps({
+        addressId: fields.addressId,
+        date,
+        time: fields.time,
+        name: fields.name,
+        phone: fields.phone,
+        carNumber: fields.carNumber,
+        comment: fields.comment,
+    }, minutes);
+
+    if (slots.length > MAX_OP_RECORDS) {
+        throw new CrmError('crm_unavailable',
+            `запись на ${minutes} минут — это ${slots.length} слотов, больше ${MAX_OP_RECORDS} за раз не делаем`);
+    }
+    // Проверяем ВЕСЬ хвост до первого запроса: цепочка, упирающаяся в конец
+    // рабочего дня, не должна оставлять после себя половину.
+    const tail = slots.find(s => !isBookableTime(s.time));
+    if (tail) {
+        throw new CrmError('crm_unavailable',
+            `${minutes} минут с ${fields.time} не помещаются в рабочий день — последний слот ${tail.time}`);
+    }
+
+    const ids = [];
+    for (let i = 0; i < slots.length; i++) {
+        let res;
+        try {
+            res = parseSaveResult(await io.api(userId, {
+                body: journalSavePayload({
+                    ...slots[i],
+                    id: null,
+                    durationMinutes: SLOT_MINUTES,
+                    // СМС — только за ПЕРВЫЙ слот: продление клиенту не шлём.
+                    sms: i === 0 ? Boolean(fields.sms) : false,
+                }),
+            }));
+        } catch (err) {
+            const left = await rollbackSlots(userId, ids, fields.addressId, io);
+            throw Object.assign(err, { rolledBack: ids.length - left.length, orphans: left });
+        }
+        if (!res.ok) {
+            const left = await rollbackSlots(userId, ids, fields.addressId, io);
+            return {
+                ok: false,
+                // Говорим, на каком слоте споткнулись: «занято» на третьем
+                // получасе — это не то же самое, что «занято» на первом.
+                message: slots.length > 1
+                    ? `${res.message || 'CRM не сохранила запись'} (слот ${slots[i].time})`
+                    : (res.message || 'CRM не сохранила запись'),
+                ids: [], author: null,
+                rolledBack: ids.length - left.length,
+                orphans: left,
+            };
+        }
+        ids.push(res.id);
+    }
+
+    return {
+        ok: true,
+        // Голова цепочки — та запись, на которую подписывается зачёт и по
+        // которой её потом находят.
+        id: ids[0],
+        ids,
+        slots: ids.length,
+        author: actor.user || null,
+        smsAsked: Boolean(fields.sms),
+        message: '',
+    };
 }
 
 // Правка и перенос — та же ручка, но с `id`. Длительность тут не передаётся

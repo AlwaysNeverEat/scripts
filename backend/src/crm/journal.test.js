@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 import {
     mskDate, crmActor, forgetActor, fetchJournal,
-    createRecord, updateRecord, deleteRecord,
+    createRecord, createBooking, updateRecord, deleteRecord,
 } from './journal.js';
 
 const PERMS = {
@@ -57,7 +57,7 @@ test('кто работает — берётся у CRM и кэшируется'
     } finally { s.restore(); forgetActor(1); }
 });
 
-test('создание уходит под сессией и возвращает id и АВТОРА', async () => {
+test('createRecord — это ОДИН слот: duration у CRM мы не используем', async () => {
     forgetActor(2);
     const s = stubApi((req) => {
         if (req.query === 'section=userperms') return PERMS;
@@ -67,7 +67,7 @@ test('создание уходит под сессией и возвращае�
         const r = await createRecord(2, {
             addressId: 8, date: '2026-10-01', time: '10:30',
             name: 'Андрей', phone: '+7 (911) 791-71-47', carNumber: 'к753ае198',
-            comment: 'тест', durationMinutes: 60,
+            comment: 'тест', durationMinutes: 60,   // просили час…
         }, s.io);
         assert.equal(r.ok, true);
         assert.equal(r.id, 505859);
@@ -77,7 +77,8 @@ test('создание уходит под сессией и возвращае�
         const post = s.calls.find(c => c.body);
         assert.equal(post.body.action, 'journal_save');
         assert.equal(post.body.id, undefined, 'создание идёт без id');
-        assert.equal(post.body.duration, '60');
+        assert.equal(post.body.duration, '30',
+            '…а уходит получас: длинную запись мы собираем сами, см. createBooking');
         assert.equal(post.body.phone, '79117917147');
         assert.equal(post.body.sms, '0', 'СМС по умолчанию не шлём');
         assert.equal(post.userId, 2, 'запрос ушёл под тем самым работником');
@@ -159,4 +160,140 @@ test('удаление сообщает, сколько слотов цепоч�
         assert.deepEqual(s.calls[0].body,
             { action: 'journal_delete', id: '505859', address_id: '8' });
     } finally { s.restore(); }
+});
+
+// ── Длинная запись: цепочку собираем САМИ ───────────────────────────────────
+// У CRM для этого есть `duration`, и мы им не пользуемся: её сборка цепочки
+// ведёт себя непредсказуемо. Длинная запись — это N получасовых записей
+// подряд, как в старой админке.
+
+// Стенд: журнал слотов, любой из которых можно объявить занятым.
+function stubBooking({ busyAt = null, failDelete = false } = {}) {
+    const created = new Map(); // id → time
+    const calls = [];
+    let nextId = 600000;
+    const io = {
+        api: async (userId, req) => {
+            calls.push({ userId, ...req });
+            if (req.query === 'section=userperms') return PERMS;
+            const b = req.body;
+            if (b.action === 'journal_save') {
+                if (busyAt && b.time === busyAt) return { ok: false, message: 'Слот занят' };
+                const id = nextId++;
+                created.set(id, b.time);
+                return { ok: true, id, sms: b.sms === '1', message: '', moved: null };
+            }
+            if (b.action === 'journal_delete') {
+                if (failDelete) return { ok: false, message: 'Не удалось удалить' };
+                created.delete(Number(b.id));
+                return { ok: true, deleted: 1, group: 1, message: 'Запись удалена' };
+            }
+            throw new Error('неожиданный запрос');
+        },
+    };
+    return { io, calls, created, saves: () => calls.filter(c => c.body?.action === 'journal_save') };
+}
+
+test('90 минут = три слота подряд, и СМС уходит ТОЛЬКО за первый', async () => {
+    forgetActor(10);
+    const s = stubBooking();
+    try {
+        const r = await createBooking(10, {
+            addressId: 8, date: '2026-10-01', time: '10:30', durationMinutes: 90,
+            name: 'Андрей', phone: '79117917147', carNumber: 'К753АЕ198',
+            comment: 'двс+акпп', sms: true,
+        }, s.io);
+
+        assert.equal(r.ok, true);
+        assert.equal(r.slots, 3);
+        assert.equal(r.ids.length, 3);
+        assert.equal(r.id, r.ids[0], 'голова цепочки — первый слот');
+        assert.equal(r.author, 'Иванов Иван Иванович');
+
+        const saves = s.saves();
+        assert.deepEqual(saves.map(c => c.body.time), ['10:30', '11:00', '11:30']);
+        assert.deepEqual(saves.map(c => c.body.sms), ['1', '0', '0'],
+            'продление клиенту не шлют — три сообщения подряд выглядят поломкой');
+        assert.deepEqual(saves.map(c => c.body.duration), ['30', '30', '30'],
+            'duration у CRM не используем вовсе — всегда один слот');
+        assert.deepEqual(saves.map(c => c.body.car_number), ['К753АЕ198', '', '']);
+        assert.deepEqual(saves.map(c => c.body.comment), ['двс+акпп', '', '']);
+        assert.ok(saves.every(c => c.body.phone === '79117917147'),
+            'телефон на всех слотах тот же — по нему цепочка и узнаётся');
+    } finally { forgetActor(10); }
+});
+
+test('30 минут — это по-прежнему одна запись', async () => {
+    forgetActor(11);
+    const s = stubBooking();
+    try {
+        const r = await createBooking(11, {
+            addressId: 8, date: '2026-10-01', time: '10:30', durationMinutes: 30, sms: true,
+        }, s.io);
+        assert.equal(r.slots, 1);
+        assert.equal(s.saves().length, 1);
+        assert.equal(s.saves()[0].body.sms, '1');
+    } finally { forgetActor(11); }
+});
+
+test('слот посреди цепочки занят — созданное сносится, полузаписи не остаётся', async () => {
+    forgetActor(12);
+    const s = stubBooking({ busyAt: '11:30' });
+    try {
+        const r = await createBooking(12, {
+            addressId: 8, date: '2026-10-01', time: '10:30', durationMinutes: 120, sms: true,
+        }, s.io);
+
+        assert.equal(r.ok, false);
+        assert.match(r.message, /Слот занят/);
+        assert.match(r.message, /11:30/, 'видно, на каком получасе споткнулись');
+        assert.deepEqual(r.ids, []);
+        assert.equal(r.author, null);
+        assert.equal(r.rolledBack, 2, 'оба созданных слота убраны');
+        assert.deepEqual(r.orphans, []);
+        assert.equal(s.created.size, 0, 'на доске не осталось ничего');
+    } finally { forgetActor(12); }
+});
+
+test('откат тоже не удался — об осиротевших слотах говорим прямо', async () => {
+    forgetActor(13);
+    const s = stubBooking({ busyAt: '11:00', failDelete: true });
+    try {
+        const r = await createBooking(13, {
+            addressId: 8, date: '2026-10-01', time: '10:30', durationMinutes: 60,
+        }, s.io);
+        assert.equal(r.ok, false);
+        assert.equal(r.rolledBack, 0);
+        assert.equal(r.orphans.length, 1,
+            'слот, который не удалось снести, не должен потеряться молча');
+    } finally { forgetActor(13); }
+});
+
+test('цепочка, не влезающая в рабочий день, не создаёт НИ ОДНОГО слота', async () => {
+    forgetActor(14);
+    const s = stubBooking();
+    try {
+        // 20:30 — последний слот дня, сеть работает до 21:00.
+        await assert.rejects(
+            () => createBooking(14, {
+                addressId: 8, date: '2026-10-01', time: '20:00', durationMinutes: 90,
+            }, s.io),
+            /не помещаются в рабочий день/,
+        );
+        assert.equal(s.saves().length, 0, 'до CRM не дошло ничего');
+    } finally { forgetActor(14); }
+});
+
+test('без права на запись длинная тоже не начинается', async () => {
+    forgetActor(15);
+    const s = stubApi(permsHandler(NO_BOOK));
+    try {
+        await assert.rejects(
+            () => createBooking(15, {
+                addressId: 8, date: '2026-10-01', time: '10:30', durationMinutes: 90,
+            }, s.io),
+            (err) => { assert.equal(err.code, 'crm_forbidden'); return true; },
+        );
+        assert.equal(s.calls.filter(c => c.body).length, 0);
+    } finally { forgetActor(15); }
 });

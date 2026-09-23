@@ -14,6 +14,7 @@ import crmRouter from './routes/crm.js';
 // import bitrixRouter from './routes/bitrix.js';
 // import bitrixSensorRouter from './routes/bitrixSensor.js';
 import recordsRouter from './routes/records.js';
+import journalRouter from './routes/journal.js';
 import wordleRouter from './routes/wordle.js';
 import kontekstRouter from './routes/kontekst.js';
 import minesweeperRouter from './routes/minesweeper.js';
@@ -146,6 +147,11 @@ app.use('/api/news', requireSession, newsRouter);
 // optionalSession не гейт, а «кто это»: залогиненному операции подписываются
 // его аккаунтом и идут в месячный топ, гость работает как раньше.
 app.use('/api/records', optionalSession, recordsRouter);
+// Записи через журнал CRM: здесь, в отличие от /api/records, нужна СВОЯ
+// учётка CRM — именно общая учётка старой админки и была причиной того, что
+// у записи нет автора. Гейт «есть ли привязка» стоит внутри роутера, чтобы
+// отказ приезжал своим кодом, а не общим 401.
+app.use('/api/journal', requireSession, journalRouter);
 
 // Аватарки с локального диска (свой сервер, см. DEPLOY-VPS.md). Вне /api —
 // картинку тянет тег <img> обычного браузера, без x-api-key и без сессии, ровно
