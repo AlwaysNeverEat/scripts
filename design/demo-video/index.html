@@ -95,7 +95,7 @@
   .sticker em { font-style: normal; color: var(--acc); }
 
   /* ── титры-подпевка ────────────────────────────────── */
-  #lyric { position: absolute; left: 0; right: 0; top: 968px; text-align: center; font: 700 38px Inter, sans-serif;
+  #lyric { position: absolute; left: 0; right: 0; top: 908px; height: 132px; padding-top: 60px; overflow: hidden; text-align: center; font: 700 38px Inter, sans-serif;
            color: rgba(255,255,255,.92); text-shadow: 0 3px 14px rgba(0,0,0,.9); letter-spacing: .01em; }
   #lyric .rep { position: relative; display: inline-block; color: rgba(255,255,255,.45); }
   #lyric .rep::after { content: ""; position: absolute; left: -4px; right: -4px; top: 54%; height: 5px; background: #ff3b30;
@@ -150,6 +150,14 @@
            -webkit-text-stroke: 10px #000; paint-order: stroke fill; text-shadow: 14px 14px 0 #000; white-space: nowrap; }
   #vign { pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
 
+  #crmCur { position: absolute; left: 0; top: 0; width: 34px; height: 34px; z-index: 5; filter: drop-shadow(0 3px 5px rgba(0,0,0,.5)); }
+  #crmCur svg { width: 34px; height: 34px; display: block; }
+  .crm-rip { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%;
+             border: 4px solid rgba(255,200,40,.95); z-index: 4; }
+  #flood { position: absolute; border-radius: 50%; z-index: 6; }
+  #morph { position: absolute; z-index: 3; }
+  .mask { overflow: hidden; padding-bottom: .14em; margin-bottom: -.14em; }
+  .mask > .in { display: block; will-change: transform; }
   #intro { display: grid; place-items: center; font: 700 44px "JetBrains Mono", monospace; color: #9aa4b2; }
   #intro .cur { display: inline-block; width: .6em; height: 1em; background: var(--acc); vertical-align: -.12em; margin-left: .1em; }
 </style>
@@ -160,7 +168,8 @@
     <div id="bg" class="layer"></div>
     <div id="grid" class="layer"></div>
 
-    <div id="intro" class="layer"><div><span id="introTxt"></span><span class="cur" id="introCur"></span></div></div>
+    <div id="intro" class="layer"><div class="mask"><div class="in" id="introIn"><span id="introTxt"></span><span class="cur" id="introCur"></span></div></div></div>
+    <div id="morph" class="hide"></div>
 
     <!-- старая CRM -->
     <div id="crm" class="layer">
@@ -175,6 +184,9 @@
       </div>
       <div id="dlgs" class="layer"></div>
       <div class="sticker hide" id="sticker"></div>
+      <div id="crmRips" class="layer"></div>
+      <div id="crmCur"></div>
+      <div id="flood" class="hide"></div>
     </div>
 
     <!-- полноэкранная сфера под логотипом -->
@@ -184,25 +196,25 @@
     <!-- демо сайта -->
     <div id="demo" class="layer hide">
       <div class="brand"><span class="k">K</span>SPOT</div>
-      <div id="head"><div class="k" id="hk"></div><div class="h" id="hh"></div><div class="s" id="hs"></div><div class="was" id="hw"></div></div>
+      <div id="head"><div class="k mask"><div class="in" id="hk"></div></div><div class="h mask"><div class="in" id="hh"></div></div><div class="s mask"><div class="in" id="hs"></div></div><div class="was mask"><div class="in" id="hw"></div></div></div>
       <div class="win" id="win">
         <div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
           <div class="url"><span class="lock">●</span><span id="url">k-spot.ru</span></div></div>
-        <div class="vp"><img id="clipImg" alt=""/></div>
+        <div class="vp"><img id="prevImg" alt=""/><img id="clipImg" alt=""/></div>
       </div>
     </div>
 
     <div id="logoL" class="layer hide"><div>
-      <div class="logo" id="logo"><span class="k">K</span>SPOT</div>
-      <div class="tag" id="tag"></div>
-      <div class="site" id="site">k-spot.ru</div>
+      <div class="logo" id="logo"><span class="k" id="logoK">K</span><span id="logoSpot">SPOT</span></div>
+      <div class="tag mask"><div class="in" id="tag"></div></div>
+      <div class="site mask"><div class="in" id="site">k-spot.ru</div></div>
     </div></div>
 
     <div id="count" class="layer hide"><div class="n" id="countN"></div></div>
   </div>
 
   <div id="vign" class="layer"></div>
-  <div id="lyric"></div>
+  <div id="lyric"><div class="in" id="lyricIn"></div></div>
   <div id="stampL" class="layer hide">
     <svg id="burst" viewBox="-100 -100 200 200"></svg>
     <div id="stamp">ТЫДЫЩ!</div>
@@ -230,6 +242,19 @@ const eo3 = k => 1 - Math.pow(1 - k, 3);
 const eo5 = k => 1 - Math.pow(1 - k, 5);
 const eio = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
 const back = k => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+// Пружина — замкнутая форма отклика на ступеньку: чистая функция времени,
+// без состояния между кадрами. d — секунды от толчка.
+function spring(d, f = 3.2, z = .42) {
+  if (d <= 0) return 0;
+  const w = 2 * Math.PI * f, wd = w * Math.sqrt(1 - z * z);
+  return 1 - Math.exp(-z * w * d) * (Math.cos(wd * d) + (z * w / wd) * Math.sin(wd * d));
+}
+// Текст, встающий из-под линии маски: in — выезд снизу, out — уход вниз.
+function rise(el, d, dOut = -1) {
+  const k = spring(d, 2.6, .8);
+  const o = dOut > 0 ? eio(clamp(dOut / .22)) : 0;
+  el.style.transform = `translateY(${(1 - k) * 110 + o * 110}%)`;
+}
 function rnd(seed) { let s = seed * 9301 + 49297; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
 const show = (el, on) => el.classList.toggle('hide', !on);
 function setHTML(el, html) { if (el.__h !== html) { el.innerHTML = html; el.__h = html; } }
@@ -337,15 +362,14 @@ const LYRICS = [
   [HIT(6) + 1.0, HIT(7) - .1, 'И починить!'],
 ];
 function renderLyric(t) {
-  const el = $('lyric');
+  const el = $('lyricIn');
   const cur = LYRICS.find(([a, b]) => t >= a && t < b);
   if (!cur) { setHTML(el, ''); return; }
   const [a, b, text] = cur;
   const html = text.replace(/\{([^|]+)\|([^}]+)\}/, '<span class="rep">$1<b>$2</b></span>');
   setHTML(el, html);
-  const k = inv(a, a + .18, t), out = inv(b - .12, b, t);
-  el.style.opacity = String(k * (1 - out));
-  el.style.transform = `translateY(${(1 - eo3(k)) * 16}px)`;
+  // Уходит вниз за 0.22 с до следующей строки, приходит снизу.
+  rise(el, t - a, t - (b - .22));
   const rep = el.querySelector('.rep');
   if (rep) {
     rep.style.setProperty('--strike', String(eo3(inv(a + .35, a + .55, t))));
@@ -442,7 +466,7 @@ const DLGS = [
   ['Ошибка', 'Не удалось выполнить запрос.', 'x'],
 ];
 function renderCrm(t) {
-  const on = t >= 1.9 && t < 20.6;
+  const on = t >= 2.45 && t < 20.6;
   show($('crm'), on);
   if (!on) return;
   let i = 0;
@@ -451,9 +475,8 @@ function renderCrm(t) {
   const lt = before ? 0 : t - LINES[i];
   const xp = $('xp');
 
-  // Окно въезжает в конце вступления (вместе с тактом).
-  const inK = eo5(inv(2.15, 2.6, t));
-  let sc = lerp(.86, 1, inK), op = inK, tx = 0, ty = (1 - inK) * 40, rot = 0, blur = 0;
+  // Окно выросло из курсора вступления (renderIntro) — тут оно уже на месте.
+  let sc = 1, tx = 0, ty = 0, rot = 0;
   // На каждой строке — толчок, будто по монитору стукнули.
   if (!before) {
     const d = lt;
@@ -463,16 +486,7 @@ function renderCrm(t) {
   }
   // Строка 3 — «еле-еле»: окно подтормаживает и дрожит.
   if (i === 2 && !before) { tx += Math.sin(t * 60) * 3; }
-  // Строка 8 — «понятней изнутри»: влетаем внутрь окна.
-  if (i === 7) {
-    const k = inv(LINES[7] + .3, 20.55, t);
-    sc *= 1 + Math.pow(k, 2.6) * 9;
-    blur = Math.pow(k, 3) * 14;
-    op = 1 - inv(20.2, 20.55, t);
-  }
-  xp.style.opacity = String(op);
   xp.style.transform = `translate(${tx}px,${ty}px) scale(${sc}) rotate(${rot}deg)`;
-  xp.style.filter = blur ? `blur(${blur}px) saturate(${1 - blur / 20})` : '';
 
   if (before) {
     setText($('xpTitle'), 'CRM — Microsoft Internet Explorer');
@@ -504,10 +518,7 @@ function renderCrm(t) {
     }
     dl.innerHTML = html; dl.__h = null;
   } else if (i === 7 && !before) {
-    // Окна остаются висеть и улетают вместе с камерой.
-    const k = inv(LINES[7] + .3, 20.55, t);
-    const s = 1 + Math.pow(k, 2.6) * 9;
-    dl.style.transform = `scale(${s})`; dl.style.opacity = String(1 - inv(19.4, 20.2, t));
+    // Окна остаются висеть, пока их не зальёт.
     if (!dl.innerHTML) {
       let html = '';
       for (let j = 0; j < DLGS.length; j++) {
@@ -517,9 +528,7 @@ function renderCrm(t) {
       }
       dl.innerHTML = html;
     }
-  } else { dl.innerHTML = ''; dl.style.transform = ''; dl.style.opacity = '1'; }
-  dl.style.transformOrigin = '50% 46%';
-  if (i !== 7) { dl.style.transform = ''; dl.style.opacity = '1'; }
+  } else { dl.innerHTML = ''; }
 
   // Наклейка с болью.
   const st = $('sticker');
@@ -527,25 +536,124 @@ function renderCrm(t) {
   show(st, !!txt);
   if (txt) {
     setHTML(st, txt);
-    const k = inv(.12, .34, lt);
-    const s = k <= 0 ? 0 : back(k);
+    const s = spring(lt - .12, 3.4, .45);
     const r = rnd(i + 5)();
     st.style.transform = `rotate(${-3 + r * 2.5}deg) scale(${s})`;
-    st.style.opacity = String(k > 0 ? 1 : 0);
   }
+  renderCrmCursor(t, i, lt, before);
+}
+
+// ═══ Курсор в старой CRM ════════════════════════════════════════════════
+// Каждое изменение в CRM делает курсор — настоящим кликом по настоящему
+// элементу: координаты берутся из разметки кадра, а не вписаны руками.
+const CUR_ARROW = '<svg viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15.5 L12.5 22.5 L15.3 21.2 L11.9 14.3 L18.5 14.3 Z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+const CUR_WAIT = '<svg viewBox="0 0 24 24"><path d="M6 2 H18 V6 L13.5 12 L18 18 V22 H6 V18 L10.5 12 L6 6 Z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/><path d="M8.5 20 H15.5 L12 15.5 Z M9 4.5 H15 L12 8.5 Z" fill="#b08000"/></svg>';
+function posOf(sel, pick = 0) {
+  const all = document.querySelectorAll('#crm ' + sel);
+  const el = pick < 0 ? all[all.length + pick] : all[pick];
+  if (!el) return null;
+  const r = el.getBoundingClientRect(), c = $('crm').getBoundingClientRect();
+  const k = c.width / 1920;
+  return { x: (r.left + r.width / 2 - c.left) / k, y: (r.top + r.height / 2 - c.top) / k };
+}
+// Путь курсора на строку: [[сек, селектор, номер, клик?], …]
+const CUR_PATHS = [
+  [[0, '.crm-crumbs span', 0], [BEAT - .12, '.crm-crumbs span', 1, 1], [2 * BEAT - .12, '.crm-crumbs span', 2, 1], [3 * BEAT - .12, '.crm-crumbs span', 3, 1]],
+  [[0, 'table.crm .lnk', 0], [.35, 'table.crm .lnk', 0, 1], [1.2, 'table.crm .lnk', 3, 1]],
+  [[0, 'table.crm .lnk', 3], [1.8, '.prog', 0]],
+  [[0, 'table.crm th', -1], [.5, 'table.crm td.red', 0], [1.4, 'table.crm td', -1]],
+  [[0, '.crm-btn', 0], ...Array.from({ length: 9 }, (_, j) => [(j + 1) * BEAT / 2 - .06, '.crm-btn', 0, 1])],
+  [[0, '.crm-page .crm-btn', 0], [.62, '.crm-page .crm-btn', 0, 1], [1.6, 'table.crm td', -3]],
+  [[0, '.dlg .crm-btn', -1], ...Array.from({ length: 7 }, (_, j) => [(j + 1) * BEAT / 2 + .1, '.dlg .crm-btn', -1, 1])],
+  [[0, '.dlg .crm-btn', -1], [.75, '.xp-title .xp-btn.x', 0, 1]],
+];
+const FLOOD_AT = LINES[7] + .75;
+function renderCrmCursor(t, i, lt, before) {
+  const cur = $('crmCur'), rips = $('crmRips');
+  if (before || t >= FLOOD_AT + .3) { cur.style.display = 'none'; rips.innerHTML = ''; renderFlood(t); return; }
+  cur.style.display = '';
+  const path = CUR_PATHS[i].map(([at, sel, pick, click]) => ({ at, p: posOf(sel, pick), click }));
+  // Двигаемся к очередной точке за 0.26 с до неё, с разгоном и торможением.
+  let x = 960, y = 700;
+  const first = path.find(w => w.p);
+  if (first) { x = first.p.x; y = first.p.y; }
+  let prev = first ? first.p : { x, y };
+  for (const w of path) {
+    if (!w.p) continue;
+    const k = eio(clamp((lt - (w.at - .26)) / .26));
+    if (k <= 0) break;
+    x = lerp(prev.x, w.p.x, k); y = lerp(prev.y, w.p.y, k);
+    prev = w.p;
+  }
+  const wait = i === 2 && lt > .25;
+  setHTML(cur, wait ? CUR_WAIT : CUR_ARROW);
+  const jit = wait ? Math.sin(t * 40) * 2 : 0;
+  // Кончик стрелки — в точке (x, y).
+  cur.style.transform = `translate(${x - 5 + jit}px,${y - 3}px) rotate(${wait ? (t * 360) % 360 : 0}deg)`;
+  let html = '';
+  for (const w of path) {
+    if (!w.click || !w.p) continue;
+    const d = lt - w.at;
+    if (d < 0 || d > .45) continue;
+    const k = eo3(d / .45);
+    html += `<div class="crm-rip" style="left:${w.p.x}px;top:${w.p.y}px;transform:scale(${.3 + k * 1.2});opacity:${1 - k}"></div>`;
+  }
+  rips.innerHTML = html;
+  renderFlood(t);
+}
+// Крестик окна, нажатый в конце куплета, разливается на весь кадр: CRM закрыта.
+function renderFlood(t) {
+  const f = $('flood');
+  const d = t - FLOOD_AT;
+  show(f, d >= 0);
+  if (d < 0) return;
+  const p = posOf('.xp-title .xp-btn.x', 0) || { x: 1660, y: 80 };
+  // Радиус с запасом за углы кадра: иначе в последнем кадре заливки угол мигнёт.
+  const R = 2400 * eio(clamp(d / .32)) + 14;
+  f.style.left = (p.x - R) + 'px'; f.style.top = (p.y - R) + 'px';
+  f.style.width = f.style.height = (2 * R) + 'px';
+  const c = clamp(d / .32);
+  f.style.background = `rgb(${Math.round(lerp(194, 0, c))},${Math.round(lerp(64, 0, c))},${Math.round(lerp(31, 0, c))})`;
 }
 
 // ═══ Вступление ═════════════════════════════════════════════════════════
 function renderIntro(t) {
-  const on = t < 2.4;
+  const on = t < 2.45;
   show($('intro'), on);
+  const m = $('morph');
+  show(m, t >= 1.95 && t < 2.45);
   if (!on) return;
   const msg = '09:00. Открываем CRM';
   const n = Math.floor(clamp((t - .35) / 1.1) * msg.length);
   setText($('introTxt'), msg.slice(0, n) + (t > 1.6 ? '…' : ''));
-  $('introCur').style.opacity = (Math.floor(t * 3.8) % 2) ? '0' : '1';
-  $('intro').style.opacity = String(1 - inv(2.1, 2.4, t));
+  $('introCur').style.opacity = t >= 1.95 ? '0' : caretBlink(t);
+  // Строка уходит вниз под маску, курсор остаётся и растёт в окно CRM.
+  rise($('introIn'), 1, t - 1.95);
+  if (t >= 1.95) {
+    const c = CARET, k = eio(clamp((t - 1.95) / .5));
+    const x = lerp(c.x, 240, k), y = lerp(c.y, 64, k), w = lerp(c.w, 1440, k), h = lerp(c.h, 800, k);
+    Object.assign(m.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px',
+      borderRadius: lerp(2, 8, k) + 'px',
+      background: `rgb(${Math.round(lerp(245, 236, k))},${Math.round(lerp(181, 233, k))},${Math.round(lerp(10, 216, k))})` });
+  }
 }
+// Мигание курсора — одно на начало и конец ролика: последний кадр = первый.
+const caretBlink = t => (Math.floor(t * 3.8) % 2) ? '0' : '1';
+// Где стоит курсор полной строки «09:00. Открываем CRM…» (замеряется один раз).
+let CARET = { x: 1236, y: 518, w: 26, h: 44 };
+function measureCaret() {
+  const tx = $('introTxt'), c = $('introCur');
+  const old = tx.textContent;
+  tx.textContent = '09:00. Открываем CRM…';
+  const r = c.getBoundingClientRect(), s = $('stage').getBoundingClientRect();
+  CARET = { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height };
+  // И где он в первом кадре, при пустой строке: туда же вернётся финал.
+  tx.textContent = '';
+  const r0 = c.getBoundingClientRect();
+  CARET0 = { x: r0.left - s.left, y: r0.top - s.top, w: r0.width, h: r0.height };
+  tx.textContent = old; tx.__t = null;
+}
+let CARET0 = { x: 947, y: 518, w: 26, h: 44 };
 
 // ═══ Отсчёт «Раз, два, три» ═════════════════════════════════════════════
 function renderCount(t) {
@@ -591,12 +699,11 @@ function renderHit(t) {
     if (lastHit !== h.k) { $('burst').innerHTML = burstSvg(h.k); lastHit = h.k; }
     const d = h.d;
     const s = lerp(2.2, 1, eo5(clamp(d / .1))) * (1 + d * .12);
-    const fade = 1 - inv(.36, .5, d);
+    // Уходит не в прозрачность, а в точку — сжатием.
+    const gone = 1 - eio(inv(.34, .5, d));
     const r = rnd(h.k + 1);
-    $('stamp').style.transform = `rotate(${(r() - .5) * 12}deg) scale(${s})`;
-    $('stamp').style.opacity = String(fade);
-    $('burst').style.transform = `scale(${lerp(.3, 1.15, eo5(clamp(d / .2)))}) rotate(${d * 40 + h.k * 17}deg)`;
-    $('burst').style.opacity = String(fade * .9);
+    $('stamp').style.transform = `rotate(${(r() - .5) * 12}deg) scale(${s * gone})`;
+    $('burst').style.transform = `scale(${lerp(.3, 1.15, eo5(clamp(d / .2))) * gone}) rotate(${d * 40 + h.k * 17}deg)`;
   }
 }
 function camShake(t) {
@@ -619,7 +726,7 @@ function camShake(t) {
 
 // ═══ Логотип (первый удар и финал) ══════════════════════════════════════
 function renderLogo(t) {
-  const first = t >= HIT(0) && t < HIT(1);
+  const first = t >= HIT(0) && t < HIT(1) + .3;
   const fin = t >= HIT(7);
   const on = first || fin;
   show($('logoL'), on); show($('fullL'), on); show($('fullShade'), on);
@@ -631,41 +738,79 @@ function renderLogo(t) {
   $('fullImg').style.transform = `scale(${1.25 + d * .03})`;
   $('fullImg').style.filter = fin ? 'blur(5px) brightness(1.4)' : 'blur(1.5px) brightness(1.3)';
   const lg = $('logo');
-  const s = lerp(1.6, 1, eo5(clamp(d / .16)));
+  const s = 1 + (1 - spring(d, 3.0, .5)) * .6;
   lg.style.transform = `scale(${s})`;
-  lg.style.opacity = '1';
   setHTML($('tag'), first ? 'Та же CRM. <em>Только работает.</em>' : 'Починили. <em>Тыдыщ!</em>');
-  const tk = inv(first ? .5 : .55, first ? .75 : .8, d);
-  $('tag').style.opacity = String(tk); $('tag').style.transform = `translateY(${(1 - eo3(tk)) * 20}px)`;
-  const sk = fin ? inv(1.1, 1.4, d) : 0;
-  $('site').style.opacity = String(sk);
-  $('site').style.transform = `translateY(${(1 - eo3(sk)) * 14}px)`;
-  const fadeOut = fin ? 1 - inv(END - .7, END - .05, t) : 1;
-  $('logoL').style.opacity = String(fadeOut);
-  $('fullL').style.opacity = String((first ? 1 - inv(HIT(1) - .25, HIT(1), t) : 1) * fadeOut);
-  $('fullShade').style.opacity = String(fadeOut);
-  if (first) $('logoL').style.opacity = String(1 - inv(HIT(1) - .12, HIT(1), t));
+  // Финал сворачивается в курсор первого кадра — ролик можно крутить по кругу.
+  const OUT = HIT(7) + 1.55, SQ = OUT + .5;
+  rise($('tag'), d - (first ? .5 : .55), fin ? t - OUT : -1);
+  rise($('site'), fin ? d - 1.05 : -1, fin ? t - OUT : -1);
+  const sq = fin ? eio(clamp((t - SQ) / .55)) : 0;
+  // «SPOT» въезжает в K, как гармошка, и K сжимается в курсор.
+  $('logoSpot').style.display = 'inline-block';
+  $('logoSpot').style.transformOrigin = '0 50%';
+  $('logoSpot').style.transform = `scaleX(${1 - eio(clamp((t - OUT) / .4)) * (fin ? 1 : 0)})`;
+  $('logoSpot').style.visibility = fin && t >= OUT + .4 ? 'hidden' : 'inherit';
+  const K = $('logoK');
+  K.style.display = 'inline-block';
+  if (fin && t >= OUT + .4) {
+    // Переносим K ровно на место курсора: считаем от его нынешней рамки.
+    K.style.transform = '';
+    const r = K.getBoundingClientRect(), st = $('stage').getBoundingClientRect();
+    const cx = r.left - st.left + r.width / 2, cy = r.top - st.top + r.height / 2;
+    const C = CARET0;
+    const tx = C.x + C.w / 2 - cx, ty = C.y + C.h / 2 - cy;
+    K.style.transformOrigin = '50% 50%';
+    K.style.transform = `translate(${tx * sq}px,${ty * sq}px) scale(${lerp(1, C.w / r.width, sq)},${lerp(1, C.h / r.height, sq)})`;
+    K.style.color = sq > .35 ? 'transparent' : '#000';
+    // Тень букв логотипа отбрасывает и прозрачная «K» — у курсора её быть не должно.
+    K.style.textShadow = sq > .35 ? 'none' : '';
+    K.style.borderRadius = lerp(10, 2 / (C.w / r.width), sq) + 'px';
+    if (sq >= 1) K.style.opacity = caretBlink(t);
+  } else { K.style.transform = ''; K.style.color = '#000'; K.style.opacity = '1'; }
+  // Сфера под логотипом стягивается кругом в K, а не гаснет.
+  const shrink = fin ? eio(clamp((t - OUT) / .5)) : 0;
+  const clip = shrink > 0 ? `circle(${lerp(1300, 0, shrink)}px at 50% 50%)` : 'none';
+  $('fullL').style.clipPath = clip; $('fullShade').style.clipPath = clip;
+  $('logoL').style.opacity = '1';
+  if (first) {
+    // Первый удар: к следующему такту сфера с логотипом уезжают вверх
+    // страницей, а снизу приходит окно сайта (сцена 01).
+    const push = eio(clamp((t - HIT(1)) / .3));
+    $('logoL').style.transform = $('fullL').style.transform = $('fullShade').style.transform = `translateY(${-push * 1080}px)`;
+  } else { $('logoL').style.transform = $('fullL').style.transform = $('fullShade').style.transform = ''; }
 }
 
 // ═══ Демо сайта ═════════════════════════════════════════════════════════
-function renderDemo(t) {
-  const sc = SCENES.find(s => t >= s.from && t < s.to);
-  show($('demo'), !!sc);
-  if (!sc) return;
-  const lt = t - sc.from;
-  const ct = curve(sc.map, lt);
-  const img = $('clipImg');
-  setImg(img, frameAt(sc.clip, ct));
-  // Клип снят 1600×900 CSS-пикселей (×1.5), окно — 1320×743.
+// Клип снят 1600×900 CSS-пикселей (×1.5), окно — 1320×743.
+function placeClip(img, sc, lt, dy) {
+  setImg(img, frameAt(sc.clip, curve(sc.map, lt)));
   const VPW = 1320, VPH = 743, CW = 1600, CH = 900;
   const c = camAt(sc.cam, lt);
-  const base = VPW / CW;
-  const z = base * c.z;
+  const z = VPW / CW * c.z;
   let ox = VPW / 2 - c.x * z, oy = VPH / 2 - c.y * z;
   ox = clamp(ox, VPW - CW * z, 0); oy = clamp(oy, VPH - CH * z, 0);
   img.style.width = (CW * z) + 'px'; img.style.height = (CH * z) + 'px';
-  img.style.transform = `translate(${ox}px,${oy}px)`;
+  img.style.transform = `translate(${ox}px,${oy + dy}px)`;
+}
+function renderDemo(t) {
+  const idx = SCENES.findIndex(s => t >= s.from && t < s.to);
+  const sc = SCENES[idx];
+  show($('demo'), !!sc);
+  if (!sc) return;
+  const lt = t - sc.from;
+  // Смена сцены — страница выталкивает страницу вверх, за 0.3 с.
+  const push = idx > 0 ? eio(clamp(lt / .3)) : 1;
+  placeClip($('clipImg'), sc, lt, (1 - push) * 743);
+  const pimg = $('prevImg');
+  if (push < 1) {
+    const pv = SCENES[idx - 1];
+    pimg.style.display = '';
+    placeClip(pimg, pv, pv.to - pv.from, -push * 743);
+  } else pimg.style.display = 'none';
   setText($('url'), sc.url);
+  // Первая сцена приезжает снизу вместе с кадром, выталкивая логотип.
+  $('demo').style.transform = idx === 0 ? `translateY(${(1 - eio(clamp(lt / .3))) * 1080}px)` : '';
 
   // Окно влетает на смене сцены.
   const k = eo5(clamp(lt / .32));
@@ -678,11 +823,12 @@ function renderDemo(t) {
   const same = SCENES.indexOf(sc) > 0 && SCENES[SCENES.indexOf(sc) - 1].n === sc.n;
   setText($('hk'), sc.n); setText($('hh'), sc.h);
   setHTML($('hs'), sc.s); setHTML($('hw'), sc.was);
-  const a1 = inv(.0, .18, lt), a2 = inv(.12, .32, lt), a3 = inv(.3, .5, lt), a4 = inv(.55, .75, lt);
-  $('hk').style.opacity = String(same ? 1 : a1);
-  $('hh').style.opacity = String(a2); $('hh').style.transform = `translateX(${(1 - eo5(a2)) * -40}px)`;
-  $('hs').style.opacity = String(a3); $('hs').style.transform = `translateY(${(1 - eo3(a3)) * 14}px)`;
-  $('hw').style.opacity = String(a4);
+  // Каждая строка встаёт из-под своей линии маски, по долям.
+  const out = sc.to - t;
+  rise($('hk'), same ? 1 : lt, same || SCENES[SCENES.indexOf(sc) + 1]?.n === sc.n ? -1 : .22 - out);
+  rise($('hh'), lt - .08, .22 - out);
+  rise($('hs'), lt - .2, .22 - out);
+  rise($('hw'), lt - .45, .22 - out);
 }
 
 // ═══ Кадр ═══════════════════════════════════════════════════════════════
@@ -708,6 +854,7 @@ window.ready = (async () => {
     '400 20px Inter', '500 20px Inter', '600 20px Inter', '700 20px Inter', '500 20px "JetBrains Mono"', '700 20px "JetBrains Mono"']
     .flatMap(f => [document.fonts.load(f, 'ЖЫabc'), document.fonts.load(f, 'abc')]));
   await document.fonts.ready;
+  measureCaret();
 })();
 
 // Просмотр в браузере: ?play — крутит ролик в реальном времени с музыкой.
