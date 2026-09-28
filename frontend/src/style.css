@@ -2766,12 +2766,30 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .top-score { font-weight: 700; color: var(--accent); font-size: 15px; }
 .top-breakdown { font-size: 11px; color: var(--sub); font-weight: 600; }
 
-/* Подпись текущего месяца над списком */
+/* Подпись показанного месяца над списком, по бокам — стрелки листания.
+   Стрелки на краях гаснут, а не пропадают: подпись не должна прыгать. */
+.top-month-nav {
+  display: flex; align-items: center; gap: var(--s-2);
+  margin: var(--s-1) 0 var(--s-2);
+}
 .top-month {
   font-size: 11px; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: var(--sub);
-  margin: var(--s-1) 2px var(--s-2);
+  min-width: 0; text-align: center;
 }
+.top-month-btn {
+  width: 28px; height: 28px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--bg2);
+  color: var(--sub);
+  cursor: pointer;
+  transition: color .12s, border-color .12s;
+}
+.top-month-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.top-month-btn:disabled { opacity: .35; cursor: default; }
 
 /* Карточка «Топ в прошлом месяце»: закрытый месяц, победитель уже не меняется */
 .top-prev {
@@ -2788,6 +2806,21 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
   margin-bottom: var(--s-2);
 }
 .top-prev-head svg { flex: none; }
+.top-prev-title { flex: 1; min-width: 0; }
+/* «Вся таблица» — вход в полный рейтинг прошлого месяца: карточка называет
+   только победителя, а места остальных смотрят там. */
+.top-prev-all {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px var(--s-2);
+  border: 1px solid var(--gold-card-border);
+  border-radius: var(--r-round);
+  background: transparent;
+  color: var(--gold-soft);
+  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0;
+  cursor: pointer;
+  transition: filter .12s;
+}
+.top-prev-all:hover { filter: var(--hover-bright); }
 .top-prev-user {
   display: flex; align-items: center; gap: var(--s-3);
   padding: var(--s-1) 0;

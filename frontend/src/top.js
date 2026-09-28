@@ -10,6 +10,13 @@
 // (данные считает backend/src/routes/top.js). Одна запись = один балл,
 // длинная (продлённая) запись — тоже один.
 //
+// Прошлые месяцы открываются ЦЕЛИКОМ: стрелки у подписи месяца листают их, а
+// «Вся таблица» на карточке прошлого месяца ведёт сразу туда. Карточка
+// называет только победителя, а спор «какое место было у меня» решается
+// таблицей, а не памятью. Листание только читает: сервер считает прошлый
+// месяц из тех же строк record_credits, что и в его последний день, —
+// обнулять, закрывать или переносить там нечего.
+//
 // Под списком — правила зачёта (rulesHtml): что считается, что нет и где
 // посмотреть, за какие записи даны очки. Топ обещает прозрачность, и правила
 // у него на виду, а не в новостях: строка любого человека ведёт в профиль, а
@@ -55,26 +62,65 @@ function countHtml(row, gold) {
         </div>`;
 }
 
-let cache = null;   // последний успешный ответ /api/top
+// Последние ответы /api/top по месяцам. Ключ '' — «текущий», без параметра:
+// 1-го числа текущим становится другой месяц, и спрашивать его по имени,
+// запомненному вчера, значило бы открыть вкладку на прошлом месяце.
+const cache = new Map();
+let viewMonth = '';  // '' — текущий месяц, иначе 'YYYY-MM'
+let fetchApi = null;
 
-export function resetTopCache() { cache = null; }
+export function resetTopCache() { cache.clear(); viewMonth = ''; }
 
-export async function showTopPage({ apiFetch }) {
+// Заход на вкладку всегда открывает ТЕКУЩИЙ месяц: полистали август, ушли и
+// вернулись — ждут сегодняшнего рейтинга, а не того, где остановились.
+export function showTopPage({ apiFetch }) {
+    fetchApi = apiFetch;
+    viewMonth = '';
+    return load();
+}
+
+async function load() {
     const body = document.getElementById('top-body');
     if (!body) return;
+    bindMonthNav(body);
 
-    if (cache) render(body, cache);
+    const key = viewMonth;
+    if (cache.has(key)) render(body, cache.get(key));
     else body.innerHTML = '<div class="search-empty">Загрузка…</div>';
 
+    let data;
     try {
-        cache = await apiFetch('/api/top');
+        data = await fetchApi('/api/top' + (key ? `?month=${encodeURIComponent(key)}` : ''));
     } catch (err) {
-        if (!cache) body.innerHTML = `<div class="search-empty">Ошибка: ${esc(err.message)}</div>`;
+        if (key === viewMonth && !cache.has(key)) {
+            body.innerHTML = `<div class="search-empty">Ошибка: ${esc(err.message)}</div>`;
+        }
         return; // есть кеш — оставляем его на экране
     }
-    // Пока ходили на сервер, могли уйти на другую вкладку — рисуем всё равно:
-    // страница скрыта, но при возврате будет уже свежей.
-    render(body, cache);
+    cache.set(key, data);
+    // Пока ходили на сервер, могли пролистать дальше — чужой ответ в кеш, но
+    // не на экран. А вот уход на другую вкладку рисованию не мешает: страница
+    // скрыта, но при возврате будет уже свежей.
+    if (key === viewMonth) render(body, data);
+}
+
+function openMonth(month, current) {
+    const key = !month || month === current ? '' : month;
+    if (key === viewMonth) return;
+    viewMonth = key;
+    load();
+}
+
+// Один обработчик на контейнер, а не на кнопки: body.innerHTML
+// пересобирается на каждый ответ, и кнопки каждый раз новые.
+function bindMonthNav(body) {
+    if (body.dataset.monthNav) return;
+    body.dataset.monthNav = '1';
+    body.addEventListener('click', e => {
+        const btn = e.target.closest('[data-top-month]');
+        if (!btn || btn.disabled || !body.contains(btn)) return;
+        openMonth(btn.dataset.topMonth, btn.dataset.topCurrent);
+    });
 }
 
 // Карточка над списком: победитель(и) прошлого месяца. Если в прошлом месяце
@@ -91,7 +137,10 @@ function previousHtml(previous) {
         </div>`).join('');
     return `
         <div class="top-prev">
-            <div class="top-prev-head">${icons.award(14)}Топ в прошлом месяце${label ? ` · ${esc(label)}` : ''}</div>
+            <div class="top-prev-head">
+                ${icons.award(14)}<span class="top-prev-title">Топ в прошлом месяце${label ? ` · ${esc(label)}` : ''}</span>
+                <button type="button" class="top-prev-all" data-top-month="${esc(previous.month)}">Вся таблица${icons.chevronRight(12)}</button>
+            </div>
             ${names}
         </div>`;
 }
@@ -120,10 +169,35 @@ function rulesHtml() {
         </div>`;
 }
 
+// Подпись месяца со стрелками. Листаются только месяцы, где кто-то получил
+// очко (и текущий), — пустой март между двумя полными не нужен никому.
+// Стрелки не прячутся на краях, а гаснут: исчезающая кнопка сдвигает подпись,
+// и следующий клик попадает мимо.
+function monthNavHtml(data) {
+    const current = data.current || data.month;
+    const months = data.months?.length ? data.months : [data.month];
+    const i = months.indexOf(data.month);
+    const older = i >= 0 ? months[i + 1] : undefined;
+    const newer = i > 0 ? months[i - 1] : undefined;
+    const label = monthLabel(data.month);
+    const past = data.month !== current;
+    const btn = (month, icon, title) => `
+        <button type="button" class="top-month-btn" title="${title}"
+            data-top-month="${esc(month || '')}" data-top-current="${esc(current)}"${month ? '' : ' disabled'}>${icon}</button>`;
+    return `
+        <div class="top-month-nav">
+            ${btn(older, icons.chevronLeft(16), 'Предыдущий месяц')}
+            <div class="top-month">${esc(label)}${past ? ' · итог' : ''}</div>
+            ${btn(newer, icons.chevronRight(16), 'Следующий месяц')}
+        </div>`;
+}
+
 function render(body, data) {
     const rows = data.rows || [];
-    const previous = data.previous || null;
-    const label = monthLabel(data.month);
+    const past = data.current && data.month !== data.current;
+    // Карточка победителя прошлого месяца — только над текущим: над самой
+    // таблицей прошлого месяца она повторяла бы её первую строку.
+    const previous = past ? null : (data.previous || null);
 
     // Имя всегда в отдельном span: блик по буквам (background-clip: text)
     // должен резать только само имя, но не плашку роль-префикса рядом.
@@ -142,10 +216,12 @@ function render(body, data) {
                 ${countHtml(row, gold)}
             </div>`;
         }).join('')
-        : '<div class="search-empty">В этом месяце записей ещё никто не сделал</div>';
+        : `<div class="search-empty">${past
+            ? 'В этом месяце записей не было'
+            : 'В этом месяце записей ещё никто не сделал'}</div>`;
 
     body.innerHTML = previousHtml(previous)
-        + (label ? `<div class="top-month">${esc(label)}</div>` : '')
+        + monthNavHtml(data)
         + listHtml
         + rulesHtml();
 

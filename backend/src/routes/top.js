@@ -16,6 +16,13 @@
 // поэтому 1-го числа он начинается с нуля, а прошлый месяц никуда не девается
 // и отдаётся отдельным полем previous: кто был первым к концу месяца, тот там
 // и остался.
+//
+// Любой закрытый месяц открывается ЦЕЛИКОМ (`?month=YYYY-MM`): та же выборка
+// по другому 'YYYY-MM'. Архива как отдельной сущности нет и заводить его
+// незачем — строки record_credits не удаляются никогда, так что таблица
+// прошлого месяца считается из тех же строк, что считали её в последний день.
+// Ручка только читает: ни «закрытия месяца», ни снимка, который можно
+// перезаписать или потерять, тут нет.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Router } from 'express';
@@ -46,6 +53,27 @@ const RANKED_QUERY = `
    ORDER BY count(*) DESC, u.display_name
    LIMIT $2`;
 
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+// Какой месяц показать: без параметра — текущий. Мусор — null (роут ответит
+// 400), а не молча текущий месяц: человек, открывший «август», не должен
+// увидеть сентябрь под подписью августа.
+export function pickMonth(param, current) {
+  if (param === undefined || param === null || param === '') return current;
+  // ?month=…&month=… Express отдаёт массивом, а String(['2026-09']) —
+  // это '2026-09': проверка формата пропустила бы его как обычный.
+  return typeof param === 'string' && MONTH_RE.test(param) ? param : null;
+}
+
+// Месяцы для листания, свежие первыми. Текущий есть всегда, даже пустой:
+// 1-го числа в нём ещё ни одной записи, а открываться вкладка должна именно
+// на нём. Будущих месяцев в списке быть не может — их нет в record_credits.
+export function monthList(stored, current) {
+  const set = new Set(stored.filter(m => MONTH_RE.test(m) && m <= current));
+  set.add(current);
+  return [...set].sort().reverse();
+}
+
 function presentRow(row) {
   return {
     id: row.id,
@@ -59,32 +87,41 @@ function presentRow(row) {
   };
 }
 
-// ── GET /api/top ─────────────────────────────────────────────────────────────
-// { month: 'YYYY-MM', rows: [{ rank, …, records }],
+// ── GET /api/top[?month=YYYY-MM] ─────────────────────────────────────────────
+// { month: 'YYYY-MM' (показанный), current: 'YYYY-MM', months: ['YYYY-MM', …],
+//   rows: [{ rank, …, records }],
 //   previous: { month: 'YYYY-MM', winners: [ … ] } }
 // winners — все, кто разделил первое место в прошлом месяце (обычно один).
+// previous всегда про месяц перед ТЕКУЩИМ, а не перед показанным: это
+// карточка «кто победил в прошлый раз», а не часть листания.
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const months = await query(
+    const now = await query(
       `SELECT to_char(${MSK_NOW}, 'YYYY-MM') AS current,
               to_char(${MSK_NOW} - interval '1 month', 'YYYY-MM') AS previous`,
     );
-    const { current, previous } = months.rows[0];
+    const { current, previous } = now.rows[0];
 
-    const [ranked, prevTop] = await Promise.all([
-      query(RANKED_QUERY, [current, 50]),
+    const month = pickMonth(req.query.month, current);
+    if (!month) return res.status(400).json({ error: 'month: ожидается YYYY-MM' });
+
+    const [ranked, prevTop, stored] = await Promise.all([
+      query(RANKED_QUERY, [month, 50]),
       // Первое место прошлого месяца. Берём несколько строк, а не одну: при
       // равном числе записей первыми были все они, и обделять кого-то из-за
       // сортировки по алфавиту нечестно.
       query(RANKED_QUERY, [previous, 10]),
+      query(`SELECT DISTINCT month FROM record_credits WHERE counted`),
     ]);
 
     const prevRows = prevTop.rows.map(presentRow);
     const best = prevRows.length ? prevRows[0].records : 0;
 
     res.json({
-      month: current,
+      month,
+      current,
+      months: monthList(stored.rows.map(r => r.month), current),
       rows: ranked.rows.map((row, i) => ({ rank: i + 1, ...presentRow(row) })),
       previous: {
         month: previous,
