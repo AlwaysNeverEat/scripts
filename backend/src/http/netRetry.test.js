@@ -168,3 +168,38 @@ test('fetchWithRetry: таймаут отмеряется заново на ка
         stub.restore();
     }
 });
+
+// Сервер отдал заголовки и замолчал посреди тела. Раньше таймер снимался на
+// заголовках, и такое тело читалось минутами, держа всю очередь к CRM.
+function stalledBody(signal) {
+    const body = new ReadableStream({
+        start(ctl) {
+            ctl.enqueue(new TextEncoder().encode('{"ok":tr'));
+            signal.addEventListener('abort', () => ctl.error(signal.reason));
+        },
+    });
+    return new Response(body, { status: 200 });
+}
+
+test('fetchWithRetry с coverBody: застрявшее тело обрывается в срок', async () => {
+    const stub = stubFetch((n, url, init) => stalledBody(init.signal));
+    try {
+        const res = await fetchWithRetry('https://crm.example/re/api.php', {}, { timeoutMs: 50, coverBody: true });
+        const started = Date.now();
+        await assert.rejects(res.text(), (err) => err.name === 'AbortError');
+        assert.ok(Date.now() - started < 1000, 'обрыв по нашему таймауту, а не через минуты');
+    } finally {
+        stub.restore();
+    }
+});
+
+test('fetchWithRetry с coverBody: вовремя прочитанному ответу таймер не мешает', async () => {
+    const stub = stubFetch(() => new Response('{"ok":true}', { status: 200 }));
+    try {
+        const res = await fetchWithRetry('https://crm.example/re/api.php', {}, { timeoutMs: 30, coverBody: true });
+        assert.equal(await res.text(), '{"ok":true}');
+        await new Promise(r => setTimeout(r, 60)); // таймер отработал — ничего не сломалось
+    } finally {
+        stub.restore();
+    }
+});

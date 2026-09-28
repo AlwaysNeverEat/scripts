@@ -29,6 +29,7 @@ import {
     SLOT_MINUTES, MAX_DURATION_MIN, copyOperatorFor,
     LAST_START_TIME,
 } from '../../../shared/crmRecords.js';
+import { closeByLead } from '../../../shared/crmJournal.js';
 import { filterStations, stationMatch } from './stationFilter.js';
 import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
@@ -92,6 +93,10 @@ const state = {
     date: null,            // выбранный день DD.MM.YYYY
     board: null,           // parseRecordBoard() с бэкенда
     fetchedAt: null,
+    // Насколько часы сервера впереди часов этого браузера, мс. Запас в час
+    // (closeByLead) и «доска устарела» считаются по времени СЕРВЕРА: у
+    // компьютера на посту часы бывают сбиты на минуты, а правило одно на всех.
+    clockSkew: 0,
     boardOk: true,
     boardError: '',
     boardLoading: false,
@@ -215,11 +220,15 @@ async function loadBoard({ silent = false, spareModal = false } = {}) {
     const date = state.date;
     const stale = () => req !== boardReq || date !== state.date;
     const hadBoard = Boolean(state.board);
-    if (!silent) { state.boardLoading = true; render(); }
+    // Открытое окно не перерисовываем и ради «загружаю…»: там набирают.
+    if (!silent && !(spareModal && state.modal)) { state.boardLoading = true; render(); }
     try {
         const data = await apiFetch(`/api/journal/board?date=${encodeURIComponent(date)}`);
         if (stale()) return;
+        const at = Date.parse(data.fetchedAt);
+        if (Number.isFinite(at)) state.clockSkew = at - Date.now();
         state.board = data.board;
+        closeByLeadNow();
         state.fetchedAt = data.fetchedAt;
         state.boardOk = data.ok;
         state.boardError = data.error || '';
@@ -723,8 +732,25 @@ function isDown() {
     if (state.credsNeeded) return false;
     if (state.status && state.status.alive === false) return true;
     if (!state.fetchedAt) return !state.boardOk;
-    const ageSec = (Date.now() - new Date(state.fetchedAt).getTime()) / 1000;
+    const ageSec = (serverNow() - new Date(state.fetchedAt).getTime()) / 1000;
     return !state.boardOk || ageSec > 180;
+}
+
+// Сейчас по часам сервера (см. state.clockSkew).
+function serverNow() {
+    return Date.now() + state.clockSkew;
+}
+
+// Запас в час до визита, приложенный к доске ПО ТЕКУЩЕМУ времени. Сервер
+// закрывает близкие слоты сам, но делает это в момент, когда собирал доску, и
+// дальше доска живёт на экране со своим «сейчас»: собранная в 12:59, в 13:20
+// она всё ещё предлагала записать на 14:00. Час идёт и без новой доски, поэтому
+// правило прикладываем и тут — на приезде доски и по тику маркера «сейчас».
+// Операция всё равно проверяет то же самое на сервере (requireLead).
+function closeByLeadNow() {
+    if (!state.board) return false;
+    const iso = ddmmToIso(state.board.date) || ddmmToIso(state.date);
+    return iso ? closeByLead(state.board, iso, serverNow()) : false;
 }
 
 // ── Маркер «сейчас» и отсчёт до конца записи ─────────────────────────────────
@@ -3958,7 +3984,7 @@ export function startRecords(mount) {
         // Вернулись быстро — обновляемся тихо, как на обычном тике. Вернулись
         // после долгого отсутствия — показываем, что доска едет: за это время
         // бэкенд успевает уснуть, и первый запрос ждёт холодного старта.
-        if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: !long }));
+        if (!state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: !long, spareModal: true }));
     };
     startPolling();
 
@@ -3979,17 +4005,27 @@ function startPolling() {
     document.addEventListener('visibilitychange', onVisibility);
     timers.push(setInterval(() => { if (!document.hidden) loadStatus(); }, 30_000));
     timers.push(setInterval(() => {
-        // не дёргаем доску, пока открыта модалка или гейт кредов
-        // (перерисовка сбила бы ввод)
-        if (document.hidden || state.modal || state.credsNeeded) return;
+        if (document.hidden || state.credsNeeded) return;
+        // Открытое окно доску НЕ останавливает: раньше тик при нём пропускался,
+        // а окна на посту открыты почти всё время (звонок — окно записи,
+        // следующий звонок — следующее), и доска могла стоять минутами — без
+        // чужих записей и со слотами, на которые уже нельзя. Теперь она
+        // перечитывается всегда, а перерисовка ждёт, пока окно закроют
+        // (spareModal): там набирают, и перерисовка выбросила бы ввод.
         // Заодно перечитываем правки станций: предупреждение вешает один
         // человек, а видеть его должны все — и не после перезагрузки страницы.
-        loadOverrides().then(() => loadBoard({ silent: true }));
+        loadOverrides().then(() => loadBoard({ silent: true, spareModal: true }));
     }, 45_000));
     timers.push(setInterval(() => { if (!document.hidden) renderStatusOnly(); }, 10_000));
     // маркер «сейчас» и отсчёты — отдельным тиком: их можно двигать и при
-    // открытой модалке, ведь это не перерисовка, а top и текст бейджа
-    timers.push(setInterval(() => { if (!document.hidden) syncNow(); }, 15_000));
+    // открытой модалке, ведь это не перерисовка, а top и текст бейджа.
+    // Тот же тик закрывает слоты, до которых осталось меньше часа: это уже
+    // перерисовка, поэтому при открытом окне только данные — покажет закрытие.
+    timers.push(setInterval(() => {
+        if (document.hidden) return;
+        if (closeByLeadNow() && !state.modal && !state.credsNeeded) render();
+        else syncNow();
+    }, 15_000));
 }
 
 function stopPolling() {
@@ -4034,7 +4070,7 @@ export function resumeRecords() {
     startPolling();
     loadViewer(); // пока раздел стоял, могли войти под своим аккаунтом
     loadStatus();
-    if (!state.modal && !state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: !long }));
+    if (!state.credsNeeded) loadOverrides().then(() => loadBoard({ silent: !long, spareModal: true }));
 }
 
 export function stopRecords() {
