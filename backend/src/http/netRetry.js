@@ -95,17 +95,29 @@ function isReplayableMethod(method) {
 //
 // Наружу летит исходная ошибка fetch: во что её завернуть (ZmsError или
 // CrmError) и как описать — дело вызывающего клиента.
-export async function fetchWithRetry(target, init = {}, { timeoutMs, beforeAttempt, fetchImpl } = {}) {
+//
+// coverBody — таймаут накрывает и ЧТЕНИЕ ТЕЛА, а не только ожидание
+// заголовков. Без него таймер снимается, как только пришли заголовки, и тело
+// читается сколько угодно: сервер, отдавший заголовки и замолчавший, держит
+// запрос минутами (у undici свой таймаут простоя — пять минут на КАЖДЫЙ кусок).
+// Клиенту CRM это критично: очередь к ней одна на процесс, и один такой ответ
+// останавливает доску записей всем операторам разом. Таймер тогда не
+// снимается вовсе, а гасит запрос в срок — на уже прочитанный ответ abort не
+// действует. Вызывающий читает тело сразу и сам заворачивает AbortError.
+export async function fetchWithRetry(target, init = {}, { timeoutMs, beforeAttempt, fetchImpl, coverBody = false } = {}) {
     const retries = isReplayableMethod(init.method) ? NET_RETRIES : 0;
     for (let attempt = 0; ; attempt++) {
         if (beforeAttempt) await beforeAttempt();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
+        let ok = false;
         try {
             // Глобальный fetch берём на каждой попытке, а не один раз при
             // импорте: тесты подменяют globalThis.fetch.
             const call = fetchImpl || fetch;
-            return await call(target, { ...init, signal: controller.signal });
+            const res = await call(target, { ...init, signal: controller.signal });
+            ok = true;
+            return res;
         } catch (err) {
             if (attempt < retries && isTransientNetworkError(err)) {
                 await sleep(netRetryDelay(attempt));
@@ -113,7 +125,9 @@ export async function fetchWithRetry(target, init = {}, { timeoutMs, beforeAttem
             }
             throw err;
         } finally {
-            clearTimeout(timer);
+            // Отработавший таймер не должен держать процесс (тесты, выход).
+            if (ok && coverBody) timer.unref?.();
+            else clearTimeout(timer);
         }
     }
 }

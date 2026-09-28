@@ -245,6 +245,10 @@ async function rawFetch(path, jar, opts = {}) {
             // Повтор — такой же запрос, поэтому pace() идёт крючком в цикл.
             beforeAttempt: pace,
             fetchImpl: tls?.fetchImpl,
+            // Срок и на тело ответа: очередь к CRM одна на процесс, и ответ,
+            // застрявший на середине, иначе держал бы доску записей у всех
+            // операторов разом (см. fetchWithRetry). Тело читает bodyText.
+            coverBody: true,
         });
     } catch (err) {
         throw new CrmError('crm_unavailable', networkMessage(target, err));
@@ -255,6 +259,18 @@ async function rawFetch(path, jar, opts = {}) {
         throw new CrmError('crm_unavailable', `CRM ответила HTTP ${res.status}`);
     }
     return res;
+}
+
+// Тело ответа CRM. Таймаут запроса накрывает и его (coverBody в rawFetch), а
+// оборванное на середине тело — такой же сбой сети, как и неответ: «CRM
+// недоступна», а не голый AbortError в роуте.
+async function bodyText(res) {
+    try {
+        return await res.text();
+    } catch (err) {
+        throw new CrmError('crm_unavailable',
+            `CRM не дослала ответ: ${describeNetworkError(err, FETCH_TIMEOUT_MS)}`);
+    }
 }
 
 async function followRedirects(res, jar, hops = 5) {
@@ -337,7 +353,7 @@ async function apiCall(jar, { query = null, body = null } = {}) {
         }
         : {};
     const res = await followRedirects(await rawFetch(path, jar, opts), jar);
-    const text = res.status >= 300 ? '' : await res.text();
+    const text = res.status >= 300 ? '' : await bodyText(res);
     let json = null;
     try { json = text ? JSON.parse(text) : null; } catch { json = null; }
     return { status: res.status, json, text };
@@ -388,7 +404,7 @@ async function apiLoginIntoJar(jar, login, password) {
 async function formLoginIntoJar(jar, login, password) {
     const entryPath = process.env.CRM_LOGIN_PATH || '/analyse/free';
     const res = await followRedirects(await rawFetch(entryPath, jar), jar);
-    const html = res.status >= 300 ? '' : await res.text();
+    const html = res.status >= 300 ? '' : await bodyText(res);
     const form = parseLoginForm(html);
 
     const loginField = process.env.CRM_LOGIN_FIELD || form?.loginField;
@@ -419,7 +435,7 @@ async function formLoginIntoJar(jar, login, password) {
     });
     if (post.status >= 400) return 'rejected';
     const check = await followRedirects(await rawFetch('/analyse/free', jar), jar);
-    const checkHtml = check.status >= 300 ? '' : await check.text();
+    const checkHtml = check.status >= 300 ? '' : await bodyText(check);
     // Форму отправили, а под замок не пустили — это ИМЕННО «пароль не подошёл»,
     // и сказать надо так. Раньше этот случай был неотличим от «формы нет», и
     // человек получал «CRM недоступна» там, где надо менять пароль.
@@ -576,7 +592,7 @@ export function findLogoutLink(html) {
 async function sessionClosed(jar) {
     const res = await followRedirects(await rawFetch('/analyse/free', jar), jar);
     if (res.status >= 300) return true; // не пустила даже после редиректов
-    const html = await res.text();
+    const html = await bodyText(res);
     return !html || parseAnalyseFree(html).loginPage;
 }
 
@@ -591,7 +607,7 @@ export async function closeCrmSession(jar) {
         candidates.push({ path: explicit, method: 'GET' });
     } else {
         const page = await followRedirects(await rawFetch('/analyse/free', jar), jar);
-        const html = page.status >= 300 ? '' : await page.text();
+        const html = page.status >= 300 ? '' : await bodyText(page);
         // CRM уже сама закрыла сессию — закрывать нечего, это успех.
         if (!html || parseAnalyseFree(html).loginPage) return true;
         const found = findLogoutLink(html);
@@ -733,7 +749,7 @@ export async function crmWhoAmI(userId) {
 // потому что следующий же запрос повторял тот же вывод.
 export async function fetchPage(jar, path) {
     const res = await followRedirects(await rawFetch(path, jar), jar);
-    const html = res.status >= 300 ? '' : await res.text();
+    const html = res.status >= 300 ? '' : await bodyText(res);
     return !html || parseLoginForm(html) ? '' : html;
 }
 

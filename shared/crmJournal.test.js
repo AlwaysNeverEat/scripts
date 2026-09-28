@@ -11,7 +11,7 @@ import {
     journalSavePayload, journalDeletePayload,
     parseSaveResult, parseDeleteResult, parseUserPerms,
     journalSlots, durationSlots, DURATIONS, PRIV_RECORDS, journalToBoard,
-    bookingOpen, BOOKING_LEAD_MIN,
+    bookingOpen, BOOKING_LEAD_MIN, closeByLead,
 } from './crmJournal.js';
 import { isJunkPhone, timeToMin, SLOT_MINUTES } from './crmRecords.js';
 
@@ -433,6 +433,30 @@ test('доска с `now` закрывает слоты ближе часа та
     assert.equal(c['13:00'].free, 2);
     // Прошлое утро — тоже без ячеек.
     assert.equal(c['09:00'], undefined);
+});
+
+// Жалоба с поста: доску собрали в 12:59, и в 13:20 она всё ещё предлагала
+// записать на 14:00. Правило считалось один раз, при загрузке, — теперь раздел
+// прикладывает его к уже приехавшей доске по своему тику.
+test('closeByLead догоняет уже собранную доску, когда время ушло вперёд', () => {
+    const j = parseJournal({
+        ok: true, date: '2026-09-28',
+        stations: [{ id: '8', address: 'X', posts_count: '2' }, { id: '9', address: 'Y', posts_count: '1' }],
+        records: [{ id: '1', address_id: '8', time: '14:00', record_time: '2026-09-28 14:00:00', name: 'Ольга' }],
+    });
+    const b = journalToBoard(j, { now: Date.parse('2026-09-28T12:59:00+03:00') });
+    assert.equal(b.cells['8']['14:00'].free, 1, 'в 12:59 на 14:00 ещё можно');
+    assert.equal(b.cells['9']['14:00'].free, 1);
+
+    const changed = closeByLead(b, '2026-09-28', Date.parse('2026-09-28T13:20:00+03:00'));
+    assert.equal(changed, true);
+    assert.equal(b.cells['9']['14:00'], undefined, 'пустой слот ближе часа — без ячейки');
+    assert.equal(b.cells['8']['14:00'].free, 0, 'занятый — с записью, но без мест');
+    assert.equal(b.cells['8']['14:00'].records.length, 1);
+    assert.equal(b.cells['8']['14:30'].free, 2, 'через час и дальше — как было');
+
+    assert.equal(closeByLead(b, '2026-09-28', Date.parse('2026-09-28T13:20:30+03:00')), false,
+        'повторный проход без перемен ничего не меняет — раздел не перерисовывается зря');
 });
 
 test('доска без `now` отдаёт день как есть — для разбора и тестов', () => {

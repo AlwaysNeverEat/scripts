@@ -158,6 +158,24 @@ export function mergeAuthors(board, fromCredits = {}) {
     return out;
 }
 
+// Один и тот же день одному и тому же человеку — одним походом в CRM. Браузер
+// дублирует GET внахлёст, если ответа нет шесть секунд (frontend/src/netRetry.js),
+// а у CRM очередь одна на процесс: на медленной CRM каждый дубль вставал в неё
+// ещё одним журналом дня, очередь росла быстрее, чем разбиралась, и доска
+// переставала обновляться у всех сразу. Теперь дубль ждёт тот же ответ.
+// Кэша тут нет — только склейка запросов, которые уже в пути.
+const journalInFlight = new Map();
+
+function fetchJournalShared(userId, iso) {
+    const key = `${userId}|${iso}`;
+    let p = journalInFlight.get(key);
+    if (!p) {
+        p = fetchJournal(userId, iso).finally(() => journalInFlight.delete(key));
+        journalInFlight.set(key, p);
+    }
+    return p;
+}
+
 // Доска в той же форме, что отдавал /api/records/board: раздел рисует её
 // годами, и переезд на CRM не повод переписывать рисование. Дата — как её
 // шлёт раздел (ДД.ММ.ГГГГ); ISO тоже принимаем.
@@ -170,7 +188,7 @@ router.get('/board', async (req, res) => {
         // `now` закрывает слоты ближе часа — так же, как их закрывала старая
         // админка (см. BOOKING_LEAD_MIN). Сама операция проверяет то же
         // правило ещё раз, на случай запроса мимо кнопки.
-        const board = journalToBoard(await fetchJournal(req.user.id, iso), { now: Date.now() });
+        const board = journalToBoard(await fetchJournalShared(req.user.id, iso), { now: Date.now() });
         board.date = date;
         let credits = {};
         try { credits = await loadBoardAuthors(date, board); } catch { /* топ не повод прятать доску */ }

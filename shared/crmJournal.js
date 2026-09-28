@@ -386,14 +386,34 @@ export function journalToBoard(journal, { stubDigits = '71111111111', now = null
     // Свободные места — только там, где станция вообще есть: считать их по
     // каждому слоту заранее дешевле, чем искать станцию при каждой отрисовке.
     const slots = journalSlots();
-    const closed = (t) => now != null && !bookingOpen(j.date, t, now);
     for (const a of addresses) {
         for (const t of slots) {
             const c = cell(a.id, t);
-            c.free = closed(t) ? 0 : Math.max(a.posts - c.records.length, 0);
-            if (closed(t) && !c.records.length) delete cells[a.id][t];
+            c.free = Math.max(a.posts - c.records.length, 0);
         }
     }
 
-    return { date: j.date, timeSlots: slots, addresses, cells };
+    const board = { date: j.date, timeSlots: slots, addresses, cells };
+    if (now != null) closeByLead(board, j.date, now);
+    return board;
+}
+
+// Закрыть на доске слоты ближе часа (BOOKING_LEAD_MIN) к моменту `now`: пустой
+// такой слот теряет ячейку, занятый остаётся со своими записями, но без
+// свободных мест. Меняет доску НА МЕСТЕ и говорит, изменилось ли что-нибудь.
+//
+// Вынесено из journalToBoard ради раздела: доска, собранная сервером в 12:59,
+// через двадцать минут всё ещё предлагала записать на 14:00 — правило было
+// посчитано один раз, в момент загрузки. Час идёт и без новой доски, поэтому
+// раздел прикладывает то же правило сам по своему тику, а не ждёт сервера.
+export function closeByLead(board, dateIso, now = Date.now()) {
+    let changed = false;
+    for (const byTime of Object.values(board?.cells || {})) {
+        for (const [t, c] of Object.entries(byTime)) {
+            if (bookingOpen(dateIso, t, now)) continue;
+            if (c.free) { c.free = 0; changed = true; }
+            if (!c.records.length) { delete byTime[t]; changed = true; }
+        }
+    }
+    return changed;
 }
