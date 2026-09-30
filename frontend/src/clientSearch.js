@@ -197,7 +197,18 @@ export function initClientSearch({ apiFetch }) {
         sales: new Map(),   // saleId → { status: 'load'|'ok'|'error', sale, message }
         open: new Set(),    // раскрытые чеки
         shown: SALES_PAGE,  // сколько обслуживаний показано (и, значит, заказано в CRM)
+        // Из какой CRM показан результат. Поиск всегда начинается с НОВОЙ, а
+        // старая подгружается кнопкой: в новой теперь работают, и искать в
+        // старой по умолчанию значит каждый раз ждать медленные страницы ради
+        // ответа, который обычно уже есть. Старая остаётся под рукой — в ней
+        // история, которую новая могла не перенести.
+        source: 'new',
+        saved: {},          // source → снимок результата: переключение туда-обратно не ходит в CRM заново
+        cards: null,        // новая CRM: карточки приехали вместе с поиском (обзвон отдаёт все визиты)
     };
+    // Адреса ручек по источнику: у новой свои (/api/crm/new/…), ответы у обеих
+    // в одной форме — карточка рисуется одним кодом.
+    const apiBase = () => (state.source === 'new' ? '/api/crm/new' : '/api/crm');
     // Каждый новый поиск/клиент отменяет предыдущий: ответы старого запроса
     // приходят и после ухода с карточки, и рисовать их нельзя.
     let token = 0;
@@ -314,14 +325,21 @@ export function initClientSearch({ apiFetch }) {
 
     // ── Поиск ─────────────────────────────────────────────────────────────────
 
-    async function runSearch() {
+    // Новый поиск (другой номер, Enter) всегда начинается с новой CRM и
+    // забывает прошлые снимки. Переключение на старую — `source: 'old'`: тот же
+    // номер, другой источник.
+    async function runSearch({ source = 'new' } = {}) {
         if (!complete()) {
             input.focus();
             return;
         }
+        if (source === 'new' || state.saved.query !== state.value) state.saved = { query: state.value };
+        state.source = source;
         const mine = ++token;
         state.stage = 'searching';
         state.error = '';
+        state.errorCode = '';
+        state.cards = null;
         state.client = null;
         state.clients = [];
         state.sales = new Map();
@@ -330,9 +348,10 @@ export function initClientSearch({ apiFetch }) {
         render();
         const q = state.kind === 'phone' ? 'phone' : 'plate';
         try {
-            const resp = await apiFetch(`/api/crm/clients?${q}=${encodeURIComponent(state.value)}`);
+            const resp = await apiFetch(`${apiBase()}/clients?${q}=${encodeURIComponent(state.value)}`);
             if (mine !== token) return;
             state.clients = resp.clients || [];
+            state.cards = resp.cards || null;
             if (!state.clients.length) {
                 state.stage = 'empty';
                 render();
@@ -351,6 +370,19 @@ export function initClientSearch({ apiFetch }) {
     }
 
     async function openClient(id) {
+        // Новая CRM отдала карточки вместе с поиском — открываем без похода.
+        const ready = state.source === 'new' && state.cards && state.cards[id];
+        if (ready) {
+            const mine = ++token;
+            state.client = ready;
+            state.sales = new Map();
+            state.open = new Set();
+            state.shown = SALES_PAGE;
+            state.stage = 'client';
+            render();
+            prefetchSales(mine);
+            return;
+        }
         const mine = ++token;
         state.stage = 'searching';
         state.client = null;
@@ -359,7 +391,7 @@ export function initClientSearch({ apiFetch }) {
         state.shown = SALES_PAGE;
         render();
         try {
-            const resp = await apiFetch('/api/crm/clients/' + encodeURIComponent(id));
+            const resp = await apiFetch(`${apiBase()}/clients/` + encodeURIComponent(id));
             if (mine !== token) return;
             state.client = resp.client;
             state.stage = 'client';
@@ -385,11 +417,20 @@ export function initClientSearch({ apiFetch }) {
                 if (mine !== token) return;
                 const id = queue.shift();
                 try {
-                    const resp = await apiFetch('/api/crm/sales/' + encodeURIComponent(id));
+                    const resp = await apiFetch(`${apiBase()}/sales/` + encodeURIComponent(id));
                     if (mine !== token) return;
                     state.sales.set(id, { status: 'ok', sale: resp.sale });
                 } catch (e) {
                     if (mine !== token) return;
+                    // Лимит просмотров новой CRM кончился посреди обхода —
+                    // остальные чеки упрутся в него же; рвём обход, а не
+                    // стучимся в закрытую дверь по разу на каждый чек.
+                    if (e.code === 'crm_daily_limit') {
+                        state.sales.set(id, { status: 'error', message: e.message });
+                        for (const rest of queue.splice(0)) state.sales.set(rest, { status: 'error', message: e.message });
+                        refreshSale(id);
+                        return;
+                    }
                     // Один упавший чек не должен рвать обход остальных: у
                     // строки появится «не загрузилось» и кнопка повтора.
                     if (e.code === 'crm_auth_required') { failed(e); return; }
@@ -406,7 +447,7 @@ export function initClientSearch({ apiFetch }) {
         state.sales.set(id, { status: 'load' });
         refreshSale(id);
         try {
-            const resp = await apiFetch('/api/crm/sales/' + encodeURIComponent(id));
+            const resp = await apiFetch(`${apiBase()}/sales/` + encodeURIComponent(id));
             if (mine !== token) return;
             state.sales.set(id, { status: 'ok', sale: resp.sale });
         } catch (e) {
@@ -414,6 +455,31 @@ export function initClientSearch({ apiFetch }) {
             state.sales.set(id, { status: 'error', message: e.message });
         }
         refreshSale(id);
+    }
+
+    // ── Источник: новая CRM или старая ───────────────────────────────────────
+
+    const SNAP_KEYS = ['stage', 'error', 'errorCode', 'clients', 'cards', 'client', 'sales', 'open', 'shown'];
+
+    // Переключение между CRM не ходит за тем, что уже показано: снимок
+    // результата лежит по источнику, пока номер в строке тот же.
+    function switchSource(to) {
+        if (to === state.source) return;
+        state.saved[state.source] = Object.fromEntries(SNAP_KEYS.map(k => [k, state[k]]));
+        const snap = state.saved[to];
+        if (snap && state.saved.query === state.value) {
+            ++token; // недокачанный обход прошлого источника рисовать нельзя
+            state.source = to;
+            Object.assign(state, snap);
+            render();
+            // Чеки, которые не успели доехать до переключения, дозаказываем:
+            // их обход оборвался вместе с прошлым токеном, и «загружаю» на них
+            // висело бы вечно.
+            for (const [id, st] of state.sales) if (st.status === 'load') state.sales.delete(id);
+            if (state.stage === 'client') prefetchSales(token);
+            return;
+        }
+        runSearch({ source: to });
     }
 
     function failed(e) {
@@ -425,6 +491,7 @@ export function initClientSearch({ apiFetch }) {
         } else {
             state.stage = 'error';
             state.error = e.message || 'CRM недоступна';
+            state.errorCode = e.code || '';
         }
         render();
     }
@@ -437,7 +504,7 @@ export function initClientSearch({ apiFetch }) {
             state.loggingIn = false;
             state.stage = 'idle';
             render();
-            runSearch();
+            runSearch({ source: state.source });
         } catch (e) {
             state.loggingIn = false;
             state.authNote = e.message || 'Не удалось войти в CRM';
@@ -449,14 +516,31 @@ export function initClientSearch({ apiFetch }) {
 
     function render() {
         renderBar();
-        if (state.stage === 'idle')      body.innerHTML = viewIdle();
-        else if (state.stage === 'searching') body.innerHTML = viewSearching();
-        else if (state.stage === 'empty')     body.innerHTML = viewEmpty();
-        else if (state.stage === 'error')     body.innerHTML = viewError();
-        else if (state.stage === 'auth')      body.innerHTML = viewAuth();
-        else if (state.stage === 'list')      body.innerHTML = viewList();
-        else if (state.stage === 'client')    body.innerHTML = viewClient();
+        const view = state.stage === 'idle' ? viewIdle()
+            : state.stage === 'searching' ? viewSearching()
+            : state.stage === 'empty' ? viewEmpty()
+            : state.stage === 'error' ? viewError()
+            : state.stage === 'auth' ? viewAuth()
+            : state.stage === 'list' ? viewList()
+            : viewClient();
+        body.innerHTML = sourceBar() + view;
         bind();
+    }
+
+    // Строка над результатом: откуда он и кнопка во вторую CRM. Стоит ВСЕГДА,
+    // когда поиск был, — и над «не найдено», и над ошибкой, и над лимитом
+    // новой CRM: именно тогда старая и нужна.
+    function sourceBar() {
+        if (state.stage === 'idle' || state.stage === 'auth') return '';
+        const isNew = state.source === 'new';
+        const busy = state.stage === 'searching';
+        return `
+            <div class="cs-source">
+                <span class="cs-source-now">${busy ? 'Ищу в' : 'Показано из'} <b>${isNew ? 'новой CRM' : 'старой CRM'}</b></span>
+                ${isNew
+                    ? `<button type="button" class="cs-source-btn" data-act="old"${busy ? ' disabled' : ''}>${ICON.retry}Подгрузить по старой CRM</button>`
+                    : `<button type="button" class="cs-source-btn" data-act="new"${busy ? ' disabled' : ''}>${ICON.back}Вернуться к новой CRM</button>`}
+            </div>`;
     }
 
     // Пустой экран до поиска — это и есть «ничего не найдено ещё»: плашка с
@@ -483,19 +567,31 @@ export function initClientSearch({ apiFetch }) {
 
     function viewEmpty() {
         const what = state.kind === 'phone' ? 'этим телефоном' : 'этим номером';
+        const where = state.source === 'new' ? 'новой CRM' : 'старой CRM';
         return `
             <div class="cs-note cs-note-empty">
                 <div class="cs-note-title">Ничего не найдено</div>
-                <p>В CRM нет клиента с ${what} — <b>${esc(state.value)}</b>.</p>
+                <p>В ${where} нет клиента с ${what} — <b>${esc(state.value)}</b>.</p>
                 <p class="cs-note-sub">Стоит проверить второй тип поиска: клиента заводят
-                   и на телефон, и на машину, но не всегда на оба сразу.</p>
+                   и на телефон, и на машину, но не всегда на оба сразу${state.source === 'new'
+                       ? ', — или подгрузить по старой CRM: не всё из неё есть в новой' : ''}.</p>
             </div>`;
     }
 
     function viewError() {
+        // Лимит — не сбой: повтор его не снимет, и кнопка «попробовать снова»
+        // тут врала бы. Выход один — старая CRM, кнопка над сообщением.
+        if (state.errorCode === 'crm_daily_limit') {
+            return `
+                <div class="cs-note cs-note-error">
+                    <div class="cs-note-title">Лимит просмотра клиентов в новой CRM</div>
+                    <p>${esc(state.error)}</p>
+                    <p class="cs-note-sub">Лимит считает сама новая CRM, по твоей учётке, — так же, как если бы ты открывал клиентов в ней. Клиента можно подгрузить по старой CRM — кнопка над этим сообщением.</p>
+                </div>`;
+        }
         return `
             <div class="cs-note cs-note-error">
-                <div class="cs-note-title">CRM не ответила</div>
+                <div class="cs-note-title">${state.source === 'new' ? 'Новая CRM' : 'Старая CRM'} не ответила</div>
                 <p>${esc(state.error)}</p>
                 <button type="button" class="btn cs-retry" data-act="research">Попробовать снова</button>
             </div>`;
@@ -526,7 +622,12 @@ export function initClientSearch({ apiFetch }) {
                     ${state.clients.map(c => `
                         <button type="button" class="cs-pick-item" data-client="${esc(c.id)}">
                             <span class="cs-ava">${esc((c.name || '?').trim()[0] || '?')}</span>
-                            <span class="cs-pick-name">${esc(c.name)}</span>
+                            <span class="cs-pick-text">
+                                <span class="cs-pick-name">${esc(c.name)}</span>
+                                ${c.phone || (c.plates && c.plates.length)
+                                    ? `<span class="cs-pick-sub">${esc([c.phone ? prettyPhone(c.phone) : '', ...(c.plates || [])].filter(Boolean).join(' · '))}</span>`
+                                    : ''}
+                            </span>
                         </button>`).join('')}
                 </div>
             </div>`;
@@ -558,7 +659,9 @@ export function initClientSearch({ apiFetch }) {
             ? `<button type="button" class="cs-back" data-act="back">${ICON.back}<span>К списку</span></button>`
             : '';
         const rest = sales.length - visibleSales().length;
-        const bonus = Number(c.bonus) || 0;
+        // Баллов обзвон новой CRM не отдаёт — тогда прочерк, а не «0»: ноль
+        // баллов оператор назвал бы клиенту как факт.
+        const bonusKnown = c.bonus != null && Number.isFinite(Number(c.bonus));
 
         return `
             <div class="cs-card">
@@ -575,13 +678,14 @@ export function initClientSearch({ apiFetch }) {
                                 : ''}
                             ${c.birthday ? `<span class="cs-bday">др ${esc(c.birthday)}</span>` : ''}
                         </div>
+                        ${c.comment ? `<div class="cs-client-note" title="Комментарий в карточке клиента">${esc(c.comment)}</div>` : ''}
                     </div>
                     ${plates.length ? `<div class="cs-plates">${plates.map(plateHtml).join('')}</div>` : ''}
                 </div>
 
                 <div class="cs-stats">
-                    <div class="cs-stat" title="Бонусный счёт в CRM">
-                        <span class="cs-stat-val">${points(bonus)}</span>
+                    <div class="cs-stat" title="${bonusKnown ? 'Бонусный счёт в CRM' : 'Новая CRM в обзвоне баллов не отдаёт — они есть в старой'}">
+                        <span class="cs-stat-val">${bonusKnown ? points(Number(c.bonus)) : '—'}</span>
                         <span class="cs-stat-cap">баллы</span>
                     </div>
                     <div class="cs-stat">
@@ -691,6 +795,10 @@ export function initClientSearch({ apiFetch }) {
                 </div>`;
         }
         const sale = st.sale;
+        // Продавца и пробег старая CRM отдаёт в строке карточки, новая — только
+        // в самом чеке. Берём откуда есть.
+        const seller = s.seller || sale.seller || '';
+        const mileage = s.mileage || sale.mileage || null;
         const payIcon = sale.payment === 'cash' ? ICON.cash : sale.payment === 'cashless' ? ICON.card : '';
         const payText = sale.payment === 'cash' ? 'наличными' : sale.payment === 'cashless' ? 'картой' : '';
         return `
@@ -699,8 +807,8 @@ export function initClientSearch({ apiFetch }) {
                 <div class="cs-svc-foot">
                     <span class="cs-svc-meta">
                         ${payIcon ? `<span class="cs-chip cs-pay">${payIcon}${esc(payText)}</span>` : ''}
-                        ${s.seller ? `<span class="cs-chip cs-seller">${esc(s.seller)}</span>` : ''}
-                        ${s.mileage ? `<span class="cs-chip cs-mileage">${esc(km(s.mileage))}</span>` : ''}
+                        ${seller ? `<span class="cs-chip cs-seller">${esc(seller)}</span>` : ''}
+                        ${mileage ? `<span class="cs-chip cs-mileage">${esc(km(mileage))}</span>` : ''}
                         ${s.receivedBonus ? `<span class="cs-chip cs-earned">+${points(s.receivedBonus)} ${plural(Math.round(s.receivedBonus), 'балл', 'балла', 'баллов')}</span>` : ''}
                         ${s.paidBonus ? `<span class="cs-chip cs-spent">−${points(s.paidBonus)} ${plural(Math.round(s.paidBonus), 'балл', 'балла', 'баллов')}</span>` : ''}
                     </span>
@@ -809,7 +917,11 @@ export function initClientSearch({ apiFetch }) {
         const more = body.querySelector('[data-act="more"]');
         if (more) more.onclick = () => showMore();
         const again = body.querySelector('[data-act="research"]');
-        if (again) again.onclick = () => runSearch();
+        if (again) again.onclick = () => runSearch({ source: state.source });
+        const toOld = body.querySelector('[data-act="old"]');
+        if (toOld) toOld.onclick = () => switchSource('old');
+        const toNew = body.querySelector('[data-act="new"]');
+        if (toNew) toNew.onclick = () => switchSource('new');
         const loginForm = body.querySelector('#cs-login');
         if (loginForm) {
             loginForm.onsubmit = (e) => {

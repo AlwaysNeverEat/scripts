@@ -4,7 +4,10 @@
      Открыть: npx vite → /dev-client.html
 
      Данные тут — снимок РЕАЛЬНЫХ страниц CRM, прогнанный через
-     shared/crmClients.js, то есть ровно те поля, что приедут с прокси. Ответы
+     shared/crmClients.js, то есть ровно те поля, что приедут с прокси. Новая
+     CRM (/api/crm/new/…) отвечает СЫРЫМИ строками обзвона (section=dial) в
+     живой форме и прогоняется через shared/crmClientsNew.js — тот же путь,
+     что на сервере. Ответы
      отдаются с задержкой нарочно: главное, что проверяется на этой странице, —
      как выглядит список обслуживаний, ПОКА чеки ещё едут. Разбор HTML проверяет
      shared/crmClients.test.js, здесь — вёрстка и поведение окна.
@@ -43,6 +46,8 @@
       <option value="down">CRM недоступна</option>
       <option value="flaky">Часть чеков не отдалась</option>
       <option value="long">Много чеков и длинные адреса</option>
+      <option value="new-empty">Новая CRM не знает, старая знает</option>
+      <option value="limit">Лимит просмотра в новой CRM</option>
     </select>
     <label style="font-size:12.5px; display:inline-flex; gap:6px; align-items:center">
       <input type="checkbox" id="dev-slow" checked/> медленная CRM (видно плейсхолдеры)
@@ -58,6 +63,7 @@
   <script type="module">
     import './src/style.css';
     import { initClientSearch } from './src/clientSearch.js';
+    import { dialClients, parseNewSale, newCrmRefusal } from '../shared/crmClientsNew.js';
 
     const FIXTURE = {
           "client": {
@@ -217,8 +223,68 @@
       return e;
     }
 
+    // Сырые строки обзвона новой CRM (section=dial) — в живой форме, люди выдуманные.
+    const dialRow = (over) => ({ id: 5000003, sb: 0, name: 'Продажа №5000003', date: '2026-07-28 19:34:32', total: 8450,
+      pay: 'Б/н', pay_full: 'Безналичный расчёт', station: 'Выборгское ш. 2', client: 'Георгий', phone: '79819651916',
+      can_call: true, mark: 0, seller: 'Петров Пётр Петрович', plate: 'К926АА147', mileage: 98500, comment: null, ...over });
+    const DIAL_ROWS = [
+      dialRow({ comment: 'просил без промывки' }),
+      dialRow({ id: 5000002, date: '2026-01-12 11:02:00', station: 'Руставели 69', total: 6120, mileage: 91200, seller: 'Иванов Иван' }),
+      dialRow({ id: 5000001, date: '2025-06-03 17:40:00', station: 'деревня Новосаратовка Свердловское городское поселение 267А', total: 2416, mileage: 1 }),
+    ];
+    // По госномеру в обзвоне бывают разные люди: машину продали.
+    const DIAL_MANY = [
+      ...DIAL_ROWS,
+      dialRow({ id: 4000001, date: '2023-02-10 10:00:00', client: 'Олег', phone: '79110000002', total: 3100, mileage: 60000 }),
+    ];
+    const newSale = (id) => ({
+      header: { id, name: 'Продажа №' + id, paid: 8450, pay: 'МИР', pay_full: 'Безнал расчёт', seller: 'Петров Пётр', station: 'Выборгское шоссе 2', mileage: 98500, vehicle: 'К926АА147' },
+      client: { id: 157783, name: 'Георгий', phone: '79819651916' },
+      items: [
+        { name: 'Услуги SPOT Замена масла и фильтра', price: 500, count: 1, sum: 500, disc_pct: 0, total: 500, time: 30 },
+        { name: '3711 Моторное масло Liqui Moly 5W-30 Top Tec 205l', price: 240, count: 5, sum: 1200, disc_pct: 0, total: 1200 },
+        { name: '25010 Фильтр масляный MANN W 712/95', price: 640, count: 1, sum: 640, disc_pct: 0, total: 640 },
+      ],
+    });
+    const LIMIT = { error: 'daily_limit', message: 'Превышен дневной лимит просмотра клиентов (50 в день)' };
+    // Отказ новой CRM — так же, как его отдаёт сервер (routes/crm.js → newCrmGet).
+    function newOrFail(json) {
+      const r = newCrmRefusal(json);
+      if (r) throw fail(r.code, r.message);
+      return json;
+    }
+    window.__newCalls = [];
+
+    // Как ручка /api/crm/new/clients: обзвон → клиенты и их карточки разом.
+    const dialAnswer = (rows) => {
+      const clients = dialClients(rows);
+      return { source: 'new', clients: clients.map(({ card, ...c }) => c), cards: Object.fromEntries(clients.map(c => [c.id, c.card])) };
+    };
+
+    async function stubNewFetch(path) {
+      window.__newCalls.push(path);
+      if (path.startsWith('/api/crm/new/clients?')) {
+        await wait(500);
+        if (kase() === 'limit') newOrFail(LIMIT);
+        if (kase() === 'new-empty') return dialAnswer([]);
+        if (kase() === 'many') return dialAnswer(DIAL_MANY);
+        return dialAnswer(DIAL_ROWS);
+      }
+      if (path.startsWith('/api/crm/new/sales/')) {
+        const id = path.split('/').pop();
+        await wait(500 + Math.random() * 1200);
+        return { sale: parseNewSale(newSale(id), id) };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
     // Тот же контракт, что у backend/src/routes/crm.js: ошибка — Error с .code.
     async function stubFetch(path) {
+      if (path.startsWith('/api/crm/new/')) {
+        if (kase() === 'auth') throw fail('crm_auth_required', 'нет сессии CRM — войдите');
+        if (kase() === 'down') throw fail('crm_unavailable', 'CRM недоступна (crm.zamena-masla-spot.ru): таймаут 15 с');
+        return stubNewFetch(path);
+      }
       if (path === '/api/crm/login') { await wait(600); return { ok: true, linked: true }; }
       if (kase() === 'auth') throw fail('crm_auth_required', 'нет сессии CRM — войдите');
       if (kase() === 'down') throw fail('crm_unavailable', 'CRM недоступна (crm.zamena-masla-spot.ru): таймаут 15 с');
@@ -226,6 +292,7 @@
       if (path.startsWith('/api/crm/clients?')) {
         await wait(700);
         if (kase() === 'empty') return { clients: [] };
+        if (['new-empty', 'limit'].includes(kase())) return { clients: [{ id: CLIENT.id, name: CLIENT.name }] };
         if (kase() === 'long') return { clients: [{ id: LONG_CLIENT.id, name: LONG_CLIENT.name }] };
         if (kase() === 'many') {
           return { clients: [
