@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<!-- Дев-песочница вкладки «Топ»: текущий месяц, карточка прошлого и листание
+     по месяцам без входа и без базы.
+     Открыть: npx vite → /dev-top.html
+
+     Ответы /api/top выдуманные, но той же формы, что отдаёт
+     backend/src/routes/top.js: month, current, months, rows, previous.
+     Ответ приходит с задержкой в полсекунды — чтобы было видно, что быстрое
+     листание не рисует на экране ответ от месяца, с которого уже ушли.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: топ</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div id="page-top" style="max-width:640px; margin:0 auto">
+    <div class="page-head">
+      <h2 class="page-title">Топ по записям</h2>
+      <p class="page-sub">1-го числа топ обнуляется, удачи! Прошлые месяцы никуда не деваются — листайте стрелками.</p>
+    </div>
+    <div id="top-body" class="page-body"></div>
+  </div>
+  <script type="module">
+    import './src/style.css';
+    import { initTheme } from './src/theme.js';
+    import { showTopPage } from './src/top.js';
+
+    initTheme();
+
+    const CURRENT = '2026-10';
+    const NAMES = ['Аня', 'Борис', 'Вика', 'Гоша', 'Дина', 'Егор', 'Жанна', 'Зоя'];
+    // Месяц → число записей у каждого по порядку NAMES (0 — не попал в топ).
+    const DATA = {
+      '2026-10': [3, 1, 0, 2, 0, 0, 0, 0],
+      '2026-09': [41, 38, 38, 20, 17, 9, 4, 1],
+      '2026-08': [12, 30, 7, 0, 22, 0, 3, 0],
+      '2026-06': [5, 0, 0, 0, 0, 2, 0, 0],
+    };
+    const months = Object.keys(DATA).sort().reverse();
+
+    function ranked(month, limit = 50) {
+      return (DATA[month] || [])
+        .map((records, i) => ({ id: 'u' + i, display_name: NAMES[i], avatar: null,
+          role_prefix: null, faculty: null, records }))
+        .filter(r => r.records > 0)
+        .sort((a, b) => b.records - a.records || a.display_name.localeCompare(b.display_name))
+        .slice(0, limit);
+    }
+
+    async function apiFetch(url) {
+      await new Promise(r => setTimeout(r, 500));
+      const month = new URL(url, location.href).searchParams.get('month') || CURRENT;
+      const prev = ranked('2026-09', 10);
+      return {
+        month, current: CURRENT, months,
+        rows: ranked(month).map((r, i) => ({ rank: i + 1, ...r })),
+        previous: { month: '2026-09', winners: prev.filter(r => r.records === prev[0].records) },
+      };
+    }
+
+    showTopPage({ apiFetch });
+  </script>
+</body>
+</html>
