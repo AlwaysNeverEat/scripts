@@ -292,6 +292,7 @@ export function initStockSearch({ apiFetch }) {
                     // отмечена сразу, как в юзерскрипте.
                     g.rows = sortFilterRows(r.rows).slice(0, LIST_ROWS);
                     g.columns = r.columns || [];
+                    g.everywhere = Boolean(r.everywhere);
                     g.type = dominantType(g.rows);
                     g.status = 'ok';
                     const best = g.rows.find(x => x.count > 0) || g.rows[0];
@@ -323,6 +324,7 @@ export function initStockSearch({ apiFetch }) {
             if (mine !== token) return;
             g.rows = sortFilterRows(r.rows).slice(0, LIST_ROWS);
             g.columns = r.columns || [];
+            g.everywhere = Boolean(r.everywhere);
             g.type = dominantType(g.rows);
             g.status = 'ok';
             g.picked = new Set();
@@ -567,19 +569,27 @@ export function initStockSearch({ apiFetch }) {
     // рядом три-четыре, и каждое лишнее слово в названии — это многоточие
     // вместо артикула. Позиция ЧУЖОГО типа (по артикулу воздушного нашёлся
     // салонный) получает свой бейдж в строке — как в юзерскрипте.
-    function tableHtml(rows, columns, { pick = null, groupIdx = -1, groupType = null } = {}) {
-        const cols = countCols(columns);
+    //
+    // «На всех станциях» (`everywhere`) колонок станций не рисуем вовсе: их
+    // два с половиной десятка, и таблица превратилась бы в сетку нулей, где
+    // нужную цифру ищут глазами по горизонтали. Вместо них ОДНА колонка «Где
+    // есть» — только станции, где позиция лежит, больше всего — первой, — и
+    // «Всего». Ради этого «на всех» и ищут: где взять.
+    function tableHtml(rows, columns, { pick = null, groupIdx = -1, groupType = null, everywhere = false } = {}) {
+        const spread = everywhere && columns && columns.length > 0;
+        const cols = spread ? [] : countCols(columns);
         const head = `
             <thead><tr>
                 ${pick ? '<th class="ss-th-pick"></th>' : ''}
                 <th class="ss-th-name">Название</th>
                 <th class="ss-th-num ss-th-price">Цена</th>
+                ${spread ? '<th class="ss-th-where">Где есть</th><th class="ss-th-num">Всего</th>' : ''}
                 ${cols.map(c => `<th class="ss-th-num" title="${esc(c.name)}"><span class="ss-th-wrap">${esc(c.name)}</span></th>`).join('')}
             </tr></thead>`;
         const trs = rows.map(r => {
             const zero = !(r.count > 0);
             const key = rowKey(r);
-            const cells = cols.map(c => {
+            const cells = spread ? whereCellsHtml(r, columns) : cols.map(c => {
                 const n = r.counts?.[c.id] ?? (c.id === 'all' ? r.count : 0);
                 return `<td class="ss-td-num ss-qty${n > 0 ? '' : ' ss-qty-zero'}">${esc(fmtQty(r.name, n))}</td>`;
             }).join('');
@@ -610,7 +620,26 @@ export function initStockSearch({ apiFetch }) {
                     ${cells}
                 </tr>`;
         }).join('');
-        return `<div class="ss-table-wrap"><table class="ss-table${pick ? ' ss-table-pick' : ''}">${head}<tbody>${trs}</tbody></table></div>`;
+        return `<div class="ss-table-wrap"><table class="ss-table${pick ? ' ss-table-pick' : ''}${spread ? ' ss-table-where' : ''}">${head}<tbody>${trs}</tbody></table></div>`;
+    }
+
+    // Станции, где позиция есть: по убыванию остатка, у каждой — сколько.
+    // Нигде нет — так и пишем, а не пустая ячейка: пустое читалось бы как
+    // «не загрузилось».
+    function whereCellsHtml(r, columns) {
+        const here = columns
+            .map(c => ({ name: c.name, n: Number(r.counts?.[c.id]) || 0 }))
+            .filter(x => x.n > 0)
+            .sort((a, b) => b.n - a.n);
+        // Есть на КАЖДОЙ станции (услуги с их 9999, ходовое масло) — так и
+        // пишем: два десятка плашек ответили бы на тот же вопрос хуже.
+        const where = here.length && here.length === columns.length
+            ? '<span class="ss-where-all">на всех станциях</span>'
+            : here.length
+            ? here.map(x => `<span class="ss-where-chip" title="${esc(x.name)}">${esc(x.name)} <b>${esc(fmtQty(r.name, x.n))}</b></span>`).join('')
+            : '<span class="ss-qty-zero">нигде нет</span>';
+        return `<td class="ss-td-where">${where}</td>`
+            + `<td class="ss-td-num ss-qty${r.count > 0 ? '' : ' ss-qty-zero'}">${esc(fmtQty(r.name, r.count))}</td>`;
     }
 
     function viewResult() {
@@ -630,7 +659,7 @@ export function initStockSearch({ apiFetch }) {
                         упрощённый вид
                     </label>
                 </div>
-                ${tableHtml(r.rows, r.columns)}
+                ${tableHtml(r.rows, r.columns, { everywhere: r.everywhere })}
             </div>`;
     }
 
@@ -654,7 +683,7 @@ export function initStockSearch({ apiFetch }) {
             if (g.status === 'load') content = `<div class="ss-skel">${skeletonRows(2)}</div>`;
             else if (g.status === 'error') content = `<div class="ss-group-err">${esc(g.message)} <button type="button" class="ss-link" data-retry="${g.idx}">${ICON.retry} ещё раз</button></div>`;
             else if (!g.rows.length) content = '<div class="ss-group-none">по этому артикулу ничего не нашлось</div>';
-            else content = tableHtml(g.rows, g.columns, { pick: g.picked, groupIdx: g.idx, groupType: g.type });
+            else content = tableHtml(g.rows, g.columns, { pick: g.picked, groupIdx: g.idx, groupType: g.type, everywhere: g.everywhere });
             return `<div class="ss-group${g.status === 'ok' && !g.rows.length ? ' ss-group-empty' : ''}">${head}${content}</div>`;
         }).join('');
 

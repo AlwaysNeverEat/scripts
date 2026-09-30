@@ -137,16 +137,20 @@ router.get('/status', async (req, res) => {
 
 // ── GET /api/crm/stations ─────────────────────────────────────────────────────
 
+// Список станций CRM — один на всех и на сутки: станции открываются раз в
+// месяцы. Нужен и окну (колонка станций на «Складе»), и самому поиску «на всех
+// станциях» (см. /stock/search).
+async function crmStations(userId) {
+    if (stationsCache && Date.now() - stationsCache.at < STATIONS_TTL_MS) return stationsCache.data;
+    const stations = parseStations(await crmGetHtml(userId, '/analyse/free'));
+    if (!stations.length) throw new Error('пустой список станций');
+    stationsCache = { at: Date.now(), data: stations };
+    return stations;
+}
+
 router.get('/stations', async (req, res) => {
-    if (stationsCache && Date.now() - stationsCache.at < STATIONS_TTL_MS) {
-        return res.json({ stations: stationsCache.data });
-    }
     try {
-        const html = await crmGetHtml(req.user.id, '/analyse/free');
-        const stations = parseStations(html);
-        if (!stations.length) throw new Error('пустой список станций');
-        stationsCache = { at: Date.now(), data: stations };
-        res.json({ stations });
+        res.json({ stations: await crmStations(req.user.id) });
     } catch (err) {
         sendCrmError(res, err);
     }
@@ -227,13 +231,20 @@ router.post('/stock/search', async (req, res) => {
         try { await rememberStockQuery(query, req.user.id); }
         catch (e) { console.warn('stock history', e.message); }
     }
-    const cacheKey = `${[...stationIds].sort().join(',')}|${query.toLowerCase()}`;
+    // «Все станции» — это НЕ пустой выбор в CRM. Пустой выбор CRM отвечает
+    // одной колонкой — суммой по всем складам, и где именно лежит позиция, из
+    // неё не узнать, а ради этого «на всех» и ищут. Поэтому просим у CRM все
+    // станции разом, как если бы их выделили руками, и окно пишет у позиции,
+    // на каких станциях она есть (`everywhere`).
+    const everywhere = !stationIds.length;
+    const cacheKey = `${everywhere ? '*' : [...stationIds].sort().join(',')}|${query.toLowerCase()}`;
     const cached = cacheTake(stockCache, cacheKey, AVAIL_TTL_MS);
     if (cached) return res.json({ ...cached, cached: true });
     try {
-        const html = await crmGetHtml(req.user.id, stockSearchPath(stationIds, query));
+        const ids = everywhere ? (await crmStations(req.user.id)).map(st => st.id) : stationIds;
+        const html = await crmGetHtml(req.user.id, stockSearchPath(ids, query));
         const { columns, rows, total } = parseStockTable(html);
-        const value = { query, stationIds, columns, rows, total, shown: rows.length };
+        const value = { query, stationIds, everywhere, columns, rows, total, shown: rows.length };
         cachePut(stockCache, cacheKey, value, AVAIL_TTL_MS);
         res.json(value);
     } catch (err) {
