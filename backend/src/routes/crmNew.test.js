@@ -1,6 +1,6 @@
-// Поход в новую CRM за клиентом: просмотр там НЕ бесплатен (дневной лимит на
-// сотрудника и журнал просмотров СБ), поэтому кэш и склейка запросов — по
-// сотруднику. Тест гоняет ту самую функцию, что стоит в ручках.
+// Поход в новую CRM за клиентом: ходим под ЛИЧНОЙ сессией, поэтому кэш и
+// склейка запросов — по сотруднику, а не общие. Тест гоняет ту самую функцию,
+// что стоит в ручках.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,27 +21,27 @@ test('два одинаковых запроса одного человека �
     const crm = fakeCrm();
     const get = newCrmGetter(crm.api);
     // Так приходит страховочный второй GET сайта (netRetry.js).
-    await Promise.all([get('u1', 'section=clientcard&id=1', 60_000), get('u1', 'section=clientcard&id=1', 60_000)]);
-    assert.equal(crm.calls.length, 1, 'иначе минус два просмотра из лимита и две строки в журнале СБ');
+    await Promise.all([get('u1', 'section=dial&page=1&all=1&phone=79110000001', 60_000), get('u1', 'section=dial&page=1&all=1&phone=79110000001', 60_000)]);
+    assert.equal(crm.calls.length, 1, 'страховочный второй GET не должен идти в CRM вторым походом');
 });
 
-test('кэш СВОЙ у каждого: чужой просмотр не отдаётся мимо лимита', async () => {
+test('кэш СВОЙ у каждого: полученное под чужой учёткой другому не отдаётся', async () => {
     const crm = fakeCrm();
     const get = newCrmGetter(crm.api);
-    await get('masha', 'section=clientcard&id=1', 60_000);
-    await get('masha', 'section=clientcard&id=1', 60_000);
+    await get('masha', 'section=dial&page=1&all=1&phone=79110000001', 60_000);
+    await get('masha', 'section=dial&page=1&all=1&phone=79110000001', 60_000);
     assert.equal(crm.calls.length, 1, 'свой повтор — из кэша');
-    await get('vasya', 'section=clientcard&id=1', 60_000);
-    assert.equal(crm.calls.length, 2, 'Вася ходит в CRM сам — под своим лимитом и в своём журнале');
+    await get('vasya', 'section=dial&page=1&all=1&phone=79110000001', 60_000);
+    assert.equal(crm.calls.length, 2, 'Вася ходит в CRM сам — под своей учёткой');
 });
 
 test('отказ по лимиту — ошибка с кодом, и в кэш он не ложится', async () => {
     let limited = true;
     const crm = fakeCrm(() => (limited ? { error: 'daily_limit', message: 'лимит 50' } : { rows: [] }));
     const get = newCrmGetter(crm.api);
-    await assert.rejects(() => get('u1', 'section=clients&page=1&q=1', 60_000),
+    await assert.rejects(() => get('u1', 'section=dial&page=1&all=1&plate=К926АА147', 60_000),
         (e) => e.code === 'crm_daily_limit' && e.message === 'лимит 50');
     limited = false;
-    await get('u1', 'section=clients&page=1&q=1', 60_000);
+    await get('u1', 'section=dial&page=1&all=1&plate=К926АА147', 60_000);
     assert.equal(crm.calls.length, 2, 'после отказа спрашиваем снова, а не показываем отказ из кэша');
 });

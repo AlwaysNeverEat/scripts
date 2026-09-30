@@ -203,8 +203,8 @@ export function initClientSearch({ apiFetch }) {
         // ответа, который обычно уже есть. Старая остаётся под рукой — в ней
         // история, которую новая могла не перенести.
         source: 'new',
-        needExact: '',      // новая CRM сочла номер неполным — её текст
         saved: {},          // source → снимок результата: переключение туда-обратно не ходит в CRM заново
+        cards: null,        // новая CRM: карточки приехали вместе с поиском (обзвон отдаёт все визиты)
     };
     // Адреса ручек по источнику: у новой свои (/api/crm/new/…), ответы у обеих
     // в одной форме — карточка рисуется одним кодом.
@@ -339,7 +339,7 @@ export function initClientSearch({ apiFetch }) {
         state.stage = 'searching';
         state.error = '';
         state.errorCode = '';
-        state.needExact = '';
+        state.cards = null;
         state.client = null;
         state.clients = [];
         state.sales = new Map();
@@ -351,8 +351,8 @@ export function initClientSearch({ apiFetch }) {
             const resp = await apiFetch(`${apiBase()}/clients?${q}=${encodeURIComponent(state.value)}`);
             if (mine !== token) return;
             state.clients = resp.clients || [];
+            state.cards = resp.cards || null;
             if (!state.clients.length) {
-                state.needExact = resp.needExact ? (resp.message || 'CRM просит полный номер телефона или госномер') : '';
                 state.stage = 'empty';
                 render();
             } else if (state.clients.length === 1) {
@@ -370,6 +370,19 @@ export function initClientSearch({ apiFetch }) {
     }
 
     async function openClient(id) {
+        // Новая CRM отдала карточки вместе с поиском — открываем без похода.
+        const ready = state.source === 'new' && state.cards && state.cards[id];
+        if (ready) {
+            const mine = ++token;
+            state.client = ready;
+            state.sales = new Map();
+            state.open = new Set();
+            state.shown = SALES_PAGE;
+            state.stage = 'client';
+            render();
+            prefetchSales(mine);
+            return;
+        }
         const mine = ++token;
         state.stage = 'searching';
         state.client = null;
@@ -446,7 +459,7 @@ export function initClientSearch({ apiFetch }) {
 
     // ── Источник: новая CRM или старая ───────────────────────────────────────
 
-    const SNAP_KEYS = ['stage', 'error', 'errorCode', 'needExact', 'clients', 'client', 'sales', 'open', 'shown'];
+    const SNAP_KEYS = ['stage', 'error', 'errorCode', 'clients', 'cards', 'client', 'sales', 'open', 'shown'];
 
     // Переключение между CRM не ходит за тем, что уже показано: снимок
     // результата лежит по источнику, пока номер в строке тот же.
@@ -555,14 +568,6 @@ export function initClientSearch({ apiFetch }) {
     function viewEmpty() {
         const what = state.kind === 'phone' ? 'этим телефоном' : 'этим номером';
         const where = state.source === 'new' ? 'новой CRM' : 'старой CRM';
-        if (state.needExact) {
-            return `
-                <div class="cs-note cs-note-empty">
-                    <div class="cs-note-title">Новая CRM не стала искать</div>
-                    <p>${esc(state.needExact)}</p>
-                    <p class="cs-note-sub">Можно подгрузить по старой CRM — кнопка над этим сообщением.</p>
-                </div>`;
-        }
         return `
             <div class="cs-note cs-note-empty">
                 <div class="cs-note-title">Ничего не найдено</div>
@@ -654,7 +659,9 @@ export function initClientSearch({ apiFetch }) {
             ? `<button type="button" class="cs-back" data-act="back">${ICON.back}<span>К списку</span></button>`
             : '';
         const rest = sales.length - visibleSales().length;
-        const bonus = Number(c.bonus) || 0;
+        // Баллов обзвон новой CRM не отдаёт — тогда прочерк, а не «0»: ноль
+        // баллов оператор назвал бы клиенту как факт.
+        const bonusKnown = c.bonus != null && Number.isFinite(Number(c.bonus));
 
         return `
             <div class="cs-card">
@@ -677,8 +684,8 @@ export function initClientSearch({ apiFetch }) {
                 </div>
 
                 <div class="cs-stats">
-                    <div class="cs-stat" title="Бонусный счёт в CRM">
-                        <span class="cs-stat-val">${points(bonus)}</span>
+                    <div class="cs-stat" title="${bonusKnown ? 'Бонусный счёт в CRM' : 'Новая CRM в обзвоне баллов не отдаёт — они есть в старой'}">
+                        <span class="cs-stat-val">${bonusKnown ? points(Number(c.bonus)) : '—'}</span>
                         <span class="cs-stat-cap">баллы</span>
                     </div>
                     <div class="cs-stat">

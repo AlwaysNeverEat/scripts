@@ -1,31 +1,37 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Поиск клиента в НОВОЙ CRM (crm.zamena-masla-spot.ru/re/api.php).
 //
-// У старой CRM API нет, и клиент там собирается регэкспами из трёх страниц
-// (crmClients.js). У новой есть JSON — те же три шага, но ручками:
+// У старой CRM API нет, и клиент там собирается регэкспами из страниц обзвона
+// (crmClients.js). У новой есть JSON, и ищем мы в ТОМ ЖЕ разделе — «Обзвон»:
 //
-//   section=clients&q=…     поиск по телефону или госномеру (как строка поиска
-//                           в разделе «Клиенты» самой CRM);
-//   section=clientcard&id=  карточка: клиент, итоги, история продаж, бонусы;
-//   section=sale&id=        чек: шапка и позиции.
+//   section=dial&all=1&phone=… | &plate=…   все продажи по телефону или
+//                                           госномеру за всё время, по 50 на
+//                                           страницу: дата, станция, сумма,
+//                                           продавец, пробег, номер машины,
+//                                           имя и телефон клиента;
+//   section=sale&id=                        чек: шапка и позиции.
 //
-// Разбор здесь переводит ответы в ТУ ЖЕ форму, что и parseClientSearch /
-// parseClientCard / parseSale у старой CRM. Вкладка «Клиент» рисует карточку
-// одним кодом, из какой бы CRM она ни приехала: две вёрстки одной карточки
-// разошлись бы с первой же правки.
+// Первой версией тут был раздел «Клиенты» (clients → clientcard), и это была
+// ошибка: операторы ищут клиента в обзвоне, а «Клиенты» — другой экран, и
+// именно его просмотры новая CRM считает в дневном лимите и пишет в журнал
+// СБ (в её коде в этот журнал попадают clients, clientfind, clientcard и
+// reveal_phone; dial и sale — нет). Обзвон к тому же отдаёт все визиты одним
+// ответом — карточка собирается из него без второго запроса.
 //
-// Поля ответов взяты из кода самой новой CRM (как она их рисует), а не из
-// документации — её нет. Поэтому разбор терпим к отсутствию любого поля:
-// пустое остаётся пустым, а не превращается в ноль.
+// Разбор переводит ответы в ТУ ЖЕ форму, что и parseClientSearch /
+// parseClientCard / parseSale у старой CRM: вкладка «Клиент» рисует карточку
+// одним кодом, из какой бы CRM она ни приехала.
+//
+// Поля ответов — из живого ответа обзвона (снят при переезде записей) и из
+// кода самой новой CRM; документации у неё нет. Поэтому разбор терпим к
+// отсутствию любого поля: пустое остаётся пустым, а не превращается в ноль.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { formatPlateInput, phoneDigits, crmStampValue } from './crmClients.js';
 
-// Ответ новой CRM с отказом — не «ничего не нашлось». Самый важный отказ —
-// ДНЕВНОЙ ЛИМИТ ПРОСМОТРА КЛИЕНТОВ: новая CRM считает, сколько карточек
-// открыл каждый сотрудник, и ведёт журнал просмотров для СБ. Наш сайт ходит
-// под личной сессией, поэтому лимит и журнал — те же, что в самой CRM, и
-// скрывать отказ за «не найдено» нельзя.
+// Ответ новой CRM с отказом — не «ничего не нашлось». У неё есть дневной
+// лимит просмотра клиентов («daily_limit»): обзвон в него, судя по её коду, не
+// входит, но показать отказ словами CRM дешевле, чем гадать.
 export function newCrmRefusal(json) {
     if (!json || typeof json !== 'object' || !json.error) return null;
     if (json.error === 'daily_limit') {
@@ -54,112 +60,100 @@ export function isoToCrmStamp(value) {
     return `${m[3]}.${m[2]}.${m[1]}${m[4] ? ` ${m[4]}:${m[5]}` : ''}`;
 }
 
-// «—» в колонке «Автомобиль» — это пусто, а не номер.
-function platesOf(car) {
-    const out = [];
-    for (const part of str(car).split(/[,;/]+/)) {
-        const p = formatPlateInput(part);
-        if (p.length >= 4 && !out.includes(p)) out.push(p);
+// ── Поиск: обзвон ────────────────────────────────────────────────────────────
+
+// Телефон — одиннадцатью цифрами, как его шлёт сам обзвон («79219503808»),
+// госномер — той же позиционной маской кириллицей. `all=1` — за все даты:
+// без него обзвон показывает только выбранный день.
+export function newDialQuery({ phone = '', plate = '', page = 1 } = {}) {
+    const q = phone
+        ? `&phone=${encodeURIComponent(`7${phoneDigits(phone)}`)}`
+        : `&plate=${encodeURIComponent(formatPlateInput(plate))}`;
+    return `section=dial&page=${page}&all=1${q}`;
+}
+
+export function parseDialPage(json) {
+    const rows = Array.isArray(json?.rows) ? json.rows.filter(r => r && r.id != null) : [];
+    const per = num(json?.per) || 50;
+    const total = num(json?.total) ?? rows.length;
+    return { rows, per, total, pages: Math.max(1, Math.ceil(total / per)) };
+}
+
+// Пробег «1» и «0» в обзвоне — это «не вписали», а не пробег: показывать
+// «1 км» оператору значит показывать мусор как сведения.
+function mileageOf(v) {
+    const n = num(v);
+    return n != null && n > 1 ? n : null;
+}
+
+// Кто есть кто. Обзвон отдаёт ПРОДАЖИ, а не клиентов, и по госномеру в них
+// бывают разные люди (машину продали, за рулём жена). Клиент здесь — телефон:
+// так его понимает и сама CRM. Продажи без телефона собираются по имени —
+// лучше отдельная строка «Ольга без телефона», чем чужие чеки в карточке.
+function clientKey(r) {
+    const d = str(r.phone).replace(/\D/g, '');
+    return d.length >= 10 ? d : `name:${str(r.client).toLowerCase() || '?'}`;
+}
+
+export function dialClients(rows) {
+    const groups = new Map();
+    for (const r of Array.isArray(rows) ? rows : []) {
+        const key = clientKey(r);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
     }
-    return out;
-}
-
-// ── Поиск ────────────────────────────────────────────────────────────────────
-
-// Телефон уходит одиннадцатью цифрами — так новая CRM хранит его сама
-// («79219503808»), госномер — кириллицей без пробелов, как он стоит в чеках.
-export function newClientSearchQuery({ phone = '', plate = '' } = {}) {
-    const q = phone ? `7${phoneDigits(phone)}` : formatPlateInput(plate);
-    return `section=clients&page=1&q=${encodeURIComponent(q)}`;
-}
-
-// `need_exact` — CRM не ищет по половине номера и говорит об этом сама.
-// Мы и так ходим только с полным номером, но госномер она может счесть
-// неполным по своим правилам — тогда её текст и надо показать.
-export function parseNewClientSearch(json) {
-    const rows = Array.isArray(json?.rows) ? json.rows : [];
-    const clients = rows
-        .filter(r => r && r.id != null)
-        .map(r => ({
+    const clients = [];
+    for (const [key, list] of groups) {
+        const sales = list.map(r => ({
             id: String(r.id),
-            name: str(r.fio) || 'Без имени',
-            phone: str(r.phone),
-            plates: platesOf(r.car),
-            visits: num(r.changes),
-        }));
-    return {
-        clients,
-        needExact: Boolean(json?.need_exact) && !clients.length,
-        message: str(json?.message),
-    };
-}
-
-// ── Карточка ─────────────────────────────────────────────────────────────────
-
-// Бонусы по чекам новая CRM отдаёт отдельным журналом, а у строки
-// обслуживания в карточке место под «+N баллов / −N баллов» уже есть — туда
-// их и раскладываем по номеру продажи. Корректировки и ручные правки к
-// конкретному визиту не относятся и в строку не идут.
-function bonusesBySale(bonuses) {
-    const by = new Map();
-    for (const b of Array.isArray(bonuses) ? bonuses : []) {
-        if (!b || b.set_id == null || b.correction) continue;
-        const key = String(b.set_id);
-        const cur = by.get(key) || { received: 0, paid: 0 };
-        const amount = Math.abs(num(b.amount) || 0);
-        if (b.type === 'add') cur.received += amount;
-        else cur.paid += amount;
-        by.set(key, cur);
+            seller: str(r.seller),
+            station: str(r.station),
+            count: null,
+            paidBonus: null,
+            sum: num(r.total),
+            receivedBonus: null,
+            mileage: mileageOf(r.mileage),
+            plate: formatPlateInput(str(r.plate)),
+            createdAt: isoToCrmStamp(r.date),
+            closedAt: '',
+            // В обзвоне это комментарий отдела качества к визиту.
+            comment: str(r.comment),
+        })).sort((a, b) => crmStampValue(b.createdAt) - crmStampValue(a.createdAt));
+        // Имя и телефон — по САМОЙ СВЕЖЕЙ продаже: клиента переименовывают
+        // («Саша» → «Александр Петров»), и верное имя у последнего визита.
+        const fresh = list.slice().sort((a, b) =>
+            crmStampValue(isoToCrmStamp(b.date)) - crmStampValue(isoToCrmStamp(a.date)));
+        const name = fresh.map(r => str(r.client)).find(Boolean) || 'Без имени';
+        const phone = fresh.map(r => str(r.phone)).find(Boolean) || '';
+        const plates = [];
+        for (const s of sales) if (s.plate.length >= 4 && !plates.includes(s.plate)) plates.push(s.plate);
+        clients.push({
+            id: key,
+            name,
+            phone,
+            plates,
+            visits: sales.length,
+            // Карточка целиком: обзвон уже отдал всё, что в ней есть, и ходить
+            // за ней вторым запросом незачем. Баллов в обзвоне нет — null, а не
+            // ноль: «0 баллов» было бы враньём.
+            card: { id: key, name, phone, bonus: null, birthday: null, plates, sales },
+        });
     }
-    return by;
-}
-
-export function parseNewClientCard(json, id) {
-    const c = json?.client || {};
-    const bonus = bonusesBySale(json?.bonuses);
-    const sales = (Array.isArray(json?.history) ? json.history : [])
-        .filter(h => h && h.id != null)
-        .map(h => {
-            const b = bonus.get(String(h.id));
-            return {
-                id: String(h.id),
-                seller: '',
-                station: str(h.station),
-                count: num(h.items),
-                paidBonus: b && b.paid ? b.paid : null,
-                sum: num(h.sum),
-                receivedBonus: b && b.received ? b.received : null,
-                mileage: num(h.mileage),
-                plate: '',
-                createdAt: isoToCrmStamp(h.date),
-                closedAt: '',
-                comment: str(h.comment),
-            };
-        })
-        // Свежие вперёд, как у старой: разговор начинается с последнего визита.
-        .sort((a, b) => crmStampValue(b.createdAt) - crmStampValue(a.createdAt));
-
-    return {
-        id: String(c.id ?? id ?? ''),
-        name: str(c.fio) || 'Без имени',
-        phone: str(c.phone),
-        bonus: num(c.bonus),
-        birthday: null,
-        plates: platesOf(c.car),
-        sales,
-        comment: str(c.comment),
-    };
+    // Свежий клиент вперёд: по госномеру первым должен стоять тот, кто ездит
+    // на машине сейчас.
+    return clients.sort((a, b) =>
+        crmStampValue(b.card.sales[0]?.createdAt) - crmStampValue(a.card.sales[0]?.createdAt));
 }
 
 // ── Чек ──────────────────────────────────────────────────────────────────────
 
-// Способ оплаты новая CRM пишет словами («Нал», «МИР», «Наличный расчёт»,
-// «Безнал расчёт»), а карточка знает два значка — наличные и карта.
+// Способ оплаты новая CRM пишет словами («Нал», «Б/н», «МИР», «Наличный
+// расчёт», «Безналичный расчёт»), а карточка знает два значка — наличные и карта.
 // Отложенный и раздельный платёж значка не получают: соврать «картой» хуже,
 // чем промолчать.
 function paymentOf(h) {
     const text = `${str(h.pay)} ${str(h.pay_full)}`.toLowerCase();
-    if (/безнал|мир|карт/.test(text)) return 'cashless';
+    if (/безнал|б\/н|мир|карт/.test(text)) return 'cashless';
     if (/нал/.test(text)) return 'cash';
     return null;
 }

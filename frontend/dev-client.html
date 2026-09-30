@@ -5,8 +5,8 @@
 
      Данные тут — снимок РЕАЛЬНЫХ страниц CRM, прогнанный через
      shared/crmClients.js, то есть ровно те поля, что приедут с прокси. Новая
-     CRM (/api/crm/new/…) отвечает СЫРЫМ JSON в том виде, в каком его рисует
-     сама новая CRM, и прогоняется через shared/crmClientsNew.js — тот же путь,
+     CRM (/api/crm/new/…) отвечает СЫРЫМИ строками обзвона (section=dial) в
+     живой форме и прогоняется через shared/crmClientsNew.js — тот же путь,
      что на сервере. Ответы
      отдаются с задержкой нарочно: главное, что проверяется на этой странице, —
      как выглядит список обслуживаний, ПОКА чеки ещё едут. Разбор HTML проверяет
@@ -48,7 +48,6 @@
       <option value="long">Много чеков и длинные адреса</option>
       <option value="new-empty">Новая CRM не знает, старая знает</option>
       <option value="limit">Лимит просмотра в новой CRM</option>
-      <option value="exact">Новая CRM просит полный номер</option>
     </select>
     <label style="font-size:12.5px; display:inline-flex; gap:6px; align-items:center">
       <input type="checkbox" id="dev-slow" checked/> медленная CRM (видно плейсхолдеры)
@@ -64,7 +63,7 @@
   <script type="module">
     import './src/style.css';
     import { initClientSearch } from './src/clientSearch.js';
-    import { parseNewClientSearch, parseNewClientCard, parseNewSale, newCrmRefusal } from '../shared/crmClientsNew.js';
+    import { dialClients, parseNewSale, newCrmRefusal } from '../shared/crmClientsNew.js';
 
     const FIXTURE = {
           "client": {
@@ -224,18 +223,20 @@
       return e;
     }
 
-    // Сырые ответы новой CRM (re/api.php) — поля как в её собственном коде.
-    const NEW_ROWS = { rows: [{ id: 157783, fio: 'Георгий', phone: '79819651916', car: 'К926АА147', changes: 4, bonus: 120.5, created: '2024-05-08 08:59:23' }] };
-    const NEW_CARD = {
-      client: { id: 157783, fio: 'Георгий', phone: '79819651916', car: 'К926АА147', bonus: 120.5, oil_changes: 4, created: '2024-05-08 08:59:23', comment: 'звонить после 18' },
-      stats: { visits: 3, ltv: 21000, avg: 7000, last: '2026-07-28 19:34:32' },
-      history: [
-        { id: 5000003, name: 'Продажа №5000003', date: '2026-07-28 19:34:32', station: 'Выборгское шоссе 2', items: 4, mileage: 98500, sum: 8450, comment: 'просил без промывки' },
-        { id: 5000002, name: 'Продажа №5000002', date: '2026-01-12 11:02:00', station: 'Руставели 69', items: 3, mileage: 91200, sum: 6120, comment: '' },
-        { id: 5000001, name: 'Продажа №5000001', date: '2025-06-03 17:40:00', station: 'деревня Новосаратовка Свердловское городское поселение 267А', items: 2, mileage: 80100, sum: 2416, comment: '' },
-      ],
-      bonuses: [{ set_id: 5000003, type: 'add', amount: 120, balance: 120.5 }, { set_id: 5000002, type: 'spend', amount: 80, balance: 0.5 }],
-    };
+    // Сырые строки обзвона новой CRM (section=dial) — в живой форме, люди выдуманные.
+    const dialRow = (over) => ({ id: 5000003, sb: 0, name: 'Продажа №5000003', date: '2026-07-28 19:34:32', total: 8450,
+      pay: 'Б/н', pay_full: 'Безналичный расчёт', station: 'Выборгское ш. 2', client: 'Георгий', phone: '79819651916',
+      can_call: true, mark: 0, seller: 'Петров Пётр Петрович', plate: 'К926АА147', mileage: 98500, comment: null, ...over });
+    const DIAL_ROWS = [
+      dialRow({ comment: 'просил без промывки' }),
+      dialRow({ id: 5000002, date: '2026-01-12 11:02:00', station: 'Руставели 69', total: 6120, mileage: 91200, seller: 'Иванов Иван' }),
+      dialRow({ id: 5000001, date: '2025-06-03 17:40:00', station: 'деревня Новосаратовка Свердловское городское поселение 267А', total: 2416, mileage: 1 }),
+    ];
+    // По госномеру в обзвоне бывают разные люди: машину продали.
+    const DIAL_MANY = [
+      ...DIAL_ROWS,
+      dialRow({ id: 4000001, date: '2023-02-10 10:00:00', client: 'Олег', phone: '79110000002', total: 3100, mileage: 60000 }),
+    ];
     const newSale = (id) => ({
       header: { id, name: 'Продажа №' + id, paid: 8450, pay: 'МИР', pay_full: 'Безнал расчёт', seller: 'Петров Пётр', station: 'Выборгское шоссе 2', mileage: 98500, vehicle: 'К926АА147' },
       client: { id: 157783, name: 'Георгий', phone: '79819651916' },
@@ -254,18 +255,20 @@
     }
     window.__newCalls = [];
 
+    // Как ручка /api/crm/new/clients: обзвон → клиенты и их карточки разом.
+    const dialAnswer = (rows) => {
+      const clients = dialClients(rows);
+      return { source: 'new', clients: clients.map(({ card, ...c }) => c), cards: Object.fromEntries(clients.map(c => [c.id, c.card])) };
+    };
+
     async function stubNewFetch(path) {
       window.__newCalls.push(path);
       if (path.startsWith('/api/crm/new/clients?')) {
         await wait(500);
         if (kase() === 'limit') newOrFail(LIMIT);
-        if (kase() === 'new-empty') return { source: 'new', clients: [] };
-        if (kase() === 'exact') return { source: 'new', ...parseNewClientSearch({ rows: [], need_exact: true, message: 'Введите полный номер телефона (11 цифр) или полный госномер' }) };
-        return { source: 'new', ...parseNewClientSearch(NEW_ROWS) };
-      }
-      if (path.startsWith('/api/crm/new/clients/')) {
-        await wait(400);
-        return { client: parseNewClientCard(NEW_CARD, path.split('/').pop()) };
+        if (kase() === 'new-empty') return dialAnswer([]);
+        if (kase() === 'many') return dialAnswer(DIAL_MANY);
+        return dialAnswer(DIAL_ROWS);
       }
       if (path.startsWith('/api/crm/new/sales/')) {
         const id = path.split('/').pop();
@@ -289,7 +292,7 @@
       if (path.startsWith('/api/crm/clients?')) {
         await wait(700);
         if (kase() === 'empty') return { clients: [] };
-        if (['new-empty', 'limit', 'exact'].includes(kase())) return { clients: [{ id: CLIENT.id, name: CLIENT.name }] };
+        if (['new-empty', 'limit'].includes(kase())) return { clients: [{ id: CLIENT.id, name: CLIENT.name }] };
         if (kase() === 'long') return { clients: [{ id: LONG_CLIENT.id, name: LONG_CLIENT.name }] };
         if (kase() === 'many') {
           return { clients: [
