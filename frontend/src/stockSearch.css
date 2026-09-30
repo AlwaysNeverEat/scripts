@@ -571,3 +571,26 @@
 @media (max-width: 560px) {
   .ss-login { grid-template-columns: 1fr; }
 }
+
+/* ── «На всех станциях»: колонка «Где есть» ─────────────────────────────────
+   Вместо двух с половиной десятков колонок станций — одна, со станциями, где
+   позиция лежит (tableHtml → whereCellsHtml в stockSearch.js). Колонка
+   тянется на всё свободное место, станции переносятся строками: их у ходовой
+   позиции бывает десяток, и прокручивать ради них таблицу вбок незачем. */
+.ss-th-where { width: 100%; }
+.ss-td-where { min-width: 220px; line-height: 1.9; }
+.ss-where-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-1);
+  margin: 0 var(--s-1) 0 0;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  background: var(--bg2);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.ss-where-chip b { color: var(--green); font-variant-numeric: tabular-nums; }
+.ss-where-all { color: var(--green); font-weight: 600; font-size: 12px; }

@@ -72,12 +72,12 @@
     // Строки — со снимка реальной страницы; остаток по станциям раскидан тут.
     const CATALOG = [
       { id: '12508', name: '217317 Моторное масло ELF 5W-30 Evolution SXR 900 5l (4x4L)', priceRaw: 160, per: { 45: 0, 11: 0, 2: 32 } },
-      { id: '12510', name: '151527 Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)', priceRaw: 180, per: { 45: 200, 11: 179, 2: 288 } },
+      { id: '12510', name: '151527 Моторное масло Mobil 5W-30 Super 3000 FE 4l (4x4L)', priceRaw: 180, per: { 45: 200, 11: 179, 2: 288, 41: 64, 6: 12 } },
       { id: '2816344', name: 'X3214932 Моторное масло GM 5W-30 "Dexos II" 5l (4x5L)', priceRaw: 165, per: { 45: 120, 11: 57, 2: 0 } },
       { id: '2821794', name: '21268 Моторное масло Liqui Moly Leichtlauf HC 7 5W-30 A3/B4 60l (1x60L)', priceRaw: 205, per: { 45: 537, 11: 412, 2: 31 } },
       { id: '2820299', name: 'NSIN0018631072 Масляный фильтр LYNX LC-1004 LYNXauto (2)', priceRaw: 552.48, per: { 45: 2, 11: 0, 2: 1 } },
       { id: '2820302', name: 'NSIN0018471056 Масляный фильтр LYNX LC-1011 LYNXauto (1)', priceRaw: 445.48, per: { 45: 3, 11: 1, 2: 0 } },
-      { id: '12329', name: 'NSIN0023136124 Масляный фильтр Mann W 712/95 (5)', priceRaw: 1367.59, per: { 45: 7, 11: 2, 2: 4 } },
+      { id: '12329', name: 'NSIN0023136124 Масляный фильтр Mann W 712/95 (5)', priceRaw: 1367.59, per: { 45: 7, 11: 2, 2: 4, 41: 1, 26: 3, 30: 2 } },
       { id: '6367', name: 'NSIN0019735713 Масляный фильтр Mann W 7008 (5)', priceRaw: 847.68, per: { 45: 16, 11: 0, 2: 0 } },
       { id: '9001', name: 'NSIN0000000001 Воздушный фильтр Mann C 21 014 (3)', priceRaw: 1199.5, per: { 45: 0, 11: 0, 2: 0 } },
       { id: '9002', name: 'NSIN0000000002 Воздушный фильтр LYNX LA-1005 LYNXauto', priceRaw: 640, per: { 45: 4, 11: 2, 2: 0 } },
@@ -97,20 +97,20 @@
     const err = (code, message) => Object.assign(new Error(message), { code });
 
     // Ищем, как CRM: все слова запроса должны встретиться в названии.
+    // «Все станции» — как на сервере (routes/crm.js): просим у CRM все станции
+    // разом и помечаем ответ `everywhere`, чтобы окно писало, где что лежит.
     function search(stationIds, query) {
+      const everywhere = !stationIds.length;
+      const ids = everywhere ? STATIONS.map(s => s.id) : stationIds;
       const words = query.toLowerCase().split(/\s+/).filter(Boolean);
       const rows = CATALOG.filter(c => words.every(w => c.name.toLowerCase().includes(w))).map(c => {
         const counts = {};
         let count = 0;
-        if (stationIds.length) {
-          for (const id of stationIds) { const n = c.per[id] ?? 0; counts[id] = n; count += n; }
-        } else {
-          count = Object.values(c.per).reduce((a, b) => a + b, 0); counts.all = count;
-        }
+        for (const id of ids) { const n = c.per[id] ?? 0; counts[id] = n; count += n; }
         return { id: c.id, name: c.name, priceRaw: c.priceRaw, counts, count };
       }).sort((a, b) => a.priceRaw - b.priceRaw);
-      const columns = stationIds.map(id => STATIONS.find(s => s.id === id)).filter(Boolean);
-      return { query, stationIds, columns, rows, total: rows.length, shown: rows.length };
+      const columns = ids.map(id => STATIONS.find(s => s.id === id)).filter(Boolean);
+      return { query, stationIds, everywhere, columns, rows, total: rows.length, shown: rows.length };
     }
 
     let flakyN = 0;
