@@ -686,3 +686,42 @@
 
 /* Неполный или городской номер — не ссылка: по нему всё равно не позвонить. */
 .cs-phone-raw { color: var(--text); }
+
+/* ── Откуда результат: новая CRM или старая ──────────────────────────────────
+   Поиск идёт в новую CRM, старая подгружается кнопкой (clientSearch.js,
+   switchSource). Строка стоит над ЛЮБЫМ результатом — и над «не найдено», и
+   над лимитом новой CRM: именно тогда старая и нужна. Место под неё
+   вычитается из высоты карточки, иначе карточка снова обрезалась бы снизу. */
+.cs-source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-2);
+  font-size: 12.5px;
+  color: var(--sub);
+}
+.cs-source-now b { color: var(--text); font-weight: 600; }
+.cs-source-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 30px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cs-source-btn:hover:not(:disabled) { border-color: var(--border-strong); }
+.cs-source-btn:disabled { opacity: .5; cursor: default; }
+.cs-source-btn svg { width: 14px; height: 14px; flex: none; }
+.cs-body:has(.cs-source) .cs-card { max-height: calc(100dvh - var(--tabs-h) - 150px - 38px); }
+
+.cs-pick-text { display: flex; flex-direction: column; align-items: flex-start; text-align: left; min-width: 0; }
+.cs-pick-sub { font-size: 12px; font-weight: 400; color: var(--sub); }
+.cs-client-note { margin-top: var(--s-1); font-size: 12px; color: var(--sub); overflow-wrap: anywhere; }

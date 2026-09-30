@@ -4,7 +4,10 @@
      Открыть: npx vite → /dev-client.html
 
      Данные тут — снимок РЕАЛЬНЫХ страниц CRM, прогнанный через
-     shared/crmClients.js, то есть ровно те поля, что приедут с прокси. Ответы
+     shared/crmClients.js, то есть ровно те поля, что приедут с прокси. Новая
+     CRM (/api/crm/new/…) отвечает СЫРЫМ JSON в том виде, в каком его рисует
+     сама новая CRM, и прогоняется через shared/crmClientsNew.js — тот же путь,
+     что на сервере. Ответы
      отдаются с задержкой нарочно: главное, что проверяется на этой странице, —
      как выглядит список обслуживаний, ПОКА чеки ещё едут. Разбор HTML проверяет
      shared/crmClients.test.js, здесь — вёрстка и поведение окна.
@@ -43,6 +46,9 @@
       <option value="down">CRM недоступна</option>
       <option value="flaky">Часть чеков не отдалась</option>
       <option value="long">Много чеков и длинные адреса</option>
+      <option value="new-empty">Новая CRM не знает, старая знает</option>
+      <option value="limit">Лимит просмотра в новой CRM</option>
+      <option value="exact">Новая CRM просит полный номер</option>
     </select>
     <label style="font-size:12.5px; display:inline-flex; gap:6px; align-items:center">
       <input type="checkbox" id="dev-slow" checked/> медленная CRM (видно плейсхолдеры)
@@ -58,6 +64,7 @@
   <script type="module">
     import './src/style.css';
     import { initClientSearch } from './src/clientSearch.js';
+    import { parseNewClientSearch, parseNewClientCard, parseNewSale, newCrmRefusal } from '../shared/crmClientsNew.js';
 
     const FIXTURE = {
           "client": {
@@ -217,8 +224,64 @@
       return e;
     }
 
+    // Сырые ответы новой CRM (re/api.php) — поля как в её собственном коде.
+    const NEW_ROWS = { rows: [{ id: 157783, fio: 'Георгий', phone: '79819651916', car: 'К926АА147', changes: 4, bonus: 120.5, created: '2024-05-08 08:59:23' }] };
+    const NEW_CARD = {
+      client: { id: 157783, fio: 'Георгий', phone: '79819651916', car: 'К926АА147', bonus: 120.5, oil_changes: 4, created: '2024-05-08 08:59:23', comment: 'звонить после 18' },
+      stats: { visits: 3, ltv: 21000, avg: 7000, last: '2026-07-28 19:34:32' },
+      history: [
+        { id: 5000003, name: 'Продажа №5000003', date: '2026-07-28 19:34:32', station: 'Выборгское шоссе 2', items: 4, mileage: 98500, sum: 8450, comment: 'просил без промывки' },
+        { id: 5000002, name: 'Продажа №5000002', date: '2026-01-12 11:02:00', station: 'Руставели 69', items: 3, mileage: 91200, sum: 6120, comment: '' },
+        { id: 5000001, name: 'Продажа №5000001', date: '2025-06-03 17:40:00', station: 'деревня Новосаратовка Свердловское городское поселение 267А', items: 2, mileage: 80100, sum: 2416, comment: '' },
+      ],
+      bonuses: [{ set_id: 5000003, type: 'add', amount: 120, balance: 120.5 }, { set_id: 5000002, type: 'spend', amount: 80, balance: 0.5 }],
+    };
+    const newSale = (id) => ({
+      header: { id, name: 'Продажа №' + id, paid: 8450, pay: 'МИР', pay_full: 'Безнал расчёт', seller: 'Петров Пётр', station: 'Выборгское шоссе 2', mileage: 98500, vehicle: 'К926АА147' },
+      client: { id: 157783, name: 'Георгий', phone: '79819651916' },
+      items: [
+        { name: 'Услуги SPOT Замена масла и фильтра', price: 500, count: 1, sum: 500, disc_pct: 0, total: 500, time: 30 },
+        { name: '3711 Моторное масло Liqui Moly 5W-30 Top Tec 205l', price: 240, count: 5, sum: 1200, disc_pct: 0, total: 1200 },
+        { name: '25010 Фильтр масляный MANN W 712/95', price: 640, count: 1, sum: 640, disc_pct: 0, total: 640 },
+      ],
+    });
+    const LIMIT = { error: 'daily_limit', message: 'Превышен дневной лимит просмотра клиентов (50 в день)' };
+    // Отказ новой CRM — так же, как его отдаёт сервер (routes/crm.js → newCrmGet).
+    function newOrFail(json) {
+      const r = newCrmRefusal(json);
+      if (r) throw fail(r.code, r.message);
+      return json;
+    }
+    window.__newCalls = [];
+
+    async function stubNewFetch(path) {
+      window.__newCalls.push(path);
+      if (path.startsWith('/api/crm/new/clients?')) {
+        await wait(500);
+        if (kase() === 'limit') newOrFail(LIMIT);
+        if (kase() === 'new-empty') return { source: 'new', clients: [] };
+        if (kase() === 'exact') return { source: 'new', ...parseNewClientSearch({ rows: [], need_exact: true, message: 'Введите полный номер телефона (11 цифр) или полный госномер' }) };
+        return { source: 'new', ...parseNewClientSearch(NEW_ROWS) };
+      }
+      if (path.startsWith('/api/crm/new/clients/')) {
+        await wait(400);
+        return { client: parseNewClientCard(NEW_CARD, path.split('/').pop()) };
+      }
+      if (path.startsWith('/api/crm/new/sales/')) {
+        const id = path.split('/').pop();
+        await wait(500 + Math.random() * 1200);
+        return { sale: parseNewSale(newSale(id), id) };
+      }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
     // Тот же контракт, что у backend/src/routes/crm.js: ошибка — Error с .code.
     async function stubFetch(path) {
+      if (path.startsWith('/api/crm/new/')) {
+        if (kase() === 'auth') throw fail('crm_auth_required', 'нет сессии CRM — войдите');
+        if (kase() === 'down') throw fail('crm_unavailable', 'CRM недоступна (crm.zamena-masla-spot.ru): таймаут 15 с');
+        return stubNewFetch(path);
+      }
       if (path === '/api/crm/login') { await wait(600); return { ok: true, linked: true }; }
       if (kase() === 'auth') throw fail('crm_auth_required', 'нет сессии CRM — войдите');
       if (kase() === 'down') throw fail('crm_unavailable', 'CRM недоступна (crm.zamena-masla-spot.ru): таймаут 15 с');
@@ -226,6 +289,7 @@
       if (path.startsWith('/api/crm/clients?')) {
         await wait(700);
         if (kase() === 'empty') return { clients: [] };
+        if (['new-empty', 'limit', 'exact'].includes(kase())) return { clients: [{ id: CLIENT.id, name: CLIENT.name }] };
         if (kase() === 'long') return { clients: [{ id: LONG_CLIENT.id, name: LONG_CLIENT.name }] };
         if (kase() === 'many') {
           return { clients: [

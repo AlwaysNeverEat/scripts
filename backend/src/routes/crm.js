@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
     crmLogin, crmLogout, crmEnsureSession, crmLinkedLogin, linkSecretConfigured,
-    crmGetHtml, buildAnalyseFreePath, CrmError,
+    crmGetHtml, buildAnalyseFreePath, CrmError, crmApi,
 } from '../crm/client.js';
 import {
     parseStations, parseAnalyseFree, parseStockTable, stockSearchPath,
@@ -12,6 +12,9 @@ import {
     parseClientSearch, parseClientCard, parseSale,
     formatPhoneInput, formatPlateInput, phoneComplete, plateComplete,
 } from '../../../shared/crmClients.js';
+import {
+    newClientSearchQuery, parseNewClientSearch, parseNewClientCard, parseNewSale, newCrmRefusal,
+} from '../../../shared/crmClientsNew.js';
 
 const router = Router();
 
@@ -69,6 +72,8 @@ function sendCrmError(res, err) {
         // этому коду НЕ выпускает из аккаунта сайта.
         const status = err.code === 'crm_auth_required' ? 403
             : err.code === 'crm_auth_failed' ? 403
+            : err.code === 'crm_daily_limit' ? 429
+            : err.code === 'crm_refused' ? 409
             : 502;
         return res.status(status).json({ error: { code: err.code, message: err.message } });
     }
@@ -316,6 +321,104 @@ router.get('/sales/:id', async (req, res) => {
         const sale = parseSale(await crmGetHtml(req.user.id, salePath(id)), id);
         cachePut(saleCache, id, sale, SALE_TTL_MS);
         res.json({ sale });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
+
+// ── Новая CRM: /api/crm/new/clients… ─────────────────────────────────────────
+// Та же вкладка «Клиент», но из новой CRM (re/api.php) — теперь поиск идёт
+// сюда ПЕРВЫМ, а старая подгружается кнопкой. Ответы переводятся в ту же
+// форму, что у старой (shared/crmClientsNew.js), и карточка рисуется одна.
+//
+// Главное отличие от старой — ПРОСМОТР КЛИЕНТА В НОВОЙ CRM НЕ БЕСПЛАТЕН: у неё
+// дневной лимит карточек на сотрудника и журнал просмотров для СБ. Отсюда два
+// правила, которых у старой ветки нет:
+//
+//   • кэш СВОЙ У КАЖДОГО сотрудника, а не общий. Общий отдал бы Васе карточку,
+//     которую открыла Маша, мимо лимита и журнала Васи — то есть обошёл бы
+//     защиту CRM, а не сэкономил запрос;
+//   • одинаковые запросы одного человека СКЛЕИВАЮТСЯ в один поход в CRM.
+//     GET сайта при медленном ответе страхуется вторым таким же запросом
+//     (netRetry.js), и без склейки каждый медленный поиск стоил бы два
+//     просмотра из лимита и две строки в журнале СБ.
+
+const NEW_CLIENT_TTL_MS = CLIENT_TTL_MS;
+
+// Поход в новую CRM с кэшем и склейкой, ОБА по сотруднику. Фабрика — ради
+// теста: он гоняет ровно этот код с подменённым походом в CRM.
+export function newCrmGetter(api = crmApi) {
+    const cache = new Map();     // `${userId}|${query}` → { at, value }
+    const inFlight = new Map();  // `${userId}|${query}` → Promise
+    return async function get(userId, query, ttl) {
+        const key = `${userId}|${query}`;
+        const hit = cacheTake(cache, key, ttl);
+        if (hit) return hit;
+        if (inFlight.has(key)) return inFlight.get(key);
+        const p = (async () => {
+            const json = await api(userId, { query });
+            const refusal = newCrmRefusal(json);
+            if (refusal) throw new CrmError(refusal.code, refusal.message);
+            cachePut(cache, key, json, ttl);
+            return json;
+        })();
+        inFlight.set(key, p);
+        try {
+            return await p;
+        } finally {
+            inFlight.delete(key);
+        }
+    };
+}
+
+const newCrmGet = newCrmGetter();
+
+router.get('/new/clients', async (req, res) => {
+    const phone = String(req.query.phone || '').trim();
+    const plate = String(req.query.plate || '').trim();
+    if (phone && !phoneComplete(phone)) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'телефон введён не полностью' } });
+    }
+    if (!phone && !plateComplete(plate)) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'нужен телефон или гос. номер' } });
+    }
+    try {
+        const json = await newCrmGet(req.user.id, newClientSearchQuery({ phone, plate }), NEW_CLIENT_TTL_MS);
+        const { clients, needExact, message } = parseNewClientSearch(json);
+        res.json({
+            source: 'new',
+            query: phone ? { kind: 'phone', value: formatPhoneInput(phone) }
+                : { kind: 'plate', value: formatPlateInput(plate) },
+            clients,
+            needExact,
+            message,
+        });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
+
+router.get('/new/clients/:id', async (req, res) => {
+    const id = String(req.params.id || '');
+    if (!/^\d+$/.test(id)) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'id клиента — число' } });
+    }
+    try {
+        const json = await newCrmGet(req.user.id, `section=clientcard&id=${id}`, NEW_CLIENT_TTL_MS);
+        res.json({ client: parseNewClientCard(json, id) });
+    } catch (err) {
+        sendCrmError(res, err);
+    }
+});
+
+router.get('/new/sales/:id', async (req, res) => {
+    const id = String(req.params.id || '');
+    if (!/^\d+$/.test(id)) {
+        return res.status(400).json({ error: { code: 'bad_request', message: 'id чека — число' } });
+    }
+    try {
+        const json = await newCrmGet(req.user.id, `section=sale&id=${id}`, SALE_TTL_MS);
+        res.json({ sale: parseNewSale(json, id) });
     } catch (err) {
         sendCrmError(res, err);
     }
