@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SPOT CRM: Пересчёт чека
 // @namespace    zamena-masla-spot.ru
-// @version      1.7.835
+// @version      1.7.112
 // @description  Пересчёт стоимости услуги по чеку /sale/{id} по актуальным ценам
 // @match        *://crm.zamena-masla-spot.ru/sale/*
 // @match        *://crm.zamena-masla-spot.ru/for-sale/*
@@ -252,7 +252,7 @@
       {
         b: "SPOT",
         n: "OPTIMAL 5W-30",
-        price: 1450,
+        price: 1550,
         v: "5W-30",
         a: ["ACEA A3/B4", "API SN", "API CF", "VW 502 00", "VW 505 00", "MB 226.5", "MB 229.3", "RN 0700", "RN 0710", "GM LL-B-025", "PORSCHE A40", "LL 01"],
         ad: ["топливо", "низкотемпературное", "износ", "антикоррозия"],
@@ -262,7 +262,7 @@
       {
         b: "SPOT",
         n: "OPTIMAL 5W-40",
-        price: 1450,
+        price: 1550,
         v: "5W-40",
         a: ["ACEA A3/B4", "API SL", "VW 502 00", "VW 505 00", "MB 229.3", "RN 0700", "RN 0710", "АВТОВАЗ"],
         ad: ["топливо", "низкотемпературное", "износ", "антикоррозия"],
@@ -272,7 +272,7 @@
       {
         b: "SPOT",
         n: "PROFESSIONAL 5W-30",
-        price: 1700,
+        price: 1800,
         v: "5W-30",
         a: ["ACEA C3", "API SN", "API CF", "FORD WSS-M2C 913-A", "FORD WSS-M2C 913-B", "FORD WSS-M2C 913-C", "RN 0700", "ILSAC GF-5"],
         ad: ["топливо", "низкотемпературное", "износ", "антикоррозия"],
@@ -282,7 +282,7 @@
       {
         b: "SPOT",
         n: "PROFESSIONAL 5W-40",
-        price: 1700,
+        price: 1800,
         v: "5W-40",
         a: ["GM DEXOS2", "MB 229.51", "MB 229.31", "MB 226.5", "RN 0700", "RN 0710", "VW 505 00", "VW 505 01", "LL 04", "PORSCHE A40", "FORD WSS-M2C-917-A"],
         ad: ["топливо", "низкотемпературное", "износ", "антикоррозия"],
