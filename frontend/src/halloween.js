@@ -18,7 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import './halloween.css';
-import { isHalloweenSeason, pickPhrase } from '../../shared/halloween.js';
+import { isHalloweenSeason, phraseDeck } from '../../shared/halloween.js';
 
 // Спрятан ли паук — на устройстве. Ключ НОВЫЙ сознательно: старый
 // (`zm_halloween_off`) значил «до следующего года», и у тех, кто тогда нажал
@@ -95,13 +95,12 @@ export function initHalloween({ now = () => new Date() } = {}) {
 
     const spider = root.querySelector('.hw-spider');
     const bubble = root.querySelector('.hw-bubble');
-    let last = null;
+    const nextPhrase = phraseDeck();
     let hideTimer = null;
     let talkTimer = null;
 
     function say() {
-        last = pickPhrase(last);
-        bubble.textContent = last;
+        bubble.textContent = nextPhrase();
         root.classList.add('hw-talking');
         spider.classList.remove('hw-wiggle');
         void spider.offsetWidth; // перезапуск анимации на повторный клик
