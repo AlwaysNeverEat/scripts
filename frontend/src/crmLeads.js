@@ -946,5 +946,23 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             active = false;
             clearTimeout(pollTimer);
         },
+        // Карточка клиента не из звонка — например, из «Чатов» (переписка
+        // привязана к клиенту CRM). Звонка-контекста у неё нет.
+        openClient(clientId) {
+            if (!/^\d+$/.test(String(clientId || ''))) return;
+            const key = `client:${clientId}`;
+            state.selected = null;
+            state.draft = freshDraft();
+            state.errors = {};
+            state.flash = '';
+            state.openSales = new Map();
+            state.editingName = false;
+            state.editingComment = null;
+            state.card = { status: 'loading', phone: key };
+            shell.classList.add('ld-has-card');
+            renderFeed();
+            renderCard();
+            fetchCard(`id=${encodeURIComponent(clientId)}`, key);
+        },
     };
 }

@@ -106,6 +106,16 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>
             <span class="app-tab-label">Лиды</span>
           </button>
+          <!-- «Чаты»: «Открытые линии» CRM — MAX, Telegram, ВК (src/crmChats.js).
+               Рядом с «Лидами», чтобы не тянуться через весь ряд. Счётчик
+               непрочитанных (красный — кто-то ждёт оператора) ведёт
+               chatPulse.js на всём сайте. Кнопка прячется у тех, кому CRM
+               чаты не открывает. -->
+          <button class="app-tab hidden" id="app-tab-chats" data-tab="chats" role="tab" aria-selected="false" aria-label="Чаты" title="Чаты">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span class="app-tab-label">Чаты</span>
+            <span class="app-tab-badge hidden" id="chats-badge" aria-hidden="true"></span>
+          </button>
           <!-- «Клиент»: поиск человека в CRM по телефону или гос. номеру.
                Раньше был режимом строки поиска на главной, вынесен в свою
                вкладку — карточка клиента это отдельная работа, а не вариант
@@ -139,10 +149,14 @@
             <span class="app-tab-label">Новости</span>
             <span class="app-tab-badge hidden" id="news-badge" aria-hidden="true"></span>
           </button>
+          <!-- «Топ» убран из ряда вкладок: пока не нужен. Страница живёт по
+               прямой ссылке /top (роут в main.js не тронут) — вернуть кнопку
+               можно снятием комментария.
           <button class="app-tab" data-tab="top" role="tab" aria-selected="false" aria-label="Топ" title="Топ">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
             <span class="app-tab-label">Топ</span>
           </button>
+          -->
           <!-- «Админка»: заявки на регистрацию и роли/баны. Кнопка скрыта, пока
                main.js не увидит у вошедшего роль mod/admin — но это удобство, а
                не защита: роль проверяет сервер (см. backend/src/routes/admin.js). -->
@@ -319,6 +333,15 @@
         <p class="page-sub">Все звонки из CRM, а не три всплывашки: открыл звонок — заполнил лид.</p>
       </div>
       <div id="leads-body" class="page-body leads-body"></div>
+    </div>
+
+    <!-- «Чаты»: слева диалоги, справа переписка (src/crmChats.js). -->
+    <div id="page-chats" class="hidden">
+      <div class="page-head">
+        <h2 class="page-title">Чаты</h2>
+        <p class="page-sub">Переписка с клиентами в MAX, Telegram и ВК — из «Открытых линий» CRM.</p>
+      </div>
+      <div id="chats-body" class="page-body leads-body"></div>
     </div>
 
     <!-- «Клиент»: поиск в CRM по телефону или гос. номеру и карточка клиента

@@ -11,6 +11,8 @@ import adminRouter from './routes/admin.js';
 import crmRouter from './routes/crm.js';
 // «Лиды» — лента звонков и карточка лида из новой CRM (не Битрикс, см. ниже).
 import crmLeadsRouter from './routes/crmLeads.js';
+// «Чаты» — «Открытые линии» новой CRM (MAX, Telegram, ВК).
+import crmChatsRouter from './routes/crmChats.js';
 // Панель Битрикса («Лиды») отложена — см. docs/BITRIX.md. Модули
 // backend/src/bitrix/ и оба роутера на месте, выключена только проводка.
 // import bitrixRouter from './routes/bitrix.js';
@@ -93,6 +95,7 @@ app.use('/api/users', requireSession, usersRouter);
 // роутера: без личности проверять роль нечем.
 app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm/leads', requireSession, crmLeadsRouter);
+app.use('/api/crm/chats', requireSession, crmChatsRouter);
 app.use('/api/crm', requireSession, crmRouter);
 // Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md). ОТЛОЖЕНА
 // целиком — ручки не подняты, чтобы сайт не хранил чужие сессии портала ради

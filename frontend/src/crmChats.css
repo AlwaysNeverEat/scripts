@@ -1,0 +1,148 @@
+/* Вкладка «Чаты»: диалоги слева, переписка справа (crmChats.js). Общие
+   кирпичики — чипы, поиск, пустые состояния, скелеты — из crmLeads.css: две
+   соседние вкладки про CRM обязаны выглядеть одной системой. */
+
+.ch {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.ch-side {
+  position: sticky;
+  top: calc(var(--tabs-h) + var(--s-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: calc(100vh - var(--tabs-h) - var(--s-6));
+  min-width: 0;
+}
+.ch-filters { display: flex; flex-direction: column; gap: var(--s-2); }
+.ch-list { display: flex; flex-direction: column; gap: var(--s-1); overflow-y: auto; min-height: 0; flex: 1; }
+.ch-note { color: var(--sub); font-size: 11.5px; }
+.ch-notify {
+  border: 1px dashed var(--accent);
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--r-2);
+  padding: var(--s-2) var(--s-3);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.ch-notify:hover { background: var(--accent-dim); }
+
+.ch-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text);
+  border-radius: var(--r-3);
+  padding: var(--s-2) var(--s-3);
+  font: inherit;
+  cursor: pointer;
+}
+.ch-row:hover { border-color: var(--accent); }
+.ch-row-sel { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.ch-row-unread .ch-row-who { font-weight: 800; }
+/* Ждёт оператора — красной рамкой: это человек, которого бот уже бросил. */
+.ch-row-wait { border-color: color-mix(in oklab, var(--red) 60%, var(--border)); }
+.ch-row-top { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.ch-row-who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ch-row-text { font-size: 12.5px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-row-bottom { display: flex; justify-content: space-between; gap: var(--s-2); font-size: 11.5px; }
+.ch-row-bottom svg { vertical-align: -1px; }
+
+.ch-chan {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-1);
+  background: var(--bg3);
+  color: var(--text);
+}
+/* Цвет канала — СМЫСЛ (как отличают мессенджеры), а не акцент сайта. */
+.ch-chan-tg { background: color-mix(in oklab, #29a0d8 22%, transparent); }
+.ch-chan-vk { background: color-mix(in oklab, #2787f5 22%, transparent); }
+.ch-chan-max { background: color-mix(in oklab, #7b5cff 22%, transparent); }
+.ch-unread {
+  flex: none;
+  min-width: 18px;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-round);
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.ch-wait { color: var(--red); font-weight: 700; font-size: 11.5px; }
+.ch-free { color: var(--red); }
+
+.ch-thread {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  padding: var(--s-3);
+  min-height: 60vh;
+}
+.ch-thread:has(.ld-card-empty) { border: 0; padding: 0; }
+.ch-head { display: flex; flex-direction: column; gap: var(--s-2); padding-bottom: var(--s-2); border-bottom: 1px solid var(--border); }
+.ch-head-who { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; font-size: 15px; }
+.ch-head-acts { display: flex; gap: var(--s-1); flex-wrap: wrap; }
+.ch-head-acts .ld-chip:disabled { opacity: .6; cursor: progress; }
+.ch-link { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.ch-link .ld-in { flex: 1; min-width: 180px; width: auto; }
+.ch-link-res { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: var(--s-1); }
+
+.ch-msgs {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 58vh;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-1) 0;
+}
+.ch-msg { display: flex; }
+.ch-msg-out { justify-content: flex-end; }
+.ch-bubble {
+  max-width: 76%;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-3);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.ch-msg-out .ch-bubble { background: var(--accent-dim); border-color: transparent; }
+.ch-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ch-att { font-size: 11.5px; color: var(--sub); display: flex; align-items: center; gap: 3px; margin-top: 2px; }
+.ch-meta { font-size: 10.5px; color: var(--sub); text-align: right; margin-top: 2px; }
+.ch-failed { color: var(--red); font-weight: 600; }
+
+.ch-compose { display: flex; gap: var(--s-2); align-items: flex-end; border-top: 1px solid var(--border); padding-top: var(--s-2); }
+.ch-compose textarea { flex: 1; resize: vertical; min-height: 44px; max-height: 160px; }
+.ch-send { display: inline-flex; align-items: center; gap: var(--s-2); white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .ch { grid-template-columns: minmax(0, 1fr); }
+  .ch-side { position: static; max-height: none; }
+  .ch-thread { display: none; }
+  .ch-has-thread .ch-side { display: none; }
+  .ch-has-thread .ch-thread { display: flex; }
+  .ch-head .ld-back { display: inline-flex; align-items: center; gap: var(--s-2); align-self: flex-start; }
+  .ch-bubble { max-width: 88%; }
+}

@@ -48,7 +48,7 @@ test('лента: все звонки, а не три; живые сверху, 
 });
 
 test('лента: один звонок из двух источников — одна строка, живое состояние побеждает', () => {
-    const feed = mergeFeed({
+    const feed = mergeFeed({ now: NOW,
         list: [{ id: 7, created: '2026-10-08 09:07:00', phone: '79312047101', status: 'completed', name: 'Ершов', line: 'Сайт' }],
         active: [{ id: 7, created: '2026-10-08 09:07:00', phone: '79312047101', status: 'answered' }],
     });
@@ -59,7 +59,7 @@ test('лента: один звонок из двух источников — �
 });
 
 test('лента: без id склеиваем по номеру и минуте, исходящие не берём', () => {
-    const feed = mergeFeed({
+    const feed = mergeFeed({ now: NOW,
         list: [{ created: '2026-10-08 09:07:10', phone: '79312047101', status: 'completed' }],
         active: [
             { created: '2026-10-08 09:07:40', phone: '79312047101', status: 'answered' },
@@ -70,7 +70,7 @@ test('лента: без id склеиваем по номеру и минуте
 });
 
 test('лента: сколько раз звонил номер', () => {
-    const feed = mergeFeed({ list: [
+    const feed = mergeFeed({ now: NOW, list: [
         { id: 1, created: '2026-10-08 09:00:00', phone: '79312047101' },
         { id: 2, created: '2026-10-08 10:00:00', phone: '79312047101' },
         { id: 3, created: '2026-10-08 11:00:00', phone: '79312047102' },
@@ -82,7 +82,7 @@ test('лента: запомненный звонок не пропадает, �
     const seen = [normalizeCall({ id: 5, status: 'answered', phone: '79312047101', created: '2026-10-08 09:00:00' })];
     settleGone(seen, new Set());
     assert.equal(seen[0].status, 'completed', 'кончился — не висит «разговор» вечно');
-    const feed = mergeFeed({ remembered: seen });
+    const feed = mergeFeed({ remembered: seen, now: NOW });
     assert.equal(feed.length, 1);
 });
 
