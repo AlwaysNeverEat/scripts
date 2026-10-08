@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!-- Дев-песочница хэллоуинского паучка (src/halloween.js) без входа и базы.
+     Открыть: npx vite → /dev-halloween.html. Сезон тут включён всегда, а
+     «Сказать» не ждёт минуту. В прод-сборку не попадает. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: паучок</title>
+</head>
+<body>
+  <div class="page-head"><h2 class="page-title">Паучок — песочница</h2></div>
+  <div class="page-body" style="display:flex;gap:10px">
+    <button class="btn btn-sec" id="dev-say">Сказать</button>
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-sec" id="dev-reset">Вернуть убранного</button>
+  </div>
+  <script type="module">
+    import './src/style.css';
+    import { initHalloween } from './src/halloween.js';
+    try { localStorage.removeItem('zm_halloween_off'); } catch {}
+    const root = initHalloween({ now: () => new Date(2026, 9, 31) });
+    document.getElementById('dev-say').onclick = () => root?.querySelector('.hw-spider')?.click();
+    document.getElementById('dev-theme').onclick = () => {
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+      document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+    };
+    document.getElementById('dev-reset').onclick = () => { localStorage.removeItem('zm_halloween_off'); location.reload(); };
+  </script>
+</body>
+</html>
