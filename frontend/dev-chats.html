@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!-- Дев-песочница вкладки «Чаты»: «Открытые линии» без CRM и без базы.
+     Открыть: npx vite → /dev-chats.html
+
+     Ответы — в той форме, в какой их рисует код самой CRM (omni_dialogs /
+     omni_thread / omni_counts / omni_waiting), с выдуманными людьми, и
+     прогоняются через shared/crmChats.js — тот же путь, что на сервере.
+     Кнопка «Клиент пишет» добавляет входящее: видно счётчик на вкладке, «(N)»
+     в заголовке и уведомление на рабочем столе (если разрешить).
+
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: чаты</title>
+  <script>
+    try { if (localStorage.getItem('cars_db_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head" style="max-width:1040px">
+    <h2 class="page-title">Чаты — песочница</h2>
+    <p class="page-sub">«Открытые линии» CRM: MAX, Telegram, ВК.</p>
+  </div>
+  <div class="page-body" style="max-width:1040px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+    <span class="app-tab" id="app-tab-chats" style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:6px 12px">Чаты <span class="app-tab-badge hidden" id="chats-badge"></span></span>
+    <button class="btn btn-sec" id="dev-in">Клиент пишет</button>
+    <button class="btn btn-sec" id="dev-wait">Бот сдался — ждёт оператора</button>
+    <select class="btn btn-sec" id="dev-case">
+      <option value="ok">CRM отвечает</option>
+      <option value="refuse">CRM отказывает в отправке</option>
+    </select>
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+  </div>
+  <div class="page-body leads-body" style="max-width:1040px">
+    <div id="chats-body"></div>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initCrmChats } from './src/crmChats.js';
+    import { initChatPulse } from './src/chatPulse.js';
+    import { parseDialogs, parseThread, parseWaiting } from '../shared/crmChats.js';
+
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const fail = (code, message) => Object.assign(new Error(message), { code });
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = (minAgo = 0) => { const d = new Date(Date.now() - minAgo * 60e3); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`; };
+
+    let nid = 10;
+    const D = [
+      { id: 1, client: 'Ершов Андрей Вадимович', client_id: 199305, peer_username: 'ershov', channel: 'tg', status: 'open', assignee: '', phone: '79312047101',
+        msgs: [{ dir: 'in', body: 'Здравствуйте! Сколько стоит замена масла в АКПП на Kia Rio?', at: stamp(30) }, { dir: 'out', body: 'Добрый день! Частичная — 1 210 ₽ работа, масло по объёму. Подсказать ближайшую станцию?', author: 'Ищенко', at: stamp(28) }, { dir: 'in', body: 'Да, я на Выборгской', at: stamp(5) }], unread: 1 },
+      { id: 2, peer_name: 'Дамир', channel: 'max', status: 'open', assignee: 'Петрова Мария', msgs: [{ dir: 'in', body: 'Вы работаете в воскресенье?', at: stamp(90) }, { dir: 'out', body: 'Да, с 9 до 21', author: 'Петрова', at: stamp(85) }], unread: 0 },
+      { id: 3, peer_id: 55123, channel: 'vk', status: 'open', assignee: '', msgs: [{ dir: 'in', body: 'Фото приборки', at: stamp(200), att: [{}] }], unread: 2 },
+      { id: 4, peer_name: 'Олег', channel: 'tg', status: 'closed', assignee: 'Ищенко', msgs: [{ dir: 'in', body: 'Спасибо!', at: stamp(60 * 24) }], unread: 0 },
+    ];
+    const waiting = new Set();
+    const caseSel = document.getElementById('dev-case');
+
+    const row = (d) => { const last = d.msgs.at(-1) || {}; return { ...d, last_dir: last.dir, last_text: last.body, last_at: last.at }; };
+
+    async function stubFetch(path, opts = {}) {
+      const body = opts.body || {};
+      await wait(path.includes('/pulse') ? 100 : 350);
+      if (path === '/api/crm/chats/pulse') {
+        return { available: true, unread: D.reduce((s, d) => s + d.unread, 0),
+          waiting: parseWaiting({ waiting: [...waiting].map(id => { const d = D.find(x => x.id === id); return { id, who: d.client || d.peer_name || `#${d.peer_id}`, channel: d.channel, last_text: d.msgs.at(-1)?.body }; }) }) };
+      }
+      if (path.startsWith('/api/crm/chats/dialogs?')) {
+        const q = new URLSearchParams(path.split('?')[1]);
+        const st = q.get('status'), ch = q.get('channel'), s = (q.get('q') || '').toLowerCase();
+        const list = D.filter(d => d.status === st && (!ch || d.channel === ch)
+          && (!s || JSON.stringify(d).toLowerCase().includes(s))).sort((a, b) => (b.msgs.at(-1)?.at || '').localeCompare(a.msgs.at(-1)?.at || ''));
+        return { dialogs: parseDialogs({ dialogs: list.map(row) }) };
+      }
+      const m = path.match(/\/api\/crm\/chats\/dialogs\/(\d+)(?:\/(\w+))?$/);
+      if (m) {
+        const d = D.find(x => x.id === Number(m[1]));
+        if (!m[2]) { d.unread = 0; return parseThread({ ok: true, dialog: { ...d, client_id: d.client_id, assigned_to: d.assignee ? 1 : 0 }, messages: d.msgs }); }
+        if (caseSel.value === 'refuse') throw fail('crm_refused', 'бот заблокирован клиентом в мессенджере');
+        if (m[2] === 'reply') { d.msgs.push({ dir: 'out', body: body.text, author: 'Серёга', at: stamp() }); waiting.delete(d.id); }
+        if (m[2] === 'assign') { d.assignee = 'Серёга'; waiting.delete(d.id); }
+        if (m[2] === 'status') d.status = body.to;
+        if (m[2] === 'link') { d.client_id = Number(body.clientId); d.client = 'Привязанный клиент'; }
+        return { ok: true };
+      }
+      if (path.startsWith('/api/crm/chats/clients')) return { clients: [{ id: '286805', name: 'Дамир', phone: '79293412767' }, { id: '172638', name: 'Андрей', phone: '79118348541' }] };
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    document.getElementById('dev-in').onclick = () => {
+      const d = D[Math.floor(Math.random() * 3)];
+      d.msgs.push({ dir: 'in', body: ['А сколько по времени?', 'Можно на завтра?', 'Спасибо, жду'][nid++ % 3], at: stamp() });
+      d.unread += 1;
+      pulse.refresh();
+    };
+    document.getElementById('dev-wait').onclick = () => {
+      const d = D[2]; d.msgs.push({ dir: 'in', body: 'Позовите человека', at: stamp() }); d.unread += 1; waiting.add(d.id); pulse.refresh();
+    };
+
+    const pulse = initChatPulse({
+      apiFetch: stubFetch,
+      tabEl: document.getElementById('app-tab-chats'),
+      badgeEl: document.getElementById('chats-badge'),
+      onOpenDialog: (id) => chats.open(id),
+    });
+    const chats = initCrmChats({ apiFetch: stubFetch, pulse, onOpenClient: (id) => alert('dev: карточка клиента ' + id + ' откроется на вкладке «Лиды»') });
+    pulse.start();
+    chats.activate();
+    document.getElementById('dev-theme').onclick = () => {
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+      document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+    };
+  </script>
+</body>
+</html>

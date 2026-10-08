@@ -12,6 +12,8 @@ import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
 import { initCrmLeads } from './crmLeads.js';
+import { initCrmChats } from './crmChats.js';
+import { initChatPulse } from './chatPulse.js';
 import { initStockSearch } from './stockSearch.js';
 // «Скрипты» выключены — их место заняли «Клиент» и «Склад» (см. index.html).
 // import { initScriptsFeed } from './scriptsFeed.js';
@@ -59,6 +61,9 @@ const API_KEY  = (typeof __API_KEY__  !== 'undefined' && __API_KEY__)  ? __API_K
 const TOKEN_KEY = 'cars_db_session_token';
 let sessionToken = localStorage.getItem(TOKEN_KEY) || '';
 let currentUser = null;
+// Пульс «Чатов» (chatPulse.js) — объявлен здесь, а заводится ниже: showGate
+// может сработать раньше, чем модуль досчитается до его создания.
+let chatPulseRef = null;
 // true только после успешного входа — пока не залогинились, 401 от /me или
 // от самого /login не должен трактоваться как "сессия протухла на лету".
 let unlocked = false;
@@ -116,6 +121,7 @@ const pageCalc    = document.getElementById('page-calc');
 const pageProfile = document.getElementById('page-profile');
 const pageRecords = document.getElementById('page-records');
 const pageLeads   = document.getElementById('page-leads'); // «Лиды» — звонки новой CRM (crmLeads.js)
+const pageChats   = document.getElementById('page-chats'); // «Чаты» — «Открытые линии» CRM (crmChats.js)
 const pageClient  = document.getElementById('page-client');
 const pageStock   = document.getElementById('page-stock');
 // const pageScripts = document.getElementById('page-scripts'); // «Скрипты» выключены
@@ -123,7 +129,7 @@ const pageNews    = document.getElementById('page-news');
 const pageTop     = document.getElementById('page-top');
 const pageAdmin   = document.getElementById('page-admin');
 
-const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageLeads, pageClient, pageStock, /* pageScripts, */ pageNews, pageTop, pageAdmin];
+const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageLeads, pageChats, pageClient, pageStock, /* pageScripts, */ pageNews, pageTop, pageAdmin];
 
 function hideAllPages() {
     for (const page of ALL_PAGES) page.classList.add('hidden');
@@ -139,6 +145,7 @@ function showGate(message) {
     hideAllPages();
     appTabs.classList.add('hidden');
     pauseRecords();
+    chatPulseRef?.stop(); // вышли из аккаунта — счётчик и уведомления гаснут
     resetTabsState();
     pageAuth.classList.remove('hidden');
     initAuthGate({
@@ -163,7 +170,7 @@ function enterApp() {
     // при первом заходе на вкладку: список должен уже стоять, когда её
     // откроют. Именно ПОСЛЕ прогрева — до него запрос отвечал «нет сессии»,
     // и вкладка встречала формой входа, хотя учётка привязана.
-    warmCrmSession().then(() => stockSearch.preload());
+    warmCrmSession().then(() => { stockSearch.preload(); chatPulseRef?.start(); });
     // Звонки ловили ГЛОБАЛЬНО, а не на вкладке «Лиды»: входящий приходит,
     // когда оператор считает масло в калькуляторе, и уведомление должно
     // догнать его там же (см. leads.js). Пока вкладка отложена, опрос выключен
@@ -241,6 +248,7 @@ const DEFAULT_TAB_ROUTE = {
     calc:    '/',
     records: '/records',
     leads:   '/leads',
+    chats:   '/chats',
     client:  '/client',
     stock:   '/stock',
     // scripts: '/scripts', // выключено
@@ -264,6 +272,7 @@ function isRecordsPath(path) {
 function tabOfPath(path) {
     if (isRecordsPath(path)) return 'records';
     if (path === '/leads') return 'leads';
+    if (path === '/chats') return 'chats';
     if (path === '/client') return 'client';
     if (path === '/stock') return 'stock';
     // if (path === '/scripts') return 'scripts'; // выключено: /scripts уходит в калькулятор
@@ -284,7 +293,7 @@ function tabOfPath(path) {
 // сперва decodeURIComponent.
 const ROUTE_WORDS = new Set([
     'profile', 'user', 'car', 'records', 'client', 'stock',
-    'news', 'top', 'admin', 'scripts', 'leads',
+    'news', 'top', 'admin', 'scripts', 'leads', 'chats',
 ]);
 const LOGIN_SEG_RE = /^[a-zA-Zа-яА-ЯёЁ0-9._-]{3,40}$/;
 
@@ -350,6 +359,7 @@ async function renderRoute() {
     // ZMS, аккаунт сайта для них не нужен (см. backend/src/routes/records.js).
     // Ушли с «Лидов» — лента перестаёт ходить в CRM (см. crmLeads.js).
     if (tab !== 'leads') crmLeads.deactivate();
+    if (tab !== 'chats') crmChats.deactivate();
     if (tab === 'records') {
         await showRecords();
         restoreScroll(route);
@@ -400,6 +410,9 @@ async function renderRoute() {
     } else if (tab === 'leads') {
         showPage(pageLeads);
         crmLeads.activate(); // лента опрашивается, только пока вкладка открыта
+    } else if (tab === 'chats') {
+        showPage(pageChats);
+        crmChats.activate(); // список и диалог опрашиваются, только пока вкладка открыта
     } else if (tab === 'client') {
         showPage(pageClient);
         clientSearch.activate(); // фокус в строку; найденный клиент остаётся
@@ -851,6 +864,22 @@ const tagSearch = initTagSearch({
 // renderRoute только показывает страницу и зовёт activate().
 const clientSearch = initClientSearch({ apiFetch });
 const crmLeads = initCrmLeads({ apiFetch, getUserId: () => currentUser?.id });
+// Счётчик «Чатов» и уведомления о новых сообщениях — на всём сайте, а не
+// только на вкладке (chatPulse.js). Заводится после прогрева сессии CRM.
+const chatPulse = initChatPulse({
+    apiFetch,
+    tabEl: document.getElementById('app-tab-chats'),
+    badgeEl: document.getElementById('chats-badge'),
+    isChatsOpen: () => !pageChats.classList.contains('hidden'),
+    onOpenDialog: (id) => { navigate('/chats'); if (id) crmChats.open(id); },
+});
+chatPulseRef = chatPulse;
+const crmChats = initCrmChats({
+    apiFetch,
+    pulse: chatPulse,
+    // «Карточка клиента» из переписки — та же карточка лида на вкладке «Лиды».
+    onOpenClient: (clientId) => { navigate('/leads'); crmLeads.openClient(clientId); },
+});
 const stockSearch = initStockSearch({ apiFetch });
 
 function setSearchMode(mode) {
