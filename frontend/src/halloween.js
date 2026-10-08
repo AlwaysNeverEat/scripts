@@ -8,8 +8,10 @@
 //     остаётся рабочий сайт; ловят только сам паук и крестик;
 //   • говорит редко (раз в 1–2 минуты) и только на видимой вкладке — фраза,
 //     прочитанная в пустоту свёрнутого окна, просто тратится;
-//   • крестик убирает паучка ДО СЛЕДУЮЩЕГО ГОДА (localStorage, на
-//     устройстве), а со 3 ноября он уходит сам;
+//   • крестик ПРЯЧЕТ паучка, но не насовсем: в углу остаётся маленькая
+//     паутинка, клик по ней возвращает его. Первая версия убирала «до
+//     следующего Хэллоуина» без возврата — люди не знали, что это навсегда,
+//     нажали из любопытства и расстроились. Со 3 ноября он уходит сам;
 //   • на узком экране его нет: на телефоне угол — это часть контента;
 //   • prefers-reduced-motion — паук не качается, фразы остаются.
 // Все картинки — SVG вёрсткой, эмодзи нет (см. правило про значки в CLAUDE.md).
@@ -18,7 +20,13 @@
 import './halloween.css';
 import { isHalloweenSeason, pickPhrase } from '../../shared/halloween.js';
 
-const OFF_KEY = 'zm_halloween_off';   // значение — год, в котором убрали
+// Спрятан ли паук — на устройстве. Ключ НОВЫЙ сознательно: старый
+// (`zm_halloween_off`) значил «до следующего года», и у тех, кто тогда нажал
+// крестик, паук должен вернуться сам — старый ключ просто стираем.
+const HIDE_KEY = 'zm_halloween_hidden';
+const OLD_OFF_KEY = 'zm_halloween_off';
+const BYE = 'Ладно, спрячусь. Соскучишься — кликни по паутинке в углу.';
+const HELLO = 'Я вернулся! Скучали?';
 const FIRST_DELAY_MS = 20 * 1000;
 const MIN_GAP_MS = 60 * 1000;
 const MAX_GAP_MS = 120 * 1000;
@@ -68,7 +76,11 @@ let mounted = null; // вход после выхода зовёт нас сно
 export function initHalloween({ now = () => new Date() } = {}) {
     if (mounted && mounted.isConnected) return mounted;
     if (!isHalloweenSeason(now())) return null;
-    try { if (localStorage.getItem(OFF_KEY) === String(now().getFullYear())) return null; } catch { /* приватный режим */ }
+    let hidden = false;
+    try {
+        localStorage.removeItem(OLD_OFF_KEY);
+        hidden = localStorage.getItem(HIDE_KEY) === '1';
+    } catch { /* приватный режим — паук просто виден */ }
 
     const root = document.createElement('div');
     root.className = 'hw';
@@ -76,7 +88,8 @@ export function initHalloween({ now = () => new Date() } = {}) {
         ${webSvg()}
         <button type="button" class="hw-spider" aria-label="Паучок — нажми, он что-нибудь скажет">${SPIDER}</button>
         <div class="hw-bubble" role="status" aria-live="polite"></div>
-        <button type="button" class="hw-off" title="Убрать паучка до следующего Хэллоуина" aria-label="Убрать паучка">×</button>`;
+        <button type="button" class="hw-off" title="Спрятать паучка — вернуть можно кликом по паутинке" aria-label="Спрятать паучка">×</button>
+        <button type="button" class="hw-mini" title="Вернуть паучка" aria-label="Вернуть паучка">${webSvg(36)}</button>`;
     document.body.appendChild(root);
     mounted = root;
 
@@ -105,13 +118,34 @@ export function initHalloween({ now = () => new Date() } = {}) {
         }, delay);
     }
 
-    spider.addEventListener('click', () => { say(); schedule(); });
-    root.querySelector('.hw-off').addEventListener('click', () => {
-        try { localStorage.setItem(OFF_KEY, String(now().getFullYear())); } catch { /* до перезагрузки */ }
-        clearTimeout(talkTimer);
+    function sayText(text) {
+        bubble.textContent = text;
+        root.classList.add('hw-talking');
         clearTimeout(hideTimer);
-        root.remove();
+        hideTimer = setTimeout(() => root.classList.remove('hw-talking'), BUBBLE_MS);
+    }
+
+    function setHidden(on) {
+        try { if (on) localStorage.setItem(HIDE_KEY, '1'); else localStorage.removeItem(HIDE_KEY); } catch { /* до перезагрузки */ }
+        root.classList.toggle('hw-hidden', on);
+        if (on) clearTimeout(talkTimer); else schedule();
+    }
+
+    spider.addEventListener('click', () => { say(); schedule(); });
+    // Прячется не молча: прощается и говорит, как вернуть, — и только потом
+    // уходит, оставив в углу паутинку.
+    root.querySelector('.hw-off').addEventListener('click', () => {
+        clearTimeout(talkTimer);
+        sayText(BYE);
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => { root.classList.remove('hw-talking'); setHidden(true); }, 2600);
     });
-    schedule(FIRST_DELAY_MS);
+    root.querySelector('.hw-mini').addEventListener('click', () => {
+        setHidden(false);
+        sayText(HELLO);
+    });
+
+    if (hidden) root.classList.add('hw-hidden');
+    else schedule(FIRST_DELAY_MS);
     return root;
 }

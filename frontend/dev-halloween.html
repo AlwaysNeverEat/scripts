@@ -18,14 +18,14 @@
   <script type="module">
     import './src/style.css';
     import { initHalloween } from './src/halloween.js';
-    try { localStorage.removeItem('zm_halloween_off'); } catch {}
+    try { localStorage.removeItem('zm_halloween_hidden'); } catch {}
     const root = initHalloween({ now: () => new Date(2026, 9, 31) });
     document.getElementById('dev-say').onclick = () => root?.querySelector('.hw-spider')?.click();
     document.getElementById('dev-theme').onclick = () => {
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
     };
-    document.getElementById('dev-reset').onclick = () => { localStorage.removeItem('zm_halloween_off'); location.reload(); };
+    document.getElementById('dev-reset').onclick = () => { localStorage.removeItem('zm_halloween_hidden'); location.reload(); };
   </script>
 </body>
 </html>
