@@ -396,3 +396,12 @@ test('вход: «пароль не подошёл» важнее «CRM не о�
         );
     } finally { s.restore(); }
 });
+
+test('сессия мертва только по 401 / auth_required; 403 с ошибкой — нет права, а не выход', async () => {
+    const { apiSessionDead } = await import('./client.js');
+    assert.equal(apiSessionDead({ status: 401, json: { error: 'auth_required' } }), true);
+    assert.equal(apiSessionDead({ status: 200, json: { error: 'session_expired' } }), true);
+    assert.equal(apiSessionDead({ status: 403, json: null }), true, '403 без JSON — как раньше');
+    assert.equal(apiSessionDead({ status: 403, json: { error: 'forbidden' } }), false);
+    assert.equal(apiSessionDead({ status: 200, json: { rows: [] } }), false);
+});

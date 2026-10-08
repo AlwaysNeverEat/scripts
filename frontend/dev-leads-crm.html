@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<!-- Дев-песочница вкладки «Лиды»: лента звонков и карточка лида без входа,
+     без CRM и без базы.
+     Открыть: npx vite → /dev-leads-crm.html
+
+     Ответы CRM — в той форме, в какой их рисует код самой CRM
+     (incoming_active / incoming_list / clientcard), с выдуманными людьми, и
+     прогоняются через shared/crmLeads.js — тот же путь, что на сервере
+     (backend/src/routes/crmLeads.js). Каждые несколько секунд «звонит» новый
+     номер — видно, как лента растёт и что открытая карточка при этом не
+     перерисовывается.
+
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: лиды</title>
+  <script>
+    try {
+      const t = localStorage.getItem('cars_db_theme');
+      if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head" style="max-width:1040px">
+    <h2 class="page-title">Лиды — песочница</h2>
+    <p class="page-sub">Лента звонков новой CRM и карточка лида.</p>
+  </div>
+  <div class="page-body" style="max-width:1040px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+    <select class="btn btn-sec" id="dev-case">
+      <option value="ok">Журнал доступен</option>
+      <option value="denied">Журнал закрыт учётке</option>
+      <option value="auth">Нет сессии CRM</option>
+      <option value="empty">Звонков нет</option>
+      <option value="refuse">CRM отказывает в действиях</option>
+    </select>
+    <button class="btn btn-sec" id="dev-ring">Новый входящий</button>
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+  </div>
+  <div class="page-body leads-body" style="max-width:1040px">
+    <div id="leads-body"></div>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import { initCrmLeads } from './src/crmLeads.js';
+    import { mergeFeed, normalizeCall, parseLeadCard, parseServices, cleanCalcItems, calcTotal, phone11 } from '../shared/crmLeads.js';
+
+    const params = new URLSearchParams(location.search);
+    const caseSel = document.getElementById('dev-case');
+    if (params.get('case')) caseSel.value = params.get('case');
+    const kase = () => caseSel.value;
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const fail = (code, message) => Object.assign(new Error(message), { code });
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = (minAgo) => {
+      const d = new Date(Date.now() - minAgo * 60e3);
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    };
+
+    // Клиенты CRM: по телефону.
+    const CLIENTS = {
+      '79312047101': { id: 199305, fio: 'Ершов Андрей Вадимович', car: 'Kia Rio, М248ОК142', visits: 4 },
+      '79118348541': { id: 172638, fio: 'Андрей', car: 'Skoda Octavia', visits: 2 },
+      '79293412767': { id: 286805, fio: 'Дамир', car: 'Lada Vesta', visits: 1 },
+    };
+    const CARDS = {};
+    let nid = 900;
+    function cardFor(phone) {
+      const c = CLIENTS[phone];
+      if (!c) return null;
+      if (!CARDS[c.id]) {
+        CARDS[c.id] = {
+          client: { id: c.id, fio: c.fio, phone, bonus: 120, oil_changes: c.visits, car: c.car, knew_from: c.id === 286805 ? '' : 288 },
+          stats: { visits: c.visits, ltv: 13754 * c.visits, avg: 13754 },
+          metrics: { days_since: 109, freq_days: c.visits > 1 ? 160 : null },
+          callplan: { status: c.id === 199305 ? 'Перезвонить' : '', next_call: '' },
+          last_call: stamp(3),
+          calls: [
+            { id: ++nid, at: stamp(3), dir: 'in', status: 'answered', dur: 95, summary: c.id === 199305 ? 'Спросил цену замены масла в АКПП, просит перезвонить вечером' : '', comment: '' },
+            { id: ++nid, at: stamp(60 * 24 * 5), dir: 'out', status: 'completed', dur: 40, rec: 'https://example.com/rec.mp3', comment: 'напомнили о ТО' },
+            { id: ++nid, at: stamp(60 * 24 * 40), dir: 'in', status: 'missed', dur: 0, comment: '' },
+          ],
+          calcs: c.id === 199305 ? [{ id: ++nid, at: stamp(60 * 24 * 5), author: 'Петрова Мария', total: 3110, car: 'Kia Rio', items: [{ name: 'Замена масла и фильтра', price: 1900, qty: 1 }, { name: 'Замена масла в АКПП частичная', price: 1210, qty: 1 }] }] : [],
+          notes: [{ id: ++nid, at: stamp(60 * 24 * 5), author: 'Петрова Мария', text: 'Ездит на Выборгское, удобно после 18:00' }],
+          history: [
+            { id: 3606371, date: '2026-06-20 11:04:00', station: 'Жукова 21', vehicle: 'М248ОК142', mileage: 150150, items: 7, sum: 13754 },
+            { id: 3506372, date: '2025-12-02 17:40:00', station: 'деревня Новосаратовка Свердловское городское поселение 267А', vehicle: 'М248ОК142', mileage: 141000, items: 4, sum: 6120 },
+          ],
+          sources: [{ id: 294, name: 'GOOGLE' }, { id: 288, name: 'Yandex' }, { id: 291, name: 'Авито' }, { id: 85, name: 'Знакомые' }, { id: 266, name: 'Листовки' }, { id: 87, name: 'Наружная реклама' }],
+          omni: c.id === 172638 ? [{ id: 1, channel: 'tg', peer: '@andrey_sk', status: 'closed', thread: [{ dir: 'in', body: 'Сколько стоит замена масла?', at: stamp(300) }, { dir: 'out', body: 'От 1 900 ₽ работа, масло по объёму', at: stamp(295) }] }] : [],
+        };
+      }
+      return CARDS[c.id];
+    }
+
+    // Журнал входящих и живые звонки.
+    let cid = 100;
+    const LIST = [
+      { id: ++cid, created: stamp(3), name: 'Ершов Андрей Вадимович', phone: '79312047101', line: 'Сайт', status: 'completed', robot_summary: 'Спросил цену замены масла в АКПП, просит перезвонить вечером', transferred: true },
+      { id: ++cid, created: stamp(12), name: 'Андрей', phone: '79118348541', line: 'Яндекс.Карты', status: 'missed' },
+      { id: ++cid, created: stamp(25), name: '', phone: '79995259440', line: 'Сайт', status: 'completed' },
+      { id: ++cid, created: stamp(41), name: 'Дамир', phone: '79293412767', line: 'Авито', status: 'completed', recording: 'mango:1' },
+      { id: ++cid, created: stamp(70), name: 'Ершов Андрей Вадимович', phone: '79312047101', line: 'Сайт', status: 'missed' },
+      { id: ++cid, created: stamp(95), name: '', phone: '79210001122', line: '2ГИС', status: 'robot', robot_summary: 'Уточнил адрес станции на Планерной' },
+    ];
+    let ACTIVE = [
+      { id: ++cid, created: stamp(0.5), status: 'answered', phone: '79118348541', operator: '78126034480', direction: 'in', client: { id: 172638, name: 'Андрей', car: 'Skoda Octavia', visits: 2 } },
+    ];
+    const seen = new Map();
+
+    document.getElementById('dev-ring').onclick = () => {
+      const phone = '7921' + String(Math.floor(1e6 + Math.random() * 9e6));
+      const call = { id: ++cid, created: stamp(0), status: 'ringing', phone, operator: '78126034487', direction: 'in' };
+      ACTIVE.unshift(call);
+      setTimeout(() => { call.status = 'answered'; }, 6000);
+      setTimeout(() => {
+        ACTIVE = ACTIVE.filter(c => c !== call);
+        LIST.unshift({ id: call.id, created: call.created, phone, line: 'Сайт', status: 'completed' });
+      }, 16000);
+    };
+
+    async function stubFetch(path, opts = {}) {
+      const method = opts.method || 'GET';
+      const body = opts.body || {};
+      if (kase() === 'auth' && !path.startsWith('/api/crm/login')) { await wait(300); throw fail('crm_auth_required', 'нет сессии CRM — войдите'); }
+      if (path === '/api/crm/login') { await wait(500); caseSel.value = 'ok'; return { ok: true }; }
+
+      if (path === '/api/crm/leads/feed') {
+        await wait(250);
+        if (kase() === 'empty') return { calls: [], journal: 'ok' };
+        const denied = kase() === 'denied';
+        const active = ACTIVE;
+        const calls = mergeFeed({ list: denied ? [] : LIST, active, remembered: [...seen.values()] });
+        for (const c of calls) seen.set(c.id, c);
+        return { calls, journal: denied ? 'denied' : 'ok' };
+      }
+      if (path.startsWith('/api/crm/leads/card')) {
+        await wait(700);
+        const q = new URLSearchParams(path.split('?')[1]);
+        const phone = q.get('phone') || Object.keys(CLIENTS).find(p => String(CLIENTS[p].id) === q.get('id'));
+        const D = cardFor(phone11(phone));
+        return { card: D ? parseLeadCard(D) : null, phone };
+      }
+      if (path === '/api/crm/leads/services') {
+        await wait(400);
+        return { services: parseServices({ rows: [
+          { name: 'Замена масла и фильтра', price: 1900 }, { name: 'Замена масла в АКПП частичная', price: 1210 },
+          { name: 'Замена масла в АКПП аппаратная', price: 3350 }, { name: 'замена простого воздушного фильтра', price: 350 },
+          { name: 'промывка двигателя', price: 550 }, { name: 'Заправка кондиционера', price: 3900 },
+        ] }) };
+      }
+      if (path.startsWith('/api/crm/new/sales/')) {
+        await wait(600);
+        return { sale: { id: path.split('/').pop(), items: [
+          { name: 'Услуги SPOT замена масла ДВС', count: 1, total: 1900 },
+          { name: '3711 Моторное масло Motul 8100 5W-30', count: 4.5, total: 6075 },
+          { name: 'Фильтр масляный MANN W 811/80', count: 1, total: 890 },
+        ] } };
+      }
+
+      // Действия: в песочнице меняют снимок карточки, как это сделала бы CRM.
+      await wait(700);
+      if (kase() === 'refuse') throw fail('crm_refused', 'CRM не приняла: нет права на изменение карточки');
+      const byClient = path.match(/\/api\/crm\/leads\/clients\/(\d+)\/(\w+)/);
+      const D = byClient ? Object.values(CARDS).find(x => String(x.client.id) === byClient[1]) : null;
+      if (byClient && byClient[2] === 'name') { D.client.fio = body.fio; return { ok: true, fio: body.fio }; }
+      if (byClient && byClient[2] === 'source') { D.client.knew_from = body.sourceId; return { ok: true }; }
+      if (byClient && byClient[2] === 'plan') { D.callplan = { status: body.status, next_call: body.nextCall }; return { ok: true }; }
+      if (byClient && byClient[2] === 'notes') { D.notes.unshift({ id: ++nid, at: stamp(0), author: 'Серёга', text: body.text }); return { card: parseLeadCard(D) }; }
+      if (byClient && byClient[2] === 'calcs') {
+        const items = cleanCalcItems(body.items);
+        D.calcs.unshift({ id: ++nid, at: stamp(0), author: 'Серёга', car: body.car, total: calcTotal(items), items });
+        return { card: parseLeadCard(D) };
+      }
+      if (path.startsWith('/api/crm/leads/calls/')) {
+        const id = path.split('/')[5];
+        for (const x of Object.values(CARDS)) for (const c of x.calls) if (String(c.id) === id) c.comment = body.text;
+        return { ok: true };
+      }
+      if (path.startsWith('/api/crm/leads/notes/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        for (const x of Object.values(CARDS)) x.notes = x.notes.filter(n => String(n.id) !== id);
+        return { ok: true };
+      }
+      if (path.startsWith('/api/crm/leads/calcs/') && method === 'DELETE') {
+        const id = path.split('/').pop();
+        for (const x of Object.values(CARDS)) x.calcs = x.calcs.filter(n => String(n.id) !== id);
+        return { ok: true };
+      }
+      if (path === '/api/crm/leads/clients' && method === 'POST') {
+        const phone = phone11(body.phone);
+        CLIENTS[phone] = { id: ++nid, fio: body.name || 'Без имени', car: body.car || '', visits: 0 };
+        const card = cardFor(phone);
+        card.calls = []; card.history = []; card.notes = []; card.stats = { visits: 0, ltv: 0, avg: 0 };
+        return { card: parseLeadCard(card) };
+      }
+      throw new Error('dev: неизвестный путь ' + method + ' ' + path);
+    }
+
+    const leads = initCrmLeads({ apiFetch: stubFetch });
+    leads.activate();
+    caseSel.onchange = () => leads.activate();
+
+    document.getElementById('dev-theme').onclick = () => {
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+      document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+    };
+  </script>
+</body>
+</html>

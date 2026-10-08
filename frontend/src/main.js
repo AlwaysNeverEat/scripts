@@ -11,6 +11,7 @@ import { initAdminPage, isModerator } from './admin.js';
 import { initAchievements } from './achievements.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
+import { initCrmLeads } from './crmLeads.js';
 import { initStockSearch } from './stockSearch.js';
 // «Скрипты» выключены — их место заняли «Клиент» и «Склад» (см. index.html).
 // import { initScriptsFeed } from './scriptsFeed.js';
@@ -114,7 +115,7 @@ const pageSearch  = document.getElementById('page-search');
 const pageCalc    = document.getElementById('page-calc');
 const pageProfile = document.getElementById('page-profile');
 const pageRecords = document.getElementById('page-records');
-// const pageLeads   = document.getElementById('page-leads'); // «Лиды» отложены
+const pageLeads   = document.getElementById('page-leads'); // «Лиды» — звонки новой CRM (crmLeads.js)
 const pageClient  = document.getElementById('page-client');
 const pageStock   = document.getElementById('page-stock');
 // const pageScripts = document.getElementById('page-scripts'); // «Скрипты» выключены
@@ -122,7 +123,7 @@ const pageNews    = document.getElementById('page-news');
 const pageTop     = document.getElementById('page-top');
 const pageAdmin   = document.getElementById('page-admin');
 
-const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, /* pageLeads, */ pageClient, pageStock, /* pageScripts, */ pageNews, pageTop, pageAdmin];
+const ALL_PAGES = [pageAuth, pageSearch, pageCalc, pageProfile, pageRecords, pageLeads, pageClient, pageStock, /* pageScripts, */ pageNews, pageTop, pageAdmin];
 
 function hideAllPages() {
     for (const page of ALL_PAGES) page.classList.add('hidden');
@@ -239,7 +240,7 @@ const DEFAULT_TAB_ROUTE = {
     profile: '/profile',
     calc:    '/',
     records: '/records',
-    // leads:   '/leads', // отложено
+    leads:   '/leads',
     client:  '/client',
     stock:   '/stock',
     // scripts: '/scripts', // выключено
@@ -262,7 +263,7 @@ function isRecordsPath(path) {
 
 function tabOfPath(path) {
     if (isRecordsPath(path)) return 'records';
-    // if (path === '/leads') return 'leads'; // отложено: /leads уходит в калькулятор
+    if (path === '/leads') return 'leads';
     if (path === '/client') return 'client';
     if (path === '/stock') return 'stock';
     // if (path === '/scripts') return 'scripts'; // выключено: /scripts уходит в калькулятор
@@ -347,6 +348,8 @@ async function renderRoute() {
 
     // Записи живут до гейта: у них свой вход — общий логин/пароль админки
     // ZMS, аккаунт сайта для них не нужен (см. backend/src/routes/records.js).
+    // Ушли с «Лидов» — лента перестаёт ходить в CRM (см. crmLeads.js).
+    if (tab !== 'leads') crmLeads.deactivate();
     if (tab === 'records') {
         await showRecords();
         restoreScroll(route);
@@ -394,9 +397,9 @@ async function renderRoute() {
                 await initSelfProfilePage();
             }
         }
-    // } else if (tab === 'leads') {          // отложено вместе со вкладкой
-    //     showPage(pageLeads);
-    //     initLeadsPage({ apiFetch });
+    } else if (tab === 'leads') {
+        showPage(pageLeads);
+        crmLeads.activate(); // лента опрашивается, только пока вкладка открыта
     } else if (tab === 'client') {
         showPage(pageClient);
         clientSearch.activate(); // фокус в строку; найденный клиент остаётся
@@ -847,6 +850,7 @@ const tagSearch = initTagSearch({
 // Вкладки «Клиент» и «Склад»: разметка собирается один раз, дальше
 // renderRoute только показывает страницу и зовёт activate().
 const clientSearch = initClientSearch({ apiFetch });
+const crmLeads = initCrmLeads({ apiFetch });
 const stockSearch = initStockSearch({ apiFetch });
 
 function setSearchMode(mode) {
