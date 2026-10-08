@@ -150,6 +150,35 @@ export function createJournalQueue({ apply = applyJournalOp, now = () => Date.no
             return true;
         },
 
+        // «Повторить попытку» у не прошедшей операции. Ставятся заново ТОЛЬКО
+        // не прошедшие шаги, в прежнем порядке и под общей новой меткой: у
+        // правки снятый хвост второй раз не снимают — его уже нет, и шаг упал
+        // бы на ровном месте. `check` — та же проверка без CRM, что у POST
+        // (запас в час): за то время, что запись висела отказом, визит мог
+        // подойти вплотную, и ставить заведомо отказанное нечестно.
+        //
+        // У старой строки остаётся отметка `retriedBy`: отказом в шапке она
+        // больше не висит (её повторили, глядя на неё), а в «Очереди» видно,
+        // что попытка была не одна.
+        retry(userId, id, { check = () => {} } = {}) {
+            const hit = ops.find(o => o.id === Number(id));
+            if (!hit || hit.userId !== userId) return { error: 'это не ваша операция — повторить её может тот, кто ставил' };
+            const unit = hit.group ? ops.filter(o => o.userId === userId && o.group === hit.group) : [hit];
+            if (unit.some(o => o.status === 'pending')) return { error: 'операция ещё выполняется' };
+            if (unit.some(o => o.retriedBy)) return { error: 'эту операцию уже повторили — смотрите строку выше' };
+            const failed = unit.filter(o => o.status === 'failed');
+            if (!failed.length) return { error: 'операция прошла — повторять нечего' };
+            for (const o of failed) check(o.type, o.payload);
+            const group = failed.length > 1 ? `r${hit.id}` : null;
+            const fresh = failed.map(o => this.enqueue(userId, {
+                type: o.type, payload: o.payload, author: o.author, group, note: o.note,
+            }));
+            const last = fresh[fresh.length - 1].id;
+            for (const o of unit) o.retriedBy = last;
+            for (const o of fresh) ops.find(x => x.id === o.id).retryOf = hit.id;
+            return { ops: fresh.map(o => ({ ...o, retryOf: hit.id })) };
+        },
+
         // Для тестов: дождаться, пока все поставленные исполнятся.
         async idle() {
             while (tails.size) await Promise.all([...tails.values()]);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { settledSince, describeUnit, unitsOf, unseenFailures } from './opQueue.js';
+import { settledSince, describeUnit, unitsOf, unseenFailures, canRetry } from './opQueue.js';
 
 const NOTE = {
     kind: 'create', name: 'Марина двс', phone: '+7 (921) 642-02-82',
@@ -74,4 +74,22 @@ test('плашка в шапке — только свои невиданные 
     ];
     assert.deepEqual(unseenFailures(ops, 0).map(u => u[0].id), [5, 1]);
     assert.deepEqual(unseenFailures(ops, 1).map(u => u[0].id), [5], 'увиденное не висит');
+});
+
+test('повтор: старая строка уходит из плашки, новая говорит, что это повтор', () => {
+    const ops = [
+        { id: 7, type: 'create', status: 'pending', mine: true, retryOf: 5, note: NOTE },
+        { id: 5, type: 'create', status: 'failed', mine: true, retriedBy: 7, lastError: 'нет поста', note: NOTE },
+        { id: 4, type: 'create', status: 'failed', mine: true, lastError: 'нет поста', note: NOTE },
+        { id: 3, type: 'create', status: 'failed', mine: false, lastError: 'нет поста', note: NOTE },
+    ];
+    assert.deepEqual(unseenFailures(ops, 0).map(u => u[0].id), [4]);
+    const [fresh, old, mine, other] = unitsOf(ops);
+    assert.equal(describeUnit(fresh).outcome, 'повторная попытка…');
+    assert.equal(describeUnit(old).retried, true);
+    assert.equal(canRetry(old), false, 'второй раз ту же строку не повторить');
+    assert.equal(canRetry(mine), true);
+    assert.equal(canRetry(other), false, 'чужое не повторить');
+    assert.equal(canRetry(fresh), false, 'выполняющееся не повторить');
+    assert.equal(describeUnit([{ ...ops[0], status: 'done' }]).outcome, 'записано со второй попытки');
 });

@@ -66,7 +66,7 @@ function cachePut(cache, key, value, ttl) {
     }
 }
 
-function sendCrmError(res, err) {
+export function sendCrmError(res, err) {
     if (err instanceof CrmError) {
         // crm_logout_failed — 502: CRM ответила, но сессию не закрыла; фронт по
         // этому коду НЕ выпускает из аккаунта сайта.

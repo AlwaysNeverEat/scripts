@@ -363,10 +363,20 @@ async function apiCall(jar, { query = null, body = null } = {}) {
 // под замком», а прямой ответ CRM на «кто я»: 401 + `auth_required` означает
 // «сессии нет», а имя в ответе — того самого человека, чьим автором станет
 // запись.
-function apiSessionDead(r) {
-    if (r.status === 401 || r.status === 403) return true;
+//
+// 403 С ТЕКСТОМ ошибки — это «нет права на раздел», а не «сессии нет»:
+// без сессии CRM отвечает 401 + `auth_required` (проверено живьём). Раньше
+// любой 403 считался смертью сессии, и раздел, на который у учётки нет
+// права (журнал входящих у колл-центра, например), на каждом опросе
+// перевходил в CRM и в конце выбрасывал сессию — «войдите заново» из-за
+// раздела, в который человек и не просился. 403 без JSON по-прежнему
+// считается смертью: так может ответить и прокси перед CRM.
+export function apiSessionDead(r) {
     const err = r.json && r.json.error;
-    return err === 'auth_required' || err === 'session_expired';
+    if (err === 'auth_required' || err === 'session_expired') return true;
+    if (r.status === 401) return true;
+    if (r.status === 403) return !err;
+    return false;
 }
 
 async function apiWhoAmI(jar) {
@@ -696,9 +706,10 @@ export async function crmGetHtml(userId, path) {
 // crmGetHtml, только «сессии больше нет» узнаётся не приметами разметки, а
 // прямым ответом ручки (401 / `auth_required`).
 //
-// `query` — строка запроса для GET («section=journal&date=2026-10-01»),
-// `body` — поля POST («{ action: 'journal_save', … }»). Одновременно не
-// бывает: у CRM либо чтение, либо действие.
+// `query` — строка запроса («section=journal&date=2026-10-01»), `body` — поля
+// POST («{ action: 'journal_save', … }»). Бывают и оба сразу: часть действий
+// CRM ждёт раздел в адресе, а поля в теле (`?section=call_note_save` + id и
+// текст) — см. routes/crmLeads.js.
 export async function crmApi(userId, { query = null, body = null } = {}) {
     const ready = await crmEnsureSession(userId);
     if (!ready.loggedIn) {

@@ -34,7 +34,7 @@ import { filterStations, stationMatch } from './stationFilter.js';
 import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
-import { settledSince, unitsOf, unitStatus, describeUnit, unseenFailures } from './opQueue.js';
+import { settledSince, unitsOf, unitStatus, describeUnit, unseenFailures, canRetry } from './opQueue.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -418,6 +418,44 @@ function busyButton(action, label) {
     btn.disabled = true;
     btn.classList.add('rc-btn-busy');
     btn.innerHTML = `<span class="rc-spin" aria-hidden="true"></span>${esc(label)}`;
+}
+
+// «Повторить попытку». Кнопка ВДАВЛИВАЕТСЯ сразу, до ответа сервера, и
+// держится вдавленной не меньше RETRY_HOLD_MS: просили, чтобы было видно, что
+// нажатие дошло и сайт пробует ещё раз. Мгновенная перерисовка в строку
+// «повторная попытка…» сама по себе читается как «мигнуло и ничего не
+// случилось». Отказ без CRM (запас в час истёк, пока запись висела отказом)
+// пишется под этой же строкой — там, куда человек смотрит.
+const RETRY_HOLD_MS = 600;
+let retryRefused = null; // { id, message }
+
+function pressButton(btn, label) {
+    btn.disabled = true;
+    btn.classList.add('rc-btn-pressed');
+    btn.innerHTML = `<span class="rc-spin" aria-hidden="true"></span>${esc(label)}`;
+}
+
+async function retryOp(btn) {
+    const id = btn.dataset.id;
+    pressButton(btn, 'Повторяю…');
+    retryRefused = null;
+    const hold = new Promise(r => setTimeout(r, RETRY_HOLD_MS));
+    try {
+        const [data] = await Promise.all([
+            apiFetch(`/api/journal/ops/${id}/retry`, { method: 'POST', body: {} }),
+            hold,
+        ]);
+        const fresh = [...(data.ops || [])].reverse();
+        state.ops = [...fresh, ...state.ops.filter(o => !fresh.some(f => f.id === o.id))];
+        // Повторённое из шапки уходит само (opQueue.unseenFailures), а свежую
+        // попытку список «Очередь» покажет первой строкой.
+        await loadOps();
+        watchOps();
+    } catch (err) {
+        await hold;
+        retryRefused = { id, message: err?.message || 'не удалось поставить повтор' };
+    }
+    render();
 }
 
 // ── Производные данные ───────────────────────────────────────────────────────
@@ -1068,6 +1106,18 @@ function renderTopBar() {
 // Висит, пока не прочитали — «Понятно» или открыли «Очередь».
 const FAILS_SHOWN = 3;
 
+// Кнопка повтора — по id последней операции действия: сервер по нему найдёт
+// всю правку целиком (journalQueue.retry).
+function retryButtonHtml(unit) {
+    return `<button class="btn btn-sec rc-mini-btn rc-retry-btn" data-action="retry-op" data-id="${unit[unit.length - 1].id}">
+        ${icons.refresh(12)} Повторить попытку</button>`;
+}
+
+function retryRefusedHtml(unit) {
+    if (!retryRefused || !unit.some(o => String(o.id) === String(retryRefused.id))) return '';
+    return `<div class="rc-retry-refused">${icons.alert(12)} Повтор не поставлен: ${esc(retryRefused.message)}</div>`;
+}
+
 function failuresHtml() {
     const fails = unseenFailures(state.ops, seenOpId);
     if (!fails.length) return '';
@@ -1075,9 +1125,13 @@ function failuresHtml() {
         const d = describeUnit(u, { stationTitle: stationTitleOf });
         return `
         <div class="rc-fail-row">
-            <div><b>${esc(d.outcome[0].toUpperCase() + d.outcome.slice(1))}:</b> ${esc(d.client || 'без имени')}</div>
+            <div class="rc-fail-head">
+                <div><b>${esc(d.outcome[0].toUpperCase() + d.outcome.slice(1))}:</b> ${esc(d.client || 'без имени')}</div>
+                ${canRetry(u) ? retryButtonHtml(u) : ''}
+            </div>
             <div class="rc-fail-where">${esc([d.station, d.when].filter(Boolean).join(' · '))}</div>
             <div class="rc-fail-why">${esc(d.reason)}${d.author ? ` · ответственный: ${esc(d.author)}` : ''}${d.queuedAt ? ` · нажато в ${esc(d.queuedAt)}` : ''}</div>
+            ${retryRefusedHtml(u)}
         </div>`;
     }).join('');
     const more = fails.length > FAILS_SHOWN ? `<div class="rc-fail-why">и ещё ${fails.length - FAILS_SHOWN} — в «Очереди»</div>` : '';
@@ -2407,9 +2461,11 @@ function modalQueue(m) {
                 <div class="rc-queue-main">
                     <div class="rc-queue-title">${esc(d.title)}</div>
                     ${d.station || d.when ? `<div class="rc-queue-line">${esc([d.station, d.when].filter(Boolean).join(' · '))}</div>` : ''}
-                    <div class="rc-queue-outcome">${esc(d.outcome)}${d.reason ? `: ${esc(d.reason)}` : ''}</div>
+                    <div class="rc-queue-outcome">${esc(d.outcome)}${d.reason ? `: ${esc(d.reason)}` : ''}${d.retried ? ' · повторили — новая попытка выше' : ''}</div>
                     <div class="rc-queue-sub">${d.author ? `ответственный: ${esc(d.author)} · ` : ''}${esc(when)}</div>
+                    ${retryRefusedHtml(unit)}
                 </div>
+                ${canRetry(unit) ? retryButtonHtml(unit) : ''}
                 ${cancellable
                     ? `<button class="btn btn-sec rc-mini-btn" data-action="cancel-op" data-id="${cancellable.id}">${icons.x(12)} отменить</button>`
                     : ''}
@@ -3513,6 +3569,8 @@ async function handleAction(btn, ev) {
         setTimeout(() => { if (state.modal?.kind === 'chain') { state.modal.copied = false; render(); } }, 1600);
         return;
     }
+
+    if (a === 'retry-op') return retryOp(btn);
 
     if (a === 'cancel-op') {
         try { await apiFetch(`/api/journal/ops/${btn.dataset.id}`, { method: 'DELETE' }); } catch { /* уже ушла в CRM */ }

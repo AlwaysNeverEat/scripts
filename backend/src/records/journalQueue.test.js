@@ -135,3 +135,55 @@ test('подпись операции: только короткие строк�
     assert.equal(n.station.length, 160);
     assert.equal(n.evil, undefined);
 });
+
+test('повторить: заново ставятся только не прошедшие шаги, старая строка помечена', async () => {
+    let fail = true;
+    const seen = [];
+    const q = createJournalQueue({
+        apply: async (_u, type) => {
+            seen.push(type);
+            if (type === 'update' && fail) throw new OpRefused('окно занято');
+            return {};
+        },
+    });
+    q.enqueue('u1', { type: 'delete', payload: { a: 1 }, group: 'g1', note: { name: 'Олег' } });
+    q.enqueue('u1', { type: 'update', payload: { b: 2 }, group: 'g1', note: { name: 'Олег' } });
+    q.enqueue('u1', { type: 'create', payload: { c: 3 }, group: 'g1', note: { name: 'Олег' } });
+    await q.idle();
+    assert.deepEqual(seen, ['delete', 'update']);
+    const failedId = q.list('u1').find(o => o.type === 'update').id;
+
+    assert.match(q.retry('u2', failedId).error, /не ваша/, 'чужое не повторить');
+
+    fail = false;
+    const out = q.retry('u1', failedId);
+    assert.deepEqual(out.ops.map(o => o.type), ['update', 'create'], 'снятый хвост второй раз не снимаем');
+    assert.equal(out.ops[0].note.name, 'Олег', 'подпись едет с повтором');
+    assert.equal(out.ops[0].status, 'pending');
+    await q.idle();
+    assert.deepEqual(seen, ['delete', 'update', 'update', 'create']);
+    const old = q.list('u1').filter(o => o.group === 'g1');
+    assert.ok(old.every(o => o.retriedBy), 'у старой строки отметка «повторили»');
+    assert.match(q.retry('u1', failedId).error, /уже повторили/);
+});
+
+test('повторить: проверка без CRM отказывает до постановки', async () => {
+    const q = createJournalQueue({ apply: async () => { throw new OpRefused('нет поста'); } });
+    const op = q.enqueue('u1', { type: 'create', payload: {} });
+    await q.idle();
+    assert.throws(() => q.retry('u1', op.id, { check: () => { throw new OpRefused('до визита меньше часа'); } }),
+        /меньше часа/);
+    assert.equal(q.list('u1').length, 1, 'ничего не поставлено');
+    assert.equal(q.list('u1')[0].retriedBy, undefined);
+});
+
+test('повторить: выполняющееся и прошедшее не повторяются', async () => {
+    const m = manualApply();
+    const q = createJournalQueue({ apply: m.apply });
+    const op = q.enqueue('u1', { type: 'create', payload: {} });
+    await tick();
+    assert.match(q.retry('u1', op.id).error, /выполняется/);
+    m.calls[0].resolve({});
+    await q.idle();
+    assert.match(q.retry('u1', op.id).error, /прошла/);
+});
