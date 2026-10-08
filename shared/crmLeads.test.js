@@ -7,8 +7,11 @@ import assert from 'node:assert/strict';
 
 import {
     phone11, normalizeCall, mergeFeed, settleGone, isLive, parseLeadCard, parseServices,
-    cleanCalcItems, calcTotal, actionRefusal, LEAD_STATUSES,
+    cleanCalcItems, calcTotal, actionRefusal, LEAD_STATUSES, sortFeed, isMine, operatorKey,
 } from './crmLeads.js';
+
+// «Сейчас» для ленты — 08.10.2026 09:10 по Москве.
+const NOW = Date.UTC(2026, 9, 8, 6, 10);
 
 test('номер — одиннадцать цифр с семёркой', () => {
     assert.equal(phone11('+7 (931) 204-71-01'), '79312047101');
@@ -38,8 +41,8 @@ test('живой звонок и строка журнала сводятся к
 
 test('лента: все звонки, а не три; живые сверху, дальше свежие', () => {
     const list = [1, 2, 3, 4, 5].map(i => ({ id: i, created: `2026-10-08 0${i}:00:00`, phone: `7931000000${i}`, status: 'completed' }));
-    const active = [{ id: 9, status: 'answered', phone: '79310000009', created: '2026-10-08 01:30:00' }];
-    const feed = mergeFeed({ list, active });
+    const active = [{ id: 9, status: 'answered', phone: '79310000009', created: '2026-10-08 09:00:00' }];
+    const feed = mergeFeed({ list, active, now: NOW });
     assert.equal(feed.length, 6);
     assert.deepEqual(feed.map(c => c.id), ['9', '5', '4', '3', '2', '1']);
 });
@@ -137,4 +140,31 @@ test('ответ CRM на действие', () => {
     assert.equal(actionRefusal({ ok: false, error: 'empty' }), 'пустое значение');
     assert.equal(actionRefusal({ error: 'no_client', message: 'Клиент не найден' }), 'Клиент не найден');
     assert.equal(actionRefusal(null), 'CRM не приняла');
+});
+
+test('живой звонок со вчера — «без исхода», а не «звонит» над всей лентой', () => {
+    const feed = mergeFeed({ now: NOW, active: [
+        { id: 1, status: 'ringing', phone: '79310000001', created: '2026-10-07 18:08:00' },
+        { id: 2, status: 'ringing', phone: '79310000002', created: '2026-10-08 09:08:00' },
+        { id: 3, status: 'answered', phone: '79310000003', created: '2026-10-08 08:55:00' },
+        { id: 4, status: 'ringing', phone: '79310000004', created: '2026-10-08 09:00:00' },
+    ] });
+    const st = Object.fromEntries(feed.map(c => [c.id, c.status]));
+    assert.deepEqual(st, { 1: 'stale', 2: 'ringing', 3: 'answered', 4: 'stale' });
+    assert.deepEqual(feed.filter(isLive).map(c => c.id), ['2', '3']);
+});
+
+test('код оператора: свои звонки первыми, «03» и «3» — один человек', () => {
+    assert.equal(operatorKey('03'), '3');
+    assert.equal(operatorKey('оператор 101'), '101');
+    assert.equal(isMine({ operator: '03' }, '3'), true);
+    assert.equal(isMine({ operator: '' }, ''), false, 'без кода своих нет');
+    const calls = [
+        { id: 'a', operator: '105', status: 'ringing', at: '2026-10-08 09:09:00' },
+        { id: 'b', operator: '101', status: 'completed', at: '2026-10-08 08:00:00' },
+        { id: 'c', operator: '101', status: 'answered', at: '2026-10-08 07:00:00' },
+        { id: 'd', operator: '', status: 'completed', at: '2026-10-08 09:05:00' },
+    ];
+    assert.deepEqual(sortFeed([...calls], { mine: '101' }).map(c => c.id), ['c', 'b', 'a', 'd']);
+    assert.deepEqual(sortFeed([...calls]).map(c => c.id), ['a', 'c', 'd', 'b'], 'без кода — как раньше');
 });

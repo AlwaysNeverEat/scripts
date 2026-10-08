@@ -25,7 +25,7 @@
 
 import './crmLeads.css';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
-import { LEAD_STATUSES, NEXT_CALL_QUICK, isLive, cleanCalcItems, calcTotal, callTime } from '../../shared/crmLeads.js';
+import { LEAD_STATUSES, NEXT_CALL_QUICK, isLive, isMine, sortFeed, operatorKey, cleanCalcItems, calcTotal, callTime } from '../../shared/crmLeads.js';
 import { openDateFor } from './datepicker.js';
 
 const FEED_POLL_MS = 5000;
@@ -94,6 +94,8 @@ const CALL_STATUS = {
     answered: ['разговор', 'talk'],
     completed: ['принят', 'done'],
     missed: ['пропущен', 'miss'],
+    // CRM не получила конца звонка (см. settleStale в shared/crmLeads.js).
+    stale: ['без исхода', 'done'],
     robot: ['робот', 'robot'],
 };
 const callStatus = (s) => CALL_STATUS[s] || [s || '—', 'done'];
@@ -117,7 +119,13 @@ const ICON = {
     search: (s) => svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', s),
 };
 
-export function initCrmLeads({ apiFetch }) {
+// Код оператора (внутренний номер телефонии) человек вводит сам: CRM не
+// говорит, какой номер у её учётки. Помнится на устройстве ПО АККАУНТУ сайта —
+// за одним компьютером колл-центра сидят по сменам, и чужой код поднимал бы
+// наверх чужие звонки.
+const OPERATOR_KEY = 'zm_leads_operator';
+
+export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
     const host = document.getElementById('leads-body');
     host.innerHTML = `
         <div class="ld">
@@ -146,7 +154,22 @@ export function initCrmLeads({ apiFetch }) {
         editingName: false,
         editingComment: null,
         authNote: '',
+        operator: '',          // свой код оператора — его звонки идут первыми
     };
+
+    const operatorStoreKey = () => `${OPERATOR_KEY}:${getUserId() || 'anon'}`;
+    function loadOperator() {
+        try { state.operator = operatorKey(localStorage.getItem(operatorStoreKey()) || ''); } catch { state.operator = ''; }
+    }
+    function saveOperator(code) {
+        state.operator = operatorKey(code);
+        try {
+            if (state.operator) localStorage.setItem(operatorStoreKey(), state.operator);
+            else localStorage.removeItem(operatorStoreKey());
+        } catch { /* приватный режим — код живёт до перезагрузки */ }
+        if (!state.operator && state.filter === 'mine') state.filter = 'all';
+        sortFeed(state.calls, { mine: state.operator });
+    }
 
     function freshDraft() {
         return { name: '', car: '', note: '', calcCar: null, lines: [{ name: '', price: '', qty: '1' }], status: null, nextCall: null, source: null, comment: '' };
@@ -160,7 +183,7 @@ export function initCrmLeads({ apiFetch }) {
     async function loadFeed() {
         try {
             const data = await apiFetch('/api/crm/leads/feed');
-            state.calls = data.calls || [];
+            state.calls = sortFeed(data.calls || [], { mine: state.operator });
             state.journal = data.journal || 'ok';
             state.feedStatus = 'ready';
             state.feedError = '';
@@ -189,6 +212,7 @@ export function initCrmLeads({ apiFetch }) {
         const qd = q.replace(/\D/g, '');
         return state.calls.filter(c => {
             if (state.filter === 'live' && !isLive(c)) return false;
+            if (state.filter === 'mine' && !isMine(c, state.operator)) return false;
             if (state.filter === 'missed' && c.status !== 'missed') return false;
             if (!q) return true;
             return (qd.length >= 3 && c.phone.includes(qd)) || c.name.toLowerCase().includes(q);
@@ -198,13 +222,14 @@ export function initCrmLeads({ apiFetch }) {
     function feedRowHtml(c) {
         const [label, cls] = callStatus(c.status);
         const sel = state.selected && state.selected.id === c.id;
+        const mine = isMine(c, state.operator);
         const who = c.name ? esc(c.name) : '<span class="ld-muted">новый номер</span>';
         const meta = [c.line, c.operator && `оператор ${c.operator}`].filter(Boolean).join(' · ');
         const extra = c.client && c.client.visits != null
             ? `визитов: ${c.client.visits}${c.client.car ? ` · ${esc(c.client.car)}` : ''}`
             : '';
         return `
-        <button type="button" class="ld-call ld-call--${cls}${sel ? ' ld-call-sel' : ''}" data-call="${esc(c.id)}">
+        <button type="button" class="ld-call ld-call--${cls}${sel ? ' ld-call-sel' : ''}${mine ? ' ld-call-mine' : ''}" data-call="${esc(c.id)}">
             <span class="ld-call-ico">${ICON.phoneIn(15)}</span>
             <span class="ld-call-main">
                 <span class="ld-call-top">
@@ -216,6 +241,7 @@ export function initCrmLeads({ apiFetch }) {
                 ${c.robot ? `<span class="ld-call-robot">${ICON.robot(12)} ${esc(c.robot)}${c.transferred ? ' — переведён на оператора' : ''}</span>` : ''}
                 <span class="ld-call-bottom">
                     <span class="ld-st ld-st-${cls}">${esc(label)}</span>
+                    ${mine ? '<span class="ld-badge ld-badge-mine">мой</span>' : ''}
                     ${meta ? `<span class="ld-call-meta">${esc(meta)}</span>` : ''}
                 </span>
             </span>
@@ -225,6 +251,7 @@ export function initCrmLeads({ apiFetch }) {
     function renderFeed() {
         const live = state.calls.filter(isLive).length;
         const missed = state.calls.filter(c => c.status === 'missed').length;
+        const mineCount = state.operator ? state.calls.filter(c => isMine(c, state.operator)).length : 0;
         const list = visibleCalls();
         let body;
         if (state.feedStatus === 'loading') {
@@ -247,13 +274,19 @@ export function initCrmLeads({ apiFetch }) {
             ? `<div class="ld-feed-note ld-feed-warn">Обновить ленту не вышло: ${esc(state.feedError)}</div>` : '';
         // Строку поиска не пересобираем, если она в фокусе: иначе каждый опрос
         // сбрасывал бы каретку посреди набора.
-        const searchFocused = document.activeElement && document.activeElement.id === 'ld-q';
+        const searchFocused = document.activeElement && ['ld-q', 'ld-op'].includes(document.activeElement.id);
         if (!feedEl.querySelector('.ld-feed-head') || !searchFocused) {
             feedEl.innerHTML = `
             <div class="ld-feed-head">
-                <div class="ld-feed-title">Звонки <span class="ld-muted">${state.calls.length || ''}</span></div>
+                <div class="ld-feed-top">
+                    <div class="ld-feed-title">Звонки <span class="ld-muted">${state.calls.length || ''}</span></div>
+                    <label class="ld-op" title="Ваш внутренний номер в телефонии: звонки на него встанут первыми. Помнится на этом компьютере.">
+                        <span>Мой код</span>
+                        <input id="ld-op" class="ld-in" inputmode="numeric" maxlength="6" placeholder="101" value="${esc(state.operator)}" autocomplete="off">
+                    </label>
+                </div>
                 <div class="ld-chips" role="tablist">
-                    ${[['all', 'Все', state.calls.length], ['live', 'Сейчас', live], ['missed', 'Пропущенные', missed]].map(([id, t, n]) =>
+                    ${[['all', 'Все', state.calls.length], ...(state.operator ? [['mine', 'Мои', mineCount]] : []), ['live', 'Сейчас', live], ['missed', 'Пропущенные', missed]].map(([id, t, n]) =>
                         `<button type="button" class="ld-chip${state.filter === id ? ' on' : ''}" data-filter="${id}">${t}${n ? ` <b>${n}</b>` : ''}</button>`).join('')}
                 </div>
                 <label class="ld-search">${ICON.search(14)}<input id="ld-q" type="search" placeholder="Телефон или имя" value="${esc(state.query)}" autocomplete="off"></label>
@@ -263,6 +296,13 @@ export function initCrmLeads({ apiFetch }) {
             bindFeedHead();
         } else {
             feedEl.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('on', b.dataset.filter === state.filter));
+            // Счётчики у чипов меняются с каждым опросом — правим их на месте.
+            const counts = { all: state.calls.length, mine: mineCount, live, missed };
+            feedEl.querySelectorAll('[data-filter]').forEach(b => {
+                const n = counts[b.dataset.filter];
+                const label = b.textContent.replace(/\s*\d+$/, '');
+                b.innerHTML = `${esc(label)}${n ? ` <b>${n}</b>` : ''}`;
+            });
         }
         feedEl.querySelector('#ld-feed-list').innerHTML = body;
         feedEl.querySelector('#ld-feed-foot').innerHTML = stale + note;
@@ -278,6 +318,15 @@ export function initCrmLeads({ apiFetch }) {
         });
         const q = feedEl.querySelector('#ld-q');
         q.oninput = () => { state.query = q.value; renderFeed(); };
+        const op = feedEl.querySelector('#ld-op');
+        op.oninput = () => {
+            const digits = op.value.replace(/\D/g, '').slice(0, 6);
+            if (digits !== op.value) op.value = digits;
+            saveOperator(digits);
+            renderFeed();
+        };
+        // Ушёл из поля — шапка пересоберётся со своими чипами («Мои»).
+        op.onchange = () => { op.blur(); renderFeed(); };
     }
 
     // ── Вход в CRM ───────────────────────────────────────────────────────────
@@ -886,6 +935,8 @@ export function initCrmLeads({ apiFetch }) {
     return {
         activate() {
             active = true;
+            loadOperator();
+            sortFeed(state.calls, { mine: state.operator });
             if (state.feedStatus !== 'auth') loadFeed();
             schedule();
         },

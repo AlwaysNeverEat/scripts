@@ -99,7 +99,7 @@ export function createLeadsRouter({ api = crmApi, now = () => Date.now(), active
             const liveNow = active.map(normalizeCall).filter(Boolean);
             const mine = seen.get(userId) || new Map();
             settleGone([...mine.values()], new Set(liveNow.map(c => c.id)));
-            const calls = mergeFeed({ list, active, remembered: [...mine.values()] });
+            const calls = mergeFeed({ list, active, remembered: [...mine.values()], now: now() });
             const stamp = now();
             remember(userId, calls.map(c => ({ ...c, seenAt: mine.get(c.id)?.seenAt || stamp })));
             res.json({ calls, journal, fetchedAt: new Date(stamp).toISOString() });

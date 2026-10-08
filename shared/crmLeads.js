@@ -61,6 +61,43 @@ export function phone11(raw) {
 const LIVE = new Set(['ringing', 'answered']);
 export const isLive = (call) => LIVE.has(call.status);
 
+// Живой звонок, который «звонит» со вчерашнего вечера, — это не звонок, а
+// событие, конец которого CRM не получила от телефонии (в журнале такие висят
+// «ringing» сутками). Считать их живыми значит держать их над всей лентой и в
+// счётчике «Сейчас». Поэтому у живого есть срок: звонит дольше пяти минут или
+// «разговаривает» дольше полутора часов — «без исхода».
+const RING_MAX_MS = 5 * 60 * 1000;
+const TALK_MAX_MS = 90 * 60 * 1000;
+
+// Время CRM — московское без пояса, а callTime читает его как UTC; «сейчас»
+// приводим к тому же счёту. В Москве нет перехода на летнее время.
+export const mskWall = (now = Date.now()) => now + 3 * 3600 * 1000;
+
+export function settleStale(call, now = Date.now()) {
+    if (!call || !isLive(call)) return call;
+    const t = callTime(call);
+    if (!t) return call;
+    const age = mskWall(now) - t;
+    if ((call.status === 'ringing' && age > RING_MAX_MS) || age > TALK_MAX_MS) call.status = 'stale';
+    return call;
+}
+
+// Код оператора — внутренний номер телефонии («101», «03»). Сравниваем
+// цифрами и без ведущих нулей: «03» и «3» в разных местах CRM — один человек.
+export const operatorKey = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+export const isMine = (call, code) => {
+    const k = operatorKey(code);
+    return Boolean(k) && operatorKey(call?.operator) === k;
+};
+
+// Порядок ленты: свои (по коду оператора, который человек указал у себя) —
+// первыми, внутри каждой части живые сверху, дальше свежие.
+export function sortFeed(calls, { mine = '' } = {}) {
+    return calls.sort((a, b) => (isMine(b, mine) - isMine(a, mine))
+        || (isLive(b) - isLive(a))
+        || (callTime(b) - callTime(a)));
+}
+
 // Одна строка ленты из любого из двух источников. Живые звонки и журнал CRM
 // рисует РАЗНЫМ кодом, и имена полей у них разные (`client.name` против
 // `name`, `operator`/`ext`/`to` против `line`) — сводим к одному виду здесь,
@@ -114,7 +151,7 @@ const minuteKey = (c) => `${c.phone}|${c.at.slice(0, 16)}`;
 // учётки нет права на журнал, — не должен пропадать из ленты, едва
 // закончился). Свежее состояние побеждает: живая строка поверх журнальной.
 // Исходящие в ленте не нужны — лид заводят по входящему.
-export function mergeFeed({ list = [], active = [], remembered = [] } = {}) {
+export function mergeFeed({ list = [], active = [], remembered = [], now = Date.now() } = {}) {
     const byId = new Map();
     const byMinute = new Map();
     const put = (call, { fresh }) => {
@@ -138,8 +175,8 @@ export function mergeFeed({ list = [], active = [], remembered = [] } = {}) {
     // оператору важнее, чем имя.
     const perPhone = new Map();
     for (const c of calls) perPhone.set(c.phone, (perPhone.get(c.phone) || 0) + 1);
-    for (const c of calls) c.callsFromPhone = perPhone.get(c.phone);
-    return calls.sort((a, b) => (isLive(b) - isLive(a)) || (callTime(b) - callTime(a)));
+    for (const c of calls) { c.callsFromPhone = perPhone.get(c.phone); settleStale(c, now); }
+    return sortFeed(calls);
 }
 
 // Живой звонок, которого больше нет среди живых, закончился. Журнал скажет,

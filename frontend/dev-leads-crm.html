@@ -100,17 +100,21 @@
     // Журнал входящих и живые звонки.
     let cid = 100;
     const LIST = [
-      { id: ++cid, created: stamp(3), name: 'Ершов Андрей Вадимович', phone: '79312047101', line: 'Сайт', status: 'completed', robot_summary: 'Спросил цену замены масла в АКПП, просит перезвонить вечером', transferred: true },
+      { id: ++cid, created: stamp(3), name: 'Ершов Андрей Вадимович', phone: '79312047101', line: 'Сайт', operator: '101', status: 'completed', robot_summary: 'Спросил цену замены масла в АКПП, просит перезвонить вечером', transferred: true },
       { id: ++cid, created: stamp(12), name: 'Андрей', phone: '79118348541', line: 'Яндекс.Карты', status: 'missed' },
+      { id: ++cid, created: stamp(60 * 15), name: '', phone: '79522779577', line: '78126034480', status: 'ringing' },
       { id: ++cid, created: stamp(25), name: '', phone: '79995259440', line: 'Сайт', status: 'completed' },
-      { id: ++cid, created: stamp(41), name: 'Дамир', phone: '79293412767', line: 'Авито', status: 'completed', recording: 'mango:1' },
-      { id: ++cid, created: stamp(70), name: 'Ершов Андрей Вадимович', phone: '79312047101', line: 'Сайт', status: 'missed' },
+      { id: ++cid, created: stamp(41), name: 'Дамир', phone: '79293412767', line: 'Авито', operator: '105', status: 'completed', recording: 'mango:1' },
+      { id: ++cid, created: stamp(70), name: 'Ершов Андрей Вадимович', phone: '79312047101', line: 'Сайт', operator: '101', status: 'missed' },
       { id: ++cid, created: stamp(95), name: '', phone: '79210001122', line: '2ГИС', status: 'robot', robot_summary: 'Уточнил адрес станции на Планерной' },
     ];
     let ACTIVE = [
-      { id: ++cid, created: stamp(0.5), status: 'answered', phone: '79118348541', operator: '78126034480', direction: 'in', client: { id: 172638, name: 'Андрей', car: 'Skoda Octavia', visits: 2 } },
+      { id: ++cid, created: stamp(0.5), status: 'answered', phone: '79118348541', line: '78126034480', operator: '106', direction: 'in', client: { id: 172638, name: 'Андрей', car: 'Skoda Octavia', visits: 2 } },
     ];
     const seen = new Map();
+    // Время в песочнице — местное браузера, а лента считает его московским
+    // (mskWall): сдвигаем «сейчас» так, чтобы местное и было «московским».
+    const LOCAL_AS_MSK = () => Date.now() - new Date().getTimezoneOffset() * 60e3 - 3 * 3600e3;
 
     document.getElementById('dev-ring').onclick = () => {
       const phone = '7921' + String(Math.floor(1e6 + Math.random() * 9e6));
@@ -134,7 +138,7 @@
         if (kase() === 'empty') return { calls: [], journal: 'ok' };
         const denied = kase() === 'denied';
         const active = ACTIVE;
-        const calls = mergeFeed({ list: denied ? [] : LIST, active, remembered: [...seen.values()] });
+        const calls = mergeFeed({ list: denied ? [] : LIST, active, remembered: [...seen.values()], now: LOCAL_AS_MSK() });
         for (const c of calls) seen.set(c.id, c);
         return { calls, journal: denied ? 'denied' : 'ok' };
       }
