@@ -50,13 +50,20 @@ export function settledSince(prevOps, nextOps) {
 
 // Свои НЕ прошедшие действия, которых человек ещё не видел (не открывал
 // очередь и не нажал «Понятно»): они висят плашкой в шапке раздела.
-// Отменённое руками — не отказ: его отменили, глядя на него.
+// Отменённое руками — не отказ: его отменили, глядя на него. Повторённое —
+// тоже: у него уже своя строка, и висит она сама по себе.
 export function unseenFailures(ops, seenId) {
     return unitsOf(ops).filter(u => u[0].mine !== false
         && unitStatus(u) === 'failed'
         && unitMaxId(u) > seenId
-        && !u.some(o => o.lastError === 'отменена вручную'));
+        && !u.some(o => o.lastError === 'отменена вручную' || o.retriedBy));
 }
+
+// Можно ли нажать «Повторить попытку»: своё, не прошло и ещё не повторяли.
+// Отменённое руками повторить тоже можно — передумали отменять.
+export const canRetry = (unit) => unit[0]?.mine !== false
+    && unitStatus(unit) === 'failed'
+    && !unit.some(o => o.retriedBy || o.status === 'pending');
 
 const KIND = {
     create: { verb: 'Запись', ok: 'записано', bad: 'не записалось' },
@@ -96,6 +103,7 @@ export function describeUnit(unit, { stationTitle = () => '' } = {}) {
     // сама в ответе на создание. Нет её ответа — тот, кто нажал на сайте.
     const author = unit.map(o => o.result?.author).find(Boolean) || unit[0]?.author || '';
     const last = unit.map(o => o.appliedAt).filter(Boolean).sort().pop();
+    const retry = unit.some(o => o.retryOf);
 
     return {
         key: unitKey(unit[0]),
@@ -109,7 +117,12 @@ export function describeUnit(unit, { stationTitle = () => '' } = {}) {
         author,
         queuedAt: hhmm(unit[0]?.createdAt),
         doneAt: hhmm(last),
-        outcome: status === 'pending' ? 'выполняется…' : status === 'done' ? k.ok : k.bad,
+        outcome: status === 'pending' ? (retry ? 'повторная попытка…' : 'выполняется…')
+            : status === 'done' ? (retry ? `${k.ok} со второй попытки` : k.ok)
+            : k.bad,
         reason: failed ? (failed.lastError || 'CRM не приняла') : '',
+        // Эту строку повторили — новая попытка стоит своей строкой выше.
+        retried: unit.some(o => o.retriedBy),
+        retry,
     };
 }

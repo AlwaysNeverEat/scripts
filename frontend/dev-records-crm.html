@@ -122,18 +122,18 @@
     const queue = [];
     let chain = Promise.resolve();
     let nOps = 0;
-    function enqueue(steps, note) {
+    function enqueue(steps, note, { retryOf = null } = {}) {
       const group = steps.length > 1 ? 'g' + Date.now() : null;
       let broken = false;
       return steps.map(st => {
         const op = { id: Date.now() * 10 + (nOps++ % 10), type: st.type, payload: st.payload, status: 'pending', running: false,
-          lastError: '', author: 'Серёга', group, note, createdAt: new Date().toISOString(), appliedAt: null, result: null };
+          lastError: '', author: 'Серёга', group, note, createdAt: new Date().toISOString(), appliedAt: null, result: null, retryOf };
         queue.unshift(op);
         chain = chain.then(() => new Promise(r => setTimeout(r, DELAY))).then(() => {
           if (op.status !== 'pending') return;
           if (broken) { op.status = 'failed'; op.lastError = 'не выполнено: предыдущий шаг этой правки не прошёл'; return; }
           try {
-            if (params.get('fail') && nOps % 2 === 0 && st.type === 'create') refuse(`в ${st.payload.time} на станции нет свободного поста`);
+            if (params.get('fail') && !retryOf && nOps % 2 === 0 && st.type === 'create') refuse(`в ${st.payload.time} на станции нет свободного поста`);
             op.result = applyOp(st);
             op.status = 'done';
           } catch (err) { op.status = 'failed'; op.lastError = err.message; broken = true; }
@@ -166,6 +166,19 @@
           if (r.creator) authors[r.id] = { id: null, display_name: r.creator, avatar: null, counted: true, crm: true };
         }
         return json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: queue.map(o => ({ ...o, mine: o.author === 'Серёга' })), authors });
+      }
+      // «Повторить попытку» (journalQueue.retry): заново только не прошедшие
+      // шаги; повтор в песочнице проходит всегда.
+      if (/\/api\/journal\/ops\/\d+\/retry/.test(u)) {
+        const id = Number(u.match(/ops\/(\d+)\/retry/)[1]);
+        const hit = queue.find(o => o.id === id);
+        const unit = hit?.group ? queue.filter(o => o.group === hit.group) : hit ? [hit] : [];
+        const failed = unit.filter(o => o.status === 'failed').reverse();
+        await new Promise(r => setTimeout(r, 300));
+        if (!failed.length || unit.some(o => o.retriedBy)) return json({ error: { code: 'refused', message: 'повторять нечего' } }, 409);
+        const ops = enqueue(failed.map(o => ({ type: o.type, payload: o.payload })), failed[0].note, { retryOf: id });
+        for (const o of unit) o.retriedBy = ops[ops.length - 1].id;
+        return json({ ok: true, ops }, 202);
       }
       if (u.includes('/api/journal/ops') && init?.method === 'POST') {
         const body = JSON.parse(init.body);

@@ -261,4 +261,20 @@ router.post('/ops', (req, res) => {
     res.status(202).json({ ok: true, op: ops[ops.length - 1], ops });
 });
 
+// «Повторить попытку» у своей не прошедшей операции (см. retry в
+// journalQueue.js). Отказ без CRM (запас в час истёк, пока запись висела
+// отказом) — 409 с текстом: кнопка покажет его в той же строке.
+router.post('/ops/:id/retry', (req, res) => {
+    try {
+        const out = journalQueue.retry(req.user.id, req.params.id, { check: precheckJournalOp });
+        if (out.error) return res.status(409).json({ error: { code: 'refused', message: out.error } });
+        res.status(202).json({ ok: true, ops: out.ops });
+    } catch (err) {
+        if (err instanceof OpRefused) {
+            return res.status(409).json({ error: { code: 'refused', message: err.message } });
+        }
+        return sendCrmError(res, err);
+    }
+});
+
 export default router;
