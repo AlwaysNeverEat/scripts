@@ -850,7 +850,7 @@ const tagSearch = initTagSearch({
 // Вкладки «Клиент» и «Склад»: разметка собирается один раз, дальше
 // renderRoute только показывает страницу и зовёт activate().
 const clientSearch = initClientSearch({ apiFetch });
-const crmLeads = initCrmLeads({ apiFetch });
+const crmLeads = initCrmLeads({ apiFetch, getUserId: () => currentUser?.id });
 const stockSearch = initStockSearch({ apiFetch });
 
 function setSearchMode(mode) {
