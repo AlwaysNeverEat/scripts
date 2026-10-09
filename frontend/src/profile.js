@@ -16,7 +16,7 @@ import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { openProfileSettings } from './profileSettings.js';
 import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -91,7 +91,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             <div class="profile-page">
                 ${profileHeroHtml({
                     avatarInner: avatarHtml,
-                    nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
+                    nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}${nameSuffixHtml(user)}`,
                     added: stats.added ?? 0,
                     edited: stats.edited ?? 0,
                     achievements,
@@ -261,7 +261,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
         };
 
         const settingsBtn = document.getElementById('btn-profile-settings');
-        if (settingsBtn) settingsBtn.onclick = () => openProfileSettings({ apiFetch, onLogout });
+        if (settingsBtn) settingsBtn.onclick = () => openProfileSettings({ apiFetch, onLogout, user });
 
         const achTile = document.getElementById('profile-ach-tile');
         if (achTile) achTile.onclick = () =>

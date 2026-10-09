@@ -1,0 +1,141 @@
+/* Панель «Поддержали проект» (donorsPanel.js): справа, под рядом вкладок.
+   Развёрнутая — колонка шириной 290px, свёрнутая — язычок у края окна. На
+   телефоне панели нет: её некуда поставить, не закрыв работу. */
+
+.dn {
+  position: fixed;
+  right: var(--s-3);
+  top: calc(var(--tabs-h) + var(--s-3));
+  z-index: 30;
+  font-size: 12.5px;
+}
+.dn-box {
+  width: 290px;
+  max-height: calc(100vh - var(--tabs-h) - var(--s-6));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-4);
+  background: color-mix(in oklab, var(--bg2) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .28);
+}
+.dn-head { display: flex; align-items: center; gap: var(--s-2); }
+.dn-title { flex: 1; display: inline-flex; align-items: center; gap: var(--s-2); font-weight: 700; font-size: 13.5px; }
+.dn-title svg { color: var(--gold); }
+.dn-fold {
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
+  padding: var(--s-1);
+  border-radius: var(--r-2);
+  display: inline-flex;
+}
+.dn-fold:hover { color: var(--text); background: var(--bg3); }
+.dn-sub { color: var(--sub); font-size: 11.5px; line-height: 1.4; }
+.dn-empty { color: var(--sub); line-height: 1.5; padding: var(--s-2) 0; }
+.dn-muted { color: var(--sub); }
+
+.dn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; }
+.dn-row {
+  display: grid;
+  grid-template-columns: 16px 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+.dn-row:hover { background: var(--bg3); }
+.dn-rank { color: var(--sub); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.dn-ava { width: 28px; height: 28px; border-radius: var(--r-circle); overflow: hidden; background: var(--bg3); display: inline-flex; align-items: center; justify-content: center; }
+.dn-ava img { width: 100%; height: 100%; object-fit: cover; }
+.dn-ava-empty { font-weight: 700; color: var(--sub); }
+.dn-who { display: flex; flex-direction: column; min-width: 0; }
+/* Имя режется многоточием, а значки после него — нет: иначе звёздочка
+   наезжала на «…» обрезанного имени. */
+.dn-name { font-weight: 600; display: flex; align-items: center; min-width: 0; }
+.dn-name-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dn-name .nbadges { flex: none; vertical-align: 0; }
+.dn-sums { font-size: 11px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dn-total { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dn-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--border);
+  color: var(--sub);
+}
+.dn-foot b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Свёрнутая — язычок у правого края: звёздочка и число поддержавших. */
+.dn.dn-collapsed { right: 0; }
+.dn-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-2);
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: var(--r-3) 0 0 var(--r-3);
+  background: var(--bg2);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .22);
+}
+.dn-tab svg { color: var(--gold); }
+.dn-tab:hover { background: var(--bg3); }
+.dn-tab-n { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 900px) {
+  .dn { display: none; }
+}
+
+/* Окно «Пополнения» (donorsAdmin.js) — только у того, кто платит за сервер. */
+.dna-win { width: min(640px, calc(100vw - 2 * var(--s-4))); }
+.dna-body { display: flex; flex-direction: column; gap: var(--s-3); }
+.dna-form { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .8fr) auto; gap: var(--s-2); align-items: end; }
+.dna-field { display: flex; flex-direction: column; gap: var(--s-1); font-size: 12px; color: var(--sub); min-width: 0; position: relative; }
+.dna-who { grid-column: 1 / -1; }
+.dna-pick { display: flex; flex-wrap: wrap; gap: var(--s-1); min-height: 0; }
+.dna-chosen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-round);
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.dna-muted { color: var(--sub); font-weight: 400; }
+.dna-x { border: 0; background: transparent; color: var(--sub); cursor: pointer; padding: 0 var(--s-1); font: inherit; }
+.dna-x:hover { color: var(--red); }
+.dna-add { white-space: nowrap; }
+.dna-list { display: flex; flex-direction: column; gap: 2px; max-height: 50vh; overflow-y: auto; }
+.dna-list-head { font-size: 11.5px; color: var(--sub); margin-bottom: var(--s-1); }
+.dna-entry {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto auto;
+  gap: var(--s-2);
+  align-items: center;
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-2);
+  font-size: 13px;
+}
+.dna-entry:hover { background: var(--bg3); }
+.dna-date { color: var(--sub); font-variant-numeric: tabular-nums; }
+.dna-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dna-sum { font-variant-numeric: tabular-nums; }
+.dna-confirm { display: inline-flex; gap: var(--s-1); align-items: center; font-size: 12px; }
+.dna-mini { padding: 2px var(--s-2); font-size: 12px; }
+@media (max-width: 560px) {
+  .dna-form { grid-template-columns: 1fr 1fr; }
+  .dna-add { grid-column: 1 / -1; }
+}

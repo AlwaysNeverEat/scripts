@@ -44,7 +44,7 @@ import {
 import { pickMove, LEVELS, NORMAL } from '../../shared/durakBot.js';
 import deckSheet from './assets/cards-8bit.png';
 import cardBack from './assets/card-back.png';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'durak-modal';
@@ -391,7 +391,7 @@ function renderTop(state, top) {
             <div class="dur-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="dur-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="dur-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="dur-top-score">${row.wins}<span class="dur-top-losses"> / ${row.losses}</span></span>
         </div>`).join('');
 

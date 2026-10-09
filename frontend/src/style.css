@@ -2661,6 +2661,41 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 }
 .role-prefix-green { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
 
+/* Значки после ника — галочка модератора и звёздочка поддержавшего
+   (nameBadges.js). Размер — от шрифта строки: в топе, в профиле и в мини-топе
+   игры значок одной высоты с буквами. Картинка статична, видео поверх неё
+   живёт только на время проигрыша.
+   Анимация нарисована на белом непрозрачном фоне: в тёмной теме инверсия
+   превращает чёрные линии в белые, а screen убирает почерневший фон; в
+   светлой multiply убирает белый. У статичной картинки фон уже прозрачный,
+   ей нужна только инверсия. */
+.nbadges { display: inline-flex; gap: 2px; vertical-align: -0.26em; margin-left: 0.24em; }
+.nbadges:empty { display: none; }
+.nbadge {
+  position: relative;
+  display: inline-block;
+  width: 1.3em;
+  height: 1.3em;
+  flex: none;
+  cursor: help;
+  border-radius: var(--r-circle);
+}
+.nbadge:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nbadge img, .nbadge video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: invert(1) hue-rotate(180deg);
+  pointer-events: none;
+}
+.nbadge video { mix-blend-mode: screen; }
+.nbadge.is-playing img { visibility: hidden; }
+:root[data-theme="light"] .nbadge img,
+:root[data-theme="light"] .nbadge video { filter: none; }
+:root[data-theme="light"] .nbadge video { mix-blend-mode: multiply; }
+
 /* ── Модалки (общие) ────────────────────────────────────────────── */
 /* Отступ сверху — на высоту ряда вкладок: он лежит поверх модалки (см.
    .app-tabs), и окно не должно заезжать под него. */

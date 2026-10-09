@@ -30,7 +30,7 @@ import { icons } from './records/icons.js';
 // Склонение «запись/записи/записей» общее с лентой активности в профиле —
 // цифры там и тут считаются по одному источнику (record_credits).
 import { recordsWord } from '../../shared/activityHeatmap.js';
-import { namePrefixHtml, facultyClass } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml, facultyClass } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 function esc(s) {
@@ -132,7 +132,7 @@ function previousHtml(previous) {
     const names = winners.map(w => `
         <div class="top-prev-user"${profileRowAttrs(w)}>
             <div class="top-avatar">${avatarHtml(w)}</div>
-            <div class="top-prev-name">${namePrefixHtml(w)}${esc(w.display_name)}</div>
+            <div class="top-prev-name">${namePrefixHtml(w)}${esc(w.display_name)}${nameSuffixHtml(w)}</div>
             <span class="top-prev-count">${w.records}&nbsp;${recordsWord(w.records)}</span>
         </div>`).join('');
     return `
@@ -212,7 +212,7 @@ function render(body, data) {
             <div class="top-row ${gold ? 'top-row-gold' : ''}${facultyClass(row.faculty, 'faculty-tint')}"${profileRowAttrs(row)}>
                 <span class="top-rank${t}">${row.rank}</span>
                 <div class="top-avatar">${avatarHtml(row)}</div>
-                <div class="top-name">${namePrefixHtml(row)}<span class="${t.trim()}">${esc(row.display_name)}</span></div>
+                <div class="top-name">${namePrefixHtml(row)}<span class="${t.trim()}">${esc(row.display_name)}</span>${nameSuffixHtml(row)}</div>
                 ${countHtml(row, gold)}
             </div>`;
         }).join('')

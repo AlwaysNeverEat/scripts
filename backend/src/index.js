@@ -14,6 +14,7 @@ import crmLeadsRouter from './routes/crmLeads.js';
 // «Чаты» — «Открытые линии» новой CRM (MAX, Telegram, ВК).
 import crmChatsRouter from './routes/crmChats.js';
 import chatPastesRouter from './routes/chatPastes.js';
+import donorsRouter from './routes/donors.js';
 // Панель Битрикса («Лиды») отложена — см. docs/BITRIX.md. Модули
 // backend/src/bitrix/ и оба роутера на месте, выключена только проводка.
 // import bitrixRouter from './routes/bitrix.js';
@@ -99,6 +100,9 @@ app.use('/api/crm/leads', requireSession, crmLeadsRouter);
 app.use('/api/crm/chats', requireSession, crmChatsRouter);
 // Пасты «Чатов» живут в нашей базе, а не в CRM: сессия CRM им не нужна.
 app.use('/api/chat/pastes', requireSession, chatPastesRouter);
+// Поддержавшие проект: список видят все вошедшие, вносит пополнения один
+// аккаунт — тот, кто платит за сервер (см. routes/donors.js).
+app.use('/api/donors', requireSession, donorsRouter);
 app.use('/api/crm', requireSession, crmRouter);
 // Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md). ОТЛОЖЕНА
 // целиком — ручки не подняты, чтобы сайт не хранил чужие сессии портала ради

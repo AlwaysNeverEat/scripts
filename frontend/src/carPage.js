@@ -15,7 +15,7 @@ import { activeFlags } from '../../shared/serviceFlags.js';
 import { crmQuirksFor, SEVERITY_LABELS } from '../../shared/crmQuirks.js';
 import { fuelLabel } from '../../shared/fuel.js';
 import { SOURCE_SITES, SOURCE_LABELS } from '../../shared/sourceLinks.js';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { arrowRightIcon } from './icons.js';
 import { describeCarChanges, changedFieldLabels } from '../../shared/carDiff.js';
 import { initSegmented } from './segmented.js';
@@ -211,7 +211,7 @@ function openAssignModal(record, ctx) {
         listBox.innerHTML = users.map(u => `
             <button class="assign-user" data-assign-id="${esc(u.id)}" data-assign-name="${esc(u.display_name)}">
                 <span class="assign-user-avatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt=""/>` : ''}</span>
-                <span class="assign-user-name">${namePrefixHtml(u)}${esc(u.display_name)}</span>
+                <span class="assign-user-name">${namePrefixHtml(u)}${esc(u.display_name)}${nameSuffixHtml(u)}</span>
             </button>
         `).join('');
         listBox.querySelectorAll('[data-assign-id]').forEach(btn => {
@@ -367,7 +367,7 @@ export async function renderEvents(carId, ctx) {
 
 function userChipHtml(u) {
     if (!u) return '<b>неизвестный пользователь</b>';
-    return `<span class="event-user" data-user-link="${esc(u.id)}" role="button" tabindex="0" title="Открыть профиль коллеги">${namePrefixHtml(u)}<b>${esc(u.display_name)}</b></span>`;
+    return `<span class="event-user" data-user-link="${esc(u.id)}" role="button" tabindex="0" title="Открыть профиль коллеги">${namePrefixHtml(u)}<b>${esc(u.display_name)}</b>${nameSuffixHtml(u)}</span>`;
 }
 
 function renderEventCard(ev, i) {

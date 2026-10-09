@@ -41,7 +41,7 @@ import {
     NODE_INFO, NODE_BOSS, NODE_ELITE, STATUS_INFO, MUTATOR_BY_ID, EVENTS, CARD_BY_ID, LEGEND,
     I_ATTACK, I_BLOCK, I_STATUS,
 } from '../../shared/roguelike.js';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 // Арт карты — ЭТО ФАЙЛ С ЕЁ ИМЕНЕМ: положили frontend/src/assets/roguelike/strike.png —
@@ -1672,7 +1672,7 @@ function topHtml(state) {
             <div class="rg-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="rg-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="rg-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="rg-top-score" title="Узлов пройдено: ${row.floor}">${row.loops} <i>${plural(row.loops, 'цикл', 'цикла', 'циклов')}</i></span>
         </div>`).join('');
 
