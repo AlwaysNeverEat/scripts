@@ -248,7 +248,32 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         </button>`;
     }
 
-    function renderFeed() {
+    // Где человек стоит в ленте — до перерисовки. Лента пересобирается на
+    // каждом опросе, и новый список рождается прокрученным в начало: листал
+    // вчерашние звонки — через пять секунд снова наверху. Запоминаем не
+    // число пикселей, а ЗВОНОК, который виден первым, и его сдвиг: сверху
+    // приезжают новые звонки, и те же пиксели показали бы уже другие строки.
+    function feedAnchor() {
+        const box = feedEl.querySelector('#ld-feed-list');
+        if (!box || box.scrollTop <= 0) return null; // наверху — пусть новые и видит
+        const top = box.getBoundingClientRect().top;
+        const row = [...box.querySelectorAll('[data-call]')].find(r => r.getBoundingClientRect().bottom > top);
+        return { scrollTop: box.scrollTop, id: row?.dataset.call, offset: row ? row.getBoundingClientRect().top - top : 0 };
+    }
+
+    function restoreFeedAnchor(a) {
+        const box = feedEl.querySelector('#ld-feed-list');
+        if (!a || !box) return;
+        const row = a.id && box.querySelector(`[data-call="${CSS.escape(a.id)}"]`);
+        box.scrollTop = row
+            ? box.scrollTop + (row.getBoundingClientRect().top - box.getBoundingClientRect().top) - a.offset
+            : a.scrollTop; // звонок ушёл из отбора — хотя бы та же глубина
+    }
+
+    // resetScroll — для смены отбора (чип, поиск): там это другой список, и
+    // открываться он должен сверху, а не на глубине прежнего.
+    function renderFeed({ resetScroll = false } = {}) {
+        const anchor = resetScroll ? null : feedAnchor();
         const live = state.calls.filter(isLive).length;
         const missed = state.calls.filter(c => c.status === 'missed').length;
         const mineCount = state.operator ? state.calls.filter(c => isMine(c, state.operator)).length : 0;
@@ -305,6 +330,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             });
         }
         feedEl.querySelector('#ld-feed-list').innerHTML = body;
+        restoreFeedAnchor(anchor);
         feedEl.querySelector('#ld-feed-foot').innerHTML = stale + note;
         feedEl.querySelectorAll('[data-call]').forEach(b => { b.onclick = () => openCall(b.dataset.call); });
         const retry = feedEl.querySelector('[data-act="feed-retry"]');
@@ -314,10 +340,10 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
 
     function bindFeedHead() {
         feedEl.querySelectorAll('[data-filter]').forEach(b => {
-            b.onclick = () => { state.filter = b.dataset.filter; renderFeed(); };
+            b.onclick = () => { state.filter = b.dataset.filter; renderFeed({ resetScroll: true }); };
         });
         const q = feedEl.querySelector('#ld-q');
-        q.oninput = () => { state.query = q.value; renderFeed(); };
+        q.oninput = () => { state.query = q.value; renderFeed({ resetScroll: true }); };
         const op = feedEl.querySelector('#ld-op');
         op.oninput = () => {
             const digits = op.value.replace(/\D/g, '').slice(0, 6);
