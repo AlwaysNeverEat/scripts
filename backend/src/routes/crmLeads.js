@@ -194,7 +194,8 @@ export function createLeadsRouter({ api = crmApi, now = () => Date.now(), active
         }
     });
 
-    // Статус и дата следующего звонка — одной кнопкой «Сохранить», как в CRM.
+    // Статус и дата следующего звонка — одно действие CRM. Окно сайта шлёт
+    // статус с той датой, что уже стоит в CRM (блока даты на карточке нет).
     router.post('/clients/:clientId/plan', async (req, res) => {
         const clientId = clientIdOf(req, res); if (!clientId) return;
         const status = String(req.body?.status || '');

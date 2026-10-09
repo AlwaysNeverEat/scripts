@@ -10,12 +10,12 @@
 // окажутся нужными, пока не ясно, поэтому взято всё, а не выбрано.
 //
 // Что где:
-//   • разбор ответов CRM, статусы, чистка расчёта — shared/crmLeads.js;
+//   • разбор ответов CRM и статусы — shared/crmLeads.js;
 //   • ручки под личной сессией CRM — backend/src/routes/crmLeads.js;
 //   • песочница без CRM — frontend/dev-leads-crm.html.
 //
 // Лента перерисовывается на каждом опросе, карточка — НЕТ: в ней печатают
-// (заметку, расчёт, комментарий к звонку), и перерисовка раз в пять секунд
+// (комментарий к лиду и к звонку), и перерисовка раз в пять секунд
 // выбрасывала бы набранное. Поэтому у ленты и у карточки свои узлы и свои
 // render, а всё набранное в карточке живёт в `draft` и переживает её
 // собственные перерисовки после сохранения.
@@ -26,8 +26,7 @@
 import './crmLeads.css';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
 import { setPickedLead } from './leadPick.js';
-import { LEAD_STATUSES, NEXT_CALL_QUICK, isLive, isMine, sortFeed, operatorKey, cleanCalcItems, calcTotal, callTime } from '../../shared/crmLeads.js';
-import { openDateFor } from './datepicker.js';
+import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime } from '../../shared/crmLeads.js';
 
 const FEED_POLL_MS = 5000;
 
@@ -63,20 +62,6 @@ function stampFull(at) {
     return `${m[3]}.${m[2]}.${m[1]}${m[4] ? ` ${m[4]}:${m[5]}` : ''}`;
 }
 
-function isoDay(offsetDays = 0) {
-    const d = new Date();
-    d.setDate(d.getDate() + offsetDays);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function dayLabel(iso) {
-    if (!iso) return 'не назначен';
-    const [y, mo, d] = iso.split('-').map(Number);
-    const dt = new Date(y, mo - 1, d);
-    const wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][dt.getDay()];
-    return `${String(d).padStart(2, '0')}.${String(mo).padStart(2, '0')}.${y}, ${wd}`;
-}
-
 function duration(sec) {
     if (!sec) return '—';
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
@@ -103,6 +88,21 @@ const callStatus = (s) => CALL_STATUS[s] || [s || '—', 'done'];
 
 const OMNI = { max: 'MAX', tg: 'Telegram', vk: 'ВК' };
 
+// Цвет кнопки статуса. Значение статуса уезжает в CRM строкой из её списка
+// (LEAD_STATUSES), цвет — только наш: «хорошее» зелёное, «плохое» красное,
+// «ждём» тёплое, «спит» серое — чтобы строку статусов читать глазом, не словами.
+const STATUS_TONE = {
+    '': 'gray',
+    'Активный': 'blue',
+    'Недозвон': 'orange',
+    'Перезвонить': 'violet',
+    'Приедет сам': 'teal',
+    'Отказался': 'red',
+    'Записан': 'green',
+    'Архив': 'gray',
+    'У конкурента': 'pink',
+};
+
 const svg = (body, size = 14) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 const ICON = {
     phoneIn: (s) => svg('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.18 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.1 9.9a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/><polyline points="16 2 16 8 22 8"/><line x1="23" y1="1" x2="16" y2="8"/>', s),
@@ -114,7 +114,7 @@ const ICON = {
     refresh: (s) => svg('<polyline points="21 5 21 11 15 11"/><path d="M20 15a8 8 0 1 1-2.2-8.3L21 9"/>', s),
     back: (s) => svg('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>', s),
     play: (s) => svg('<polygon points="6 4 20 12 6 20 6 4"/>', s),
-    calendar: (s) => svg('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>', s),
+    copy: (s) => svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>', s),
     check: (s) => svg('<polyline points="20 6 9 17 4 12"/>', s),
     chevron: (s) => svg('<polyline points="6 9 12 15 18 9"/>', s),
     search: (s) => svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', s),
@@ -146,7 +146,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         query: '',
         selected: null,        // звонок, из которого открыта карточка
         card: { status: 'idle' }, // idle | loading | none | ready | error | auth
-        services: null,
         busy: new Set(),       // какие действия карточки сейчас уходят в CRM
         flash: '',             // «Сохранено» у последнего действия
         errors: {},            // ошибка по блоку карточки
@@ -154,6 +153,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         openSales: new Map(),  // id чека → { status, sale }
         editingName: false,
         editingComment: null,
+        pendingStatus: null,   // статус, выбранный кнопкой и ждущий подтверждения
         authNote: '',
         operator: '',          // свой код оператора — его звонки помечены «мой»
     };
@@ -172,7 +172,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             }
 
     function freshDraft() {
-        return { name: '', car: '', note: '', calcCar: null, lines: [{ name: '', price: '', qty: '1' }], status: null, nextCall: null, source: null, comment: '' };
+        return { name: '', car: '', note: '', comment: '' };
     }
 
     // ── Лента ────────────────────────────────────────────────────────────────
@@ -404,6 +404,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         state.openSales = new Map();
         state.editingName = false;
         state.editingComment = null;
+        state.pendingStatus = null;
         state.card = { status: 'loading', phone: call.phone };
         shell.classList.add('ld-has-card');
         renderFeed();
@@ -417,7 +418,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             const data = await apiFetch(`/api/crm/leads/card?${q}`);
             if (state.card.phone !== phone) return; // пока ждали, открыли другой звонок
             state.card = data.card ? { status: 'ready', phone, data: data.card } : { status: 'none', phone };
-            if (data.card) ensureServices();
         } catch (e) {
             if (state.card.phone !== phone) return;
             state.card = e.code === 'crm_auth_required' || e.code === 'crm_auth_failed'
@@ -425,14 +425,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
                 : { status: 'error', phone, error: e.message || 'CRM не ответила' };
         }
         renderCard();
-    }
-
-    async function ensureServices() {
-        if (state.services) return;
-        try {
-            state.services = (await apiFetch('/api/crm/leads/services')).services || [];
-            if (state.card.status === 'ready') renderCalcServices();
-        } catch { state.services = null; }
     }
 
     // Обёртка действия карточки: кнопка гаснет, пока CRM думает, ошибка
@@ -537,20 +529,21 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         </div>`;
     }
 
+    // Карточка — в раскладке карточки лида Битрикса, к которой привыкли руки:
+    // сверху имя и статусы строкой цветных кнопок, слева «О лиде» (телефон,
+    // источник, заметки — раскрыты всегда), справа история звонков, внизу
+    // цифры по клиенту и история обслуживаний.
+    //
+    // Отдельной кнопки «Сохранить лид» нет: статус и имя уходят в CRM сразу,
+    // как только человек подтвердил выбор, и отвечают коротким «Сохранено» на
+    // месте. Две кнопки сохранения на одной карточке читались как «а эта что
+    // сохраняет?», а про несохранённый статус узнавали уже после звонка.
+    //
+    // Следующего звонка, быстрых «+1 день … +4 мес» и расчётов здесь нет — ими
+    // не пользуются. Ручки на сервере остались: вернуть блок — это разметка,
+    // а не протокол.
     function cardHtml(D) {
         const c = D.client;
-        const d = state.draft;
-        const status = d.status ?? D.plan.status;
-        const next = d.nextCall ?? D.plan.nextCall;
-        const source = d.source ?? c.sourceId;
-        const nameBlock = state.editingName
-            ? `<span class="ld-name-edit"><input class="ld-in ld-in-name" id="ld-name" value="${esc(d.name || c.fio)}" placeholder="Фамилия Имя Отчество">
-                <button type="button" class="btn btn-pri" data-act="name-save"${busyAttr('name')}>${btnLabel('name', 'Сохранить', 'Сохраняю…')}</button>
-                <button type="button" class="btn btn-sec" data-act="name-cancel">Отмена</button></span>`
-            : `<span class="ld-name">${esc(c.fio || 'Без имени')}</span>
-               <button type="button" class="ld-icon-btn" data-act="name-edit" title="Исправить имя">${ICON.edit(14)}</button>
-               ${state.flash === 'name' ? `<span class="ld-ok">${ICON.check(12)} имя сохранено</span>` : ''}`;
-        const tel = telHref(c.phone);
         const kpi = [
             ['Визитов', D.stats.visits],
             ['LTV', money(D.stats.ltv)],
@@ -562,54 +555,95 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         ];
         return `
         <div class="ld-head">
-            <div class="ld-head-row">${nameBlock}</div>
-            <div class="ld-head-row ld-muted">
-                ${tel ? `<a href="${tel}" class="ld-link ld-phone">${esc(prettyPhone(c.phone))}</a>` : esc(c.phone)}
-                ${c.car ? `<span>· ${esc(c.car)}</span>` : ''}
-                <button type="button" class="ld-icon-btn" data-act="card-retry" title="Перечитать карточку из CRM">${ICON.refresh(13)}</button>
-            </div>
+            <div class="ld-head-row">${nameHtml(c)}</div>
             ${errHtml('name')}
         </div>
+        ${statusesHtml(D)}
         ${callContextHtml()}
 
-        <div class="ld-block ld-lead">
-            <div class="ld-h">Лид</div>
-            <div class="ld-grid3">
-                <label class="ld-field"><span>Статус</span>
-                    <select class="ld-in" data-draft="status">
-                        <option value="">—</option>
-                        ${LEAD_STATUSES.map(s => `<option${s === status ? ' selected' : ''}>${esc(s)}</option>`).join('')}
-                    </select>
-                </label>
-                <div class="ld-field"><span>Следующий звонок</span>
-                    <button type="button" class="ld-in ld-date-btn" data-act="pick-date">${ICON.calendar(14)} ${esc(dayLabel(next))}</button>
-                    <input type="date" id="ld-next" class="ld-date-model" value="${esc(next)}" tabindex="-1" aria-hidden="true">
-                </div>
-                <label class="ld-field"><span>Источник</span>
-                    <select class="ld-in" data-draft="source">
-                        <option value="">(не указан)</option>
-                        ${D.sources.map(s => `<option value="${esc(s.id)}"${s.id === source ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}
-                    </select>
-                </label>
+        <div class="ld-cols">
+            <div class="ld-col">
+                ${aboutHtml(D)}
+                ${notesHtml(D)}
+                ${omniHtml(D)}
             </div>
-            <div class="ld-quick">
-                ${NEXT_CALL_QUICK.map(([t, n]) => `<button type="button" class="ld-chip" data-quick="${n}">${t}</button>`).join('')}
-                ${next ? '<button type="button" class="ld-chip" data-quick="clear">без даты</button>' : ''}
-            </div>
-            <div class="ld-lead-foot">
-                <span class="ld-muted">Последний звонок: <b>${esc(D.lastCall ? stampFull(D.lastCall) : '—')}</b></span>
-                <button type="button" class="btn btn-pri" data-act="lead-save"${busyAttr('lead')}>${btnLabel('lead', 'Сохранить лид', 'Сохраняю…')}</button>
-            </div>
-            ${errHtml('lead')}
+            <div class="ld-col">${callsHtml(D)}</div>
         </div>
 
         <div class="ld-kpi">${kpi.map(([k, v]) => `<div class="ld-kpi-cell"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>
-
-        ${callsHtml(D)}
-        ${calcsHtml(D)}
-        ${notesHtml(D)}
-        ${omniHtml(D)}
         ${historyHtml(D)}`;
+    }
+
+    function nameHtml(c) {
+        if (state.editingName) {
+            return `<span class="ld-name-edit"><input class="ld-in ld-in-name" id="ld-name" value="${esc(state.draft.name || c.fio)}" placeholder="Фамилия Имя Отчество" aria-label="Имя клиента">
+                <button type="button" class="ld-icon-btn ld-icon-ok" data-act="name-save" title="Сохранить (Enter)"${busyAttr('name')}>${state.busy.has('name') ? '<span class="ld-spin" aria-hidden="true"></span>' : ICON.check(18)}</button>
+                <button type="button" class="ld-icon-btn" data-act="name-cancel" title="Отмена (Esc)">${ICON.x(18)}</button></span>`;
+        }
+        return `<span class="ld-name">${esc(c.fio || 'Без имени')}</span>
+            <button type="button" class="ld-icon-btn" data-act="name-edit" title="Исправить имя">${ICON.edit(16)}</button>
+            ${savedHtml('name')}
+            <button type="button" class="ld-icon-btn ld-head-refresh" data-act="card-retry" title="Перечитать карточку из CRM">${ICON.refresh(14)}</button>`;
+    }
+
+    // «Сохранено» у того, что только что ушло в CRM, — гаснет само (act).
+    const savedHtml = (key) => (state.flash === key ? `<span class="ld-ok ld-saved">${ICON.check(12)} Сохранено</span>` : '');
+
+    // Статусы — строкой цветных кнопок, как стадии лида в Битриксе, и прочерк
+    // («статус не стоит») среди них на равных: им пользуются. Нажатая кнопка
+    // не сохраняет сразу, а спрашивает — статус меняют посреди разговора, и
+    // промах мышью по соседней кнопке иначе молча уезжал бы в CRM.
+    function statusesHtml(D) {
+        const cur = D.plan.status;
+        const pending = state.pendingStatus;
+        const pills = ['', ...LEAD_STATUSES].map(s => {
+            const on = s === cur;
+            const cls = `ld-stp ld-stp-${STATUS_TONE[s] || 'gray'}${on ? ' on' : ''}${pending === s ? ' pending' : ''}`;
+            return `<button type="button" class="${cls}" data-status="${esc(s)}" aria-pressed="${on}"${state.busy.has('status') ? ' disabled' : ''}>${esc(s || '—')}</button>`;
+        }).join('');
+        const confirmRow = pending != null
+            ? `<div class="ld-st-confirm">
+                Статус: <b>${esc(cur || '—')}</b> → <b>${esc(pending || '—')}</b>
+                <button type="button" class="btn btn-pri ld-mini" data-act="status-yes"${busyAttr('status')}>${state.busy.has('status') ? '<span class="ld-spin" aria-hidden="true"></span>Сохраняю…' : 'Сохранить'}</button>
+                <button type="button" class="btn btn-sec ld-mini" data-act="status-no">Отмена</button>
+               </div>`
+            : '';
+        return `
+        <div class="ld-statuses">
+            <div class="ld-stp-row" role="group" aria-label="Статус лида">${pills}${savedHtml('status')}</div>
+            ${confirmRow}
+            ${errHtml('status')}
+        </div>`;
+    }
+
+    // «О лиде» — как левая карточка Битрикса: контакт и «дополнительно».
+    function aboutHtml(D) {
+        const c = D.client;
+        const tel = telHref(c.phone);
+        const source = c.sourceId;
+        return `
+        <div class="ld-block ld-about">
+            <div class="ld-h">О лиде</div>
+            <div class="ld-kv">
+                <span class="ld-k">Телефон</span>
+                <span class="ld-v ld-phone-row">
+                    ${tel ? `<a href="${tel}" class="ld-link ld-phone">${esc(prettyPhone(c.phone))}</a>` : esc(c.phone || '—')}
+                    ${c.phone ? `<button type="button" class="ld-icon-btn" data-act="copy-phone" title="Скопировать номер">${state.flash === 'copy' ? ICON.check(14) : ICON.copy(14)}</button>` : ''}
+                    ${state.flash === 'copy' ? '<span class="ld-ok">скопирован</span>' : ''}
+                </span>
+                ${c.car ? `<span class="ld-k">Авто</span><span class="ld-v">${esc(c.car)}</span>` : ''}
+                <span class="ld-k">Источник</span>
+                <span class="ld-v">
+                    <select class="ld-in" data-act="source" aria-label="Источник"${state.busy.has('source') ? ' disabled' : ''}>
+                        <option value="">(не указан)</option>
+                        ${D.sources.map(s => `<option value="${esc(s.id)}"${s.id === source ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}
+                    </select>
+                    ${savedHtml('source')}${errHtml('source')}
+                </span>
+                <span class="ld-k">Последний звонок</span>
+                <span class="ld-v">${esc(D.lastCall ? stampFull(D.lastCall) : '—')}</span>
+            </div>
+        </div>`;
     }
 
     function callsHtml(D) {
@@ -640,49 +674,11 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             </div>`;
         }).join('');
         return `
-        <details class="ld-block" open>
-            <summary class="ld-h">История звонков (${D.calls.length})</summary>
+        <div class="ld-block ld-calls-block">
+            <div class="ld-h">История звонков <span class="ld-muted">${D.calls.length}</span></div>
             ${errHtml('comment')}
             <div class="ld-calls">${rows || '<div class="ld-muted">Звонков не найдено.</div>'}</div>
-        </details>`;
-    }
-
-    function calcsHtml(D) {
-        const d = state.draft;
-        const list = D.calcs.map(cc => `
-            <div class="ld-item">
-                <div class="ld-item-top">
-                    <b>${money(cc.total)}</b>${cc.car ? ` · ${esc(cc.car)}` : ''}
-                    <span class="ld-muted ld-item-when">${esc(stampFull(cc.at))}${cc.author ? ` · ${esc(cc.author)}` : ''}</span>
-                    <button type="button" class="ld-icon-btn ld-del" data-act="calc-del" data-id="${esc(cc.id)}" title="Удалить расчёт"${busyAttr('calc-del')}>${ICON.x(13)}</button>
-                </div>
-                ${cc.items.length ? `<div class="ld-muted">${cc.items.map(it => `${esc(it.name)}${it.qty > 1 ? ` ×${it.qty}` : ''} — ${money(it.price * it.qty)}`).join(', ')}</div>` : ''}
-            </div>`).join('');
-        const lines = d.lines.map((l, i) => `
-            <div class="ld-line">
-                <input class="ld-in" data-line="${i}" data-k="name" value="${esc(l.name)}" placeholder="Услуга / товар">
-                <input class="ld-in ld-num" data-line="${i}" data-k="price" value="${esc(l.price)}" placeholder="Цена" inputmode="decimal">
-                <input class="ld-in ld-qty" data-line="${i}" data-k="qty" value="${esc(l.qty)}" inputmode="numeric" title="Количество">
-                <button type="button" class="ld-icon-btn ld-del" data-act="line-del" data-i="${i}" title="Убрать строку">${ICON.x(13)}</button>
-            </div>`).join('');
-        return `
-        <details class="ld-block" open>
-            <summary class="ld-h">Расчёты (${D.calcs.length})</summary>
-            ${errHtml('calc-del')}
-            ${list || '<div class="ld-muted">Расчётов нет.</div>'}
-            <div class="ld-sub">
-                <div class="ld-h2">Новый расчёт к звонку</div>
-                <input class="ld-in" data-draft="calcCar" value="${esc(d.calcCar ?? D.client.car)}" placeholder="Авто (марка / модель / госномер)">
-                <select class="ld-in" id="ld-svc"><option value="">+ услуга из прайса…</option></select>
-                <div id="ld-lines">${lines}</div>
-                <button type="button" class="ld-chip" data-act="line-add">${ICON.plus(12)} позиция</button>
-                <div class="ld-lead-foot">
-                    <b>Итого: <span id="ld-total">${money(calcTotal(d.lines))}</span></b>
-                    <button type="button" class="btn btn-pri" data-act="calc-save"${busyAttr('calc')}>${btnLabel('calc', 'Сохранить расчёт', 'Сохраняю…')}</button>
-                </div>
-                ${errHtml('calc')}
-            </div>
-        </details>`;
+        </div>`;
     }
 
     function notesHtml(D) {
@@ -692,16 +688,18 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
                     <button type="button" class="ld-icon-btn ld-del" data-act="note-del" data-id="${esc(n.id)}" title="Удалить заметку"${busyAttr('note-del')}>${ICON.x(13)}</button></div>
                 <div class="ld-note-text">${esc(n.text)}</div>
             </div>`).join('');
+        // Раскрыт всегда: заметку пишут на каждом звонке, а свёрнутый блок
+        // означал лишний клик и «а где тут комментарий?».
         return `
-        <details class="ld-block"${D.notes.length || state.draft.note ? ' open' : ''}>
-            <summary class="ld-h">Заметки (${D.notes.length})</summary>
+        <div class="ld-block ld-notes">
+            <div class="ld-h">Комментарий <span class="ld-muted">${D.notes.length || ''}</span></div>
             <div class="ld-note-add">
-                <textarea class="ld-in" data-draft="note" rows="2" placeholder="Новая заметка о клиенте…">${esc(state.draft.note)}</textarea>
-                <button type="button" class="btn btn-pri" data-act="note-add"${busyAttr('note')}>${btnLabel('note', 'Добавить', 'Добавляю…')}</button>
+                <textarea class="ld-in" data-draft="note" id="ld-note" rows="3" placeholder="Комментарий к лиду… (Ctrl+Enter — добавить)">${esc(state.draft.note)}</textarea>
+                <button type="button" class="btn btn-pri" data-act="note-add"${busyAttr('note')}>${btnLabel('note', `${ICON.plus(14)} Добавить`, 'Добавляю…')}</button>
             </div>
             ${errHtml('note')}${errHtml('note-del')}
-            ${list || '<div class="ld-muted">Заметок нет.</div>'}
-        </details>`;
+            ${list ? `<div class="ld-notes-list">${list}</div>` : ''}
+        </div>`;
     }
 
     function omniHtml(D) {
@@ -744,24 +742,14 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         }).join('');
         return `
         <details class="ld-block" open>
-            <summary class="ld-h">История покупок (${D.history.length})</summary>
-            ${rows || '<div class="ld-muted">Покупок пока не было.</div>'}
+            <summary class="ld-h">История обслуживаний (${D.history.length})</summary>
+            ${rows || '<div class="ld-muted">Обслуживаний пока не было.</div>'}
         </details>`;
-    }
-
-    // Прайс приезжает отдельно и позже карточки — дописываем его в список на
-    // месте, а не перерисовываем карточку (в ней уже могут печатать).
-    function renderCalcServices() {
-        const sel = cardEl.querySelector('#ld-svc');
-        if (!sel || !state.services) return;
-        sel.innerHTML = '<option value="">+ услуга из прайса…</option>' + state.services.map((s, i) =>
-            `<option value="${i}">${esc(s.name)} — ${money(s.price)}</option>`).join('');
     }
 
     // ── Карточка: действия ───────────────────────────────────────────────────
 
     function bindCard() {
-        renderCalcServices();
         const on = (sel, fn) => cardEl.querySelectorAll(sel).forEach(el => { el.onclick = (e) => fn(el, e); });
 
         on('[data-act="back"]', () => { shell.classList.remove('ld-has-card'); });
@@ -780,13 +768,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             const k = el.dataset.draft;
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
             el.addEventListener(ev, () => { state.draft[k] = el.value; if (k === 'name') publishPick(); });
-        });
-        cardEl.querySelectorAll('[data-line]').forEach(el => {
-            el.addEventListener('input', () => {
-                state.draft.lines[+el.dataset.line][el.dataset.k] = el.value;
-                const t = cardEl.querySelector('#ld-total');
-                if (t) t.textContent = money(calcTotal(state.draft.lines));
-            });
         });
         const name = cardEl.querySelector('#ld-name');
         if (name) {
@@ -807,35 +788,26 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             comment.focus();
         }
 
-        const next = cardEl.querySelector('#ld-next');
-        if (next) next.addEventListener('change', () => { state.draft.nextCall = next.value; renderCard(); });
-        on('[data-act="pick-date"]', (btn) => openDateFor(next, btn));
-        on('[data-quick]', (b) => {
-            state.draft.nextCall = b.dataset.quick === 'clear' ? '' : isoDay(Number(b.dataset.quick));
-            renderCard();
+        const note = cardEl.querySelector('#ld-note');
+        if (note) note.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); }
         });
 
-        const svc = cardEl.querySelector('#ld-svc');
-        if (svc) svc.addEventListener('change', () => {
-            const s = state.services?.[Number(svc.value)];
-            if (!s) return;
-            const lines = state.draft.lines;
-            const empty = lines.findIndex(l => !l.name && !l.price);
-            const line = { name: s.name, price: String(s.price), qty: '1' };
-            if (empty >= 0) lines[empty] = line; else lines.push(line);
+        on('[data-status]', (b) => {
+            const s = b.dataset.status;
+            state.pendingStatus = s === state.card.data.plan.status ? null : s;
             renderCard();
+            cardEl.querySelector('[data-act="status-yes"]')?.focus();
         });
-        on('[data-act="line-add"]', () => { state.draft.lines.push({ name: '', price: '', qty: '1' }); renderCard(); });
-        on('[data-act="line-del"]', (b) => {
-            state.draft.lines.splice(Number(b.dataset.i), 1);
-            if (!state.draft.lines.length) state.draft.lines.push({ name: '', price: '', qty: '1' });
-            renderCard();
-        });
+        on('[data-act="status-yes"]', () => saveStatus());
+        on('[data-act="status-no"]', () => { state.pendingStatus = null; renderCard(); });
+        const source = cardEl.querySelector('[data-act="source"]');
+        if (source) source.onchange = () => saveSource(source.value);
+        on('[data-act="copy-phone"]', () => copyPhone());
 
         on('[data-act="name-edit"]', () => { state.editingName = true; state.draft.name = state.card.data.client.fio; renderCard(); });
         on('[data-act="name-cancel"]', () => { state.editingName = false; renderCard(); });
         on('[data-act="name-save"]', () => saveName());
-        on('[data-act="lead-save"]', () => saveLead());
         on('[data-act="comment-edit"]', (b) => {
             const call = state.card.data.calls.find(x => x.id === b.dataset.id);
             state.editingComment = b.dataset.id;
@@ -844,8 +816,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         });
         on('[data-act="comment-cancel"]', () => { state.editingComment = null; renderCard(); });
         on('[data-act="comment-save"]', (b) => saveComment(b.dataset.id));
-        on('[data-act="calc-save"]', () => saveCalc());
-        on('[data-act="calc-del"]', (b) => delCalc(b.dataset.id));
         on('[data-act="note-add"]', () => addNote());
         on('[data-act="note-del"]', (b) => delNote(b.dataset.id));
         on('[data-act="sale"]', (b) => toggleSale(b.dataset.id));
@@ -867,26 +837,45 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         }
     }
 
-    // «Сохранить лид»: статус с датой следующего звонка — одно действие CRM,
-    // источник — другое, и уходит он, только если его поменяли.
-    async function saveLead() {
+    // Статус уходит в CRM тем же действием, что и дата следующего звонка
+    // (cc_callplan_save принимает их парой), поэтому дату отправляем ту, что
+    // уже стоит в CRM: блока даты на карточке нет, и стирать её никто не просил.
+    async function saveStatus() {
         const D = state.card.data;
-        const status = state.draft.status ?? D.plan.status;
-        const nextCall = state.draft.nextCall ?? D.plan.nextCall;
-        const source = state.draft.source ?? D.client.sourceId;
-        const out = await act('lead', async () => {
-            await apiFetch(`/api/crm/leads/clients/${clientId()}/plan`, { method: 'POST', body: { status, nextCall } });
-            if (source !== D.client.sourceId) {
-                await apiFetch(`/api/crm/leads/clients/${clientId()}/source`, { method: 'POST', body: { sourceId: source } });
-            }
-            return { ok: true };
-        });
+        const status = state.pendingStatus;
+        if (status == null) return;
+        const out = await act('status', () => apiFetch(`/api/crm/leads/clients/${clientId()}/plan`, {
+            method: 'POST', body: { status, nextCall: D.plan.nextCall },
+        }));
         if (out) {
-            D.plan = { status, nextCall };
-            D.client.sourceId = source;
-            state.draft.status = state.draft.nextCall = state.draft.source = null;
+            D.plan = { ...D.plan, status };
+            state.pendingStatus = null;
             renderCard();
         }
+    }
+
+    async function saveSource(sourceId) {
+        const D = state.card.data;
+        if (sourceId === D.client.sourceId) return;
+        const prev = D.client.sourceId;
+        D.client.sourceId = sourceId; // выбор виден сразу; не прошло — вернём
+        const out = await act('source', () => apiFetch(`/api/crm/leads/clients/${clientId()}/source`, {
+            method: 'POST', body: { sourceId },
+        }));
+        if (!out) { D.client.sourceId = prev; renderCard(); }
+    }
+
+    async function copyPhone() {
+        const raw = state.card.data.client.phone;
+        const text = phoneComplete(raw) ? prettyPhone(raw) : raw;
+        try {
+            await navigator.clipboard.writeText(text);
+            state.flash = 'copy';
+        } catch {
+            state.errors.name = `Буфер недоступен — номер: ${text}`;
+        }
+        renderCard();
+        setTimeout(() => { if (state.flash === 'copy') { state.flash = ''; renderCard(); } }, 1600);
     }
 
     async function saveComment(id) {
@@ -896,33 +885,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             const call = state.card.data.calls.find(x => x.id === id);
             if (call) call.comment = text;
             state.editingComment = null;
-            renderCard();
-        }
-    }
-
-    async function saveCalc() {
-        const items = cleanCalcItems(state.draft.lines);
-        if (!items.length) { state.errors.calc = 'Добавьте позиции'; return renderCard(); }
-        const D = state.card.data;
-        // Расчёт привязывается к звонку: к тому, из которого открыли карточку,
-        // если CRM его знает, иначе — к последнему, как это делает сама CRM.
-        const opened = state.selected && D.calls.find(x => x.dir === 'in' && Math.abs(callTime(x) - callTime(state.selected)) < 120_000);
-        const callId = opened?.id || D.calls[0]?.id || '';
-        const out = await act('calc', () => apiFetch(`/api/crm/leads/clients/${clientId()}/calcs`, {
-            method: 'POST', body: { callId, car: state.draft.calcCar ?? D.client.car, items },
-        }));
-        if (out) {
-            state.draft.lines = [{ name: '', price: '', qty: '1' }];
-            renderCard();
-        }
-    }
-
-    async function delCalc(id) {
-        if (!confirm('Удалить расчёт?')) return;
-        const out = await act('calc-del', () => apiFetch(`/api/crm/leads/calcs/${id}`, { method: 'DELETE' }), { flash: '' });
-        if (out) {
-            const D = state.card.data;
-            D.calcs = D.calcs.filter(x => x.id !== id);
             renderCard();
         }
     }
@@ -952,7 +914,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         if (out?.card) {
             state.card = { status: 'ready', phone, data: out.card };
             state.draft = freshDraft();
-            ensureServices();
             renderCard();
         }
     }
@@ -999,6 +960,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             state.openSales = new Map();
             state.editingName = false;
             state.editingComment = null;
+            state.pendingStatus = null;
             state.card = { status: 'loading', phone: key };
             shell.classList.add('ld-has-card');
             renderFeed();
