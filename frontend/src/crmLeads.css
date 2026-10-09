@@ -241,7 +241,8 @@ summary.ld-h { cursor: pointer; }
 /* ── Статусы: строка цветных кнопок, как стадии лида в Битриксе ──────────
    Цвет у каждой кнопки свой (--tone), невыбранная — тонированная плашка,
    выбранная — залитая. Светлота тона своя у каждой темы: на тёмной заливке
-   текст тёмный, на светлой — белый, как у акцента. */
+   текст тёмный, на светлой — белый, и светлота там та же, что у акцента
+   (0.52): белый текст на ней держит AA (см. accentContrast.test.js). */
 .ld-statuses { display: flex; flex-direction: column; gap: var(--s-2); }
 .ld-stp-row { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; }
 .ld-stp {
@@ -259,7 +260,7 @@ summary.ld-h { cursor: pointer; }
   cursor: pointer;
   transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
 }
-:root[data-theme="light"] .ld-stp { --tone: oklch(0.55 0.15 var(--tone-h)); --tone-ink: oklch(1 0 0); }
+:root[data-theme="light"] .ld-stp { --tone: oklch(0.52 0.15 var(--tone-h)); --tone-ink: oklch(1 0 0); }
 .ld-stp:hover { background: color-mix(in oklab, var(--tone) 26%, transparent); border-color: var(--tone); }
 .ld-stp.on { background: var(--tone); border-color: var(--tone); color: var(--tone-ink); }
 .ld-stp.pending { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--tone); }
