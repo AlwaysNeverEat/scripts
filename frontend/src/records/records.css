@@ -1453,6 +1453,20 @@
 .rc-times .chip small { display: block; font-size: 9px; opacity: 0.7; }
 
 .rc-mini-btn { font-size: 11px; padding: var(--s-1) var(--s-2); display: inline-flex; align-items: center; gap: var(--s-1); }
+/* Плашка «Имя и телефон — из открытого лида»: поля заполнились сами, и
+   человек должен видеть, откуда, — иначе чужое имя в окне выглядит сбоем. */
+.rc-from-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-2);
+  background: var(--accent-dim);
+  font-size: 12.5px;
+  margin-bottom: var(--s-2);
+}
+.rc-from-lead > span { flex: 1; min-width: 0; }
+.rc-from-lead svg { flex: none; }
 
 .rc-station-select { display: flex; gap: var(--s-2); align-items: center; margin-top: var(--s-1); }
 
