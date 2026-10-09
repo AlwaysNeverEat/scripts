@@ -154,7 +154,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         editingName: false,
         editingComment: null,
         authNote: '',
-        operator: '',          // свой код оператора — его звонки идут первыми
+        operator: '',          // свой код оператора — его звонки помечены «мой»
     };
 
     const operatorStoreKey = () => `${OPERATOR_KEY}:${getUserId() || 'anon'}`;
@@ -168,8 +168,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             else localStorage.removeItem(operatorStoreKey());
         } catch { /* приватный режим — код живёт до перезагрузки */ }
         if (!state.operator && state.filter === 'mine') state.filter = 'all';
-        sortFeed(state.calls, { mine: state.operator });
-    }
+            }
 
     function freshDraft() {
         return { name: '', car: '', note: '', calcCar: null, lines: [{ name: '', price: '', qty: '1' }], status: null, nextCall: null, source: null, comment: '' };
@@ -183,7 +182,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
     async function loadFeed() {
         try {
             const data = await apiFetch('/api/crm/leads/feed');
-            state.calls = sortFeed(data.calls || [], { mine: state.operator });
+            state.calls = sortFeed(data.calls || []);
             state.journal = data.journal || 'ok';
             state.feedStatus = 'ready';
             state.feedError = '';
@@ -280,7 +279,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             <div class="ld-feed-head">
                 <div class="ld-feed-top">
                     <div class="ld-feed-title">Звонки <span class="ld-muted">${state.calls.length || ''}</span></div>
-                    <label class="ld-op" title="Ваш внутренний номер в телефонии: звонки на него встанут первыми. Помнится на этом компьютере.">
+                    <label class="ld-op" title="Ваш внутренний номер в телефонии: звонки на него будут помечены «мой». Помнится на этом компьютере.">
                         <span>Мой код</span>
                         <input id="ld-op" class="ld-in" inputmode="numeric" maxlength="6" placeholder="101" value="${esc(state.operator)}" autocomplete="off">
                     </label>
@@ -936,8 +935,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         activate() {
             active = true;
             loadOperator();
-            sortFeed(state.calls, { mine: state.operator });
-            if (state.feedStatus !== 'auth') loadFeed();
+                        if (state.feedStatus !== 'auth') loadFeed();
             schedule();
         },
         // Ушли с вкладки — опрос встаёт: ходить в CRM за лентой, которую

@@ -7,6 +7,7 @@
 //   • ручки под личной сессией — backend/src/routes/crmChats.js;
 //   • счётчик на вкладке и уведомление о новом — chatPulse.js (он живёт на
 //     всём сайте, а не только здесь);
+//   • пасты справа (заготовленные ответы по темам) — chatPastes.js;
 //   • песочница без CRM — frontend/dev-chats.html.
 //
 // Список и открытый диалог перечитываются раз в 8 секунд, пока вкладка
@@ -20,6 +21,8 @@
 import './crmLeads.css'; // общие кирпичики: чипы, поиск, пустые состояния, скелеты
 import './crmChats.css';
 import { CHANNELS, channelLabel } from '../../shared/crmChats.js';
+import { firstBlank } from '../../shared/chatPastes.js';
+import { initChatPastes } from './chatPastes.js';
 
 const POLL_MS = 8000;
 
@@ -43,11 +46,12 @@ const ICON = {
     search: (s) => svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', s),
     bell: (s) => svg('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>', s),
     user: (s) => svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', s),
+    paste: (s) => svg('<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>', s),
 };
 
 const chanBadge = (ch) => `<span class="ch-chan ch-chan-${esc(ch || 'x')}">${esc(channelLabel(ch))}</span>`;
 
-export function initCrmChats({ apiFetch, pulse = null, onOpenClient = () => {} }) {
+export function initCrmChats({ apiFetch, pulse = null, onOpenClient = () => {}, getUserId = () => null }) {
     const host = document.getElementById('chats-body');
     host.innerHTML = `
         <div class="ch">
@@ -56,11 +60,23 @@ export function initCrmChats({ apiFetch, pulse = null, onOpenClient = () => {} }
                 <div class="ch-list" id="ch-list"></div>
             </aside>
             <section class="ch-thread" id="ch-thread"></section>
+            <aside class="ch-pastes" id="ch-pastes"></aside>
         </div>`;
     const shell = host.querySelector('.ch');
     const filtersEl = host.querySelector('#ch-filters');
     const listEl = host.querySelector('#ch-list');
     const threadEl = host.querySelector('#ch-thread');
+
+    // Пасты — справа на широком экране, выезжающей панелью на узком (кнопка
+    // «Пасты» у поля ответа). Вставка идёт в поле ответа открытого диалога.
+    const pastes = initChatPastes({
+        host: host.querySelector('#ch-pastes'),
+        apiFetch,
+        getUserId,
+        onInsert: (text) => insertIntoReply(text),
+        onClose: () => shell.classList.remove('ch-pastes-open'),
+    });
+    let pastesLoaded = false;
 
     const state = {
         status: 'open',
@@ -286,7 +302,10 @@ export function initCrmChats({ apiFetch, pulse = null, onOpenClient = () => {} }
                 <div class="ch-msgs" id="ch-msgs"></div>
                 <div class="ch-compose">
                     <textarea id="ch-reply" class="ld-in" rows="2" placeholder="Ответ клиенту… Enter — отправить, Shift+Enter — новая строка"></textarea>
-                    <button type="button" class="btn btn-pri ch-send" data-act="send">${ICON.send(14)} Отправить</button>
+                    <div class="ch-compose-acts">
+                        <button type="button" class="btn btn-sec ch-pastes-toggle" data-act="pastes">${ICON.paste(14)} Пасты</button>
+                        <button type="button" class="btn btn-pri ch-send" data-act="send">${ICON.send(14)} Отправить</button>
+                    </div>
                 </div>
                 <div id="ch-send-err"></div>`;
             const ta = threadEl.querySelector('#ch-reply');
@@ -297,6 +316,7 @@ export function initCrmChats({ apiFetch, pulse = null, onOpenClient = () => {} }
                 if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
             });
             threadEl.querySelector('[data-act="send"]').onclick = () => send();
+            threadEl.querySelector('[data-act="pastes"]').onclick = () => shell.classList.toggle('ch-pastes-open');
             scroll = true;
         }
         threadEl.querySelector('#ch-head').innerHTML = headHtml(dialog);
@@ -328,6 +348,26 @@ export function initCrmChats({ apiFetch, pulse = null, onOpenClient = () => {} }
             lq.oninput = () => { state.linking.q = lq.value; };
             lq.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); linkSearch(); } };
         }
+    }
+
+    // Паста ложится на место каретки (или вместо выделенного), а выделяется
+    // первый пропуск «_» внутри неё — его сразу перепечатывают адресом или
+    // ценой. Отправляет всё равно человек: в пасте почти всегда есть что
+    // дописать.
+    function insertIntoReply(text) {
+        const ta = threadEl.querySelector('#ch-reply');
+        if (!ta || state.threadStatus !== 'ready') return false;
+        const start = ta.selectionStart ?? ta.value.length;
+        const end = ta.selectionEnd ?? start;
+        ta.focus();
+        ta.setRangeText(text, start, end, 'end');
+        ta.dispatchEvent(new Event('input', { bubbles: true })); // черновик диалога
+        const blank = firstBlank(ta.value, start);
+        if (blank && blank.end <= start + text.length) ta.setSelectionRange(blank.start, blank.end);
+        // На узком экране панель закрывает переписку — после вставки ей там
+        // делать нечего.
+        shell.classList.remove('ch-pastes-open');
+        return true;
     }
 
     async function send() {
@@ -424,6 +464,7 @@ export function initCrmChats({ apiFetch, pulse = null, onOpenClient = () => {} }
     return {
         activate() {
             active = true;
+            if (!pastesLoaded) { pastesLoaded = true; pastes.load(); }
             renderFilters(); // разрешение на уведомления могли дать в другом месте
             loadList();
             if (state.activeId) loadThread();

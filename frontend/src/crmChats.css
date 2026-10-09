@@ -2,9 +2,14 @@
    кирпичики — чипы, поиск, пустые состояния, скелеты — из crmLeads.css: две
    соседние вкладки про CRM обязаны выглядеть одной системой. */
 
+.page-head.chats-body, .page-body.chats-body { max-width: 1480px; }
+
+/* Три колонки: диалоги, переписка, пасты. Ниже 1200px пастам места нет —
+   они выезжают панелью справа по кнопке «Пасты» у поля ответа (см. конец
+   файла). */
 .ch {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(280px, 340px);
   gap: var(--s-4);
   align-items: start;
 }
@@ -134,8 +139,154 @@
 .ch-failed { color: var(--red); font-weight: 600; }
 
 .ch-compose { display: flex; gap: var(--s-2); align-items: flex-end; border-top: 1px solid var(--border); padding-top: var(--s-2); }
-.ch-compose textarea { flex: 1; resize: vertical; min-height: 44px; max-height: 160px; }
-.ch-send { display: inline-flex; align-items: center; gap: var(--s-2); white-space: nowrap; }
+.ch-compose textarea { flex: 1; resize: vertical; min-height: 44px; max-height: 240px; }
+.ch-compose-acts { display: flex; flex-direction: column; gap: var(--s-1); }
+.ch-send, .ch-pastes-toggle { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); white-space: nowrap; }
+.ch-pastes-toggle { display: none; }
+
+/* ── Пасты (chatPastes.js) ─────────────────────────────────────────────── */
+
+.ch-pastes {
+  position: sticky;
+  top: calc(var(--tabs-h) + var(--s-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: calc(100vh - var(--tabs-h) - var(--s-6));
+  min-width: 0;
+}
+.cp-head { display: flex; align-items: center; gap: var(--s-2); }
+.cp-head-t { flex: 1; display: inline-flex; align-items: center; gap: var(--s-2); font-size: 14px; }
+.cp-close {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
+  padding: var(--s-1);
+  border-radius: var(--r-2);
+}
+.cp-close:hover { color: var(--text); background: var(--bg2); }
+
+/* Таблетки тем. Тема в базе не длиннее 24 знаков (TOPIC_MAX), но и 24 знака
+   крупным шрифтом — полпанели, поэтому ширина ещё и обрезается многоточием:
+   одна длинная тема не должна выталкивать из фильтра все остальные. Полное
+   имя — в подсказке. */
+.cp-filters .ld-chip { max-width: 100%; }
+.cp-filter .cp-tag-t { max-width: 15ch; }
+.cp-tag-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 18ch;
+  font-size: 11.5px;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-round);
+  background: var(--accent-dim);
+  color: var(--text);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.cp-tag-s { font-size: 10.5px; padding: 0 var(--s-2); max-width: 16ch; }
+.cp-tag-add { background: transparent; border-color: var(--border); cursor: pointer; color: var(--sub); }
+.cp-tag-add:hover { border-color: var(--accent); color: var(--text); }
+.cp-tag-x { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; display: inline-flex; opacity: .65; }
+.cp-tag-x:hover { opacity: 1; }
+
+.cp-list { display: flex; flex-direction: column; gap: var(--s-2); overflow-y: auto; min-height: 0; flex: 1; padding-bottom: var(--s-2); }
+.cp-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  border-radius: var(--r-3);
+  padding: var(--s-2) var(--s-3);
+}
+.cp-card:hover { border-color: color-mix(in oklab, var(--accent) 45%, var(--border)); }
+.cp-title { font-weight: 700; font-size: 13px; }
+.cp-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+/* Текст пасты свёрнут до четырёх строк: тридцать паст целиком — это
+   простыня, в которой нужную ищут прокруткой. Клик разворачивает. */
+.cp-body {
+  font-size: 12.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  cursor: pointer;
+  color: color-mix(in oklab, var(--text) 85%, var(--sub));
+}
+.cp-body-open { display: block; -webkit-line-clamp: unset; line-clamp: none; overflow: visible; }
+.cp-acts { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; margin-top: 2px; }
+.cp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--r-2);
+  padding: 2px var(--s-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.cp-btn:hover { border-color: var(--accent); }
+.cp-btn:disabled { opacity: .6; cursor: progress; }
+.cp-btn-ico { padding: 3px var(--s-1); color: var(--sub); }
+.cp-btn-ico:hover { color: var(--text); }
+.cp-btn-done { border-color: var(--green); color: var(--green); }
+.cp-btn-danger { border-color: color-mix(in oklab, var(--red) 60%, var(--border)); color: var(--red); }
+.cp-confirm { font-size: 12px; font-weight: 600; margin-right: var(--s-1); }
+/* «Вставить» — главное действие: его ищут глазами чаще остальных. */
+.cp-acts [data-act="insert"] { border-color: color-mix(in oklab, var(--accent) 55%, var(--border)); }
+
+.cp-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  border: 1px solid var(--accent);
+  background: var(--bg2);
+  border-radius: var(--r-3);
+  padding: var(--s-3);
+}
+.cp-edit-title { font-weight: 700; font-size: 13px; }
+.cp-edit textarea { min-height: 120px; line-height: 1.45; }
+.cp-edit-topics { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; }
+.cp-topic-in { flex: 1; min-width: 120px; width: auto; padding: var(--s-1) var(--s-2); font-size: 12px; }
+.cp-suggest { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; font-size: 11.5px; }
+.cp-edit-acts { display: flex; gap: var(--s-2); }
+
+@media (max-width: 1199px) {
+  .ch { grid-template-columns: minmax(250px, 300px) minmax(0, 1fr); }
+  .ch-pastes-toggle { display: inline-flex; }
+  .cp-close { display: inline-flex; }
+  /* Узко — пасты выезжают панелью справа поверх переписки. */
+  .ch-pastes {
+    display: none;
+    position: fixed;
+    top: calc(var(--tabs-h) + var(--s-2));
+    right: var(--s-3);
+    bottom: var(--s-3);
+    width: min(360px, calc(100vw - 2 * var(--s-3)));
+    max-height: none;
+    z-index: 40;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r-4);
+    padding: var(--s-3);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+  }
+  .ch-pastes-open .ch-pastes { display: flex; }
+}
 
 @media (max-width: 760px) {
   .ch { grid-template-columns: minmax(0, 1fr); }

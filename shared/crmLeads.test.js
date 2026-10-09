@@ -154,7 +154,7 @@ test('живой звонок со вчера — «без исхода», а н
     assert.deepEqual(feed.filter(isLive).map(c => c.id), ['2', '3']);
 });
 
-test('код оператора: свои звонки первыми, «03» и «3» — один человек', () => {
+test('код оператора: свои только помечаются, «03» и «3» — один человек', () => {
     assert.equal(operatorKey('03'), '3');
     assert.equal(operatorKey('оператор 101'), '101');
     assert.equal(isMine({ operator: '03' }, '3'), true);
@@ -165,6 +165,6 @@ test('код оператора: свои звонки первыми, «03» и
         { id: 'c', operator: '101', status: 'answered', at: '2026-10-08 07:00:00' },
         { id: 'd', operator: '', status: 'completed', at: '2026-10-08 09:05:00' },
     ];
-    assert.deepEqual(sortFeed([...calls], { mine: '101' }).map(c => c.id), ['c', 'b', 'a', 'd']);
-    assert.deepEqual(sortFeed([...calls]).map(c => c.id), ['a', 'c', 'd', 'b'], 'без кода — как раньше');
+    assert.deepEqual(sortFeed([...calls]).map(c => c.id), ['a', 'c', 'd', 'b'], 'живые сверху, дальше свежие — чей звонок, порядок не меняет');
+    assert.deepEqual(calls.filter(c => isMine(c, '101')).map(c => c.id), ['b', 'c']);
 });

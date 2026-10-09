@@ -881,6 +881,7 @@ const crmChats = initCrmChats({
     pulse: chatPulse,
     // «Карточка клиента» из переписки — та же карточка лида на вкладке «Лиды».
     onOpenClient: (clientId) => { navigate('/leads'); crmLeads.openClient(clientId); },
+    getUserId: () => currentUser?.id,
 });
 const stockSearch = initStockSearch({ apiFetch });
 

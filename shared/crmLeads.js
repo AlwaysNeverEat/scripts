@@ -90,11 +90,12 @@ export const isMine = (call, code) => {
     return Boolean(k) && operatorKey(call?.operator) === k;
 };
 
-// Порядок ленты: свои (по коду оператора, который человек указал у себя) —
-// первыми, внутри каждой части живые сверху, дальше свежие.
-export function sortFeed(calls, { mine = '' } = {}) {
-    return calls.sort((a, b) => (isMine(b, mine) - isMine(a, mine))
-        || (isLive(b) - isLive(a))
+// Порядок ленты: живые сверху, дальше свежие. Свои звонки (по коду
+// оператора) НЕ поднимаются, а только помечаются: первая версия ставила их
+// первыми, и вчерашний свой звонок висел над сегодняшними чужими — лента
+// переставала отвечать на главный вопрос «кто звонил только что».
+export function sortFeed(calls) {
+    return calls.sort((a, b) => (isLive(b) - isLive(a))
         || (callTime(b) - callTime(a)));
 }
 
