@@ -153,7 +153,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         openSales: new Map(),  // id чека → { status, sale }
         editingName: false,
         editingComment: null,
-        pendingStatus: null,   // статус, выбранный кнопкой и ждущий подтверждения
         authNote: '',
         operator: '',          // свой код оператора — его звонки помечены «мой»
     };
@@ -404,7 +403,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         state.openSales = new Map();
         state.editingName = false;
         state.editingComment = null;
-        state.pendingStatus = null;
         state.card = { status: 'loading', phone: call.phone };
         shell.classList.add('ld-has-card');
         renderFeed();
@@ -590,28 +588,21 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
     const savedHtml = (key) => (state.flash === key ? `<span class="ld-ok ld-saved">${ICON.check(12)} Сохранено</span>` : '');
 
     // Статусы — строкой цветных кнопок, как стадии лида в Битриксе, и прочерк
-    // («статус не стоит») среди них на равных: им пользуются. Нажатая кнопка
-    // не сохраняет сразу, а спрашивает — статус меняют посреди разговора, и
-    // промах мышью по соседней кнопке иначе молча уезжал бы в CRM.
+    // («статус не стоит») среди них на равных: им пользуются. Нажатие сразу
+    // сохраняет — как в Битриксе, без «точно?». Чтобы при этом было видно,
+    // ЧТО стоит, остальные кнопки приглушены: на строке из девяти цветных
+    // кнопок одна залитая среди восьми ярких не читалась с первого взгляда.
     function statusesHtml(D) {
         const cur = D.plan.status;
-        const pending = state.pendingStatus;
+        const busy = state.busy.has('status');
         const pills = ['', ...LEAD_STATUSES].map(s => {
             const on = s === cur;
-            const cls = `ld-stp ld-stp-${STATUS_TONE[s] || 'gray'}${on ? ' on' : ''}${pending === s ? ' pending' : ''}`;
-            return `<button type="button" class="${cls}" data-status="${esc(s)}" aria-pressed="${on}"${state.busy.has('status') ? ' disabled' : ''}>${esc(s || '—')}</button>`;
+            const cls = `ld-stp ld-stp-${STATUS_TONE[s] || 'gray'}${on ? ' on' : ''}`;
+            return `<button type="button" class="${cls}" data-status="${esc(s)}" aria-pressed="${on}"${busy ? ' disabled' : ''}>${on && busy ? '<span class="ld-spin" aria-hidden="true"></span>' : ''}${esc(s || '—')}</button>`;
         }).join('');
-        const confirmRow = pending != null
-            ? `<div class="ld-st-confirm">
-                Статус: <b>${esc(cur || '—')}</b> → <b>${esc(pending || '—')}</b>
-                <button type="button" class="btn btn-pri ld-mini" data-act="status-yes"${busyAttr('status')}>${state.busy.has('status') ? '<span class="ld-spin" aria-hidden="true"></span>Сохраняю…' : 'Сохранить'}</button>
-                <button type="button" class="btn btn-sec ld-mini" data-act="status-no">Отмена</button>
-               </div>`
-            : '';
         return `
         <div class="ld-statuses">
             <div class="ld-stp-row" role="group" aria-label="Статус лида">${pills}${savedHtml('status')}</div>
-            ${confirmRow}
             ${errHtml('status')}
         </div>`;
     }
@@ -793,14 +784,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote(); }
         });
 
-        on('[data-status]', (b) => {
-            const s = b.dataset.status;
-            state.pendingStatus = s === state.card.data.plan.status ? null : s;
-            renderCard();
-            cardEl.querySelector('[data-act="status-yes"]')?.focus();
-        });
-        on('[data-act="status-yes"]', () => saveStatus());
-        on('[data-act="status-no"]', () => { state.pendingStatus = null; renderCard(); });
+        on('[data-status]', (b) => saveStatus(b.dataset.status));
         const source = cardEl.querySelector('[data-act="source"]');
         if (source) source.onchange = () => saveSource(source.value);
         on('[data-act="copy-phone"]', () => copyPhone());
@@ -840,16 +824,22 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
     // Статус уходит в CRM тем же действием, что и дата следующего звонка
     // (cc_callplan_save принимает их парой), поэтому дату отправляем ту, что
     // уже стоит в CRM: блока даты на карточке нет, и стирать её никто не просил.
-    async function saveStatus() {
+    //
+    // Выбор показывается сразу, ещё до ответа CRM (нажатая кнопка заливается
+    // и крутит значок), а если CRM отказала — возвращается прежний статус и
+    // под строкой пишется почему: молча оставить залитой кнопку, которой в CRM
+    // нет, значило бы соврать о лиде.
+    async function saveStatus(status) {
         const D = state.card.data;
-        const status = state.pendingStatus;
-        if (status == null) return;
+        const prev = D.plan.status;
+        if (status === prev || state.busy.has('status')) return;
+        D.plan = { ...D.plan, status };
         const out = await act('status', () => apiFetch(`/api/crm/leads/clients/${clientId()}/plan`, {
             method: 'POST', body: { status, nextCall: D.plan.nextCall },
         }));
-        if (out) {
-            D.plan = { ...D.plan, status };
-            state.pendingStatus = null;
+        if (!out) {
+            D.plan = { ...D.plan, status: prev };
+            state.errors.status = `Статус не сохранился, остался «${prev || '—'}»: ${state.errors.status}`;
             renderCard();
         }
     }
@@ -960,8 +950,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             state.openSales = new Map();
             state.editingName = false;
             state.editingComment = null;
-            state.pendingStatus = null;
-            state.card = { status: 'loading', phone: key };
+                state.card = { status: 'loading', phone: key };
             shell.classList.add('ld-has-card');
             renderFeed();
             renderCard();

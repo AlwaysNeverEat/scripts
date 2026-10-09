@@ -263,8 +263,12 @@ summary.ld-h { cursor: pointer; }
 :root[data-theme="light"] .ld-stp { --tone: oklch(0.52 0.15 var(--tone-h)); --tone-ink: oklch(1 0 0); }
 .ld-stp:hover { background: color-mix(in oklab, var(--tone) 26%, transparent); border-color: var(--tone); }
 .ld-stp.on { background: var(--tone); border-color: var(--tone); color: var(--tone-ink); }
-.ld-stp.pending { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--tone); }
-.ld-stp:disabled { cursor: progress; opacity: .7; }
+/* Пока статус выбран, остальные приглушены — стоящий читается сразу.
+   Наведение возвращает кнопке цвет: видно, куда нажимаешь. */
+.ld-stp-row:has(.ld-stp.on) .ld-stp:not(.on) { opacity: .42; }
+.ld-stp-row:has(.ld-stp.on) .ld-stp:not(.on):hover { opacity: 1; }
+.ld-stp:disabled { cursor: progress; }
+.ld-stp .ld-spin { width: 10px; height: 10px; }
 .ld-stp-gray { --tone-h: 252; }
 .ld-stp-gray, :root[data-theme="light"] .ld-stp-gray { --tone: var(--sub); }
 .ld-stp-blue { --tone-h: 250; }
@@ -274,17 +278,6 @@ summary.ld-h { cursor: pointer; }
 .ld-stp-red { --tone-h: 25; }
 .ld-stp-green { --tone-h: 148; }
 .ld-stp-pink { --tone-h: 350; }
-.ld-st-confirm {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  font-size: 13px;
-  padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-3);
-  background: var(--bg2);
-  border: 1px solid var(--border-strong);
-}
 
 /* ── Две колонки: «О лиде» и комментарий | история звонков ─────────────── */
 .ld-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--s-3); align-items: start; }
@@ -327,7 +320,25 @@ textarea.ld-in { resize: vertical; }
 .ld-kpi-cell span { font-size: 11px; color: var(--sub); }
 .ld-kpi-cell b { font-size: 16px; font-variant-numeric: tabular-nums; }
 
-.ld-calls { display: flex; flex-direction: column; gap: var(--s-1); max-height: 560px; overflow-y: auto; }
+/* История звонков — окно на пять-шесть звонков, дальше прокрутка ВНУТРИ.
+   Полоса прокрутки здесь ВОЗВРАЩЕНА нарочно, вопреки общему правилу «у
+   вложенного полосы нет» (style.css): у постоянного клиента звонков десятки,
+   и без полосы обрезанный список читается как вся история. Полоса и есть
+   подсказка «тут ещё есть». Скруглённых углов, которые она ломала, у самого
+   списка нет — он лежит внутри блока с отступом. */
+.ld-calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: var(--s-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.ld-calls::-webkit-scrollbar { width: 8px; }
+.ld-calls::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--r-round); }
+.ld-calls::-webkit-scrollbar-track { background: transparent; }
 .ld-callrow { padding: var(--s-2); border-radius: var(--r-2); background: var(--bg2); display: flex; flex-direction: column; gap: var(--s-1); font-size: 12.5px; }
 .ld-callrow-this { box-shadow: inset 3px 0 0 var(--accent); }
 .ld-callrow-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); font-variant-numeric: tabular-nums; }
