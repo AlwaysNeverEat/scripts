@@ -1,9 +1,10 @@
 /* Вкладка «Лиды»: лента звонков слева, карточка лида справа (crmLeads.js).
 
    Лента — короткие строки, читаемые взглядом: номер и время в первой строке,
-   кто звонит во второй, статус звонка цветом. Карточка — блоками в том же
-   порядке, что карточка CRM, но первым стоит блок «Лид» (статус, следующий
-   звонок, источник): ради него вкладку и открывают. На узком экране колонки
+   кто звонит во второй, статус звонка цветом. Карточка — в раскладке
+   карточки лида Битрикса: имя и строка цветных статусов сверху, «О лиде» и
+   комментарий слева, история звонков справа, цифры и обслуживания внизу.
+   На узком экране колонки
    не делятся — открытая карточка встаёт на место ленты, «К звонкам» её
    возвращает. */
 
@@ -44,7 +45,7 @@
 .ld-feed-note { color: var(--sub); font-size: 11.5px; padding: var(--s-1) 2px; }
 .ld-feed-warn { color: var(--red); }
 
-.ld-chips, .ld-quick { display: flex; gap: var(--s-1); flex-wrap: wrap; }
+.ld-chips { display: flex; gap: var(--s-1); flex-wrap: wrap; }
 .ld-chip {
   border: 1px solid var(--border);
   background: var(--bg2);
@@ -182,9 +183,14 @@
 
 .ld-head { display: flex; flex-direction: column; gap: var(--s-1); }
 .ld-head-row { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
-.ld-name { font-size: 20px; font-weight: 800; }
-.ld-name-edit { display: flex; gap: var(--s-2); flex-wrap: wrap; align-items: center; }
-.ld-in-name { font-size: 16px; font-weight: 700; min-width: 240px; }
+.ld-name { font-size: 26px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.ld-name-edit { display: flex; gap: var(--s-1); align-items: center; flex: 1; min-width: 0; }
+.ld-in-name { font-size: 22px; font-weight: 800; max-width: 560px; padding: var(--s-1) var(--s-3); }
+.ld-icon-ok { color: var(--green); }
+.ld-head-refresh { margin-left: auto; }
+.ld-saved { animation: ld-saved 2.2s ease-out both; }
+@keyframes ld-saved { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ld-saved { animation: none; } }
 .ld-phone { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .ld-icon-btn {
@@ -229,21 +235,66 @@ details.ld-block { display: block; }
 details.ld-block > :not(summary) { margin-top: var(--s-2); }
 .ld-h { font-weight: 700; font-size: 14px; }
 summary.ld-h { cursor: pointer; }
-.ld-h2 { font-weight: 600; font-size: 13px; }
-.ld-sub > .ld-chip { align-self: flex-start; }
-.ld-sub {
-  border-top: 1px solid var(--border);
-  padding-top: var(--s-3);
+
+.ld-grid2 { display: grid; gap: var(--s-2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* ── Статусы: строка цветных кнопок, как стадии лида в Битриксе ──────────
+   Цвет у каждой кнопки свой (--tone), невыбранная — тонированная плашка,
+   выбранная — залитая. Светлота тона своя у каждой темы: на тёмной заливке
+   текст тёмный, на светлой — белый, и светлота там та же, что у акцента
+   (0.52): белый текст на ней держит AA (см. accentContrast.test.js). */
+.ld-statuses { display: flex; flex-direction: column; gap: var(--s-2); }
+.ld-stp-row { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; }
+.ld-stp {
+  --tone: oklch(0.74 0.13 var(--tone-h));
+  --tone-ink: oklch(0.16 0.02 252);
+  border: 1px solid color-mix(in oklab, var(--tone) 45%, transparent);
+  background: color-mix(in oklab, var(--tone) 14%, transparent);
+  color: color-mix(in oklab, var(--tone) 75%, var(--text));
+  border-radius: var(--r-2);
+  padding: var(--s-1) var(--s-3);
+  min-width: 44px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
+}
+:root[data-theme="light"] .ld-stp { --tone: oklch(0.52 0.15 var(--tone-h)); --tone-ink: oklch(1 0 0); }
+.ld-stp:hover { background: color-mix(in oklab, var(--tone) 26%, transparent); border-color: var(--tone); }
+.ld-stp.on { background: var(--tone); border-color: var(--tone); color: var(--tone-ink); }
+.ld-stp.pending { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--tone); }
+.ld-stp:disabled { cursor: progress; opacity: .7; }
+.ld-stp-gray { --tone-h: 252; }
+.ld-stp-gray, :root[data-theme="light"] .ld-stp-gray { --tone: var(--sub); }
+.ld-stp-blue { --tone-h: 250; }
+.ld-stp-orange { --tone-h: 55; }
+.ld-stp-violet { --tone-h: 305; }
+.ld-stp-teal { --tone-h: 195; }
+.ld-stp-red { --tone-h: 25; }
+.ld-stp-green { --tone-h: 148; }
+.ld-stp-pink { --tone-h: 350; }
+.ld-st-confirm {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  flex-wrap: wrap;
   gap: var(--s-2);
+  font-size: 13px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-3);
+  background: var(--bg2);
+  border: 1px solid var(--border-strong);
 }
 
-/* Блок «Лид» — главный на экране: рамка акцентом. */
-.ld-lead { border-color: color-mix(in oklab, var(--accent) 60%, var(--border)); }
-.ld-grid2, .ld-grid3 { display: grid; gap: var(--s-2); }
-.ld-grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.ld-grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* ── Две колонки: «О лиде» и комментарий | история звонков ─────────────── */
+.ld-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--s-3); align-items: start; }
+.ld-col { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.ld-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-2) var(--s-4); align-items: center; font-size: 13.5px; }
+.ld-k { color: var(--sub); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.ld-v { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ld-phone-row { flex-direction: row; align-items: center; gap: var(--s-1); }
+.ld-phone-row .ld-phone { font-size: 16px; }
+.ld-notes-list { max-height: 280px; overflow-y: auto; }
 .ld-field { display: flex; flex-direction: column; gap: var(--s-1); font-size: 12px; color: var(--sub); min-width: 0; position: relative; }
 .ld-in {
   border: 1px solid var(--border);
@@ -259,11 +310,6 @@ summary.ld-h { cursor: pointer; }
 }
 .ld-in:focus { outline: none; border-color: var(--accent); }
 textarea.ld-in { resize: vertical; }
-.ld-date-btn { text-align: left; cursor: pointer; display: flex; align-items: center; gap: var(--s-2); }
-/* Модель даты для календаря (datepicker.js): невидима, но не display:none —
-   на таче showPicker() у скрытого так поле не открывается. */
-.ld-date-model { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.ld-lead-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); flex-wrap: wrap; font-size: 12.5px; }
 
 .ld-kpi {
   display: grid;
@@ -281,7 +327,7 @@ textarea.ld-in { resize: vertical; }
 .ld-kpi-cell span { font-size: 11px; color: var(--sub); }
 .ld-kpi-cell b { font-size: 16px; font-variant-numeric: tabular-nums; }
 
-.ld-calls { display: flex; flex-direction: column; gap: var(--s-1); max-height: 360px; overflow-y: auto; }
+.ld-calls { display: flex; flex-direction: column; gap: var(--s-1); max-height: 560px; overflow-y: auto; }
 .ld-callrow { padding: var(--s-2); border-radius: var(--r-2); background: var(--bg2); display: flex; flex-direction: column; gap: var(--s-1); font-size: 12.5px; }
 .ld-callrow-this { box-shadow: inset 3px 0 0 var(--accent); }
 .ld-callrow-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); font-variant-numeric: tabular-nums; }
@@ -305,14 +351,9 @@ textarea.ld-in { resize: vertical; }
 .ld-item { border-top: 1px solid var(--border); padding: var(--s-2) 0; font-size: 12.5px; display: flex; flex-direction: column; gap: 2px; }
 .ld-item:first-of-type { border-top: 0; }
 .ld-item-top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
-.ld-item-when { margin-left: auto; font-size: 11.5px; }
 .ld-note-text { white-space: pre-wrap; overflow-wrap: anywhere; }
-.ld-note-add { display: flex; gap: var(--s-2); align-items: flex-start; }
-.ld-note-add .btn { flex: none; }
-
-.ld-line { display: grid; grid-template-columns: minmax(0, 1fr) 96px 52px auto; gap: var(--s-1); align-items: center; margin-bottom: var(--s-1); }
-.ld-num { text-align: right; }
-.ld-qty { text-align: center; }
+.ld-note-add { display: flex; flex-direction: column; gap: var(--s-2); }
+.ld-note-add .btn { align-self: flex-end; display: inline-flex; align-items: center; gap: var(--s-1); }
 
 .ld-msg { max-width: 82%; padding: var(--s-1) var(--s-2); border-radius: var(--r-3); background: var(--bg2); margin: 2px 0; font-size: 12px; }
 .ld-msg-out { margin-left: auto; background: var(--accent-dim); }
@@ -370,8 +411,13 @@ textarea.ld-in { resize: vertical; }
   .ld-has-card .ld-feed { display: none; }
   .ld-has-card .ld-card { display: flex; }
   .ld-back { display: inline-flex; align-items: center; gap: var(--s-2); }
-  .ld-grid3, .ld-grid2 { grid-template-columns: minmax(0, 1fr); }
+  .ld-grid2 { grid-template-columns: minmax(0, 1fr); }
   .ld-sale-head { grid-template-columns: 96px minmax(0, 1fr) 76px 16px; }
   .ld-sale-head > :nth-child(3), .ld-sale-head > :nth-child(4), .ld-sale-head > :nth-child(5) { display: none; }
-  .ld-line { grid-template-columns: minmax(0, 1fr) 80px 44px auto; }
+  .ld-name { font-size: 22px; }
+}
+
+/* Карточке меньше ~760px — колонки одна под другой, звонки ниже «О лиде». */
+@media (max-width: 1180px) {
+  .ld-cols { grid-template-columns: minmax(0, 1fr); }
 }
