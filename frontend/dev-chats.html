@@ -5,6 +5,8 @@
      Ответы — в той форме, в какой их рисует код самой CRM (omni_dialogs /
      omni_thread / omni_counts / omni_waiting), с выдуманными людьми, и
      прогоняются через shared/crmChats.js — тот же путь, что на сервере.
+     Пасты справа — из стартового набора shared/chatPastes.js, живут в памяти
+     страницы и чистятся теми же правилами, что на сервере.
      Кнопка «Клиент пишет» добавляет входящее: видно счётчик на вкладке, «(N)»
      в заголовке и уведомление на рабочем столе (если разрешить).
 
@@ -19,11 +21,11 @@
   </script>
 </head>
 <body>
-  <div class="page-head" style="max-width:1040px">
+  <div class="page-head" style="max-width:1480px">
     <h2 class="page-title">Чаты — песочница</h2>
     <p class="page-sub">«Открытые линии» CRM: MAX, Telegram, ВК.</p>
   </div>
-  <div class="page-body" style="max-width:1040px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+  <div class="page-body" style="max-width:1480px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
     <span class="app-tab" id="app-tab-chats" style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:6px 12px">Чаты <span class="app-tab-badge hidden" id="chats-badge"></span></span>
     <button class="btn btn-sec" id="dev-in">Клиент пишет</button>
     <button class="btn btn-sec" id="dev-wait">Бот сдался — ждёт оператора</button>
@@ -33,7 +35,7 @@
     </select>
     <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
   </div>
-  <div class="page-body leads-body" style="max-width:1040px">
+  <div class="page-body leads-body chats-body">
     <div id="chats-body"></div>
   </div>
 
@@ -42,6 +44,10 @@
     import { initCrmChats } from './src/crmChats.js';
     import { initChatPulse } from './src/chatPulse.js';
     import { parseDialogs, parseThread, parseWaiting } from '../shared/crmChats.js';
+    import { DEFAULT_PASTES, cleanPaste, topicsOf } from '../shared/chatPastes.js';
+
+    let pid = 0;
+    let PASTES = DEFAULT_PASTES.map(p => ({ id: String(++pid), ...p }));
 
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -86,6 +92,20 @@
         if (m[2] === 'link') { d.client_id = Number(body.clientId); d.client = 'Привязанный клиент'; }
         return { ok: true };
       }
+      if (path.startsWith('/api/chat/pastes')) {
+        const id = path.split('/')[4];
+        const method = opts.method || 'GET';
+        // Копии, а не сами объекты: окно держит свой список, как с настоящим сервером.
+        if (method === 'GET') return { pastes: structuredClone(PASTES) };
+        if (method === 'DELETE') { PASTES = PASTES.filter(p => p.id !== id); return { ok: true }; }
+        const { paste, error } = cleanPaste(body, topicsOf(PASTES));
+        if (error) throw fail('bad_request', error);
+        if (method === 'POST') { const p = { id: String(++pid), ...paste }; PASTES.push(p); return { paste: structuredClone(p) }; }
+        const i = PASTES.findIndex(p => p.id === id);
+        if (i < 0) throw fail('not_found', 'пасты уже нет');
+        PASTES[i] = { id, ...paste };
+        return { paste: structuredClone(PASTES[i]) };
+      }
       if (path.startsWith('/api/crm/chats/clients')) return { clients: [{ id: '286805', name: 'Дамир', phone: '79293412767' }, { id: '172638', name: 'Андрей', phone: '79118348541' }] };
       throw new Error('dev: неизвестный путь ' + path);
     }
@@ -106,7 +126,7 @@
       badgeEl: document.getElementById('chats-badge'),
       onOpenDialog: (id) => chats.open(id),
     });
-    const chats = initCrmChats({ apiFetch: stubFetch, pulse, onOpenClient: (id) => alert('dev: карточка клиента ' + id + ' откроется на вкладке «Лиды»') });
+    const chats = initCrmChats({ apiFetch: stubFetch, pulse, getUserId: () => 'dev', onOpenClient: (id) => alert('dev: карточка клиента ' + id + ' откроется на вкладке «Лиды»') });
     pulse.start();
     chats.activate();
     document.getElementById('dev-theme').onclick = () => {
