@@ -53,7 +53,7 @@ import {
     arrowLeftIcon, arrowRightIcon, arrowUpIcon, arrowDownIcon,
 } from './icons.js';
 import tilesSheet from './assets/troika-tiles.webp';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'troika-modal';
@@ -1278,7 +1278,7 @@ function renderTop(state) {
             <div class="tro-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="tro-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="tro-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="tro-top-score">${Number(row.score).toLocaleString('ru-RU')}</span>
         </div>`).join('');
 

@@ -19,10 +19,12 @@
 
 import { accentPickerHtml, bindAccentPicker } from './accent.js';
 import { backgroundPickerHtml, bindBackgroundPicker } from './background.js';
+import { isDonationAdmin } from '../../shared/donations.js';
+import { openDonorsAdmin } from './donorsAdmin.js';
 
 const MODAL_ID = 'profile-settings-modal';
 
-export function openProfileSettings({ apiFetch, onLogout }) {
+export function openProfileSettings({ apiFetch, onLogout, user = null }) {
     document.getElementById(MODAL_ID)?.remove();
 
     const modal = document.createElement('div');
@@ -44,6 +46,16 @@ export function openProfileSettings({ apiFetch, onLogout }) {
                     ${backgroundPickerHtml()}
                     ${accentPickerHtml()}
                 </div>
+                ${isDonationAdmin(user) ? `
+                <!-- Только у того, кто платит за сервер (shared/donations.js):
+                     внести пополнение поддержавшего. Сервер проверяет то же. -->
+                <div class="pset-group">
+                    <div class="pset-head">
+                        <span class="pset-title">Поддержавшие проект</span>
+                        <span class="pset-meta">видно только вам</span>
+                    </div>
+                    <button class="btn btn-sec" id="pset-donors">Внести пополнение</button>
+                </div>` : ''}
                 <div class="pset-group">
                     <div class="pset-head">
                         <span class="pset-title">Аккаунт</span>
@@ -63,6 +75,8 @@ export function openProfileSettings({ apiFetch, onLogout }) {
     modal.querySelector('#pset-close').onclick = close;
 
     bindBackgroundPicker(modal);
+    const donorsBtn = modal.querySelector('#pset-donors');
+    if (donorsBtn) donorsBtn.onclick = () => { close(); openDonorsAdmin({ apiFetch }); };
     bindAccentPicker(modal);
 
     const errBox = modal.querySelector('#pset-error');

@@ -14,7 +14,16 @@
 // Принимает объект пользователя целиком (у него могут быть обе плашки или ни
 // одной), а не отдельные поля: вызывающему коду не нужно помнить, из чего
 // плашка собирается.
+//
+// Модератор с октября 2026 — НЕ плашка «mod» перед ником, а галочка ПОСЛЕ
+// него (nameBadges.js, там же звёздочка поддержавшего). Поэтому место вызова
+// теперь выглядит так: namePrefixHtml(u) + имя + nameSuffixHtml(u). Текстовая
+// плашка осталась для ролей, у которых значка нет (role_labels в базе).
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { isModerator } from './nameBadges.js';
+
+export { nameSuffixHtml } from './nameBadges.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -36,7 +45,9 @@ export function facultyPrefixHtml(faculty) {
 
 export function namePrefixHtml(user) {
     if (!user) return '';
-    return rolePrefixHtml(user.role_prefix) + facultyPrefixHtml(user.faculty);
+    // У модератора вместо плашки — галочка после ника (nameSuffixHtml).
+    const role = isModerator(user) ? '' : rolePrefixHtml(user.role_prefix);
+    return role + facultyPrefixHtml(user.faculty);
 }
 
 // CSS-класс с цветами дома — для «подложки» профиля и строки топа.

@@ -47,7 +47,7 @@ import { pickShot, LEVELS, NORMAL } from '../../shared/poolBot.js';
 import clothUrl from './assets/pool-cloth.webp';
 import railUrl from './assets/pool-rail.webp';
 import cueUrl from './assets/pool-cue.webp';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'pool-modal';
@@ -378,7 +378,7 @@ function renderTop(state, top) {
             <div class="pool-row-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="pool-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="pool-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="pool-top-score">${row.wins}<span class="pool-top-losses"> / ${row.losses}</span></span>
         </div>`).join('');
 

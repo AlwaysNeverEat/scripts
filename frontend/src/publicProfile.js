@@ -17,7 +17,7 @@ import { openAssignCarsModal } from './assignCars.js';
 import { openAchievementsModal } from './achievements.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { facultyCardHtml } from './faculty.js';
 
 function esc(s) {
@@ -75,7 +75,7 @@ export async function initPublicProfilePage({ apiFetch, userKey, viewer }) {
         <div class="profile-page">
             ${profileHeroHtml({
                 avatarInner: avatarHtml,
-                nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}`,
+                nameInner: `${namePrefixHtml(user)}${esc(user.display_name)}${nameSuffixHtml(user)}`,
                 added: user.stats.added ?? 0,
                 edited: user.stats.edited ?? 0,
                 achievements: user.achievements,

@@ -13,7 +13,7 @@
 // живёт 30 минут» объясняет, что делать, а «что-то пошло не так» — нет.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 
 function esc(s) {
     return String(s || '').replace(/[&<>"']/g, c =>
@@ -86,7 +86,7 @@ function userRowHtml(row, idx, viewer) {
     return `
         <div class="admin-row">
             <div class="admin-main">
-                <div class="admin-name">${namePrefixHtml(row)}${esc(row.display_name)}${
+                <div class="admin-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}${
                     row.banned ? '<span class="admin-banned">заблокирован</span>' : ''
                 }</div>
                 <div class="admin-sub">@${esc(row.login)} · ${esc(row.role)} · с ${esc(dateLabel(row.created_at))}</div>

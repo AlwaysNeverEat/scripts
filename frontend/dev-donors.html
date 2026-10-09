@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!-- Дев-песочница поддержавших проект без входа и без базы.
+     Открыть: npx vite → /dev-donors.html
+
+     Панель справа (donorsPanel.js), значки после ника (nameBadges.js) —
+     наведите или кликните, анимация проиграется один раз, — и окно внесения
+     пополнений (donorsAdmin.js). Сервер подменён памятью страницы и чистит
+     ввод теми же правилами, что настоящий (shared/donations.js).
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: поддержавшие</title>
+  <script>
+    try { if (localStorage.getItem('cars_db_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light'); } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Поддержавшие — песочница</h2>
+    <p class="page-sub">Значки у ников, панель справа, окно внесения.</p>
+  </div>
+  <div class="page-body" style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn btn-sec" id="dev-admin">Окно «Пополнения»</button>
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+  </div>
+  <div class="page-body">
+    <div class="top-list" id="dev-names" style="display:flex;flex-direction:column;gap:8px;font-size:15px"></div>
+  </div>
+
+  <script type="module">
+    import './src/style.css';
+    import './src/crmLeads.css';
+    import { initDonorsPanel } from './src/donorsPanel.js';
+    import { initNameBadges } from './src/nameBadges.js';
+    import { openDonorsAdmin } from './src/donorsAdmin.js';
+    import { namePrefixHtml, nameSuffixHtml } from './src/namePrefix.js';
+    import { cleanDonation, mskToday, monthOf } from '../shared/donations.js';
+
+    const fail = (code, message) => Object.assign(new Error(message), { code });
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const USERS = [
+      { id: 'u1', display_name: 'Ершов Андрей', login: 'ershov', role: 'mod', role_prefix: { label: 'mod', color: 'green', tooltip: 'модератор' }, faculty: { id: 'gryffindor', name: 'Гриффиндор', prefix: 'гриф' } },
+      { id: 'u2', display_name: 'Петрова Мария', login: 'petrova' },
+      { id: 'u3', display_name: 'Дамир', login: 'damir', faculty: { id: 'slytherin', name: 'Слизерин', prefix: 'слиз' } },
+      { id: 'u4', display_name: 'Серёга', login: 'gtrixoff' },
+    ];
+    let seq = 0;
+    const ENTRIES = [
+      { id: String(++seq), userId: 'u2', date: '2026-09-15', amount: 2000 },
+      { id: String(++seq), userId: 'u1', date: '2026-10-02', amount: 500 },
+      { id: String(++seq), userId: 'u2', date: '2026-10-05', amount: 300 },
+    ];
+    const name = (id) => USERS.find(u => u.id === id)?.display_name;
+
+    async function api(path, opts = {}) {
+      await wait(200);
+      const method = opts.method || 'GET';
+      if (path === '/api/donors') {
+        const month = monthOf(mskToday());
+        const by = new Map();
+        for (const e of ENTRIES) {
+          const u = USERS.find(x => x.id === e.userId);
+          const d = by.get(e.userId) || { ...u, total: 0, month: 0, last: '' };
+          d.total += e.amount; if (e.date.startsWith(month)) d.month += e.amount; if (e.date > d.last) d.last = e.date;
+          by.set(e.userId, d);
+        }
+        return { month, donors: [...by.values()], canManage: true };
+      }
+      if (path.startsWith('/api/donors/users')) {
+        const q = decodeURIComponent(path.split('q=')[1] || '').toLowerCase();
+        return { users: USERS.filter(u => !q || (u.display_name + u.login).toLowerCase().includes(q)).map(u => ({ id: u.id, name: u.display_name, login: u.login })) };
+      }
+      if (path === '/api/donors/entries' && method === 'GET') return { entries: [...ENTRIES].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).map(e => ({ ...e, name: name(e.userId) })) };
+      if (path === '/api/donors/entries' && method === 'POST') {
+        const { donation, error } = cleanDonation(opts.body);
+        if (error) throw fail('bad_request', error);
+        const e = { id: String(++seq), ...donation }; ENTRIES.push(e); return { entry: e };
+      }
+      const m = path.match(/^\/api\/donors\/entries\/(\d+)$/);
+      if (m && method === 'DELETE') { const i = ENTRIES.findIndex(e => e.id === m[1]); if (i >= 0) ENTRIES.splice(i, 1); return { ok: true }; }
+      throw new Error('dev: неизвестный путь ' + path);
+    }
+
+    document.getElementById('dev-names').innerHTML = USERS.map(u =>
+      `<div>${namePrefixHtml(u)}${u.display_name}${nameSuffixHtml(u)}</div>`).join('');
+    initNameBadges();
+    initDonorsPanel({ apiFetch: api });
+    document.getElementById('dev-admin').onclick = () => openDonorsAdmin({ apiFetch: api });
+    document.getElementById('dev-theme').onclick = () => {
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+      document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+    };
+  </script>
+</body>
+</html>

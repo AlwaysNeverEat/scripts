@@ -42,7 +42,7 @@ import {
     tileLabel, spriteCol, spriteRow,
 } from '../../shared/mahjong.js';
 import tileSheet from './assets/mahjong-tiles.png';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'mahjong-modal';
@@ -502,7 +502,7 @@ function renderTop(state) {
             <div class="mj-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="mj-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="mj-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="mj-top-score">${mmss(Number(row.seconds))}</span>
         </div>`).join('');
 

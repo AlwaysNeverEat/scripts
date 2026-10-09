@@ -47,7 +47,7 @@ import {
     splashIcon, blastIcon, wreckIcon, turnIcon,
     crosshairIcon, anchorIcon, shuffleIcon,
 } from './icons.js';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'battleship-modal';
@@ -394,7 +394,7 @@ function renderTop(state, top) {
             <div class="bs-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="bs-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="bs-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="bs-top-score">${row.wins}<span class="bs-top-losses"> / ${row.losses}</span></span>
         </div>`).join('');
 

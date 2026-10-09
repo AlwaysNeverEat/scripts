@@ -58,7 +58,7 @@ import {
 } from '../../shared/checkers.js';
 import { pickMove, LEVELS, CLUB } from '../../shared/checkersBot.js';
 import { crownIcon, drawIcon, surrenderIcon, turnIcon } from './icons.js';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 // Картинки доски — по имени файла, без таблицы соответствия (см. шапку).
@@ -376,7 +376,7 @@ function renderTop(state, top) {
             <div class="ck-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="ck-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="ck-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="ck-top-score">${row.wins}<span class="ck-top-rest"> / ${row.draws} / ${row.losses}</span></span>
         </div>`).join('');
 

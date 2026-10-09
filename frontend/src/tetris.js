@@ -39,7 +39,7 @@ import {
 import {
     arrowLeftIcon, arrowRightIcon, arrowUpIcon, arrowDownIcon, rotateIcon, hardDropIcon,
 } from './icons.js';
-import { namePrefixHtml } from './namePrefix.js';
+import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 
 const MODAL_ID = 'tetris-modal';
@@ -601,7 +601,7 @@ function renderTop(state) {
             <div class="tet-top-avatar">${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
-            <div class="tet-top-name">${namePrefixHtml(row)}${esc(row.display_name)}</div>
+            <div class="tet-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
             <span class="tet-top-score">${Number(row.score).toLocaleString('ru-RU')}</span>
         </div>`).join('');
 

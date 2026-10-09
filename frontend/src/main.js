@@ -10,6 +10,8 @@ import { showTopPage, resetTopCache } from './top.js';
 import { initAdminPage, isModerator } from './admin.js';
 import { initAchievements } from './achievements.js';
 import { initHalloween } from './halloween.js';
+import { initDonorsPanel } from './donorsPanel.js';
+import { initNameBadges } from './nameBadges.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
 import { initCrmLeads } from './crmLeads.js';
@@ -65,6 +67,7 @@ let currentUser = null;
 // Пульс «Чатов» (chatPulse.js) — объявлен здесь, а заводится ниже: showGate
 // может сработать раньше, чем модуль досчитается до его создания.
 let chatPulseRef = null;
+let donorsPanelRef = null; // панель «Поддержали проект» (donorsPanel.js) — живёт, пока вошли
 // true только после успешного входа — пока не залогинились, 401 от /me или
 // от самого /login не должен трактоваться как "сессия протухла на лету".
 let unlocked = false;
@@ -147,6 +150,8 @@ function showGate(message) {
     appTabs.classList.add('hidden');
     pauseRecords();
     chatPulseRef?.stop(); // вышли из аккаунта — счётчик и уведомления гаснут
+    donorsPanelRef?.destroy(); // на экране входа панели не место
+    donorsPanelRef = null;
     resetTabsState();
     pageAuth.classList.remove('hidden');
     initAuthGate({
@@ -168,6 +173,10 @@ function enterApp() {
     renderNewsBadge();
     initAchievements({ apiFetch }); // стим-тосты о новых ачивках (см. achievements.js)
     initHalloween(); // паучок в углу — только в сезон, сам уходит 3 ноября (halloween.js)
+    initNameBadges(); // галочка модератора и звёздочка играют по наведению (nameBadges.js)
+    // Поддержавшие проект — справа на всех страницах; заодно раздаёт звёздочки
+    // у ников (donorsPanel.js). Один раз за жизнь страницы.
+    donorsPanelRef = donorsPanelRef || initDonorsPanel({ apiFetch });
     // Станции для «Склада» подтягиваем сразу после прогрева сессии CRM, а не
     // при первом заходе на вкладку: список должен уже стоять, когда её
     // откроют. Именно ПОСЛЕ прогрева — до него запрос отвечал «нет сессии»,
