@@ -83,6 +83,10 @@ const ICONS = {
     sliders: `${SVG_HEAD}<line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.2"/><circle cx="15" cy="16" r="2.2"/></svg>`,
     dot: `${SVG_HEAD}<circle cx="12" cy="12" r="4"/></svg>`,
     copy: `${SVG_HEAD}<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>`,
+    chat: `${SVG_HEAD}<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    phone: `${SVG_HEAD}<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>`,
+    clipboard: `${SVG_HEAD}<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>`,
+    spider: `${SVG_HEAD}<ellipse cx="12" cy="14" rx="3" ry="4"/><circle cx="12" cy="8.5" r="2"/><path d="M9.2 12.5 4 10M9 15H3.5M9.2 17.5 5 21M14.8 12.5 20 10M15 15h5.5M14.8 17.5 19 21M12 6.5V2"/></svg>`,
 };
 
 const ICON_NEW = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 14.3 9l5.7.5-4.3 3.9 1.2 5.7L12 16.2 7.1 19.1l1.2-5.7L4 9.5 9.7 9z"/></svg>`;
@@ -148,6 +152,23 @@ function buttonHtml(btn) {
     </div>`;
 }
 
+// Скриншот внутри раздела: { src, alt, caption, width }. Картинка — ссылка на
+// себя же: на экране она уменьшена под колонку поста, а мелкие подписи хочется
+// рассмотреть в полный размер. width — ширина снятого куска экрана в CSS-пикселях:
+// снимки сделаны с запасом по чёткости, и узкий кусок (паук в углу, панель
+// паст) иначе растянулся бы на всю колонку крупнее, чем он есть на сайте.
+function shotHtml(shot) {
+    if (!shot?.src) return '';
+    const w = Number(shot.width) > 0 ? ` style="max-width: min(100%, ${Number(shot.width)}px)"` : '';
+    return `
+    <figure class="news-shot"${w}>
+        <a href="${esc(shot.src)}" target="_blank" rel="noopener" title="Открыть в полный размер">
+            <img src="${esc(shot.src)}" alt="${esc(shot.alt || shot.caption || '')}" loading="lazy" decoding="async">
+        </a>
+        ${shot.caption ? `<figcaption>${esc(shot.caption)}</figcaption>` : ''}
+    </figure>`;
+}
+
 function sectionHtml(sec) {
     const icon = ICONS[sec.icon] || ICONS.dot;
     const list = Array.isArray(sec.list) && sec.list.length
@@ -167,6 +188,7 @@ function sectionHtml(sec) {
                 ${sec.text ? `<p class="news-sec-text">${esc(sec.text)}</p>` : ''}
                 ${tableHtml(sec.table)}
                 ${list}
+                ${shotHtml(sec.shot)}
                 ${buttonHtml(sec.button)}
                 ${note}
             </div>
