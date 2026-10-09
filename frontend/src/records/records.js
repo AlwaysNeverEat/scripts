@@ -35,6 +35,7 @@ import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
 import { settledSince, unitsOf, unitStatus, describeUnit, unseenFailures, canRetry } from './opQueue.js';
+import { pickedLead, leadFill } from '../leadPick.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -2096,6 +2097,8 @@ function modalCreate(m) {
     <div class="rc-create">
         ${nameHistoryHtml()}
         <div class="rc-create-form">
+            ${m.fromLead ? `<div class="rc-from-lead">${icons.user(13)}<span>Имя и телефон — из открытого лида${m.fromLead.name ? ` <b>${esc(m.fromLead.name)}</b>` : ''}${m.fromLead.phone ? ` · ${esc(m.fromLead.phone)}` : ''}</span>
+                <button type="button" class="btn btn-sec rc-mini-btn" data-action="clear-lead-fill">Очистить</button></div>` : ''}
             <div class="rc-field-row">
                 <label class="edit-field rc-grow"><span>Имя клиента</span>
                     <input id="rc-f-name" type="text" name="rc-client-name" list="rc-name-history"
@@ -3447,15 +3450,32 @@ async function handleAction(btn, ev) {
 
     if (a === 'create-at') {
         const addr = stationById(state.stationId) || state.board.addresses[0];
+        // Открыт лид во вкладке «Лиды» — имя (с заглушкой «двс») и телефон
+        // берутся из него (leadPick.js): звонок обычно и кончается записью, и
+        // перепечатывать их из соседней вкладки незачем. Откуда взялись поля,
+        // окно пишет плашкой — с кнопкой «Очистить» для чужого клиента.
+        const fill = leadFill(pickedLead());
         state.modal = {
             kind: 'create',
             addressId: addr.id,
             date: state.date,
             time: btn.dataset.time || null,
             durationMinutes: 30,
-            name: '', phone: '', carNumber: '', comment: '', byMaster: false, sms: true,
+            name: fill?.name || '', phone: fill?.phone || '', carNumber: '', comment: '', byMaster: false, sms: true,
+            fromLead: fill ? { name: fill.leadName, phone: fill.phone } : null,
         };
         return render();
+    }
+    if (a === 'clear-lead-fill') {
+        keepCreateFields();
+        if (state.modal?.kind === 'create') {
+            state.modal.name = '';
+            state.modal.phone = '';
+            state.modal.fromLead = null;
+        }
+        render();
+        document.getElementById('rc-f-name')?.focus();
+        return;
     }
     if (a === 'dur-step') { setPickDuration(currentDuration() + Number(btn.dataset.min)); return paintPick(); }
     if (a === 'dur-set') { setPickDuration(Number(btn.dataset.min)); return paintPick(); }

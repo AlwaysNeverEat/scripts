@@ -25,6 +25,7 @@
 
 import './crmLeads.css';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
+import { setPickedLead } from './leadPick.js';
 import { LEAD_STATUSES, NEXT_CALL_QUICK, isLive, isMine, sortFeed, operatorKey, cleanCalcItems, calcTotal, callTime } from '../../shared/crmLeads.js';
 import { openDateFor } from './datepicker.js';
 
@@ -439,7 +440,23 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
 
     // ── Карточка: разметка ───────────────────────────────────────────────────
 
+    // Открытая карточка — «выбранный лид» для окна создания записи
+    // (leadPick.js): имя и телефон подставятся туда сами. Имя — из CRM, если
+    // карточка приехала, иначе из строки звонка или из набранного для нового
+    // клиента; телефон — клиента или звонка («client:ID» из «Чатов» — не номер).
+    function publishPick() {
+        const st = state.card.status;
+        if (st === 'idle') return setPickedLead(null);
+        const c = st === 'ready' ? state.card.data.client : null;
+        const keyPhone = /^\d+$/.test(state.card.phone || '') ? state.card.phone : '';
+        setPickedLead({
+            name: c?.fio || state.selected?.name || state.draft?.name || '',
+            phone: c?.phone || state.selected?.phone || keyPhone,
+        });
+    }
+
     function renderCard() {
+        publishPick();
         const st = state.card.status;
         let html;
         if (st === 'idle') {
@@ -736,7 +753,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         cardEl.querySelectorAll('[data-draft]').forEach(el => {
             const k = el.dataset.draft;
             const ev = el.tagName === 'SELECT' ? 'change' : 'input';
-            el.addEventListener(ev, () => { state.draft[k] = el.value; });
+            el.addEventListener(ev, () => { state.draft[k] = el.value; if (k === 'name') publishPick(); });
         });
         cardEl.querySelectorAll('[data-line]').forEach(el => {
             el.addEventListener('input', () => {
@@ -747,7 +764,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         });
         const name = cardEl.querySelector('#ld-name');
         if (name) {
-            name.addEventListener('input', () => { state.draft.name = name.value; });
+            name.addEventListener('input', () => { state.draft.name = name.value; publishPick(); });
             name.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); saveName(); }
                 if (e.key === 'Escape') { state.editingName = false; renderCard(); }
