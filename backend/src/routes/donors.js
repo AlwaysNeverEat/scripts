@@ -1,18 +1,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Поддержавшие проект — /api/donors. Список видят все вошедшие (панель справа
 // и звёздочка после ника), вносить и удалять пополнения может ровно один
-// аккаунт — DONATION_ADMIN_LOGIN (shared/donations.js).
+// аккаунт — DONATION_ADMIN_LOGIN (shared/donations.js). Тем же ответом
+// приезжает счёт сервера из Рег.облака (donations/serverBalance.js) — на что
+// идут донаты и сколько серверу осталось.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Router } from 'express';
 
 import * as store from '../donations/store.js';
+import { createServerBalance } from '../donations/serverBalance.js';
 import { cleanDonation, isDonationAdmin, mskToday, monthOf } from '../../../shared/donations.js';
 
 const ID_RE = /^\d{1,18}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function createDonorsRouter({ db, now = () => Date.now() } = {}) {
+export function createDonorsRouter({ db, now = () => Date.now(), serverBalance = createServerBalance() } = {}) {
     const router = Router();
     const opts = db ? { db } : {};
     const fail = (res, where, err) => {
@@ -27,7 +30,12 @@ export function createDonorsRouter({ db, now = () => Date.now() } = {}) {
     router.get('/', async (req, res) => {
         const month = monthOf(mskToday(now()));
         try {
-            res.json({ month, donors: await store.listDonors(month, opts), canManage: isDonationAdmin(req.user) });
+            const [donors, server] = await Promise.all([
+                store.listDonors(month, opts),
+                // Счёт сервера — довесок: сломался он, список всё равно нужен.
+                serverBalance.get().catch(() => null),
+            ]);
+            res.json({ month, donors, canManage: isDonationAdmin(req.user), server });
         } catch (err) { fail(res, 'GET /api/donors', err); }
     });
 

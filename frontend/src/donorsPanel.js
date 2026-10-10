@@ -16,9 +16,18 @@
 //
 // Тот же ответ сервера раздаёт список поддержавших значкам у ников
 // (setSupporters в nameBadges.js) — второй раз за ним никто не ходит.
+//
+// Над списком — блок «Сервер»: сколько ему осталось жить и сколько на счёте,
+// из API Рег.облака (backend/src/donations/serverBalance.js). Это ответ на
+// вопрос «зачем донатить» цифрой, а не словами. Счётчик тикает вниз сам, раз в
+// минуту, от момента, когда приехал ответ: деньги списываются почасово, а
+// ходить за ними чаще, чем раз в десять минут, незачем. Свёрнутая панель
+// показывает на язычке дни — и краснеет, когда их мало: свёрнутой она бывает
+// чаще всего, и именно тогда тревогу легко пропустить.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { rub, monthLabel, sortDonors } from '../../shared/donations.js';
+import { hoursLeftAfter, formatLeft, lifeTone } from '../../shared/serverBalance.js';
 // Плашку факультета в узкой панели не ставим: она съедала бы имя, а значки
 // после ника (галочка, звёздочка) — остаются.
 import { nameSuffixHtml } from './namePrefix.js';
@@ -58,8 +67,53 @@ export function initDonorsPanel({ apiFetch }) {
         root.setAttribute('aria-label', 'Поддержали проект');
         document.body.appendChild(root);
     }
-    const state = { donors: [], month: '', status: 'loading', collapsed: loadCollapsed() };
+    const state = { donors: [], month: '', status: 'loading', collapsed: loadCollapsed(), server: null, serverAt: 0 };
     let timer = null;
+    let tick = null;
+
+    // «Осталось» на эту минуту: сервер посчитал его на момент ответа.
+    const hoursNow = () => (state.server?.available ? hoursLeftAfter(state.server.hoursLeft, Date.now() - state.serverAt) : null);
+
+    function serverHtml() {
+        const s = state.server;
+        if (!s) return '';
+        if (!s.available) return `<div class="dn-server dn-server-off">Счёт сервера пока не получен — Рег.облако не ответило.</div>`;
+        const h = hoursNow();
+        const when = s.stale && s.updatedAt
+            ? `<div class="dn-server-note">по данным на ${esc(new Date(s.updatedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))} — Рег.облако не отвечает</div>`
+            : '';
+        return `
+            <div class="dn-server dn-tone-${lifeTone(h)}">
+                <div class="dn-server-top">
+                    <span class="dn-server-label">Серверу осталось</span>
+                    <b class="dn-server-left" data-dn-left>${esc(formatLeft(h))}</b>
+                </div>
+                <div class="dn-server-meta">
+                    ${s.balance != null ? `<span>На счёте <b>${rub(s.balance)}</b></span>` : ''}
+                    ${s.bonus ? `<span>бонусы ${rub(s.bonus)}</span>` : ''}
+                    ${s.monthlyCost != null ? `<span>${rub(s.monthlyCost)}/мес</span>` : ''}
+                </div>
+                ${when}
+            </div>`;
+    }
+
+    // Раз в минуту правим только число — перерисовка панели целиком сбивала
+    // бы прокрутку списка и наведение.
+    function retick() {
+        const h = hoursNow();
+        const el = root.querySelector('[data-dn-left]');
+        if (el) el.textContent = formatLeft(h);
+        const box = root.querySelector('.dn-server');
+        if (box && state.server?.available) box.className = `dn-server dn-tone-${lifeTone(h)}`;
+        const tab = root.querySelector('[data-dn-tab-left]');
+        if (tab) {
+            tab.textContent = tabLeft(h);
+            tab.className = `dn-tab-left dn-tone-${lifeTone(h)}`;
+        }
+    }
+
+    // На язычке места на одно короткое слово: дни, а последние сутки — часы.
+    const tabLeft = (h) => (h == null ? '' : h >= 24 ? `${Math.floor(h / 24)}д` : `${Math.floor(h)}ч`);
 
     function setCollapsed(v) {
         state.collapsed = v;
@@ -87,13 +141,14 @@ export function initDonorsPanel({ apiFetch }) {
         const monthSum = state.donors.reduce((s, d) => s + (d.month || 0), 0);
         root.classList.toggle('dn-collapsed', state.collapsed);
         root.innerHTML = state.collapsed
-            ? `<button type="button" class="dn-tab" data-act="toggle" title="Поддержали проект — развернуть">${STAR(15)}<span class="dn-tab-n">${state.donors.length || ''}</span></button>`
+            ? `<button type="button" class="dn-tab" data-act="toggle" title="Поддержали проект — развернуть${hoursNow() != null ? ` · серверу осталось ${formatLeft(hoursNow())}` : ''}">${STAR(15)}<span class="dn-tab-n">${state.donors.length || ''}</span>${hoursNow() != null ? `<span class="dn-tab-left dn-tone-${lifeTone(hoursNow())}" data-dn-tab-left>${tabLeft(hoursNow())}</span>` : ''}</button>`
             : `<div class="dn-box">
                 <div class="dn-head">
                     <span class="dn-title">${STAR(15)} Поддержали проект</span>
                     <button type="button" class="dn-fold" data-act="toggle" title="Свернуть" aria-label="Свернуть">${CHEVRON}</button>
                 </div>
                 <div class="dn-sub">Донаты идут на сервер, на котором живёт сайт.</div>
+                ${serverHtml()}
                 ${rowsHtml()}
                 ${state.donors.length ? `<div class="dn-foot"><span>${esc(monthLabel(state.month))}</span><b>${rub(monthSum)}</b></div>` : ''}
             </div>`;
@@ -107,6 +162,8 @@ export function initDonorsPanel({ apiFetch }) {
             state.donors = sortDonors(data.donors || []);
             state.month = data.month || '';
             state.canManage = !!data.canManage;
+            state.server = data.server || null;
+            state.serverAt = Date.now();
             state.status = 'ready';
             setSupporters(state.donors.map(d => d.id));
         } catch {
@@ -120,9 +177,10 @@ export function initDonorsPanel({ apiFetch }) {
     // Внесли пополнение в окне «Пополнения» — показываем сразу, не ждём таймера.
     window.addEventListener('donors-changed', load);
     timer = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);
+    tick = setInterval(retick, 60_000);
 
     return {
         refresh: load,
-        destroy() { clearInterval(timer); window.removeEventListener('donors-changed', load); root.remove(); },
+        destroy() { clearInterval(timer); clearInterval(tick); window.removeEventListener('donors-changed', load); root.remove(); },
     };
 }
