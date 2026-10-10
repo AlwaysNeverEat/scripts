@@ -72,6 +72,29 @@
 }
 .dn-foot b { color: var(--text); font-variant-numeric: tabular-nums; }
 
+/* Блок «Сервер»: сколько осталось жить — крупно и цветом (зелёный — живёт,
+   золотой — меньше недели, красный — меньше трёх дней), счёт — строкой ниже. */
+.dn-server {
+  --tone: var(--green);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-3);
+  border: 1px solid color-mix(in oklab, var(--tone) 35%, var(--border));
+  background: color-mix(in oklab, var(--tone) 8%, transparent);
+}
+.dn-server.dn-tone-gold, .dn-tab-left.dn-tone-gold { --tone: var(--gold); }
+.dn-server.dn-tone-red, .dn-tab-left.dn-tone-red { --tone: var(--red); }
+.dn-server.dn-tone-muted { --tone: var(--sub); }
+.dn-server-off { --tone: var(--sub); color: var(--sub); line-height: 1.4; }
+.dn-server-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); }
+.dn-server-label { color: var(--sub); }
+.dn-server-left { font-size: 18px; font-weight: 800; color: var(--tone); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dn-server-meta { display: flex; flex-wrap: wrap; gap: 2px var(--s-3); color: var(--sub); font-size: 11.5px; }
+.dn-server-meta b { color: var(--text); font-variant-numeric: tabular-nums; }
+.dn-server-note { color: var(--sub); font-size: 11px; }
+
 /* Свёрнутая — язычок у правого края: звёздочка и число поддержавших. */
 .dn.dn-collapsed { right: 0; }
 .dn-tab {
@@ -139,3 +162,6 @@
   .dna-form { grid-template-columns: 1fr 1fr; }
   .dna-add { grid-column: 1 / -1; }
 }
+
+/* Дни серверу на язычке — тем же цветом, что в развёрнутом блоке. */
+.dn-tab-left { --tone: var(--green); color: var(--tone); font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }

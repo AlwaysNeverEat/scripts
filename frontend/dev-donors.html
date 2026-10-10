@@ -54,6 +54,19 @@
     ];
     const name = (id) => USERS.find(u => u.id === id)?.display_name;
 
+    // Счёт сервера: ?server=ok (по умолчанию) | low | critical | stale | off |
+    // none (токена нет — блока нет вовсе).
+    function devServer() {
+      const kind = new URLSearchParams(location.search).get('server') || 'ok';
+      if (kind === 'none') return null;
+      if (kind === 'off') return { available: false };
+      const hours = { ok: 566.4, low: 130, critical: 40, stale: 566.4 }[kind] ?? 566.4;
+      return {
+        available: true, balance: Math.round(hours * 4.02), bonus: kind === 'ok' ? 150 : 0, monthlyCost: 2896.83, hoursLeft: hours,
+        updatedAt: new Date(Date.now() - (kind === 'stale' ? 3 : 0) * 3600e3).toISOString(), stale: kind === 'stale',
+      };
+    }
+
     async function api(path, opts = {}) {
       await wait(200);
       const method = opts.method || 'GET';
@@ -66,7 +79,7 @@
           d.total += e.amount; if (e.date.startsWith(month)) d.month += e.amount; if (e.date > d.last) d.last = e.date;
           by.set(e.userId, d);
         }
-        return { month, donors: [...by.values()], canManage: true };
+        return { month, donors: [...by.values()], canManage: true, server: devServer() };
       }
       if (path.startsWith('/api/donors/users')) {
         const q = decodeURIComponent(path.split('q=')[1] || '').toLowerCase();
