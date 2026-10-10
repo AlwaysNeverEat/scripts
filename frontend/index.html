@@ -326,21 +326,16 @@
     </div>
 
     <!-- Скрипты: фид юзерскриптов (была модалка по кнопке снизу справа) -->
-    <!-- «Лиды»: слева лента звонков, справа карточка лида (src/crmLeads.js). -->
+    <!-- «Лиды»: слева лента звонков, справа карточка лида (src/crmLeads.js).
+         Заголовка страницы нет: вкладка над ней и так говорит, где ты, а
+         место по высоте этим двум рабочим экранам нужнее подписи. -->
     <div id="page-leads" class="hidden">
-      <div class="page-head">
-        <h2 class="page-title">Лиды</h2>
-        <p class="page-sub">Все звонки из CRM, а не три всплывашки: открыл звонок — заполнил лид.</p>
-      </div>
       <div id="leads-body" class="page-body leads-body"></div>
     </div>
 
-    <!-- «Чаты»: слева диалоги, посередине переписка, справа пасты (src/crmChats.js). -->
+    <!-- «Чаты»: слева диалоги, посередине переписка, справа пасты (src/crmChats.js).
+         Заголовка нет по той же причине, что у «Лидов». -->
     <div id="page-chats" class="hidden">
-      <div class="page-head chats-body">
-        <h2 class="page-title">Чаты</h2>
-        <p class="page-sub">Переписка с клиентами в MAX, Telegram и ВК — из «Открытых линий» CRM.</p>
-      </div>
       <div id="chats-body" class="page-body leads-body chats-body"></div>
     </div>
 

@@ -8586,7 +8586,10 @@ a.diff-val-new:hover { border-color: var(--green); }
 .leads-body { max-width: 1040px; }
 /* Лиды шире остальных страниц: у карточки лида у самой две колонки
    (О лиде | история звонков), как в Битриксе, и в 1040 она бы не влезла. */
-#leads-body, #page-leads .page-head { max-width: 1400px; }
+#leads-body { max-width: 1400px; }
+/* У «Лидов» и «Чатов» нет заголовка страницы (вкладка и так его называет),
+   поэтому отступ сверху, который давал заголовок, — на самом теле. */
+.page-body.leads-body { padding-top: var(--s-5); }
 
 .lead-solo { display: flex; justify-content: center; padding-top: var(--s-2); }
 .lead-idle-link { width: 100%; max-width: 420px; padding: var(--s-6) var(--s-5); }
