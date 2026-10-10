@@ -76,7 +76,7 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  max-height: calc(100dvh - var(--tabs-h) - 220px);
+  max-height: calc(100dvh - var(--tabs-h) - 160px);
   margin-top: var(--s-1);
   padding: var(--s-1);
   overflow-y: auto;
@@ -288,8 +288,9 @@
   flex-direction: column;
   min-height: 0;
   /* Вычитаем строку и зазоры: карточка обязана помещаться под строкой
-     целиком, докрутить до неё на главной нечем. */
-  max-height: calc(100dvh - var(--tabs-h) - 240px);
+     целиком, докрутить до неё на главной нечем. Заголовка страницы больше
+     нет, поэтому запас на 60px меньше, чем был. */
+  max-height: calc(100dvh - var(--tabs-h) - 180px);
   border-radius: var(--r-4);
   background: var(--card);
   border: 1px solid var(--border);
