@@ -717,17 +717,21 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
                 items = `<div class="ld-sale-items">${open.sale.items.map(it => `
                     <div class="ld-sale-line"><span>${esc(it.name)}</span><span class="ld-muted">${it.count ?? ''}${it.count != null ? ' ×' : ''}</span><b>${money(it.total ?? it.sum)}</b></div>`).join('') || '<span class="ld-muted">Позиций нет</span>'}</div>`;
             }
+            const plate = h.vehicle ? (formatPlateInput(h.vehicle) || h.vehicle) : '';
+            // Строка — не <button>: текст внутри кнопки не выделяется, а
+            // госномер отсюда диктуют и переносят. Раскрывает чек клик по
+            // строке (и Enter/пробел), копирует номер — свой значок.
             return `
             <div class="ld-sale${open ? ' open' : ''}">
-                <button type="button" class="ld-sale-head" data-act="sale" data-id="${esc(h.id)}">
+                <div class="ld-sale-head" role="button" tabindex="0" aria-expanded="${!!open}" data-act="sale" data-id="${esc(h.id)}">
                     <span>${esc(stampFull(h.date))}</span>
                     <span class="ld-sale-station">${esc(h.station || '—')}</span>
-                    <span>${h.vehicle ? esc(formatPlateInput(h.vehicle) || h.vehicle) : ''}</span>
+                    <span class="ld-sale-plate">${plate ? `<span class="ld-plate-t">${esc(plate)}</span><button type="button" class="ld-icon-btn ld-copy-plate" data-act="copy-plate" data-plate="${esc(plate)}" title="Скопировать госномер" aria-label="Скопировать госномер ${esc(plate)}">${ICON.copy(13)}</button>` : ''}</span>
                     <span class="ld-muted">${h.mileage ? `${thousands(h.mileage)} км` : ''}</span>
                     <span class="ld-muted">${h.items} поз.</span>
                     <b>${money(h.sum)}</b>
                     <span class="ld-sale-chev">${ICON.chevron(13)}</span>
-                </button>
+                </div>
                 ${items}
             </div>`;
         }).join('');
@@ -802,7 +806,21 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         on('[data-act="comment-save"]', (b) => saveComment(b.dataset.id));
         on('[data-act="note-add"]', () => addNote());
         on('[data-act="note-del"]', (b) => delNote(b.dataset.id));
-        on('[data-act="sale"]', (b) => toggleSale(b.dataset.id));
+        on('[data-act="sale"]', (b, e) => {
+            // Клик по самому госномеру и выделение мышью — не «раскрой чек»:
+            // номер выделяют двойным кликом, и первый клик иначе раскрывал бы.
+            if (e.target.closest?.('.ld-plate-t')) return;
+            if (String(window.getSelection?.() || '').trim()) return;
+            toggleSale(b.dataset.id);
+        });
+        cardEl.querySelectorAll('[data-act="sale"]').forEach(el => {
+            el.onkeydown = (e) => {
+                if (e.target !== el || (e.key !== 'Enter' && e.key !== ' ')) return;
+                e.preventDefault();
+                toggleSale(el.dataset.id);
+            };
+        });
+        on('[data-act="copy-plate"]', (b, e) => { e.stopPropagation(); copyPlate(b); });
         on('[data-act="create"]', () => createClient());
     }
 
@@ -866,6 +884,28 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         }
         renderCard();
         setTimeout(() => { if (state.flash === 'copy') { state.flash = ''; renderCard(); } }, 1600);
+    }
+
+    // Госномер из истории обслуживаний. Карточку ради галочки НЕ
+    // перерисовываем: перерисовка сбросила бы прокрутку истории звонков и
+    // раскрытые места — меняем только сам значок. Буфер недоступен — номер
+    // выделяется, и его можно взять Ctrl+C.
+    async function copyPlate(btn) {
+        const text = btn.dataset.plate || '';
+        try {
+            await navigator.clipboard.writeText(text);
+            btn.innerHTML = ICON.check(13);
+            btn.classList.add('ld-copied');
+            btn.title = 'Скопировано';
+            setTimeout(() => {
+                btn.innerHTML = ICON.copy(13);
+                btn.classList.remove('ld-copied');
+                btn.title = 'Скопировать госномер';
+            }, 1500);
+        } catch {
+            const t = btn.parentElement?.querySelector('.ld-plate-t');
+            if (t) window.getSelection()?.selectAllChildren(t);
+        }
     }
 
     async function saveComment(id) {

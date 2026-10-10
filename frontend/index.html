@@ -326,15 +326,17 @@
     </div>
 
     <!-- Скрипты: фид юзерскриптов (была модалка по кнопке снизу справа) -->
-    <!-- «Лиды»: слева лента звонков, справа карточка лида (src/crmLeads.js).
-         Заголовка страницы нет: вкладка над ней и так говорит, где ты, а
-         место по высоте этим двум рабочим экранам нужнее подписи. -->
+    <!-- Заголовков страниц («Лиды — Все звонки из CRM…») у вкладок нет:
+         вкладка над страницей и так говорит, где ты, а высота рабочим экранам
+         нужнее подписи. Оставлен он только у «Топа»: туда попадают по
+         ссылке, без вкладки, и в подписи правило — топ обнуляется 1-го. -->
+
+    <!-- «Лиды»: слева лента звонков, справа карточка лида (src/crmLeads.js). -->
     <div id="page-leads" class="hidden">
       <div id="leads-body" class="page-body leads-body"></div>
     </div>
 
-    <!-- «Чаты»: слева диалоги, посередине переписка, справа пасты (src/crmChats.js).
-         Заголовка нет по той же причине, что у «Лидов». -->
+    <!-- «Чаты»: слева диалоги, посередине переписка, справа пасты (src/crmChats.js). -->
     <div id="page-chats" class="hidden">
       <div id="chats-body" class="page-body leads-body chats-body"></div>
     </div>
@@ -342,10 +344,6 @@
     <!-- «Клиент»: поиск в CRM по телефону или гос. номеру и карточка клиента
          со всеми чеками (src/clientSearch.js). -->
     <div id="page-client" class="hidden">
-      <div class="page-head">
-        <h2 class="page-title">Клиент</h2>
-        <p class="page-sub">Телефон или гос. номер — и вся история обслуживаний из CRM.</p>
-      </div>
       <div class="page-body">
         <div id="client-search" class="client-search"></div>
       </div>
@@ -355,10 +353,6 @@
          поиск списком артикулов (src/stockSearch.js). Шире остальных страниц:
          слева колонка станций, справа таблица с колонкой на каждую. -->
     <div id="page-stock" class="hidden">
-      <div class="page-head page-head-wide">
-        <h2 class="page-title">Склад</h2>
-        <p class="page-sub">Что есть на станциях: артикул, название или вязкость — как в CRM, только быстрее.</p>
-      </div>
       <div class="page-body page-body-wide">
         <div id="stock-search" class="stock-search"></div>
       </div>
@@ -377,10 +371,6 @@
 
     <!-- Новости: лента постов об изменениях сайта (src/newsData.js) -->
     <div id="page-news" class="hidden">
-      <div class="page-head">
-        <h2 class="page-title">Новости</h2>
-        <p class="page-sub">Коротко(почти), что изменилось на сайте.</p>
-      </div>
       <div id="news-body" class="page-body news-body"></div>
     </div>
 
@@ -397,10 +387,6 @@
          заменяет кнопки Accept/Decline Telegram-бота — с сервера в РФ до
          api.telegram.org не достучаться (см. src/admin.js). -->
     <div id="page-admin" class="hidden">
-      <div class="page-head">
-        <h2 class="page-title">Админка</h2>
-        <p class="page-sub">Заявки на регистрацию и права пользователей.</p>
-      </div>
       <div id="admin-body" class="page-body"></div>
     </div>
   </div>
