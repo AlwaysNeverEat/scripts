@@ -38,7 +38,8 @@
    по высоте: обложка в 96px срезала бы коту уши и лапы, поэтому в скине она
    принимает пропорции картинки. Селектор длиннее правила факультета
    (`.profile-hero.faculty-tint .profile-cover`), чтобы перебить его. */
-.profile-hero .profile-cover.skin-cover.skinned {
+.profile-hero .profile-cover.skin-cover.skinned,
+.skin-cover.skinned {
   height: auto;
   aspect-ratio: var(--sk-banner-ratio);
   background: var(--sk-banner) center / cover no-repeat;
@@ -49,14 +50,14 @@
    самой строки, перетекая в неё, — номер, имя и статус лежат на спокойном.
    Текст отодвинут от кота, время — на подложке: оно в правом углу, ровно
    там, где картинка. */
-.ld-call.skin-leads {
+.skinned.skin-leads {
   background:
     linear-gradient(90deg, var(--bg2) 0 50%, color-mix(in oklab, var(--bg2) 55%, transparent) 60%, transparent 70%),
     var(--sk-banner) right center / auto 100% no-repeat,
     var(--bg2);
 }
-.ld-call.skin-leads .ld-call-main { padding-right: 38%; }
-.ld-call.skin-leads .ld-call-time {
+.skinned.skin-leads .ld-call-main { padding-right: 38%; }
+.skinned.skin-leads .ld-call-time {
   padding: 0 var(--s-1);
   border-radius: var(--r-1);
   background: color-mix(in oklab, var(--bg2) 80%, transparent);
@@ -67,40 +68,37 @@
    получас — кот целиком; длиннее — голова сверху, лапы снизу, между ними
    туловище плиткой, сколько слотов, столько и кота. Две записи — голова
    сразу переходит в лапы, на шестой — длиннокот. */
-.rc-cap.skin-records { padding-right: calc(var(--sk-w) + 6px); }
-.rc-cap.skin-records.skin-one { padding-right: calc(var(--sk-single-w) + 4px); }
+.skinned.skin-records { padding-right: calc(var(--sk-w) + 6px); }
+.skinned.skin-records.skin-one { padding-right: calc(var(--sk-single-w) + 4px); }
 .rc-cap.skin-records .rc-cap-seg { right: calc(var(--sk-w) + 6px); }
 
 /* Туловище — отдельным слоем МЕЖДУ головой и лапами, а не фоном на всю
    высоту: плитка повторяется в обе стороны, и на общей полосе туловище
    просвечивало бы между ушами. Голова и лапы гаснут по краю стыка
    (cut-skin.py), поэтому нахлёст на туловище шва не даёт. */
-.rc-cap.skin-records::before,
-.rc-cap.skin-records::after {
+.skinned.skin-records::before,
+.skinned.skin-records::after {
   content: '';
   position: absolute;
   right: 2px;
   width: var(--sk-w);
   pointer-events: none;
 }
-.rc-cap.skin-records::before {
+.skinned.skin-records::before {
   top: calc(1px + var(--sk-head-h) * 0.6);
   bottom: calc(1px + var(--sk-feet-h) * 0.6);
   background: var(--sk-body) top center / 100% auto repeat-y;
 }
-.rc-cap.skin-records::after {
+.skinned.skin-records::after {
   top: 1px;
   bottom: 1px;
   background:
     var(--sk-head) top center / 100% auto no-repeat,
     var(--sk-feet) bottom center / 100% auto no-repeat;
 }
-.rc-cap.skin-records.skin-one::before { content: none; }
-.rc-cap.skin-records.skin-one::after {
+.skinned.skin-records.skin-one::before { content: none; }
+.skinned.skin-records.skin-one::after {
   width: var(--sk-single-w);
   background: var(--sk-single) center / contain no-repeat;
 }
 
-/* ── Выбор скина в настройках профиля ───────────────────────────────────── */
-.skin-status { min-height: 1.2em; font-size: 12px; color: var(--green); }
-.skin-status-err { color: var(--red); }

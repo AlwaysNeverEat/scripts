@@ -16,6 +16,7 @@ import crmChatsRouter from './routes/crmChats.js';
 import chatPastesRouter from './routes/chatPastes.js';
 import donorsRouter from './routes/donors.js';
 import skinsRouter from './routes/skins.js';
+import casesRouter from './routes/cases.js';
 // Панель Битрикса («Лиды») отложена — см. docs/BITRIX.md. Модули
 // backend/src/bitrix/ и оба роутера на месте, выключена только проводка.
 // import bitrixRouter from './routes/bitrix.js';
@@ -107,6 +108,8 @@ app.use('/api/donors', requireSession, donorsRouter);
 // Скины (рамка, баннер лидов, капсулы записей): видят все, ставит список
 // логинов (shared/skins.js).
 app.use('/api/skins', requireSession, skinsRouter);
+// Кейсы и кошелёк гемов: обмен записей, рублей и опыта, ключи, открытие.
+app.use('/api/cases', requireSession, casesRouter);
 app.use('/api/crm', requireSession, crmRouter);
 // Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md). ОТЛОЖЕНА
 // целиком — ручки не подняты, чтобы сайт не хранил чужие сессии портала ради

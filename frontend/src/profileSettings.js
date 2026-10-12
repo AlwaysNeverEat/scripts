@@ -21,7 +21,6 @@ import { accentPickerHtml, bindAccentPicker } from './accent.js';
 import { backgroundPickerHtml, bindBackgroundPicker } from './background.js';
 import { isDonationAdmin } from '../../shared/donations.js';
 import { openDonorsAdmin } from './donorsAdmin.js';
-import { skinPickerHtml, bindSkinPicker } from './skins.js';
 
 const MODAL_ID = 'profile-settings-modal';
 
@@ -47,7 +46,6 @@ export function openProfileSettings({ apiFetch, onLogout, user = null }) {
                     ${backgroundPickerHtml()}
                     ${accentPickerHtml()}
                 </div>
-                ${skinPickerHtml(user?.id)}
                 ${isDonationAdmin(user) ? `
                 <!-- Только у того, кто платит за сервер (shared/donations.js):
                      внести пополнение поддержавшего. Сервер проверяет то же. -->
@@ -80,7 +78,6 @@ export function openProfileSettings({ apiFetch, onLogout, user = null }) {
     const donorsBtn = modal.querySelector('#pset-donors');
     if (donorsBtn) donorsBtn.onclick = () => { close(); openDonorsAdmin({ apiFetch }); };
     bindAccentPicker(modal);
-    bindSkinPicker(modal, user?.id);
 
     const errBox = modal.querySelector('#pset-error');
     const showErr = (msg) => {

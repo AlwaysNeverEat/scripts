@@ -24,9 +24,10 @@
 
 export const SKIN_EDITOR_LOGINS = ['gtrixoff'];
 
+// hue — тон пака в ленте кейса и в инвентаре (полоска «редкости», как в CS).
 export const SKIN_PACKS = {
-    cat: { label: 'Котик' },
-    fox: { label: 'Лиса' },
+    cat: { label: 'Котик', hue: 350 },
+    fox: { label: 'Лиса', hue: 45 },
 };
 
 export const SKIN_PARTS = [

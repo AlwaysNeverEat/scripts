@@ -26,11 +26,11 @@ function fakeDb() {
     };
 }
 
-async function serve(t) {
+async function serve(t, owned = {}) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => { req.user = req.get('x-editor') ? EDITOR : USER; next(); });
-    app.use('/', createSkinsRouter({ db: fakeDb() }));
+    app.use('/', createSkinsRouter({ db: fakeDb(), ownedOf: async (id) => owned[id] || [] }));
     const srv = app.listen(0);
     t.after(() => srv.close());
     const base = `http://127.0.0.1:${srv.address().port}`;
@@ -41,18 +41,22 @@ async function serve(t) {
     };
 }
 
-test('надеть может только редактор, видят все', async (t) => {
-    const call = await serve(t);
-    assert.equal((await call('/me', { method: 'PUT', body: { parts: { frame: 'cat' } } })).status, 403);
-    assert.equal((await call('/me/operator', { method: 'PUT', body: { operator: '7' } })).status, 403);
+test('надеть можно только своё, редактор — что угодно, видят все', async (t) => {
+    const call = await serve(t, { [USER.id]: [{ pack: 'fox', part: 'frame' }] });
+    const foreign = await call('/me', { method: 'PUT', body: { parts: { frame: 'cat' } } });
+    assert.equal(foreign.status, 403);
+    assert.equal(foreign.json.error.code, 'not_owned');
+    assert.equal((await call('/me', { method: 'PUT', body: { parts: { frame: 'fox', cover: 'fox' } } })).status, 403);
+    assert.equal((await call('/me', { method: 'PUT', body: { parts: { frame: 'fox' } } })).status, 200);
+    assert.equal((await call('/')).json.mine.parts.frame, 'fox');
 
     const put = await call('/me', { method: 'PUT', editor: true, body: { parts: { frame: 'cat' }, operator: '0103' } });
     assert.equal(put.status, 200);
 
     const seen = await call('/');
     assert.equal(seen.json.canEdit, false);
-    assert.equal(seen.json.mine, null);
-    assert.deepEqual(seen.json.skins, [{ userId: EDITOR.id, parts: { frame: 'cat', cover: null, leads: null, records: null }, operator: '103' }]);
+    assert.deepEqual(seen.json.skins.find(s => s.userId === EDITOR.id),
+        { userId: EDITOR.id, parts: { frame: 'cat', cover: null, leads: null, records: null }, operator: '103' });
 
     const own = await call('/', { editor: true });
     assert.equal(own.json.canEdit, true);

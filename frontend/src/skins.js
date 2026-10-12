@@ -19,7 +19,7 @@
 // design/skins/cut-skin.py, он же пишет meta.json с размерами.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SKIN_PACKS, SKIN_PARTS, skinForOperator, skinOperatorKey } from '../../shared/skins.js';
+import { skinForOperator, skinOperatorKey } from '../../shared/skins.js';
 import './skins.css';
 
 const FILES = import.meta.glob('./assets/skins/*/*.{webp,png}', { eager: true, query: '?url', import: 'default' });
@@ -71,12 +71,18 @@ export async function saveMySkin({ parts, operator }) {
     await loadSkins(state.apiFetch);
 }
 
+// Код оператора лежит у «Лидов» на устройстве (crmLeads.js, тот же ключ):
+// примерочная шлёт его вместе со скином.
+export const localOperator = (userId) => {
+    try { return skinOperatorKey(localStorage.getItem(`zm_leads_operator:${userId || 'anon'}`) || ''); } catch { return ''; }
+};
+
 // Код оператора живёт во вкладке «Лиды» (на устройстве); серверу он нужен,
 // чтобы ДРУГИЕ узнали звонки хозяина скина. Шлём, только если скин надет и
 // код правда поменялся — вкладка зовёт это на каждое сохранение кода.
 export function noteOperatorCode(code) {
     const k = skinOperatorKey(code);
-    if (!state.canEdit || !state.mine || state.mine.operator === k || !state.apiFetch) return;
+    if (!state.mine || state.mine.operator === k || !state.apiFetch) return;
     state.mine = { ...state.mine, operator: k };
     state.apiFetch('/api/skins/me/operator', { method: 'PUT', body: { operator: k } })
         .then(() => loadSkins(state.apiFetch))
@@ -94,7 +100,10 @@ const VARS = ['--sk-frame', '--sk-hole', '--sk-banner', '--sk-banner-ratio',
     '--sk-head', '--sk-body', '--sk-feet', '--sk-single', '--sk-w', '--sk-single-w', '--sk-head-h', '--sk-feet-h'];
 
 // Пак ЭТОЙ части у хозяина элемента — у каждой части свой (shared/skins.js).
+// `data-skin-pack` задаёт пак прямо на элементе — так примерочная показывает
+// ещё не надетое (пустая строка — стандартный вид).
 function packOf(el) {
+    if (el.dataset.skinPack !== undefined) return el.dataset.skinPack || null;
     const part = el.dataset.skinPart;
     const skin = part === 'leads'
         ? skinForOperator(state.skins, el.dataset.skinOp)
@@ -150,86 +159,12 @@ export function initSkins() {
     // Микрозадача после вставки — то есть ДО отрисовки кадра: капсула не
     // мелькает без кота. Пока список не приехал, красить нечем.
     new MutationObserver((records) => {
-        if (!state.skins.length) return;
-        for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1) paintAll(n);
+        for (const r of records) for (const n of r.addedNodes) {
+            if (n.nodeType !== 1) continue;
+            // Без списка красить нечего — кроме примерочной, у неё пак на элементе.
+            if (state.skins.length || n.matches('[data-skin-pack]') || n.querySelector('[data-skin-pack]')) paintAll(n);
+        }
     }).observe(document.body, { childList: true, subtree: true });
-}
-
-// ── Выбор скина в настройках профиля ─────────────────────────────────────────
-// Только у тех, кому скин можно ставить (canEdit с сервера, он же проверяет
-// запись). Нажатие сразу сохраняет: «Сохранить» здесь лишнее, а посмотреть,
-// как оно выглядит, и есть вся работа этого окна.
-
-const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-// Код оператора лежит у «Лидов» на устройстве (crmLeads.js, тот же ключ).
-const localOperator = (userId) => {
-    try { return skinOperatorKey(localStorage.getItem(`zm_leads_operator:${userId || 'anon'}`) || ''); } catch { return ''; }
-};
-
-// По строке на часть: «Стандартный» и паки. Пак, у которого картинок этой
-// части ещё нет, виден, но не нажимается — видно, что он есть и что ждём.
-function pickerBody(userId) {
-    const parts = state.mine?.parts || {};
-    const op = localOperator(userId);
-    const rows = SKIN_PARTS.map(({ id, label }) => {
-        const cur = parts[id] || '';
-        const opts = [['', 'Стандартный'], ...Object.entries(SKIN_PACKS).map(([p, d]) => [p, d.label])];
-        return `
-        <div class="bg-picker-row">
-            <span class="bg-picker-label">${esc(label)}</span>
-            <div class="bg-picker-seg" data-seg="skin-${id}">${opts.map(([p, name]) => {
-                const ready = !p || packHasPart(p, id);
-                return `<button type="button" class="chip${p === cur ? ' active' : ''}" data-pick-part="${id}" data-skin-pick="${esc(p)}"
-                        aria-pressed="${p === cur}"${ready ? '' : ' disabled title="Картинок ещё нет"'}>${esc(name)}</button>`;
-            }).join('')}</div>
-        </div>`;
-    }).join('');
-    return `${rows}
-        <div class="accent-note">
-            ${op ? `Ваши звонки в ленте лидов узнаются по коду оператора <b>${esc(op)}</b> из вкладки «Лиды».`
-                : 'Скин звонков появится, когда во вкладке «Лиды» будет введён «Мой код»: по нему узнаются ваши звонки.'}
-        </div>
-        <div class="skin-status" aria-live="polite"></div>`;
-}
-
-export function skinPickerHtml(userId) {
-    if (!state.canEdit) return '';
-    return `
-        <div class="pset-group">
-            <div class="pset-head">
-                <span class="pset-title">Скин</span>
-                <span class="pset-meta">видно всем</span>
-            </div>
-            <div class="bg-picker skin-picker">${pickerBody(userId)}</div>
-        </div>`;
-}
-
-export function bindSkinPicker(root, userId) {
-    const box = root.querySelector('.skin-picker');
-    if (!box) return;
-    let busy = false;
-    const status = (text, err = false) => {
-        const el = box.querySelector('.skin-status');
-        el.textContent = text;
-        el.classList.toggle('skin-status-err', err);
-    };
-    box.addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-skin-pick]');
-        if (!btn || btn.disabled || busy) return;
-        const next = { parts: { ...(state.mine?.parts || {}) }, operator: localOperator(userId) };
-        next.parts[btn.dataset.pickPart] = btn.dataset.skinPick || null;
-        busy = true;
-        status('Сохраняю…');
-        try {
-            await saveMySkin(next);
-            box.innerHTML = pickerBody(userId);
-            status('Сохранено — так вас видят все');
-        } catch (err) {
-            status(`Не сохранилось: ${err.message || 'сервер не ответил'}`, true);
-        } finally { busy = false; }
-    });
 }
 
 export { PACK_ART as skinArt };

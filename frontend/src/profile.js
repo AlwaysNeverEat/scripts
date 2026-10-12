@@ -15,6 +15,7 @@ import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { openProfileSettings } from './profileSettings.js';
 import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
+import { mountCases } from './cases.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 
@@ -108,6 +109,13 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                 <div id="profile-error" class="edit-error hidden"></div>
 
                 ${profileSectionHtml({
+                    title: 'Скины',
+                    meta: 'кейсы, гемы и примерочная',
+                    cls: 'profile-sec-cases',
+                    body: '<div id="profile-cases"></div>',
+                })}
+
+                ${profileSectionHtml({
                     title: 'Факультет',
                     meta: faculty?.status === 'done' ? 'закреплён навсегда' : 'распределяющая шляпа',
                     cls: 'profile-sec-faculty',
@@ -129,6 +137,9 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             </div>
         `;
         bind();
+        // Кейсы, магазин гемов и примерочная живут своей жизнью (cases.js):
+        // кошелёк грузится отдельно и страницу профиля не держит.
+        mountCases(document.getElementById('profile-cases'), { apiFetch, user });
         // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).
         attachActivityFeed(box, { loadDay: date => apiFetch('/api/profile/day/' + date) });
     }
