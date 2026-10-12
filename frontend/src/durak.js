@@ -46,6 +46,7 @@ import deckSheet from './assets/cards-8bit.png';
 import cardBack from './assets/card-back.png';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
+import { avatarSkinAttrs } from './skins.js';
 
 const MODAL_ID = 'durak-modal';
 
@@ -388,7 +389,7 @@ function renderTop(state, top) {
     const list = rows.map(row => `
         <div class="dur-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="dur-top-rank">${row.rank}</span>
-            <div class="dur-top-avatar">${row.avatar
+            <div class="dur-top-avatar"${avatarSkinAttrs(row.id)}>${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
             <div class="dur-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>

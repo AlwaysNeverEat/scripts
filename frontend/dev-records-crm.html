@@ -8,7 +8,10 @@
      собирается настоящим journalToBoard — то есть песочница проверяет тот же
      путь данных, что и бой. Операции идут через очередь, как на сервере:
        ?delay=5000 — CRM «думает» 5 с (по умолчанию 2);
-       ?fail=1 — часть записей получает отказ «нет свободного поста».
+       ?fail=1 — часть записей получает отказ «нет свободного поста»;
+       ?skin=1 — у Петровой надет скин «Котик» (skins.js): кот на её капсулах
+                 на один, два, четыре и шесть получасов (нужны картинки пака
+                 в src/assets/skins/cat/ — см. design/skins/README.md).
      Все запросы раздела копятся в window.__ops.
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
@@ -23,6 +26,8 @@
     import { parseJournal, journalToBoard, bookingOpen, BOOKING_LEAD_MIN } from '../shared/crmJournal.js';
 
     const params = new URLSearchParams(location.search);
+    // ?skin=1 — котик, ?skin=<пак> — этот пак (shared/skins.js).
+    const PACK = params.get('skin') === '1' ? 'cat' : params.get('skin');
     const ME = 'Иванов Иван Иванович';
     const pad = (n) => String(n).padStart(2, '0');
     const msk = new Date(Date.now() + 3 * 3600e3);
@@ -44,6 +49,15 @@
       { id: String(nextId++), address_id: '8', time: '12:00', record_time: `${ISO} 12:00:00`, name: 'Пётр акпп', phone_d: '79213334455', phone: '79213334455', car_number: '', comment: '', creator: 'Петрова Мария Сергеевна', st: '', is_new: 1 },
       { id: String(nextId++), address_id: '8', time: '12:30', record_time: `${ISO} 12:30:00`, name: 'Пётр акпп', phone_d: '79213334455', phone: '79213334455', car_number: '', comment: '', creator: 'Петрова Мария Сергеевна', st: '', is_new: 1 },
     ];
+    if (params.get('skin')) {
+      const P = 'Петрова Мария Сергеевна';
+      const chain = (st, times, name, phone) => times.forEach(t => records.push({ id: String(nextId++), address_id: st, time: t,
+        record_time: `${ISO} ${t}:00`, name, phone, phone_d: phone, car_number: '', comment: '', creator: P, st: '', is_new: 0 }));
+      chain('1', ['11:00'], 'Анна двс', '79210000001');
+      chain('8', ['15:00', '15:30', '16:00', '16:30'], 'Семён акпп', '79210000002');
+      chain('179', ['10:00', '10:30', '11:00', '11:30', '12:00', '12:30'], 'Длинный кот', '79210000003');
+      chain('179', ['14:00', '14:30'], 'Борис двс', '79210000004');
+    }
     const journalFor = (iso) => ({
       ok: true, date: iso, stations,
       records: records.filter(r => r.record_time.startsWith(iso)),
@@ -163,7 +177,7 @@
         board.date = date;
         const authors = {};
         for (const byTime of Object.values(board.cells)) for (const c of Object.values(byTime)) for (const r of c.records) {
-          if (r.creator) authors[r.id] = { id: null, display_name: r.creator, avatar: null, counted: true, crm: true };
+          if (r.creator) authors[r.id] = { id: params.get('skin') && r.creator.startsWith('Петрова') ? 'cat-user' : null, display_name: r.creator, avatar: null, counted: true, crm: true };
         }
         return json({ date, source: 'live', board, fetchedAt: new Date().toISOString(), ok: true, error: '', ops: queue.map(o => ({ ...o, mine: o.author === 'Серёга' })), authors });
       }
@@ -203,9 +217,13 @@
       if (u.includes('/api/journal/ops')) return json({ ops: queue.map(o => ({ ...o, mine: o.author === 'Серёга' })) });
       if (u.includes('/api/records/stations')) return json({ stations: {} });
       if (u.includes('/api/crm/login')) return json({ ok: true, linked: true });
+      if (u.includes('/api/skins')) return json({ skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: PACK, cover: PACK, leads: PACK, records: PACK }, operator: '103' }] : [], canEdit: false, mine: null });
       return realFetch(url, init);
     };
 
+    const { initSkins, loadSkins } = await import('/src/skins.js');
+    initSkins();
+    loadSkins((p) => fetch(p).then(r => r.json()));
     const { startRecords } = await import('/src/records/records.js');
     startRecords(document.getElementById('page-records'));
   </script>

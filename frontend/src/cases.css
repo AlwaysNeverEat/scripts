@@ -1,0 +1,250 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Кейсы, магазин гемов и примерочная (frontend/src/cases.js).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.cs-loading { color: var(--sub); font-size: 13px; padding: var(--s-3) 0; }
+.cs-gem { display: inline-flex; flex: none; }
+.cs-gem img { display: block; }
+.cs-key-img { display: block; object-fit: contain; }
+.cs-h {
+  margin: var(--s-5) 0 var(--s-3);
+  font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  display: flex; align-items: baseline; gap: var(--s-2);
+}
+.cs-h span { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--sub); }
+
+/* ── Обложка ─────────────────────────────────────────────────────────────── */
+.cs-cover {
+  aspect-ratio: 1400 / 421;
+  border-radius: var(--r-3);
+  background: center / cover no-repeat;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: var(--s-4);
+  overflow: hidden;
+}
+.cs-cover span {
+  /* Название сезона ложится на спокойную середину обложки, но длинное
+     заходит на зверей по краям — тёплая подложка держит его читаемым. */
+  padding: var(--s-2) var(--s-6);
+  background: radial-gradient(closest-side, rgb(110 45 10 / .45), transparent);
+  font-size: clamp(22px, 5vw, 38px); font-weight: 900; letter-spacing: .02em;
+  color: #fff;
+  text-shadow: 0 2px 0 rgb(90 40 10 / .55), 0 0 18px rgb(255 170 60 / .7);
+}
+
+/* ── Кошелёк ─────────────────────────────────────────────────────────────── */
+.cs-wallet {
+  display: grid;
+  grid-template-columns: auto auto minmax(160px, 1fr);
+  gap: var(--s-3);
+  align-items: center;
+}
+.cs-bal {
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border); border-radius: var(--r-3);
+  background: var(--bg2);
+}
+.cs-bal b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.cs-bal span { color: var(--sub); font-size: 12px; }
+.cs-bal-gems b { font-size: 24px; }
+.cs-xp { display: flex; flex-direction: column; gap: var(--s-1); }
+.cs-xp-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--sub); }
+.cs-xp-top b { color: var(--text); font-variant-numeric: tabular-nums; }
+.cs-bar { height: 8px; border-radius: var(--r-round); background: var(--bg3); overflow: hidden; }
+.cs-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), oklch(0.8 0.15 300)); transition: width .4s; }
+
+/* ── Кейсы ───────────────────────────────────────────────────────────────── */
+.cs-cases { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); margin-top: var(--s-4); }
+.cs-case {
+  position: relative;
+  display: flex; gap: var(--s-3); align-items: center;
+  padding: var(--s-3);
+  border-radius: var(--r-3);
+  border: 1px solid var(--border);
+  background: radial-gradient(120% 140% at 0% 100%, oklch(0.7 0.16 45 / .18), transparent 60%), var(--bg2);
+  overflow: hidden;
+}
+.cs-case-big { background: radial-gradient(120% 140% at 0% 100%, oklch(0.72 0.17 25 / .22), transparent 60%), var(--bg2); }
+.cs-case-chest { flex: none; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; }
+.cs-case:hover .cs-case-chest { animation: cs-wiggle .6s ease-in-out; }
+.cs-chest-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 10px rgb(0 0 0 / .25)); }
+.cs-chest-ico { color: oklch(0.78 0.14 70); }
+.cs-case-body { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
+.cs-case-title { font-size: 16px; }
+.cs-case-sub { font-size: 12px; color: var(--sub); }
+.cs-case-in { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.cs-case-in span {
+  font-size: 11px; padding: 0 var(--s-2); border-radius: var(--r-1);
+  background: oklch(0.7 0.14 var(--hue) / .2); color: oklch(0.82 0.12 var(--hue));
+}
+:root[data-theme="light"] .cs-case-in span { color: oklch(0.45 0.14 var(--hue)); }
+.cs-open { align-self: flex-start; margin-top: var(--s-1); display: inline-flex; align-items: center; gap: var(--s-1); }
+
+/* ── Магазин ─────────────────────────────────────────────────────────────── */
+.cs-shop { display: flex; flex-direction: column; gap: var(--s-2); }
+.cs-shop-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border); border-radius: var(--r-3);
+}
+.cs-shop-text { display: flex; flex-direction: column; min-width: 0; }
+.cs-shop-text b { font-size: 13.5px; }
+.cs-shop-text span { font-size: 12px; color: var(--sub); }
+.cs-shop-act { display: flex; gap: var(--s-2); align-items: center; flex: none; }
+.cs-shop-act .btn { display: inline-flex; align-items: center; gap: var(--s-1); }
+.cs-in {
+  width: 84px; padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--border); border-radius: var(--r-2);
+  background: var(--bg); color: var(--text); font: inherit; font-variant-numeric: tabular-nums;
+}
+.cs-note { min-height: 1.2em; font-size: 12.5px; color: var(--green); }
+.cs-note-err { color: var(--red); }
+
+/* ── Примерочная ─────────────────────────────────────────────────────────── */
+.cs-fit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+.cs-fit-side { display: flex; flex-direction: column; gap: var(--s-2); }
+.cs-fit-have { font-size: 12px; color: var(--sub); }
+.cs-fit-row { display: flex; flex-direction: column; gap: var(--s-1); }
+.cs-fit-label { font-size: 12.5px; }
+.cs-fit-opts { align-self: flex-start; }
+.cs-fit-btns { display: flex; gap: var(--s-2); margin-top: var(--s-2); }
+.cs-fit-hint { font-size: 12px; color: var(--sub); }
+
+.cs-pv { display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-3); border: 1px dashed var(--border); border-radius: var(--r-3); }
+.cs-pv-hero { border: 1px solid var(--border); border-radius: var(--r-3); overflow: hidden; background: var(--card); }
+.cs-pv-cover {
+  height: 64px;
+  background: linear-gradient(120deg, color-mix(in oklab, var(--accent) 26%, transparent), color-mix(in oklab, var(--accent) 7%, transparent));
+}
+.cs-pv-ident { display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-3) var(--s-3); }
+.cs-pv-ava {
+  width: 56px; height: 56px; margin-top: -24px; flex: none;
+  border-radius: var(--r-circle); background: var(--bg2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.cs-pv-ava img { width: 100%; height: 100%; object-fit: cover; }
+.cs-pv-ava i { font-style: normal; font-weight: 700; color: var(--sub); }
+.cs-pv-call { pointer-events: none; }
+.cs-pv-board { position: relative; display: flex; flex-direction: column; gap: 5px; }
+.cs-pv-cap {
+  position: relative; height: 39px;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--border); border-radius: var(--r-3); background: var(--bg3);
+  font-size: 11.5px; overflow: hidden;
+}
+.cs-pv-cap span { color: var(--sub); font-size: 11px; }
+.cs-pv-cap-3 { height: 127px; justify-content: flex-start; border-radius: var(--r-4); }
+
+/* ── Окно кейса ──────────────────────────────────────────────────────────── */
+.cs-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: var(--s-4); }
+.cs-modal-back { position: absolute; inset: 0; background: rgb(8 6 4 / .72); backdrop-filter: blur(4px); }
+.cs-modal-win {
+  position: relative; width: min(860px, 100%);
+  border-radius: var(--r-4); border: 1px solid var(--border);
+  background: radial-gradient(90% 120% at 50% 0%, oklch(0.55 0.12 60 / .25), transparent 70%), var(--card);
+  padding: var(--s-5);
+  overflow: hidden;
+}
+.cs-ask { display: flex; flex-direction: column; gap: var(--s-3); max-width: 460px; margin: 0 auto; text-align: center; }
+.cs-ask-title { font-size: 18px; }
+.cs-ask p { color: var(--sub); font-size: 13.5px; line-height: 1.5; }
+.cs-ask-btns { display: flex; gap: var(--s-2); justify-content: center; flex-wrap: wrap; }
+
+.cs-stage { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); padding: var(--s-5) 0; }
+.cs-stage-chest {
+  width: 200px; height: 200px; display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 0 22px oklch(0.85 0.16 80 / .55));
+}
+.cs-stage-chest .cs-chest-ico svg { width: 120px; height: 120px; }
+.cs-stage-text { color: var(--sub); font-size: 13px; }
+.cs-shake { animation: cs-shake .5s ease-in-out infinite, cs-glow 1s ease-in-out infinite alternate; }
+.cs-burst { animation: cs-burst .55s ease-out both; }
+@keyframes cs-shake {
+  0%, 100% { transform: rotate(0) scale(1); }
+  20% { transform: rotate(-6deg) scale(1.03); }
+  40% { transform: rotate(5deg) scale(1.05); }
+  60% { transform: rotate(-4deg) scale(1.04); }
+  80% { transform: rotate(3deg) scale(1.02); }
+}
+@keyframes cs-glow {
+  from { filter: drop-shadow(0 0 14px oklch(0.85 0.16 80 / .35)); }
+  to { filter: drop-shadow(0 0 36px oklch(0.88 0.18 80 / .9)); }
+}
+@keyframes cs-burst {
+  0% { transform: scale(1); filter: drop-shadow(0 0 30px oklch(0.9 0.18 85 / .9)) brightness(1.6); }
+  100% { transform: scale(1.12); filter: drop-shadow(0 0 60px oklch(0.9 0.18 85 / .4)) brightness(1); }
+}
+@keyframes cs-wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-5deg); }
+  50% { transform: rotate(4deg); }
+  75% { transform: rotate(-2deg); }
+}
+
+/* Лента: окно с меткой посередине, карточки едут справа налево и
+   замедляются — как в кейсах CS. Края гаснут, чтобы лента «выходила из
+   ниоткуда». */
+.cs-roll { padding: var(--s-4) 0; }
+.cs-roll-win {
+  position: relative; overflow: hidden;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+          mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.cs-strip { display: flex; gap: 8px; width: max-content; will-change: transform; }
+.cs-roll-mark {
+  position: absolute; top: -4px; bottom: -4px; left: 50%; width: 3px; translate: -50% 0;
+  background: oklch(0.88 0.17 85); border-radius: var(--r-round);
+  box-shadow: 0 0 12px oklch(0.88 0.17 85 / .9);
+}
+
+.cs-card {
+  flex: none; width: 140px;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--s-2);
+  border-radius: var(--r-2);
+  background: linear-gradient(180deg, oklch(0.35 0.06 var(--hue) / .55), oklch(0.25 0.03 var(--hue) / .55));
+  border-bottom: 4px solid oklch(0.72 0.16 var(--hue));
+  color: #fff;
+}
+:root[data-theme="light"] .cs-card { background: linear-gradient(180deg, oklch(0.95 0.04 var(--hue)), oklch(0.88 0.06 var(--hue))); color: var(--text); }
+.cs-thumb { height: 82px; border-radius: var(--r-1); background: no-repeat center / contain; }
+.cs-thumb-cover { background-size: cover; background-position: right center; }
+.cs-card-name { font-size: 12.5px; font-weight: 700; }
+.cs-card-part { font-size: 11px; opacity: .75; }
+.cs-card-won { animation: cs-won .7s ease-out both; }
+@keyframes cs-won { 50% { transform: scale(1.08); box-shadow: 0 0 28px oklch(0.85 0.17 var(--hue) / .9); } }
+
+.cs-prize { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--s-3); padding: var(--s-4) 0; text-align: center; }
+.cs-prize-glow {
+  position: absolute; top: -40px; left: 50%; width: 420px; height: 420px; translate: -50% 0;
+  background: repeating-conic-gradient(from 0deg, oklch(0.85 0.16 80 / .18) 0deg 10deg, transparent 10deg 24deg);
+  -webkit-mask: radial-gradient(closest-side, #000, transparent);
+          mask: radial-gradient(closest-side, #000, transparent);
+  animation: cs-rays 14s linear infinite;
+  pointer-events: none;
+}
+@keyframes cs-rays { to { rotate: 360deg; } }
+.cs-card-big { position: relative; width: 240px; animation: cs-pop .5s cubic-bezier(.2, 1.4, .4, 1) both; }
+.cs-card-big .cs-thumb { height: 150px; }
+@keyframes cs-pop { from { transform: scale(.6); opacity: 0; } }
+.cs-prize-title { position: relative; font-size: 18px; }
+.cs-prize-sub { position: relative; font-size: 13px; color: var(--green); }
+.cs-prize-dup { color: oklch(0.8 0.14 300); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-shake, .cs-burst, .cs-card-won, .cs-card-big, .cs-prize-glow, .cs-case:hover .cs-case-chest { animation: none; }
+}
+
+@media (max-width: 760px) {
+  .cs-wallet { grid-template-columns: 1fr 1fr; }
+  .cs-xp { grid-column: 1 / -1; }
+  .cs-cases, .cs-fit { grid-template-columns: 1fr; }
+  .cs-shop-row { flex-wrap: wrap; }
+}
+
+/* Сезон: срок под обложкой; вне сезона обложка гаснет, кейсы закрыты. */
+.cs-season { margin: calc(-1 * var(--s-2)) 0 var(--s-4); font-size: 12.5px; color: var(--sub); text-align: center; }
+.cs-season-off { color: var(--text); }
+.cs-cover-off { filter: grayscale(.75) brightness(.8); }

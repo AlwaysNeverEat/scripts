@@ -20,6 +20,7 @@ import { arrowRightIcon } from './icons.js';
 import { describeCarChanges, changedFieldLabels } from '../../shared/carDiff.js';
 import { initSegmented } from './segmented.js';
 import { initSelects } from './select.js';
+import { avatarSkinAttrs } from './skins.js';
 
 // К какому агрегату относится особенность из CRM — подпись перед текстом,
 // чтобы «полную не делаем» не путали с правилом для механики.
@@ -210,7 +211,7 @@ function openAssignModal(record, ctx) {
         }
         listBox.innerHTML = users.map(u => `
             <button class="assign-user" data-assign-id="${esc(u.id)}" data-assign-name="${esc(u.display_name)}">
-                <span class="assign-user-avatar">${u.avatar ? `<img src="${esc(u.avatar)}" alt=""/>` : ''}</span>
+                <span class="assign-user-avatar"${avatarSkinAttrs(u.id)}>${u.avatar ? `<img src="${esc(u.avatar)}" alt=""/>` : ''}</span>
                 <span class="assign-user-name">${namePrefixHtml(u)}${esc(u.display_name)}${nameSuffixHtml(u)}</span>
             </button>
         `).join('');
@@ -409,7 +410,7 @@ function renderEventCard(ev, i) {
         <div class="event-card ${cardClass}"
              data-event-idx="${i}" ${clickable ? 'role="button" tabindex="0"' : ''}
              ${clickable ? 'title="Открыть: что именно изменили"' : ''}>
-            <div class="event-avatar" ${avatarLinkAttr}>${avatarHtml}</div>
+            <div class="event-avatar" ${avatarLinkAttr}${avatarSkinAttrs(ev.user?.id)}>${avatarHtml}</div>
             <div class="event-body">
                 <div class="event-text">${text}</div>
                 ${fieldsHtml}

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!-- Дев-песочница панели «Скины» из профиля: кошелёк гемов, магазин, два
+     кейса с лентой и примерочная — без входа и без базы.
+     Открыть: npx vite → /dev-cases.html
+
+     Кошелёк живёт в памяти страницы и считается ТЕМИ ЖЕ правилами, что на
+     сервере (shared/cases.js): обмен, ключ, открытие, дубликаты. Случайность —
+     Math.random вместо crypto.randomInt, больше разницы нет.
+       ?rich=1 — сразу 600 гемов и два ключа (крутить, не обменивая);
+       ?editor=1 — как у gtrixoff: в примерочной открыто всё;
+       ?off=1 — 20 декабря: сезон закрыт, кейсы не открываются.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: кейсы</title>
+  <script>
+    try {
+      if (localStorage.getItem('cars_db_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Кейсы — песочница</h2>
+    <p class="page-sub">Кошелёк в памяти страницы, правила — shared/cases.js.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-sec" id="dev-records">+50 записей</button>
+  </div>
+  <div class="profile-content">
+    <div class="profile-page">
+      <section class="profile-sec profile-sec-cases">
+        <div class="profile-sec-head"><h3 class="profile-sec-title">Скины</h3><span class="profile-sec-meta">кейсы, гемы и примерочная</span></div>
+        <div class="profile-sec-body"><div id="profile-cases"></div></div>
+      </section>
+    </div>
+  </div>
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, applyTheme, currentTheme } from './src/theme.js';
+    import { initSegmented } from './src/segmented.js';
+    import { initSkins, loadSkins } from './src/skins.js';
+    import { mountCases } from './src/cases.js';
+    import { walletBalance, planExchange, planKeys, openCase, itemKey, activeSeason, nextSeason, casePacks } from '../shared/cases.js';
+    import { cleanSkin, publicSkin } from '../shared/skins.js';
+
+    initTheme();
+    initSegmented();
+    initSkins();
+    const params = new URLSearchParams(location.search);
+    const ME = { id: 'me', login: params.get('editor') ? 'gtrixoff' : 'borya', display_name: 'Дежурный по станции', avatar: null };
+
+    const NOW = () => (params.get('off') ? Date.parse('2026-12-20T09:00:00Z') : Date.now());
+    let recordsTotal = 137;
+    const rublesTotal = 300;
+    const ledger = params.get('rich') ? [{ gems: 600, keys: 2 }] : [{ xp: 60 }];
+    const owned = [];
+    let skin = null;
+
+    const balance = () => {
+      const sums = {};
+      for (const r of ledger) for (const k of ['gems', 'records', 'rubles', 'xp', 'keys']) sums[k] = (sums[k] || 0) + (r[k] || 0);
+      return walletBalance({ recordsTotal, rublesTotal, sums });
+    };
+    const fail = (message, code = 'refused', short = null) => { const e = new Error(message); e.code = code; e.short = short; throw e; };
+
+    async function apiFetch(path, { method = 'GET', body } = {}) {
+      await new Promise(r => setTimeout(r, 200));
+      if (path === '/api/cases') {
+        const season = activeSeason(NOW());
+        return { balance: balance(), owned: [...owned], packs: casePacks(season),
+          season: season && { id: season.id, title: season.title, ends: season.ends }, next: season ? null : nextSeason(NOW()) };
+      }
+      if (path === '/api/cases/exchange') {
+        const p = planExchange(balance(), body.from, body.gems);
+        if (p.error) fail(p.error);
+        ledger.push(p.row);
+        return { balance: balance() };
+      }
+      if (path === '/api/cases/key') {
+        const p = planKeys(balance(), 1);
+        if (p.error) fail(p.error);
+        ledger.push(p.row);
+        return { balance: balance() };
+      }
+      if (path === '/api/cases/open') {
+        const p = openCase(body.kind, { balance: balance(), owned: new Set(owned.map(itemKey)), rand: (n) => Math.floor(Math.random() * n), season: activeSeason(NOW()) });
+        if (p.error) fail(p.error, p.needKey ? 'need_key' : p.closed ? 'season_closed' : 'refused', p.short);
+        ledger.push(p.row);
+        for (const g of p.grant) owned.push(g);
+        return { prize: p.prize, grant: p.grant, dup: p.dup, xp: p.row.xp, balance: balance(), owned: [...owned] };
+      }
+      if (path === '/api/skins' && method === 'GET') {
+        const pub = skin ? publicSkin({ user_id: 'me', ...skin }) : null;
+        return { skins: pub ? [pub] : [], canEdit: ME.login === 'gtrixoff', mine: skin };
+      }
+      if (path === '/api/skins/me') {
+        const { skin: s, error } = cleanSkin(body);
+        if (error) fail(error);
+        if (ME.login !== 'gtrixoff' && Object.entries(s.parts).some(([part, pack]) => pack && !owned.some(o => o.pack === pack && o.part === part))) {
+          fail('этой части скина у вас ещё нет — она выпадает из кейсов', 'not_owned');
+        }
+        skin = s;
+        return { ok: true, mine: s };
+      }
+      throw new Error('dev: неизвестный путь ' + method + ' ' + path);
+    }
+
+    await loadSkins(apiFetch);
+    const mount = () => mountCases(document.getElementById('profile-cases'), { apiFetch, user: ME });
+    mount();
+    document.getElementById('dev-theme').onclick = () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+    document.getElementById('dev-records').onclick = () => { recordsTotal += 50; mount(); };
+  </script>
+</body>
+</html>

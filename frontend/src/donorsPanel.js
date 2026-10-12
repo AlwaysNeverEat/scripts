@@ -34,6 +34,7 @@ import { nameSuffixHtml } from './namePrefix.js';
 import { setSupporters, gemImgHtml } from './nameBadges.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 import './donorsPanel.css';
+import { avatarSkinAttrs } from './skins.js';
 
 const COLLAPSE_KEY = 'zm_donors_collapsed';
 const WIDE_ENOUGH = 1620;          // 1040 контента + по 290 с каждой стороны
@@ -130,7 +131,7 @@ export function initDonorsPanel({ apiFetch }) {
         return `<ol class="dn-list">${state.donors.map((d, i) => `
             <li class="dn-row"${profileRowAttrs(d)}>
                 <span class="dn-rank">${i + 1}</span>
-                <span class="dn-ava">${avatarHtml(d)}</span>
+                <span class="dn-ava"${avatarSkinAttrs(d.id)}>${avatarHtml(d)}</span>
                 <span class="dn-who">
                     <span class="dn-name"><span class="dn-name-t">${esc(d.display_name)}</span>${nameSuffixHtml(d)}</span>
                     <span class="dn-sums"><span title="${esc(monthLabel(state.month))}">${d.month ? `${esc(monthLabel(state.month))} ${rub(d.month)}` : `<span class="dn-muted">${esc(monthLabel(state.month))} —</span>`}</span></span>

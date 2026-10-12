@@ -49,6 +49,7 @@ import railUrl from './assets/pool-rail.webp';
 import cueUrl from './assets/pool-cue.webp';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
+import { avatarSkinAttrs } from './skins.js';
 
 const MODAL_ID = 'pool-modal';
 
@@ -353,7 +354,7 @@ function renderLobby(state) {
 function rowHtml(player, action, attrs, extra = '') {
     return `
         <div class="pool-row">
-            <div class="pool-row-avatar">${player?.avatar
+            <div class="pool-row-avatar"${avatarSkinAttrs(player?.id)}>${player?.avatar
                 ? `<img src="${esc(player.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
             <div class="pool-row-name">${esc(player?.name || 'Игрок')}</div>
@@ -375,7 +376,7 @@ function renderTop(state, top) {
     const list = rows.map(row => `
         <div class="pool-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="pool-top-rank">${row.rank}</span>
-            <div class="pool-row-avatar">${row.avatar
+            <div class="pool-row-avatar"${avatarSkinAttrs(row.id)}>${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
             <div class="pool-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
@@ -1228,7 +1229,7 @@ function renderHud(state) {
             : 'стол открыт';
         return `
             <div class="pool-player${turn ? ' is-turn' : ''}${seat === state.seat ? ' is-me' : ''}">
-                <div class="pool-row-avatar">${p.avatar
+                <div class="pool-row-avatar"${avatarSkinAttrs(p.id)}>${p.avatar
                     ? `<img src="${esc(p.avatar)}" alt=""/>`
                     : '<span class="top-avatar-default"></span>'}</div>
                 <div class="pool-player-text">

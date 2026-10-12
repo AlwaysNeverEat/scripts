@@ -11,6 +11,7 @@ import { initAdminPage, isModerator } from './admin.js';
 import { initAchievements } from './achievements.js';
 import { initHalloween } from './halloween.js';
 import { initDonorsPanel } from './donorsPanel.js';
+import { initSkins, loadSkins, paintAll as paintSkins } from './skins.js';
 import { initNameBadges } from './nameBadges.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
@@ -50,6 +51,9 @@ initSegmented();
 // Перетекающий текст по атрибуту data-morph — тоже один раз на страницу и
 // дальше сам следит за новой разметкой (см. textMorph.js).
 initTextMorph();
+// Скины (рамка, баннер лида, кот на записях) — так же: красит помеченные
+// элементы, как только они появились в разметке (см. skins.js).
+initSkins();
 initSelects();
 
 // ── API config ────────────────────────────────────────────────────────────────
@@ -177,6 +181,8 @@ function enterApp() {
     // Поддержавшие проект — справа на всех страницах; заодно раздаёт звёздочки
     // у ников (donorsPanel.js). Один раз за жизнь страницы.
     donorsPanelRef = donorsPanelRef || initDonorsPanel({ apiFetch });
+    // Кто в каком скине — один список на всех, красит уже нарисованное сам.
+    loadSkins(apiFetch);
     // Станции для «Склада» подтягиваем сразу после прогрева сессии CRM, а не
     // при первом заходе на вкладку: список должен уже стоять, когда её
     // откроют. Именно ПОСЛЕ прогрева — до него запрос отвечал «нет сессии»,
@@ -246,6 +252,14 @@ function renderUserBar() {
     } else {
         img.hidden = true;
         defaultIcon.hidden = false;
+    }
+    // Рамка скина — и на аватарке во вкладке. Узел статичный, наблюдатель
+    // за разметкой его не увидит, поэтому красим руками (см. skins.js).
+    const wrap = img.closest('.app-tab-avatar');
+    if (wrap && currentUser?.id) {
+        wrap.dataset.skinPart = 'frame';
+        wrap.dataset.skinUser = currentUser.id;
+        paintSkins(wrap);
     }
 }
 

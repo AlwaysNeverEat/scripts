@@ -53,3 +53,4 @@ data/import/lukoil-filters.json
 
 # Секреты прода (см. DEPLOY-VPS.md) — только пример в deploy/env.example
 deploy/.env
+__pycache__/

@@ -24,6 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import './crmLeads.css';
+import { noteOperatorCode } from './skins.js';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
 import { setPickedLead } from './leadPick.js';
 import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime } from '../../shared/crmLeads.js';
@@ -168,6 +169,8 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             else localStorage.removeItem(operatorStoreKey());
         } catch { /* приватный режим — код живёт до перезагрузки */ }
         if (!state.operator && state.filter === 'mine') state.filter = 'all';
+        // Код нужен и скину: по нему другие узнают звонки хозяина скина.
+        noteOperatorCode(state.operator);
             }
 
     function freshDraft() {
@@ -218,6 +221,13 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         });
     }
 
+    // Скин звонка — по коду оператора, который его принял: чей звонок, того и
+    // скин (skins.js). Звонок без оператора — без скина.
+    const skinAttrs = (c) => {
+        const op = operatorKey(c.operator);
+        return op ? ` data-skin-part="leads" data-skin-op="${esc(op)}"` : '';
+    };
+
     function feedRowHtml(c) {
         const [label, cls] = callStatus(c.status);
         const sel = state.selected && state.selected.id === c.id;
@@ -228,7 +238,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             ? `визитов: ${c.client.visits}${c.client.car ? ` · ${esc(c.client.car)}` : ''}`
             : '';
         return `
-        <button type="button" class="ld-call ld-call--${cls}${sel ? ' ld-call-sel' : ''}${mine ? ' ld-call-mine' : ''}" data-call="${esc(c.id)}">
+        <button type="button" class="ld-call ld-call--${cls}${sel ? ' ld-call-sel' : ''}${mine ? ' ld-call-mine' : ''}" data-call="${esc(c.id)}"${skinAttrs(c)}>
             <span class="ld-call-ico">${ICON.phoneIn(15)}</span>
             <span class="ld-call-main">
                 <span class="ld-call-top">

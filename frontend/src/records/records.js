@@ -36,6 +36,7 @@ import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
 import { settledSince, unitsOf, unitStatus, describeUnit, unseenFailures, canRetry } from './opQueue.js';
 import { pickedLead, leadFill } from '../leadPick.js';
+import { avatarSkinAttrs } from '../skins.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
 let visible = false; // раздел на экране (между startRecords/resumeRecords и pauseRecords)
@@ -1617,7 +1618,8 @@ function renderStation() {
         const isDeleting = chain.parts.some(p => del.has(String(p.id)));
         const isMoving = chain.parts.some(p => moved.has(String(p.id)));
         // Кто записал — кружком в углу капсулы: авторство видно прямо на
-        // доске, а не только в окне записи.
+        // доске, а не только в окне записи. По нему же skins.js сажает на
+        // капсулу кота из скина автора (data-skin-*).
         const author = authorOf(chain);
         const segs = chain.parts.map((p, idx) => idx === 0 ? '' :
             `<i class="rc-cap-seg" style="top:${idx * ROW_H - 1}px"></i>`).join('');
@@ -1631,6 +1633,7 @@ function renderStation() {
                 ${String(state.highlightId) === String(chain.head.id) ? 'rc-cap-hot' : ''}"
             data-action="open-chain" data-head="${esc(chain.head.id)}"
             data-start="${esc(chain.timeStart)}" data-end="${esc(endAt)}"
+            ${author?.id ? `data-skin-part="records" data-skin-user="${esc(author.id)}" data-skin-slots="${nParts}"` : ''}
             style="top:${i0 * ROW_H + 2}px; height:${nParts * ROW_H - 5}px;
                    left:calc((100% / ${lanes}) * ${lane} + 3px);
                    width:calc(100% / ${lanes} - 7px)">
@@ -1641,7 +1644,7 @@ function renderStation() {
                 <b>${esc(chain.head.name || chain.head.customer || 'без имени')}</b>
                 ${nParts > 1 ? `<span class="rc-cap-worm-badge">${icons.link(10)}${nParts}</span>` : ''}
                 <span class="rc-cap-left hidden"></span>
-                ${author ? `<span class="rc-cap-author${author.counted === false ? ' rc-cap-author-skip' : ''}"
+                ${author ? `<span class="rc-cap-author${author.counted === false ? ' rc-cap-author-skip' : ''}"${avatarSkinAttrs(author.id)}
                     title="Записал(а): ${esc(author.display_name)}${author.counted === false ? ` · ${esc(author.skipLabel || 'не в счёт')}` : ''}"
                     >${authorAvatarHtml(author)}</span>` : ''}
             </span>
@@ -2260,7 +2263,7 @@ function authorRowHtml(a) {
     if (!a.id) {
         return `
         <div class="rc-chain-row rc-chain-author" title="Автор по учётке CRM">
-            <span class="rc-author-avatar">${authorAvatarHtml(a)}</span>
+            <span class="rc-author-avatar"${avatarSkinAttrs(a.id)}>${authorAvatarHtml(a)}</span>
             <span>записал(а) <b>${esc(a.display_name)}</b></span>
             <span class="rc-author-skip">CRM</span>
         </div>`;
@@ -2268,7 +2271,7 @@ function authorRowHtml(a) {
     return `
         <button class="rc-chain-row rc-chain-author" data-action="open-author" data-user="${esc(a.id)}"
                 title="Открыть профиль">
-            <span class="rc-author-avatar">${authorAvatarHtml(a)}</span>
+            <span class="rc-author-avatar"${avatarSkinAttrs(a.id)}>${authorAvatarHtml(a)}</span>
             <span>записал(а) <b>${esc(a.display_name)}</b></span>
             ${skip}
         </button>`;

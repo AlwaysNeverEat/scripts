@@ -43,6 +43,7 @@ import {
 } from '../../shared/roguelike.js';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
+import { avatarSkinAttrs } from './skins.js';
 
 // Арт карты — ЭТО ФАЙЛ С ЕЁ ИМЕНЕМ: положили frontend/src/assets/roguelike/strike.png —
 // и «Удар» стал нарисованным, ничего не правя в коде. Никакой таблицы
@@ -1669,7 +1670,7 @@ function topHtml(state) {
     const list = rows.map(row => `
         <div class="rg-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="rg-top-rank">${row.rank}</span>
-            <div class="rg-top-avatar">${row.avatar
+            <div class="rg-top-avatar"${avatarSkinAttrs(row.id)}>${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
             <div class="rg-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>
