@@ -104,7 +104,7 @@ test('вне сезона кейсы закрыты, обмен работает
     const call = await serve(t, store, () => 0, () => Date.parse('2026-12-20T09:00:00Z'));
     const g = (await call('/')).json;
     assert.equal(g.season, null);
-    assert.deepEqual(g.next, { id: 'autumn-kawaii', title: 'Осенний кавай', starts: '2027-03-01' });
+    assert.deepEqual(g.next, { id: 'autumn-kawaii', title: 'Осенний кавай', starts: '2027-09-01' });
     assert.equal((await call('/exchange', { from: 'rubles', gems: 45 })).status, 200);
     const shut = await call('/open', { kind: 'small' });
     assert.equal(shut.status, 409);

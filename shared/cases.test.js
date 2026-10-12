@@ -67,16 +67,16 @@ test('склонение гемов', () => {
     assert.deepEqual([1, 2, 5, 11, 21, 175].map(gemsWord), ['гем', 'гема', 'гемов', 'гемов', 'гем', 'гемов']);
 });
 
-test('сезон: «Осенний кавай» осенью и весной, зимой и летом закрыт', () => {
+test('сезон: «Осенний кавай» только осенью, возвращается следующей осенью', () => {
     const at = (iso) => Date.parse(iso);
     assert.deepEqual(activeSeason(at('2026-10-12T09:00:00Z')),
         { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox'], ends: '2026-11-30' });
-    assert.equal(activeSeason(at('2027-04-01T09:00:00Z')).ends, '2027-05-31');
+    assert.equal(activeSeason(at('2026-09-01T09:00:00Z')).ends, '2026-11-30');
+    assert.equal(activeSeason(at('2027-04-01T09:00:00Z')), null);
     // 30 ноября 23:00 UTC — это уже 1 декабря по Москве
     assert.equal(activeSeason(at('2026-11-30T23:00:00Z')), null);
     assert.equal(activeSeason(at('2027-07-10T09:00:00Z')), null);
-    assert.deepEqual(nextSeason(at('2026-12-15T09:00:00Z')), { id: 'autumn-kawaii', title: 'Осенний кавай', starts: '2027-03-01' });
-    assert.equal(nextSeason(at('2027-06-01T09:00:00Z')).starts, '2027-09-01');
+    assert.deepEqual(nextSeason(at('2026-12-15T09:00:00Z')), { id: 'autumn-kawaii', title: 'Осенний кавай', starts: '2027-09-01' });
 });
 
 test('вне сезона кейс не открывается, а пак из чужого сезона не выпадает', () => {
