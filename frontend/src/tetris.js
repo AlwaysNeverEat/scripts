@@ -41,6 +41,7 @@ import {
 } from './icons.js';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
+import { avatarSkinAttrs } from './skins.js';
 
 const MODAL_ID = 'tetris-modal';
 const VISIBLE_CELLS = COLS * ROWS;
@@ -598,7 +599,7 @@ function renderTop(state) {
     const list = rows.map(row => `
         <div class="tet-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="tet-top-rank">${row.rank}</span>
-            <div class="tet-top-avatar">${row.avatar
+            <div class="tet-top-avatar"${avatarSkinAttrs(row.id)}>${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
             <div class="tet-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>

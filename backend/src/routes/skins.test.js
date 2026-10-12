@@ -52,7 +52,7 @@ test('надеть может только редактор, видят все',
     const seen = await call('/');
     assert.equal(seen.json.canEdit, false);
     assert.equal(seen.json.mine, null);
-    assert.deepEqual(seen.json.skins, [{ userId: EDITOR.id, parts: { frame: 'cat', leads: null, records: null }, operator: '103' }]);
+    assert.deepEqual(seen.json.skins, [{ userId: EDITOR.id, parts: { frame: 'cat', cover: null, leads: null, records: null }, operator: '103' }]);
 
     const own = await call('/', { editor: true });
     assert.equal(own.json.canEdit, true);

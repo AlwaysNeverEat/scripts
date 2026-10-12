@@ -9,7 +9,7 @@
      настроек ничего не выходит, а пишет в консоль.
      Скины (skins.js): в окне настроек есть раздел «Скин», как у gtrixoff, —
      у каждой части свой пак, выбор сохраняется в память страницы и сразу
-     надевает рамку на аватар; ?skin=1 — открыть с рамкой «Котика».
+     надевает рамку и шапку; ?skin=1 — открыть в «Котике».
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -64,7 +64,7 @@
     initSkins();
     // Сервер скинов в памяти страницы — те же ответы, что у /api/skins.
     let mine = new URLSearchParams(location.search).get('skin')
-      ? { parts: { frame: 'cat', leads: null, records: 'cat' }, operator: '' } : null;
+      ? { parts: { frame: 'cat', cover: 'cat', leads: null, records: 'cat' }, operator: '' } : null;
     const skinFetch = async (path, opts = {}) => {
       if (path === '/api/skins/me' && opts.method === 'PUT') {
         await new Promise(r => setTimeout(r, 250));

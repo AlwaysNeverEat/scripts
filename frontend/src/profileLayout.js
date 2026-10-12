@@ -52,7 +52,8 @@ export function plural(n, forms) {
 // withSettings — шестерёнка на шапке (только свой профиль): открывает окно
 // настроек (profileSettings.js), обработчик вешает profile.js.
 //
-// userId — чей профиль: по нему skins.js надевает на аватар рамку скина.
+// userId — чей профиль: по нему skins.js надевает на аватар рамку скина, а
+// на обложку — шапку скина.
 export function profileHeroHtml({
     avatarInner, nameInner, added = 0, edited = 0, achievements = [],
     editable = false, faculty = null, subtitle = '', withSettings = false, userId = '',
@@ -93,7 +94,7 @@ export function profileHeroHtml({
 
     return `
         <section class="profile-hero${facultyClass(faculty, 'faculty-tint')}">
-            <div class="profile-cover">${settingsBtn}</div>
+            <div class="profile-cover"${userId ? ` data-skin-part="cover" data-skin-user="${esc(userId)}"` : ''}>${settingsBtn}</div>
             <div class="profile-hero-main">
                 ${avatarBlock}
                 <div class="profile-ident">

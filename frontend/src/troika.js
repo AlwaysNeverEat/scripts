@@ -55,6 +55,7 @@ import {
 import tilesSheet from './assets/troika-tiles.webp';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
+import { avatarSkinAttrs } from './skins.js';
 
 const MODAL_ID = 'troika-modal';
 
@@ -1275,7 +1276,7 @@ function renderTop(state) {
     const list = rows.map(row => `
         <div class="tro-top-row${row.id === meId ? ' is-me' : ''}${row.rank === 1 ? ' is-first' : ''}"${profileRowAttrs(row)}>
             <span class="tro-top-rank">${row.rank}</span>
-            <div class="tro-top-avatar">${row.avatar
+            <div class="tro-top-avatar"${avatarSkinAttrs(row.id)}>${row.avatar
                 ? `<img src="${esc(row.avatar)}" alt=""/>`
                 : '<span class="top-avatar-default"></span>'}</div>
             <div class="tro-top-name">${namePrefixHtml(row)}${esc(row.display_name)}${nameSuffixHtml(row)}</div>

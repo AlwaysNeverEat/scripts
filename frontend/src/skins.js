@@ -4,9 +4,9 @@
 //
 // Места, где скин может быть, ничего про скины не знают — они только
 // ПОМЕЧАЮТ элемент: чей он и какая это часть.
-//   data-skin-part="frame|leads|records"
-//   data-skin-user="<id человека>"       — рамка и записи
-//   data-skin-op="<код оператора>"       — лиды (по коду звонка)
+//   data-skin-part="frame|cover|leads|records"
+//   data-skin-user="<id человека>"       — рамка, шапка профиля, записи
+//   data-skin-op="<код оператора>"       — звонок в ленте лидов
 //   data-skin-slots="<N>"                — записи: сколько получасов в капсуле
 // Красит их этот модуль — сразу при появлении в документе (наблюдатель за
 // разметкой, как у переключателей и перетекающего текста) и заново, когда
@@ -46,7 +46,7 @@ const listeners = new Set();
 
 // Есть ли у пака картинки ЭТОЙ части. Паки рисуются по частям, и пак с одной
 // рамкой — нормальное состояние: на баннер его просто нельзя выбрать.
-const PART_FILES = { frame: ['frame'], leads: ['banner'], records: ['head', 'body', 'feet', 'single'] };
+const PART_FILES = { frame: ['frame'], cover: ['banner'], leads: ['banner'], records: ['head', 'body', 'feet', 'single'] };
 export const packHasPart = (pack, part) => Boolean(PACK_ART[pack]) && PART_FILES[part].every(f => PACK_ART[pack][f]);
 export const skinState = () => state;
 export function onSkinsChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -83,6 +83,11 @@ export function noteOperatorCode(code) {
         .catch(() => { /* не дошло — уйдёт со следующей сменой кода или скина */ });
 }
 
+// Пометка аватарки: рамка скина — у ЛЮБОЙ аватарки человека, а не только в
+// профиле. Места рисования вставляют это в тег кружка с аватаркой.
+export const avatarSkinAttrs = (userId) => (userId
+    ? ` data-skin-part="frame" data-skin-user="${String(userId).replace(/[^\w-]/g, '')}"` : '');
+
 // ── Покраска ─────────────────────────────────────────────────────────────────
 
 const VARS = ['--sk-frame', '--sk-hole', '--sk-banner', '--sk-banner-ratio',
@@ -103,14 +108,14 @@ function paint(el) {
     const part = el.dataset.skinPart;
     const pack = packOf(el);
     const art = pack && packHasPart(pack, part) ? PACK_ART[pack] : null;
-    el.classList.remove(...[...el.classList].filter(c => c === 'skinned' || /^skin-(frame|leads|records|one|pack-)/.test(c)));
+    el.classList.remove(...[...el.classList].filter(c => c === 'skinned' || /^skin-(frame|cover|leads|records|one|pack-)/.test(c)));
     for (const v of VARS) el.style.removeProperty(v);
     if (!art) return;
     const m = art.meta || {};
     if (part === 'frame') {
         el.style.setProperty('--sk-frame', url(art.frame));
         el.style.setProperty('--sk-hole', m.frame?.hole || 0.65);
-    } else if (part === 'leads') {
+    } else if (part === 'cover' || part === 'leads') {
         el.style.setProperty('--sk-banner', url(art.banner));
         el.style.setProperty('--sk-banner-ratio', m.banner?.ratio || 4);
     } else if (part === 'records') {
@@ -133,7 +138,7 @@ function paint(el) {
     el.classList.add('skinned', `skin-${part}`, `skin-pack-${pack}`);
 }
 
-function paintAll(root = document) {
+export function paintAll(root = document) {
     if (root.matches?.('[data-skin-part]')) paint(root);
     root.querySelectorAll?.('[data-skin-part]').forEach(paint);
 }
@@ -183,8 +188,8 @@ function pickerBody(userId) {
     }).join('');
     return `${rows}
         <div class="accent-note">
-            ${op ? `Лиды узнаются по коду оператора <b>${esc(op)}</b> из вкладки «Лиды».`
-                : 'Баннер лидов появится, когда во вкладке «Лиды» будет введён «Мой код»: по нему узнаются ваши звонки.'}
+            ${op ? `Ваши звонки в ленте лидов узнаются по коду оператора <b>${esc(op)}</b> из вкладки «Лиды».`
+                : 'Скин звонков появится, когда во вкладке «Лиды» будет введён «Мой код»: по нему узнаются ваши звонки.'}
         </div>
         <div class="skin-status" aria-live="polite"></div>`;
 }

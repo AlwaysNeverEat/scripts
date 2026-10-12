@@ -11,7 +11,7 @@ import { initAdminPage, isModerator } from './admin.js';
 import { initAchievements } from './achievements.js';
 import { initHalloween } from './halloween.js';
 import { initDonorsPanel } from './donorsPanel.js';
-import { initSkins, loadSkins } from './skins.js';
+import { initSkins, loadSkins, paintAll as paintSkins } from './skins.js';
 import { initNameBadges } from './nameBadges.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
@@ -252,6 +252,14 @@ function renderUserBar() {
     } else {
         img.hidden = true;
         defaultIcon.hidden = false;
+    }
+    // Рамка скина — и на аватарке во вкладке. Узел статичный, наблюдатель
+    // за разметкой его не увидит, поэтому красим руками (см. skins.js).
+    const wrap = img.closest('.app-tab-avatar');
+    if (wrap && currentUser?.id) {
+        wrap.dataset.skinPart = 'frame';
+        wrap.dataset.skinUser = currentUser.id;
+        paintSkins(wrap);
     }
 }
 

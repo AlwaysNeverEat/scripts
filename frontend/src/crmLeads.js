@@ -221,6 +221,13 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         });
     }
 
+    // Скин звонка — по коду оператора, который его принял: чей звонок, того и
+    // скин (skins.js). Звонок без оператора — без скина.
+    const skinAttrs = (c) => {
+        const op = operatorKey(c.operator);
+        return op ? ` data-skin-part="leads" data-skin-op="${esc(op)}"` : '';
+    };
+
     function feedRowHtml(c) {
         const [label, cls] = callStatus(c.status);
         const sel = state.selected && state.selected.id === c.id;
@@ -231,7 +238,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             ? `визитов: ${c.client.visits}${c.client.car ? ` · ${esc(c.client.car)}` : ''}`
             : '';
         return `
-        <button type="button" class="ld-call ld-call--${cls}${sel ? ' ld-call-sel' : ''}${mine ? ' ld-call-mine' : ''}" data-call="${esc(c.id)}">
+        <button type="button" class="ld-call ld-call--${cls}${sel ? ' ld-call-sel' : ''}${mine ? ' ld-call-mine' : ''}" data-call="${esc(c.id)}"${skinAttrs(c)}>
             <span class="ld-call-ico">${ICON.phoneIn(15)}</span>
             <span class="ld-call-main">
                 <span class="ld-call-top">
@@ -595,7 +602,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             ['Замен масла', c.oilChanges ?? 0],
         ];
         return `
-        <div class="ld-head"${headSkinAttrs()}>
+        <div class="ld-head">
             <div class="ld-head-row">${nameHtml(c)}</div>
             ${errHtml('name')}
         </div>
@@ -613,14 +620,6 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
 
         <div class="ld-kpi">${kpi.map(([k, v]) => `<div class="ld-kpi-cell"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>
         ${historyHtml(D)}`;
-    }
-
-    // Баннер скина — по коду оператора ЗВОНКА, из которого открыта карточка:
-    // чей звонок, того и скин (skins.js). Карточка без звонка (из «Чатов»)
-    // и звонок без оператора — без баннера.
-    function headSkinAttrs() {
-        const op = operatorKey(state.selected?.operator);
-        return op ? ` data-skin-part="leads" data-skin-op="${esc(op)}"` : '';
     }
 
     function nameHtml(c) {

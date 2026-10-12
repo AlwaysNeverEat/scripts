@@ -5,10 +5,20 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* ── Рамка аватара ────────────────────────────────────────────────────────────
-   Рамка шире аватара: уши и лапки выходят за круг (уши — на обложку). Размер
-   считается от ДЫРЫ рамки: она ложится на аватар с небольшим нахлёстом, чтобы
-   между фото и кольцом не светился зазор. Карандаш остаётся над рамкой. */
-.profile-avatar-wrap.skin-frame::after {
+   У ЛЮБОЙ аватарки человека — от профиля до мини-топа игры и кружка автора на
+   капсуле записи. Рамка шире кружка: уши и лапки выходят наружу (в профиле
+   уши заходят на обложку). Размер считается от ДЫРЫ рамки: она ложится на
+   аватар с небольшим нахлёстом, чтобы между фото и кольцом не светился зазор.
+
+   Кружки аватарок обрезают содержимое (overflow: hidden) — рамку это срезало
+   бы по кругу. Поэтому у надетой рамки обрезка снимается, а кругом
+   обрезается сама картинка внутри. */
+.skin-frame {
+  position: relative;
+  overflow: visible !important;
+}
+.skin-frame > img { border-radius: var(--r-circle); }
+.skin-frame::after {
   content: '';
   position: absolute;
   left: 50%;
@@ -23,30 +33,33 @@
 .profile-avatar-wrap.skin-frame .profile-avatar { box-shadow: none; }
 .profile-avatar-wrap.skin-frame .profile-avatar-pen { z-index: 3; }
 
-/* ── Баннер карточки лида ─────────────────────────────────────────────────────
-   Картинка прижата вправо и высотой с шапку, слева — цвет страницы, который
-   перетекает в неё. Имя клиента лежит слева, где спокойно: баннер — украшение,
-   и читать имя он мешать не должен ни в одной теме. */
-.ld-head.skin-leads {
-  --sk-h: 132px;
-  position: relative;
-  min-height: var(--sk-h);
-  justify-content: center;
-  padding: var(--s-4) var(--s-5);
-  border: 1px solid var(--border);
-  border-radius: var(--r-4);
-  overflow: hidden;
-  isolation: isolate;
-  background:
-    linear-gradient(90deg,
-      var(--bg) calc(100% - var(--sk-h) * var(--sk-banner-ratio)),
-      color-mix(in oklab, var(--bg) 70%, transparent) calc(100% - var(--sk-h) * var(--sk-banner-ratio) * 0.72),
-      transparent calc(100% - var(--sk-h) * var(--sk-banner-ratio) * 0.42)),
-    var(--sk-banner) right center / auto 100% no-repeat,
-    var(--bg);
+/* ── Шапка профиля ────────────────────────────────────────────────────────────
+   Картинка шапки вместо цветов акцента и факультета — целиком, а не обрезкой
+   по высоте: обложка в 96px срезала бы коту уши и лапы, поэтому в скине она
+   принимает пропорции картинки. Селектор длиннее правила факультета
+   (`.profile-hero.faculty-tint .profile-cover`), чтобы перебить его. */
+.profile-hero .profile-cover.skin-cover.skinned {
+  height: auto;
+  aspect-ratio: var(--sk-banner-ratio);
+  background: var(--sk-banner) center / cover no-repeat;
 }
-.ld-head.skin-leads .ld-head-refresh {
-  background: color-mix(in oklab, var(--bg) 75%, transparent);
+
+/* ── Звонок в ленте лидов ─────────────────────────────────────────────────────
+   Картинка у правого края строки, высотой со строку; слева её закрывает цвет
+   самой строки, перетекая в неё, — номер, имя и статус лежат на спокойном.
+   Текст отодвинут от кота, время — на подложке: оно в правом углу, ровно
+   там, где картинка. */
+.ld-call.skin-leads {
+  background:
+    linear-gradient(90deg, var(--bg2) 0 50%, color-mix(in oklab, var(--bg2) 55%, transparent) 60%, transparent 70%),
+    var(--sk-banner) right center / auto 100% no-repeat,
+    var(--bg2);
+}
+.ld-call.skin-leads .ld-call-main { padding-right: 38%; }
+.ld-call.skin-leads .ld-call-time {
+  padding: 0 var(--s-1);
+  border-radius: var(--r-1);
+  background: color-mix(in oklab, var(--bg2) 80%, transparent);
 }
 
 /* ── Кот на капсуле записи ────────────────────────────────────────────────────
