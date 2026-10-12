@@ -16,7 +16,7 @@
 import './crmLeads.css'; // строка звонка в примерочной — настоящая .ld-call
 import './cases.css';
 import { SKIN_PACKS, SKIN_PARTS } from '../../shared/skins.js';
-import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord } from '../../shared/cases.js';
+import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord, packOdds } from '../../shared/cases.js';
 import { skinArt, packHasPart, skinState, saveMySkin, localOperator } from './skins.js';
 import { gemImgHtml } from './nameBadges.js';
 
@@ -57,12 +57,15 @@ function thumbHtml({ pack, part }) {
     const fit = part === 'frame' || part === 'records' ? 'contain' : 'cover';
     return url ? `<span class="cs-thumb cs-thumb-${fit}" style="background-image:url('${url}')"></span>` : '<span class="cs-thumb"></span>';
 }
+// Редкий пак подсвечен и в ленте, и на призе: выпадает он редко, и мимо
+// него глазом лента проехать не должна.
+const isRare = (pack) => Boolean(SKIN_PACKS[pack]?.rare);
 function itemCardHtml(item, cls = '') {
     const hue = SKIN_PACKS[item.pack]?.hue ?? 260;
     return `
-        <div class="cs-card ${cls}" style="--hue:${hue}">
+        <div class="cs-card ${cls}${isRare(item.pack) ? ' cs-card-rare' : ''}" style="--hue:${hue}">
             ${thumbHtml(item.part ? item : { pack: item.pack, part: 'cover' })}
-            <span class="cs-card-name">${esc(packLabel(item.pack))}</span>
+            <span class="cs-card-name">${esc(packLabel(item.pack))}${isRare(item.pack) ? '<em>редкий</em>' : ''}</span>
             <span class="cs-card-part">${esc(item.part ? PART_LABEL[item.part] : 'пак целиком')}</span>
         </div>`;
 }
@@ -78,7 +81,7 @@ export function mountCases(host, { apiFetch, user }) {
         wallet: null, owned: [], status: 'loading', error: '',
         season: null, next: null, packs: [],   // сезон считает сервер
         draft: null,           // примерочная: { part: pack|null }
-        busy: '', note: '', noteErr: false,
+        busy: '',
     };
 
     async function load() {
@@ -152,7 +155,6 @@ export function mountCases(host, { apiFetch, user }) {
                     <button class="btn btn-sec" data-act="key" ${w.gems >= KEY_PRICE && !state.busy ? '' : 'disabled'}>${keyIcon(16)} Купить</button>
                 </div>
             </div>
-            <div class="cs-note${state.noteErr ? ' cs-note-err' : ''}" aria-live="polite">${esc(state.note)}</div>
         </div>`;
     }
 
@@ -166,7 +168,8 @@ export function mountCases(host, { apiFetch, user }) {
             <div class="cs-case-body">
                 <b class="cs-case-title">${big ? 'Большой кейс' : 'Малый кейс'}</b>
                 <span class="cs-case-sub">${big ? 'Пак целиком: рамка, шапка, звонки и записи' : 'Одна вещь из любого пака'}</span>
-                <span class="cs-case-in">${packs.map(p => `<span style="--hue:${SKIN_PACKS[p]?.hue ?? 260}">${esc(packLabel(p))}</span>`).join('')}</span>
+                <span class="cs-case-in" title="Шанс пака — и в большом кейсе, и в малом">${packOdds(packs).map(({ pack, pct }) =>
+                    `<span class="${isRare(pack) ? 'cs-in-rare' : ''}" style="--hue:${SKIN_PACKS[pack]?.hue ?? 260}">${esc(packLabel(pack))} · ${String(pct).replace('.', ',')}%</span>`).join('')}</span>
                 <button class="btn btn-pri cs-open" data-act="open" data-kind="${kind}" ${state.busy || shut ? 'disabled' : ''}>
                     ${shut ? 'Сезон закрыт' : `Открыть · ${big ? `${keyIcon(16)} 1 ключ` : `${gem(16)} ${SMALL_CASE_PRICE}`}`}
                 </button>
@@ -268,7 +271,11 @@ export function mountCases(host, { apiFetch, user }) {
 
     // ── Действия ─────────────────────────────────────────────────────────────
 
-    const say = (text, err = false) => { state.note = text; state.noteErr = err; };
+    // Итог действия — всплывашкой у низа экрана, а не строкой в магазине:
+    // строка «Надето» висела бы там до следующего действия и занимала место.
+    // Тут это уместно, в отличие от «Записей» и «Чатов»: итог виден в тот же
+    // миг, когда человек смотрит на кнопку, и терять в нём нечего.
+    const say = (text, err = false) => toast(text, err);
 
     async function post(path, body) {
         const data = await apiFetch(path, { method: 'POST', body });
@@ -385,6 +392,26 @@ export function mountCases(host, { apiFetch, user }) {
     load();
 }
 
+// ── Всплывашка итога ────────────────────────────────────────────────────────
+
+let toastTimer = 0;
+function toast(text, err = false) {
+    let el = document.getElementById('cs-toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'cs-toast';
+        el.className = 'cs-toast';
+        el.setAttribute('role', 'status');
+        document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.toggle('cs-toast-err', err);
+    el.classList.add('cs-toast-on');
+    clearTimeout(toastTimer);
+    // Отказ висит дольше: его причину надо успеть прочитать.
+    toastTimer = setTimeout(() => el.classList.remove('cs-toast-on'), err ? 5000 : 2400);
+}
+
 // ── Окно кейса: вопрос, сундук, лента, приз ─────────────────────────────────
 
 function caseModal() {
@@ -440,9 +467,16 @@ function caseModal() {
 
             // Лента: случайные вещи вокруг приза, приз — на PRIZE_AT.
             const big = kind === 'big';
-            const pool = big ? res.packs.map(pack => ({ pack })) : allItems(res.packs);
+            // Карточки вокруг приза тянутся с ТЕМИ ЖЕ весами, что и розыгрыш:
+            // редкий мелькает в ленте редко, как ему и положено.
+            const odds = packOdds(res.packs);
+            const fill = () => {
+                let r = Math.random() * 100;
+                const pack = (odds.find(o => (r -= o.pct) < 0) || odds[0]).pack;
+                return big ? { pack } : { pack, part: SKIN_PARTS[Math.floor(Math.random() * SKIN_PARTS.length)].id };
+            };
             const N = 46, PRIZE_AT = 38;
-            const items = Array.from({ length: N }, (_, i) => (i === PRIZE_AT ? res.prize : pool[Math.floor(Math.random() * pool.length)]));
+            const items = Array.from({ length: N }, (_, i) => (i === PRIZE_AT ? res.prize : fill()));
             win.innerHTML = `
                 <div class="cs-roll">
                     <div class="cs-roll-win"><div class="cs-strip">${items.map((it, i) => itemCardHtml(it, i === PRIZE_AT ? 'cs-card-prize' : '')).join('')}</div>
@@ -473,9 +507,10 @@ function caseModal() {
                     : `Весь пак уже был — +${res.xp} опыта`)
                 : 'Новая вещь в коллекции';
             win.innerHTML = `
-                <div class="cs-prize">
+                <div class="cs-prize${isRare(p.pack) ? ' cs-prize-rare' : ''}">
                     <div class="cs-prize-glow"></div>
                     ${itemCardHtml(p, 'cs-card-big')}
+                    ${isRare(p.pack) ? '<span class="cs-prize-rare-tag">Редкий!</span>' : ''}
                     <b class="cs-prize-title">${esc(title)}</b>
                     <span class="cs-prize-sub${res.dup ? ' cs-prize-dup' : ''}">${esc(dupText)}</span>
                     <div class="cs-ask-btns">

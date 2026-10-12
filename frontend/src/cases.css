@@ -98,8 +98,19 @@
   border: 1px solid var(--border); border-radius: var(--r-2);
   background: var(--bg); color: var(--text); font: inherit; font-variant-numeric: tabular-nums;
 }
-.cs-note { min-height: 1.2em; font-size: 12.5px; color: var(--green); }
-.cs-note-err { color: var(--red); }
+.cs-toast {
+  position: fixed; left: 50%; bottom: var(--s-6); z-index: 1100;
+  translate: -50% 12px; opacity: 0; pointer-events: none;
+  max-width: min(480px, calc(100vw - 32px));
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-round);
+  background: var(--card); border: 1px solid color-mix(in oklab, var(--green) 50%, var(--border));
+  color: var(--text); font-size: 13px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / .28);
+  transition: opacity .2s, translate .25s cubic-bezier(.32, .72, 0, 1);
+}
+.cs-toast-on { opacity: 1; translate: -50% 0; }
+.cs-toast-err { border-color: color-mix(in oklab, var(--red) 60%, var(--border)); color: var(--red); }
 
 /* ── Примерочная ─────────────────────────────────────────────────────────── */
 .cs-fit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-4); align-items: start; }
@@ -248,3 +259,33 @@
 .cs-season { margin: calc(-1 * var(--s-2)) 0 var(--s-4); font-size: 12.5px; color: var(--sub); text-align: center; }
 .cs-season-off { color: var(--text); }
 .cs-cover-off { filter: grayscale(.75) brightness(.8); }
+
+/* ── Редкий пак ──────────────────────────────────────────────────────────────
+   Подсвечен везде, где появляется: на карточке кейса (шанс), в ленте и на
+   призе. Свечение переливается — лента проезжает быстро, и статичная рамка
+   на скорости не читается. */
+.cs-in-rare { box-shadow: 0 0 0 1px oklch(0.75 0.17 var(--hue) / .7); }
+.cs-card-name em {
+  margin-left: var(--s-1); padding: 0 var(--s-1); border-radius: var(--r-1);
+  font-style: normal; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  background: oklch(0.7 0.18 var(--hue)); color: #fff; vertical-align: 1px;
+}
+.cs-card-rare {
+  border-bottom-color: oklch(0.78 0.2 var(--hue));
+  box-shadow: 0 0 0 1px oklch(0.72 0.18 var(--hue) / .8), 0 0 18px oklch(0.7 0.2 var(--hue) / .55);
+  animation: cs-rare 1.6s ease-in-out infinite alternate;
+}
+@keyframes cs-rare {
+  to { box-shadow: 0 0 0 1px oklch(0.8 0.2 calc(var(--hue) + 40) / .9), 0 0 26px oklch(0.75 0.22 calc(var(--hue) + 40) / .7); }
+}
+.cs-prize-rare .cs-prize-glow {
+  background: repeating-conic-gradient(from 0deg, oklch(0.75 0.2 285 / .28) 0deg 10deg, transparent 10deg 24deg);
+}
+.cs-prize-rare-tag {
+  position: relative;
+  padding: 2px var(--s-3); border-radius: var(--r-round);
+  background: linear-gradient(90deg, oklch(0.62 0.2 300), oklch(0.7 0.18 40));
+  color: #fff; font-weight: 800; font-size: 13px; letter-spacing: .06em; text-transform: uppercase;
+  animation: cs-pop .5s .15s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+@media (prefers-reduced-motion: reduce) { .cs-card-rare, .cs-prize-rare-tag { animation: none; } }

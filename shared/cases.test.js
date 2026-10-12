@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, gemsWord, activeSeason, nextSeason } from './cases.js';
+import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, gemsWord, activeSeason, nextSeason, packOdds, casePacks } from './cases.js';
+import { SKIN_PACKS } from './skins.js';
 
 const season = { packs: ['cat', 'fox'] };
 
@@ -70,7 +71,7 @@ test('склонение гемов', () => {
 test('сезон: «Осенний кавай» только осенью, возвращается следующей осенью', () => {
     const at = (iso) => Date.parse(iso);
     assert.deepEqual(activeSeason(at('2026-10-12T09:00:00Z')),
-        { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox'], ends: '2026-11-30' });
+        { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'halloween'], ends: '2026-11-30' });
     assert.equal(activeSeason(at('2026-09-01T09:00:00Z')).ends, '2026-11-30');
     assert.equal(activeSeason(at('2027-04-01T09:00:00Z')), null);
     // 30 ноября 23:00 UTC — это уже 1 декабря по Москве
@@ -84,4 +85,24 @@ test('вне сезона кейс не открывается, а пак из �
     assert.equal(r.closed, true);
     const fox = openCase('big', { balance: bal({ keys: 1 }), owned: new Set(), rand: seq(0), season: { packs: ['fox'] } });
     assert.equal(fox.prize.pack, 'fox');
+});
+
+test('паки тянутся по весам, редкий — реже, шансы видны числом', () => {
+    const at = (r) => openCase('big', { balance: bal({ keys: 1 }), owned: new Set(), rand: () => r, season: { packs: ['cat', 'fox'] } }).prize.pack;
+    assert.equal(at(0), 'cat');
+    assert.equal(at(9), 'cat');
+    assert.equal(at(10), 'fox');
+    assert.equal(at(19), 'fox');
+    assert.deepEqual(packOdds(['cat', 'fox']), [{ pack: 'cat', pct: 50 }, { pack: 'fox', pct: 50 }]);
+    // Хэллоуин с весом 2 при двух паках по 10 — около 9%.
+    const odds = packOdds(['cat', 'fox', 'halloween']);
+    assert.equal(odds.find(o => o.pack === 'halloween').pct, 9.1);
+});
+
+test('пак без нарезанных картинок (ready: false) в кейсы не попадает', () => {
+    const notReady = Object.keys(SKIN_PACKS).filter(p => SKIN_PACKS[p].ready === false);
+    for (const p of notReady) {
+        assert.equal(casePacks({ packs: ['cat', p] }).includes(p), false);
+        assert.equal(allItems().some(i => i.pack === p), false);
+    }
 });
