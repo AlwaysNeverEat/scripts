@@ -219,7 +219,12 @@
 }
 .kc-ask { display: flex; flex-direction: column; gap: var(--s-3); max-width: 460px; margin: 0 auto; text-align: center; }
 .kc-ask-title { font-size: 18px; }
-.kc-ask p { color: var(--sub); font-size: 13.5px; line-height: 1.5; }
+.kc-ask p { color: var(--sub); font-size: 13.5px; line-height: 1.5; text-wrap: balance; }
+.kc-ask-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); }
+.kc-ask-fact { display: flex; flex-direction: column; gap: 2px; padding: var(--s-2); border-radius: var(--r-3); background: var(--bg2); border: 1px solid var(--border); }
+.kc-ask-fact b { display: flex; align-items: center; justify-content: center; gap: var(--s-1); font-size: 20px; font-variant-numeric: tabular-nums; }
+.kc-ask-fact span { color: var(--sub); font-size: 12px; }
+.kc-ask-fact-bad b { color: var(--red); }
 .kc-ask-btns { display: flex; gap: var(--s-2); justify-content: center; flex-wrap: wrap; }
 
 .kc-stage { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); padding: var(--s-5) 0; }

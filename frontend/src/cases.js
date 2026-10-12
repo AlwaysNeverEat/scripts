@@ -395,17 +395,31 @@ export function mountCases(host, { apiFetch, user }) {
         const short = Math.max(0, needGems - w.gems);
         const steps = [];
         if (short > 0) {
+            // Неразрывные пробелы после чисел и коротких слов: «10» в конце
+            // строки и «записей» в начале следующей читаются как два разных
+            // числа, а висящее «у» — как опечатка.
+            const nb = (t) => t.replace(/(^|[\s(])(\d+|[а-яё]{1,2}) /gi, '$1$2\u00a0');
+            const facts = [
+                [big ? 'стоит ключ' : 'стоит кейс', String(needGems)],
+                ['у вас', String(w.gems)],
+                ['не хватает', String(short), true],
+            ];
             if (w.rubles < short) {
                 modal.ask({
                     title: big ? 'Нужен ключ' : 'Не хватает гемов',
-                    text: `${big ? `Ключ стоит ${KEY_PRICE} гемов` : `Кейс стоит ${SMALL_CASE_PRICE} гемов`}, у вас ${w.gems}. Не хватает ${short} ${gemsWord(short)}, а рублей из донатов на счёте ${w.rubles} ₽. Гемы дают записи (${RECORDS_PER_GEM} записей — гем, у вас ${w.records}) и опыт — меняются в магазине ниже.`,
+                    facts,
+                    text: [
+                        nb(w.rubles > 0 ? `Рублей из донатов на счёте ${w.rubles} ₽ — на доплату не хватит.` : 'Рублей из донатов на счёте нет — доплатить нечем.'),
+                        nb(`Записи и опыт меняются на гемы в магазине ниже: ${`${RECORDS_PER_GEM} записей = 1 гем`.replaceAll(' ', '\u00a0')}, у вас ${w.records}.`),
+                    ],
                     buttons: [['close', 'Понятно', 'btn-sec']],
                 });
                 return;
             }
             const ok = await modal.ask({
                 title: big ? 'Нужен ключ' : 'Не хватает гемов',
-                text: `${big ? `Ключ стоит ${KEY_PRICE} гемов` : `Кейс стоит ${SMALL_CASE_PRICE} гемов`}, у вас ${w.gems}. Обменять ${short} ₽ из донатов на ${short} ${gemsWord(short)}${big ? ', купить ключ' : ''} и открыть?`,
+                facts,
+                text: nb(`Обменять ${short} ₽ из донатов на ${short} ${gemsWord(short)}${big ? ', купить ключ' : ''} и открыть?`),
                 buttons: [['ok', `Обменять ${short} ₽ и открыть`, 'btn-pri'], ['close', 'Отмена', 'btn-sec']],
             });
             if (ok !== 'ok') return;
@@ -484,11 +498,17 @@ function caseModal() {
 
     return {
         close,
-        ask({ title, text, buttons }) {
+        // facts — цифры в гемах отдельной строкой ячеек («стоит / у вас / не хватает»):
+        // одним абзацем они рвались переносами посреди «10 записей», и считать
+        // приходилось, перечитывая предложение. text — строка или абзацы.
+        ask({ title, text, facts, buttons }) {
+            const paras = [].concat(text || []);
             win.innerHTML = `
                 <div class="kc-ask">
                     <b class="kc-ask-title">${esc(title)}</b>
-                    <p>${esc(text)}</p>
+                    ${facts ? `<div class="kc-ask-facts">${facts.map(([label, value, bad]) => `
+                        <div class="kc-ask-fact${bad ? ' kc-ask-fact-bad' : ''}"><b>${gem(20)}${esc(value)}</b><span>${esc(label)}</span></div>`).join('')}</div>` : ''}
+                    ${paras.map(t => `<p>${esc(t)}</p>`).join('')}
                     <div class="kc-ask-btns">${buttons.map(([id, label, cls]) => `<button class="btn ${cls}" data-ask="${id}">${esc(label)}</button>`).join('')}</div>
                 </div>`;
             return new Promise((resolve) => {
