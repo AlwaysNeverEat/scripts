@@ -2689,30 +2689,19 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .nbadge .nb-rosette { stroke: currentColor; stroke-width: 1.9; fill: var(--green-dim); }
 .nbadge .nb-check { stroke: currentColor; stroke-width: 2.4; stroke-dasharray: 1; stroke-dashoffset: 0; }
 
-.nbadge-supporter { color: var(--gold); }
-.nbadge .nb-star { stroke: currentColor; stroke-width: 1.9; fill: color-mix(in oklab, currentColor 22%, transparent); transform-origin: 12px 12.6px; }
-.nbadge .nb-rays { stroke: currentColor; stroke-width: 1.8; opacity: 0; transform-origin: 12px 12.6px; }
+/* Камень поддержавшего — анимированная картинка, играет всегда
+   (nameBadges.js). Чуть крупнее галочки: у эмодзи вокруг рисунка свои поля. */
+.nbadge-supporter { width: 1.6em; height: 1.6em; margin: -0.075em 0; }
+.nbadge-supporter picture, .nbadge-supporter img { display: block; width: 100%; height: 100%; }
+.nbadge-supporter img { -webkit-user-drag: none; user-select: none; }
 
 .nbadge-mod.is-playing .nb-rosette { animation: nb-spin 0.9s cubic-bezier(.3, .7, .25, 1); }
 .nbadge-mod.is-playing .nb-check { animation: nb-draw 0.9s ease-out; }
-.nbadge-supporter.is-playing .nb-star { animation: nb-pop 0.8s cubic-bezier(.3, .7, .25, 1); }
-.nbadge-supporter.is-playing .nb-rays { animation: nb-rays 0.8s ease-out; }
 
 @keyframes nb-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 @keyframes nb-draw {
   0%, 30% { stroke-dashoffset: 1; }
   100% { stroke-dashoffset: 0; }
-}
-@keyframes nb-pop {
-  0% { transform: scale(1); }
-  30% { transform: scale(.62); }
-  62% { transform: scale(1.18) rotate(-8deg); }
-  100% { transform: scale(1) rotate(0); }
-}
-@keyframes nb-rays {
-  0%, 45% { opacity: 0; transform: scale(.7); }
-  65% { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.25); }
 }
 @media (prefers-reduced-motion: reduce) {
   .nbadge.is-playing path { animation: none !important; }
