@@ -1,0 +1,70 @@
+// Скины: настоящий роутер поверх маленькой базы в памяти — кто что может.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import express from 'express';
+
+import { createSkinsRouter } from './skins.js';
+
+const EDITOR = { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', login: 'gtrixoff' };
+const USER = { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', login: 'borya' };
+
+function fakeDb() {
+    const rows = new Map();
+    return async (sql, p) => {
+        if (sql.includes('WHERE pack IS NOT NULL')) return { rows: [...rows.values()].filter(r => r.pack) };
+        if (sql.startsWith('SELECT') && sql.includes('WHERE user_id = $1')) return { rows: rows.has(p[0]) ? [rows.get(p[0])] : [] };
+        if (sql.startsWith('INSERT INTO user_skins')) {
+            rows.set(p[0], { user_id: p[0], pack: p[1], parts: JSON.parse(p[2]), operator: p[3] });
+            return { rows: [] };
+        }
+        if (sql.startsWith('UPDATE user_skins')) {
+            if (rows.has(p[0])) rows.get(p[0]).operator = p[1];
+            return { rows: [] };
+        }
+        throw new Error('fakeDb: незнакомый запрос ' + sql);
+    };
+}
+
+async function serve(t) {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => { req.user = req.get('x-editor') ? EDITOR : USER; next(); });
+    app.use('/', createSkinsRouter({ db: fakeDb() }));
+    const srv = app.listen(0);
+    t.after(() => srv.close());
+    const base = `http://127.0.0.1:${srv.address().port}`;
+    return async (path, { method = 'GET', body, editor = false } = {}) => {
+        const headers = { 'Content-Type': 'application/json', ...(editor ? { 'x-editor': '1' } : {}) };
+        const r = await fetch(base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+        return { status: r.status, json: await r.json() };
+    };
+}
+
+test('надеть может только редактор, видят все', async (t) => {
+    const call = await serve(t);
+    assert.equal((await call('/me', { method: 'PUT', body: { pack: 'cat' } })).status, 403);
+    assert.equal((await call('/me/operator', { method: 'PUT', body: { operator: '7' } })).status, 403);
+
+    const put = await call('/me', { method: 'PUT', editor: true, body: { pack: 'cat', parts: { frame: false }, operator: '0103' } });
+    assert.equal(put.status, 200);
+
+    const seen = await call('/');
+    assert.equal(seen.json.canEdit, false);
+    assert.equal(seen.json.mine, null);
+    assert.deepEqual(seen.json.skins, [{ userId: EDITOR.id, pack: 'cat', parts: { frame: false, leads: true, records: true }, operator: '103' }]);
+
+    const own = await call('/', { editor: true });
+    assert.equal(own.json.canEdit, true);
+    assert.equal(own.json.mine.pack, 'cat');
+});
+
+test('незнакомый пак — отказ, снятый скин пропадает из списка, код живёт', async (t) => {
+    const call = await serve(t);
+    assert.equal((await call('/me', { method: 'PUT', editor: true, body: { pack: 'dragon' } })).status, 400);
+    await call('/me', { method: 'PUT', editor: true, body: { pack: 'cat', operator: '5' } });
+    await call('/me/operator', { method: 'PUT', editor: true, body: { operator: '012' } });
+    assert.equal((await call('/')).json.skins[0].operator, '12');
+    await call('/me', { method: 'PUT', editor: true, body: { pack: null, operator: '12' } });
+    assert.deepEqual((await call('/')).json.skins, []);
+});

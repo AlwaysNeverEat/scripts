@@ -1617,7 +1617,8 @@ function renderStation() {
         const isDeleting = chain.parts.some(p => del.has(String(p.id)));
         const isMoving = chain.parts.some(p => moved.has(String(p.id)));
         // Кто записал — кружком в углу капсулы: авторство видно прямо на
-        // доске, а не только в окне записи.
+        // доске, а не только в окне записи. По нему же skins.js сажает на
+        // капсулу кота из скина автора (data-skin-*).
         const author = authorOf(chain);
         const segs = chain.parts.map((p, idx) => idx === 0 ? '' :
             `<i class="rc-cap-seg" style="top:${idx * ROW_H - 1}px"></i>`).join('');
@@ -1631,6 +1632,7 @@ function renderStation() {
                 ${String(state.highlightId) === String(chain.head.id) ? 'rc-cap-hot' : ''}"
             data-action="open-chain" data-head="${esc(chain.head.id)}"
             data-start="${esc(chain.timeStart)}" data-end="${esc(endAt)}"
+            ${author?.id ? `data-skin-part="records" data-skin-user="${esc(author.id)}" data-skin-slots="${nParts}"` : ''}
             style="top:${i0 * ROW_H + 2}px; height:${nParts * ROW_H - 5}px;
                    left:calc((100% / ${lanes}) * ${lane} + 3px);
                    width:calc(100% / ${lanes} - 7px)">

@@ -51,16 +51,19 @@ export function plural(n, forms) {
 //
 // withSettings — шестерёнка на шапке (только свой профиль): открывает окно
 // настроек (profileSettings.js), обработчик вешает profile.js.
+//
+// userId — чей профиль: по нему skins.js надевает на аватар рамку скина.
 export function profileHeroHtml({
     avatarInner, nameInner, added = 0, edited = 0, achievements = [],
-    editable = false, faculty = null, subtitle = '', withSettings = false,
+    editable = false, faculty = null, subtitle = '', withSettings = false, userId = '',
 }) {
     const avatar = `<div class="profile-avatar">${avatarInner}</div>`;
+    const skin = userId ? ` data-skin-part="frame" data-skin-user="${esc(userId)}"` : '';
     const avatarBlock = editable
-        ? `<div class="profile-avatar-wrap" id="profile-avatar-wrap" title="Кликните, чтобы сменить аватар">
+        ? `<div class="profile-avatar-wrap" id="profile-avatar-wrap" title="Кликните, чтобы сменить аватар"${skin}>
                ${avatar}<span class="profile-avatar-pen" aria-hidden="true"></span>
            </div>`
-        : `<div class="profile-avatar-wrap profile-avatar-static">${avatar}</div>`;
+        : `<div class="profile-avatar-wrap profile-avatar-static"${skin}>${avatar}</div>`;
     const nameBlock = editable
         ? `<div class="profile-name" id="profile-name-view" title="Кликните, чтобы поменять ник">${nameInner}</div>`
         : `<div class="profile-name profile-name-static">${nameInner}</div>`;

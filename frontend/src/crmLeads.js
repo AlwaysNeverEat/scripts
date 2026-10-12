@@ -24,6 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import './crmLeads.css';
+import { noteOperatorCode } from './skins.js';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
 import { setPickedLead } from './leadPick.js';
 import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime } from '../../shared/crmLeads.js';
@@ -168,6 +169,8 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             else localStorage.removeItem(operatorStoreKey());
         } catch { /* приватный режим — код живёт до перезагрузки */ }
         if (!state.operator && state.filter === 'mine') state.filter = 'all';
+        // Код нужен и скину: по нему другие узнают звонки хозяина скина.
+        noteOperatorCode(state.operator);
             }
 
     function freshDraft() {
@@ -592,7 +595,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             ['Замен масла', c.oilChanges ?? 0],
         ];
         return `
-        <div class="ld-head">
+        <div class="ld-head"${headSkinAttrs()}>
             <div class="ld-head-row">${nameHtml(c)}</div>
             ${errHtml('name')}
         </div>
@@ -610,6 +613,14 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
 
         <div class="ld-kpi">${kpi.map(([k, v]) => `<div class="ld-kpi-cell"><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>
         ${historyHtml(D)}`;
+    }
+
+    // Баннер скина — по коду оператора ЗВОНКА, из которого открыта карточка:
+    // чей звонок, того и скин (skins.js). Карточка без звонка (из «Чатов»)
+    // и звонок без оператора — без баннера.
+    function headSkinAttrs() {
+        const op = operatorKey(state.selected?.operator);
+        return op ? ` data-skin-part="leads" data-skin-op="${esc(op)}"` : '';
     }
 
     function nameHtml(c) {

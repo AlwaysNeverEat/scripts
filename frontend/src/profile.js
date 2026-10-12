@@ -99,6 +99,7 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
                     faculty: user.faculty,
                     subtitle: user.login ? '@' + esc(user.login) : '',
                     withSettings: true,
+                    userId: user.id,
                 })}
                 <input type="file" id="profile-avatar-input" accept="image/*" hidden/>
                 <!-- Ошибки аватарки, ника и распределения — одним местом сразу

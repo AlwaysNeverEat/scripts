@@ -7,6 +7,9 @@
      аватар ложится на шапку, как читаются плитки статистики и панели, как
      открывается окно настроек с шестерёнки. Данные выдуманные; выход в окне
      настроек ничего не выходит, а пишет в консоль.
+     Скины (skins.js): в окне настроек есть раздел «Скин», как у gtrixoff, —
+     выбор сохраняется в память страницы и сразу надевает рамку на аватар;
+     ?skin=1 — открыть уже в скине «Котик».
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -57,6 +60,21 @@
 
     initTheme();
     initSegmented();
+    const { initSkins, loadSkins } = await import('./src/skins.js');
+    initSkins();
+    // Сервер скинов в памяти страницы — те же ответы, что у /api/skins.
+    let mine = new URLSearchParams(location.search).get('skin')
+      ? { pack: 'cat', parts: { frame: true, leads: true, records: true }, operator: '' } : null;
+    const skinFetch = async (path, opts = {}) => {
+      if (path === '/api/skins/me' && opts.method === 'PUT') {
+        await new Promise(r => setTimeout(r, 250));
+        mine = opts.body;
+        return { ok: true, mine };
+      }
+      if (path === '/api/skins') return { skins: mine?.pack ? [{ userId: 'me', ...mine }] : [], canEdit: true, mine };
+      console.log('dev: apiFetch', path); return {};
+    };
+    await loadSkins(skinFetch);
 
     // id настоящие — у плитки и окна должны быть настоящие картинки медалей.
     const ACHIEVEMENTS = [
@@ -79,6 +97,7 @@
             faculty,
             subtitle: '@dezhurny',
             withSettings: true,
+            userId: 'me',
           })}
           ${profileSectionHtml({
             title: 'Факультет',
@@ -95,8 +114,9 @@
         </div>`;
       const gear = document.getElementById('btn-profile-settings');
       if (gear) gear.onclick = () => openProfileSettings({
-        apiFetch: async (path) => { console.log('dev: apiFetch', path); return {}; },
+        apiFetch: skinFetch,
         onLogout: () => console.log('dev: onLogout'),
+        user: { id: 'me', login: 'gtrixoff' },
       });
       const achTile = document.getElementById('profile-ach-tile');
       if (achTile) achTile.onclick = () => openAchievementsModal(ACHIEVEMENTS);
