@@ -87,3 +87,60 @@ soft flat shading, sticker style, pastel palette.
 Что проверить в ответе GPT до нарезки: у длинного кота туловище действительно
 прямое и однотонное (полоски — главная причина шва), у рамки кольцо замкнуто и
 середина пустая, у баннера кот справа, а слева спокойно.
+
+## Хэллоуин — редкий пак
+
+Пак `halloween` в `SKIN_PACKS` с весом 2 против 10 у котика и лисы (≈9%
+против ≈45%), лист — `halloween/sheet.png`. Пока у пака нет картинок, он
+стоит с `ready: false` и в кейсы не попадает — так новые паки и заводятся.
+
+На этом листе тыква рамки почти касалась низа баннера, и запас, которым резак
+собирает предмет из кусочков, сшивал их в один. Теперь резак в таком случае
+пробует строже (`find_items`), пока не найдёт ровно нужное число предметов.
+
+Раскладка та же, что у котика, поэтому резак тот же. На записях вместо кота —
+ДЛИННЫЙ ПРИЗРАК: голова сверху, ровная простыня туловищем, волнистый подол
+снизу.
+
+```text
+Create ONE image, 1536×1024 (landscape), PNG with a fully TRANSPARENT background.
+It is a sticker sheet for a RARE website skin pack called "Spooky Halloween".
+Draw exactly FOUR separate objects, each surrounded by at least 60 px of empty
+transparent space, nothing touching another object or the canvas edge, no text,
+no labels, no watermark, no drop shadows on the background. Every object must be
+FULLY OPAQUE — no translucent ghosts, no soft glow fading into the background.
+
+Style: cute-but-spooky kawaii Halloween, clean thick dark outlines, soft flat
+shading, sticker style. Palette: pumpkin orange, deep night purple, bone white,
+a little toxic green for magic glow. Spooky and special — this is the rare pack.
+
+1) LEFT EDGE, full height of the canvas — "LONG GHOST": a cute ghost seen from the
+   front, like the "longcat" meme but a ghost. From top to bottom: round head with
+   big black eyes and a tiny smile, a little witch hat or a pumpkin-stem hat, small
+   arms holding a tiny jack-o'-lantern under the chin; then a VERY LONG STRAIGHT
+   BODY made of a plain bone-white sheet with perfectly parallel vertical sides;
+   then a wavy, tattered sheet hem at the very bottom. The body must be plain and
+   uniform — no folds, no stripes, no shading changes along its length — so any
+   horizontal slice of it looks identical. Object about 170 px wide and about
+   940 px tall.
+
+2) TOP RIGHT — wide BANNER, about 1150×290 px, a fully filled rectangle (opaque,
+   square corners). A spooky Halloween night: big full moon, a crooked haunted
+   house on a hill, a graveyard with a few tilted tombstones, bats, a spider web
+   in a corner, a bubbling cauldron with green glow, candles, a black cat in a
+   witch hat, carved jack-o'-lanterns. Every element appears ONLY ONCE — no
+   repeated, copy-pasted motifs. All the action is on the RIGHT half; the LEFT
+   half stays calm (dark purple night sky with a few stars) because text will be
+   placed over it.
+
+3) BOTTOM CENTER — round AVATAR FRAME, about 520×520 px: a closed circular ring
+   made of a twisted pumpkin vine with leaves and tiny curls; a carved
+   jack-o'-lantern sits on top of the ring, a cute little skull hangs at the
+   bottom, a small bat perches on one side and a candle with a little flame on the
+   other. The CENTER is a perfectly EMPTY TRANSPARENT CIRCLE (a profile photo
+   goes there); the ring band is thin, about 10–12% of the frame diameter, and the
+   ring is closed all the way around.
+
+4) BOTTOM RIGHT — a small cute ghost peeking out of a carved jack-o'-lantern
+   (whole object visible), fits in a square of about 320×320 px.
+```

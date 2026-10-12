@@ -50,6 +50,8 @@
     initTheme();
     initSegmented();
     initSkins();
+    // Как на сайте (main.js): перетекающий текст и свои селекты включены.
+    (await import('./src/textMorph.js')).initTextMorph();
     const params = new URLSearchParams(location.search);
     const ME = { id: 'me', login: params.get('editor') ? 'gtrixoff' : 'borya', display_name: 'Дежурный по станции', avatar: null };
 

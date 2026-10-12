@@ -129,14 +129,17 @@ function paint(el) {
         el.style.setProperty('--sk-banner-ratio', m.banner?.ratio || 4);
     } else if (part === 'records') {
         const slots = Number(el.dataset.skinSlots) || 1;
-        const unit = Math.max(m.strip?.head || 1, m.strip?.feet || 1);
         // Капсула на один слот ниже слота на 5px (зазор между записями).
         const capH = SLOT_H - 5;
         el.style.setProperty('--sk-head', url(art.head));
         el.style.setProperty('--sk-body', url(art.body));
         el.style.setProperty('--sk-feet', url(art.feet));
         el.style.setProperty('--sk-single', url(art.single));
-        const w = Math.round(Math.min(STRIP_MAX, (SLOT_H - 2) / unit));
+        // Ширина полосы — такая, чтобы голова и лапы ВМЕСТЕ влезли в запись
+        // на два получаса (2 слота минус зазор): там они сходятся без
+        // туловища. Мерить по одному слоту на кусок было бы строже, чем
+        // надо, — у призрака высокая шляпа, и он вышел бы в палец толщиной.
+        const w = Math.round(Math.min(STRIP_MAX, (2 * SLOT_H - 7) / ((m.strip?.head || 1) + (m.strip?.feet || 1))));
         el.style.setProperty('--sk-w', `${w}px`);
         el.style.setProperty('--sk-head-h', `${(w * (m.strip?.head || 1)).toFixed(1)}px`);
         el.style.setProperty('--sk-feet-h', `${(w * (m.strip?.feet || 1)).toFixed(1)}px`);

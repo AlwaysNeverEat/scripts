@@ -25,9 +25,16 @@
 export const SKIN_EDITOR_LOGINS = ['gtrixoff'];
 
 // hue — тон пака в ленте кейса и в инвентаре (полоска «редкости», как в CS).
+// weight — вес пака в розыгрыше кейса: шанс пака = его вес / сумма весов
+// паков сезона (shared/cases.js). rare — редкий: в ленте и на призе он
+// подсвечен, и шанс его на карточке кейса виден числом.
+// ready: false — пак описан, но картинки ещё не нарезаны: в кейсы он не
+// попадает, пока не появятся все части (из кейса не должно выпадать то, чего
+// нельзя надеть).
 export const SKIN_PACKS = {
-    cat: { label: 'Котик', hue: 350 },
-    fox: { label: 'Лиса', hue: 45 },
+    cat: { label: 'Котик', hue: 350, weight: 10 },
+    fox: { label: 'Лиса', hue: 45, weight: 10 },
+    halloween: { label: 'Хэллоуин', hue: 285, weight: 2, rare: true },
 };
 
 export const SKIN_PARTS = [

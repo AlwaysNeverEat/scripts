@@ -16,7 +16,7 @@
 import './crmLeads.css'; // строка звонка в примерочной — настоящая .ld-call
 import './cases.css';
 import { SKIN_PACKS, SKIN_PARTS } from '../../shared/skins.js';
-import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord } from '../../shared/cases.js';
+import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord, packOdds } from '../../shared/cases.js';
 import { skinArt, packHasPart, skinState, saveMySkin, localOperator } from './skins.js';
 import { gemImgHtml } from './nameBadges.js';
 
@@ -35,18 +35,26 @@ const plural = (n, a, b, c) => {
 };
 const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
+// Темп открытия. Нарочно небыстрый: тряска сундука, долгий разгон ленты и
+// тягучее «доедет — не доедет» на последних карточках — ради этого кейс и
+// открывают; за полторы секунды насладиться не успеваешь.
+const SHAKE_MS = 2300;   // сундук трясётся (не меньше — даже если сервер ответил сразу)
+const BURST_MS = 900;    // вспышка открытия
+const ROLL_S = 8;        // лента
+const WON_MS = 1300;     // карточка приза мигает, прежде чем окно перейдёт к призу
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const dayLabel = (iso) => { const [, m, d] = String(iso).split('-').map(Number); return `${d} ${MONTHS[m - 1]}`; };
 
-const gem = (px = 18) => `<span class="cs-gem">${gemImgHtml(px)}</span>`;
+const gem = (px = 18) => `<span class="kc-gem">${gemImgHtml(px)}</span>`;
 const svg = (body, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 const keyIcon = (px = 18) => ART.key
-    ? `<img class="cs-key-img" src="${ART.key}" alt="" width="${px}" height="${px}" draggable="false">`
+    ? `<img class="kc-key-img" src="${ART.key}" alt="" width="${px}" height="${px}" draggable="false">`
     : svg('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M15 8l2 2"/>', px);
+const lockIcon = (px = 18) => svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', px);
 const chestIcon = (px) => svg('<rect x="3" y="9" width="18" height="11" rx="2"/><path d="M3 13h18M5 9V7a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/><rect x="10.5" y="11.5" width="3" height="4" rx="1"/>', px);
 const chestImg = (kind, open = false) => {
     const url = ART[`chest-${kind}${open ? '-open' : ''}`];
-    return url ? `<img class="cs-chest-img" src="${url}" alt="" draggable="false">` : `<span class="cs-chest-ico">${chestIcon(kind === 'big' ? 64 : 48)}</span>`;
+    return url ? `<img class="kc-chest-img" src="${url}" alt="" draggable="false">` : `<span class="kc-chest-ico">${chestIcon(kind === 'big' ? 64 : 48)}</span>`;
 };
 
 // Картинка вещи: рамка — рамкой, шапка и звонки — картинкой шапки, записи —
@@ -55,15 +63,18 @@ function thumbHtml({ pack, part }) {
     const art = skinArt[pack] || {};
     const url = part === 'frame' ? art.frame : part === 'records' ? art.single : art.banner;
     const fit = part === 'frame' || part === 'records' ? 'contain' : 'cover';
-    return url ? `<span class="cs-thumb cs-thumb-${fit}" style="background-image:url('${url}')"></span>` : '<span class="cs-thumb"></span>';
+    return url ? `<span class="kc-thumb kc-thumb-${fit}" style="background-image:url('${url}')"></span>` : '<span class="kc-thumb"></span>';
 }
+// Редкий пак подсвечен и в ленте, и на призе: выпадает он редко, и мимо
+// него глазом лента проехать не должна.
+const isRare = (pack) => Boolean(SKIN_PACKS[pack]?.rare);
 function itemCardHtml(item, cls = '') {
     const hue = SKIN_PACKS[item.pack]?.hue ?? 260;
     return `
-        <div class="cs-card ${cls}" style="--hue:${hue}">
+        <div class="kc-card ${cls}${isRare(item.pack) ? ' kc-card-rare' : ''}" style="--hue:${hue}">
             ${thumbHtml(item.part ? item : { pack: item.pack, part: 'cover' })}
-            <span class="cs-card-name">${esc(packLabel(item.pack))}</span>
-            <span class="cs-card-part">${esc(item.part ? PART_LABEL[item.part] : 'пак целиком')}</span>
+            <span class="kc-card-name">${esc(packLabel(item.pack))}${isRare(item.pack) ? '<em>редкий</em>' : ''}</span>
+            <span class="kc-card-part">${esc(item.part ? PART_LABEL[item.part] : 'пак целиком')}</span>
         </div>`;
 }
 
@@ -77,8 +88,9 @@ export function mountCases(host, { apiFetch, user }) {
     const state = {
         wallet: null, owned: [], status: 'loading', error: '',
         season: null, next: null, packs: [],   // сезон считает сервер
+        fitPart: 'frame',      // какая часть открыта в примерочной
         draft: null,           // примерочная: { part: pack|null }
-        busy: '', note: '', noteErr: false,
+        busy: '',
     };
 
     async function load() {
@@ -110,12 +122,12 @@ export function mountCases(host, { apiFetch, user }) {
     function walletHtml(w) {
         const pct = Math.min(100, Math.round((w.xp % XP_PER_GEM) / XP_PER_GEM * 100));
         return `
-        <div class="cs-wallet">
-            <div class="cs-bal cs-bal-gems" title="Гемы — на них открываются кейсы">${gem(30)}<b data-morph="cs-gems">${w.gems}</b><span>${gemsWord(w.gems)}</span></div>
-            <div class="cs-bal" title="Ключи от большого кейса">${keyIcon(22)}<b>${w.keys}</b><span>${plural(w.keys, 'ключ', 'ключа', 'ключей')}</span></div>
-            <div class="cs-xp" title="Опыт копится от повторов из кейсов: ${XP_PER_GEM} опыта — гем">
-                <span class="cs-xp-top"><span>Опыт до гема</span><b>${w.xp % XP_PER_GEM} / ${XP_PER_GEM}</b></span>
-                <span class="cs-bar"><i style="width:${pct}%"></i></span>
+        <div class="kc-wallet">
+            <div class="kc-bal kc-bal-gems" title="Гемы — на них открываются кейсы">${gem(30)}<b>${w.gems}</b><span>${gemsWord(w.gems)}</span></div>
+            <div class="kc-bal" title="Ключи от большого кейса">${keyIcon(22)}<b>${w.keys}</b><span>${plural(w.keys, 'ключ', 'ключа', 'ключей')}</span></div>
+            <div class="kc-xp" title="Опыт копится от повторов из кейсов: ${XP_PER_GEM} опыта — гем">
+                <span class="kc-xp-top"><span>Опыт до гема</span><b>${w.xp % XP_PER_GEM} / ${XP_PER_GEM}</b></span>
+                <span class="kc-bar"><i style="width:${pct}%"></i></span>
             </div>
         </div>`;
     }
@@ -123,13 +135,13 @@ export function mountCases(host, { apiFetch, user }) {
     function shopRowHtml({ id, title, have, rate, unit }) {
         const max = Math.floor(have / rate);
         return `
-        <div class="cs-shop-row">
-            <div class="cs-shop-text">
+        <div class="kc-shop-row">
+            <div class="kc-shop-text">
                 <b>${title}</b>
                 <span>${have} ${unit} · ${rate} = 1 гем</span>
             </div>
-            <div class="cs-shop-act">
-                <input class="cs-in" type="number" min="1" max="${Math.max(1, max)}" value="${Math.max(1, max)}" data-amount="${id}" ${max ? '' : 'disabled'} aria-label="Сколько гемов">
+            <div class="kc-shop-act">
+                <input class="kc-in" type="number" min="1" max="${Math.max(1, max)}" value="${Math.max(1, max)}" data-amount="${id}" ${max ? '' : 'disabled'} aria-label="Сколько гемов">
                 <button class="btn btn-sec" data-act="exchange" data-from="${id}" ${max && !state.busy ? '' : 'disabled'}>${gem(16)} Обменять</button>
             </div>
         </div>`;
@@ -137,22 +149,21 @@ export function mountCases(host, { apiFetch, user }) {
 
     function shopHtml(w) {
         return `
-        <div class="cs-shop">
+        <div class="kc-shop">
             ${shopRowHtml({ id: 'records', title: 'Записи → гемы', have: w.records, rate: RECORDS_PER_GEM, unit: plural(w.records, 'запись', 'записи', 'записей') })}
             ${shopRowHtml({ id: 'rubles', title: 'Рубли из донатов → гемы', have: w.rubles, rate: 1, unit: '₽' })}
-            <div class="cs-shop-row">
-                <div class="cs-shop-text"><b>Опыт → гем</b><span>${w.xp} опыта · ${XP_PER_GEM} = 1 гем</span></div>
-                <div class="cs-shop-act">
+            <div class="kc-shop-row">
+                <div class="kc-shop-text"><b>Опыт → гем</b><span>${w.xp} опыта · ${XP_PER_GEM} = 1 гем</span></div>
+                <div class="kc-shop-act">
                     <button class="btn btn-sec" data-act="xp" ${w.xp >= XP_PER_GEM && !state.busy ? '' : 'disabled'}>${gem(16)} Забрать${w.xp >= 2 * XP_PER_GEM ? ` ${Math.floor(w.xp / XP_PER_GEM)}` : ''}</button>
                 </div>
             </div>
-            <div class="cs-shop-row">
-                <div class="cs-shop-text"><b>Ключ от большого кейса</b><span>${KEY_PRICE} гемов</span></div>
-                <div class="cs-shop-act">
+            <div class="kc-shop-row">
+                <div class="kc-shop-text"><b>Ключ от большого кейса</b><span>${KEY_PRICE} гемов</span></div>
+                <div class="kc-shop-act">
                     <button class="btn btn-sec" data-act="key" ${w.gems >= KEY_PRICE && !state.busy ? '' : 'disabled'}>${keyIcon(16)} Купить</button>
                 </div>
             </div>
-            <div class="cs-note${state.noteErr ? ' cs-note-err' : ''}" aria-live="polite">${esc(state.note)}</div>
         </div>`;
     }
 
@@ -161,80 +172,108 @@ export function mountCases(host, { apiFetch, user }) {
         const packs = state.packs;
         const shut = !state.season;
         return `
-        <div class="cs-case cs-case-${kind}">
-            <div class="cs-case-chest">${chestImg(kind)}</div>
-            <div class="cs-case-body">
-                <b class="cs-case-title">${big ? 'Большой кейс' : 'Малый кейс'}</b>
-                <span class="cs-case-sub">${big ? 'Пак целиком: рамка, шапка, звонки и записи' : 'Одна вещь из любого пака'}</span>
-                <span class="cs-case-in">${packs.map(p => `<span style="--hue:${SKIN_PACKS[p]?.hue ?? 260}">${esc(packLabel(p))}</span>`).join('')}</span>
-                <button class="btn btn-pri cs-open" data-act="open" data-kind="${kind}" ${state.busy || shut ? 'disabled' : ''}>
+        <div class="kc-case kc-case-${kind}">
+            <div class="kc-case-chest">${chestImg(kind)}</div>
+            <div class="kc-case-body">
+                <b class="kc-case-title">${big ? 'Большой кейс' : 'Малый кейс'}</b>
+                <span class="kc-case-sub">${big ? 'Пак целиком: рамка, шапка, звонки и записи' : 'Одна вещь из любого пака'}</span>
+                <span class="kc-case-in" title="Шанс пака — и в большом кейсе, и в малом">${packOdds(packs).map(({ pack, pct }) =>
+                    `<span class="${isRare(pack) ? 'kc-in-rare' : ''}" style="--hue:${SKIN_PACKS[pack]?.hue ?? 260}">${esc(packLabel(pack))} · ${String(pct).replace('.', ',')}%</span>`).join('')}</span>
+                <button class="btn btn-pri kc-open" data-act="open" data-kind="${kind}" ${state.busy || shut ? 'disabled' : ''}>
                     ${shut ? 'Сезон закрыт' : `Открыть · ${big ? `${keyIcon(16)} 1 ключ` : `${gem(16)} ${SMALL_CASE_PRICE}`}`}
                 </button>
             </div>
         </div>`;
     }
 
-    // Примерочная: по строке на часть (что можно надеть) и предпросмотр — то,
-    // как скин увидят другие. Надевается кнопкой: перебирать можно свободно.
+    // Примерочная: слева превью «как вас увидят другие», где каждая часть
+    // нажимается, справа — картинки скинов для выбранной части. Своё
+    // выбирается, чужое под замком: скинов будут десятки, и строка чипов на
+    // часть превратилась бы в полосу через весь экран. Надевается кнопкой —
+    // перебирать можно свободно.
     function fitHtml() {
         const draft = state.draft || mineParts();
         const mine = mineParts();
         const changed = SKIN_PARTS.some(p => (draft[p.id] || null) !== (mine[p.id] || null));
+        const part = state.fitPart;
         const have = state.owned.length;
         const total = allItems().length;
-        const rows = SKIN_PARTS.map(({ id, label }) => {
-            const packs = wearable(id);
-            const cur = draft[id] || '';
-            const opts = [['', 'Стандартный'], ...packs.map(p => [p, packLabel(p)])];
-            return `
-            <div class="cs-fit-row">
-                <span class="cs-fit-label">${esc(label)}</span>
-                <div class="cs-fit-opts" data-seg="cs-fit-${id}">${opts.map(([p, name]) => `
-                    <button type="button" class="chip${p === cur ? ' active' : ''}" data-fit-part="${id}" data-fit-pack="${esc(p)}"
-                            aria-pressed="${p === cur}">${esc(name)}</button>`).join('')}</div>
-            </div>`;
-        }).join('');
+        const op = localOperator(user?.id);
         return `
-        <div class="cs-fit">
-            <div class="cs-fit-side">
-                <div class="cs-fit-have">В коллекции ${have} из ${total}${skinState().canEdit ? ' · вам открыто всё для проверки' : ''}</div>
-                ${rows}
-                <div class="cs-fit-btns">
+        <div class="kc-fit">
+            ${previewHtml(draft, part)}
+            <div class="kc-fit-side">
+                <div class="kc-fit-head">
+                    <b>${esc(PART_LABEL[part])}</b>
+                    <span>в коллекции ${have} из ${total}</span>
+                </div>
+                ${tilesHtml(part, draft[part] || '', mine[part] || '')}
+                <div class="kc-fit-btns">
                     <button class="btn btn-pri" data-act="wear" ${changed && !state.busy ? '' : 'disabled'}>Надеть</button>
                     <button class="btn btn-sec" data-act="fit-reset" ${changed ? '' : 'disabled'}>Как сейчас</button>
                 </div>
-                <div class="cs-fit-hint">${localOperator(user?.id)
-                    ? `Звонки в ленте лидов узнаются по коду оператора ${esc(localOperator(user?.id))}.`
-                    : 'Скин звонков заработает, когда во вкладке «Лиды» будет введён «Мой код».'}</div>
+                <div class="kc-fit-hint">${skinState().canEdit ? 'Вам открыто всё — для проверки паков. ' : ''}${part !== 'leads' ? ''
+                    : op ? `Ваши звонки в ленте узнаются по коду оператора ${esc(op)}.`
+                        : 'Скин звонков заработает, когда во вкладке «Лиды» будет введён «Мой код».'}</div>
             </div>
-            ${previewHtml(draft)}
         </div>`;
     }
 
-    function previewHtml(d) {
+    // Плитки части: «Стандартный» и все нарисованные паки. Не выпавшее — под
+    // замком и не нажимается: видно, что ещё есть и за чем крутить кейсы.
+    function tilesHtml(part, cur, worn) {
+        const can = new Set(wearable(part));
+        const packs = Object.keys(SKIN_PACKS).filter(p => packHasPart(p, part));
+        const tile = (pack, inner, name) => {
+            const locked = Boolean(pack) && !can.has(pack);
+            const cls = ['kc-tile', pack === cur ? 'kc-tile-on' : '', locked ? 'kc-tile-lock' : '', pack && isRare(pack) ? 'kc-tile-rare' : ''].join(' ');
+            return `
+            <button type="button" class="${cls}" ${locked ? 'data-locked="1" aria-disabled="true"' : `data-fit-part="${part}" data-fit-pack="${esc(pack)}"`}
+                    style="--hue:${SKIN_PACKS[pack]?.hue ?? 260}" aria-pressed="${pack === cur}"
+                    title="${locked ? 'Ещё не выпало — выпадает из кейсов' : esc(name)}">
+                ${inner}
+                ${locked ? `<span class="kc-tile-lock-ico">${lockIcon()}</span>` : ''}
+                ${pack === worn ? '<span class="kc-tile-worn">надето</span>' : ''}
+                <span class="kc-tile-name">${esc(name)}</span>
+            </button>`;
+        };
+        return `<div class="kc-tiles">
+            ${tile('', '<span class="kc-thumb kc-thumb-none"></span>', 'Стандартный')}
+            ${packs.map(p => tile(p, thumbHtml({ pack: p, part }), packLabel(p))).join('')}
+        </div>`;
+    }
+
+    function previewHtml(d, active) {
         const name = esc(user?.display_name || 'Вы');
         const ava = user?.avatar ? `<img src="${esc(user.avatar)}" alt="">` : `<i>${esc(String(user?.display_name || '?').charAt(0).toUpperCase())}</i>`;
         const pv = (part) => `data-skin-part="${part}" data-skin-pack="${esc(d[part] || '')}"`;
+        // Часть превью — кнопка: нажал на рамку — справа рамки.
+        const zone = (part, inner, cls = '') => `
+            <div class="kc-zone ${cls}${part === active ? ' kc-zone-on' : ''}" data-zone="${part}" role="button" tabindex="0"
+                 data-zone-label="${esc(PART_LABEL[part])}" aria-label="Выбрать: ${esc(PART_LABEL[part])}">${inner}</div>`;
         return `
-        <div class="cs-pv" aria-label="Так вас увидят другие">
-            <div class="cs-pv-hero">
-                <div class="cs-pv-cover" ${pv('cover')}></div>
-                <div class="cs-pv-ident">
-                    <span class="cs-pv-ava" ${pv('frame')}>${ava}</span>
+        <div class="kc-pv" aria-label="Так вас увидят другие">
+            <div class="kc-pv-tip">Нажмите на часть, чтобы выбрать скин</div>
+            <div class="kc-pv-hero">
+                ${zone('cover', `<div class="kc-pv-cover" ${pv('cover')}></div>`, 'kc-zone-cover')}
+                <div class="kc-pv-ident">
+                    ${zone('frame', `<span class="kc-pv-ava" ${pv('frame')}>${ava}</span>`, 'kc-zone-ava')}
                     <b>${name}</b>
                 </div>
             </div>
-            <div class="ld-call cs-pv-call" ${pv('leads')}>
+            ${zone('leads', `
+            <div class="ld-call kc-pv-call" ${pv('leads')}>
                 <span class="ld-call-main">
                     <span class="ld-call-top"><span class="ld-call-phone">+7 (921) 000-00-00</span><span class="ld-call-time">12:40</span></span>
                     <span class="ld-call-who">Новый клиент</span>
                     <span class="ld-call-bottom"><span class="ld-st">принят</span><span class="ld-call-meta">ваш звонок</span></span>
                 </span>
-            </div>
-            <div class="cs-pv-board">
-                <div class="cs-pv-cap" ${pv('records')} data-skin-slots="1"><b>Запись</b><span>10:00–10:30</span></div>
-                <div class="cs-pv-cap cs-pv-cap-3" ${pv('records')} data-skin-slots="3"><b>Длинная запись</b><span>11:00–12:30</span></div>
-            </div>
+            </div>`)}
+            ${zone('records', `
+            <div class="kc-pv-board">
+                <div class="kc-pv-cap" ${pv('records')} data-skin-slots="1"><b>Запись</b><span>10:00–10:30</span></div>
+                <div class="kc-pv-cap kc-pv-cap-3" ${pv('records')} data-skin-slots="3"><b>Длинная запись</b><span>11:00–12:30</span></div>
+            </div>`)}
         </div>`;
     }
 
@@ -245,30 +284,34 @@ export function mountCases(host, { apiFetch, user }) {
         const title = s?.title || n?.title || '';
         const when = s ? `кейсы открыты до ${dayLabel(s.ends)}` : n ? `сезон вернётся ${dayLabel(n.starts)} — выпавшее остаётся с вами` : 'кейсы закрыты';
         return `
-            ${ART.cover && title ? `<div class="cs-cover${s ? '' : ' cs-cover-off'}" style="background-image:url('${ART.cover}')"><span>${esc(title)}</span></div>` : ''}
-            <div class="cs-season${s ? '' : ' cs-season-off'}">${esc(when)}</div>`;
+            ${ART.cover && title ? `<div class="kc-cover${s ? '' : ' kc-cover-off'}" style="background-image:url('${ART.cover}')"><span>${esc(title)}</span></div>` : ''}
+            <div class="kc-season${s ? '' : ' kc-season-off'}">${esc(when)}</div>`;
     }
 
     function render() {
-        if (state.status === 'loading') { host.innerHTML = '<div class="cs-loading">Загружаю кошелёк…</div>'; return; }
+        if (state.status === 'loading') { host.innerHTML = '<div class="kc-loading">Загружаю кошелёк…</div>'; return; }
         if (state.status === 'error') {
-            host.innerHTML = `<div class="cs-loading">Кошелёк не загрузился: ${esc(state.error)} <button class="btn btn-sec" data-act="reload">Ещё раз</button></div>`;
+            host.innerHTML = `<div class="kc-loading">Кошелёк не загрузился: ${esc(state.error)} <button class="btn btn-sec" data-act="reload">Ещё раз</button></div>`;
             return;
         }
         const w = state.wallet;
         host.innerHTML = `
             ${seasonHtml()}
             ${walletHtml(w)}
-            <div class="cs-cases">${caseCardHtml('big')}${caseCardHtml('small')}</div>
-            <h4 class="cs-h">Магазин гемов</h4>
+            <div class="kc-cases">${caseCardHtml('big')}${caseCardHtml('small')}</div>
+            <h4 class="kc-h">Магазин гемов</h4>
             ${shopHtml(w)}
-            <h4 class="cs-h" id="cs-fit-h">Примерочная <span>так вас увидят другие</span></h4>
+            <h4 class="kc-h" id="kc-fit-h">Примерочная <span>так вас увидят другие</span></h4>
             ${fitHtml()}`;
     }
 
     // ── Действия ─────────────────────────────────────────────────────────────
 
-    const say = (text, err = false) => { state.note = text; state.noteErr = err; };
+    // Итог действия — всплывашкой у низа экрана, а не строкой в магазине:
+    // строка «Надето» висела бы там до следующего действия и занимала место.
+    // Тут это уместно, в отличие от «Записей» и «Чатов»: итог виден в тот же
+    // миг, когда человек смотрит на кнопку, и терять в нём нечего.
+    const say = (text, err = false) => toast(text, err);
 
     async function post(path, body) {
         const data = await apiFetch(path, { method: 'POST', body });
@@ -289,6 +332,13 @@ export function mountCases(host, { apiFetch, user }) {
     }
 
     host.addEventListener('click', async (e) => {
+        const zone = e.target.closest('[data-zone]');
+        if (zone && !e.target.closest('[data-act], [data-fit-part]')) {
+            state.fitPart = zone.dataset.zone;
+            render();
+            return;
+        }
+        if (e.target.closest('[data-locked]')) { say('Этого скина у вас ещё нет — он выпадает из кейсов'); return; }
         const btn = e.target.closest('[data-act], [data-fit-part]');
         if (!btn || btn.disabled) return;
         if (btn.dataset.fitPart) {
@@ -323,6 +373,15 @@ export function mountCases(host, { apiFetch, user }) {
             state.busy = '';
             render();
         }
+    }, { signal: off.signal });
+    // Части превью — кнопки и с клавиатуры.
+    host.addEventListener('keydown', (e) => {
+        const zone = e.target.closest?.('[data-zone]');
+        if (!zone || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        state.fitPart = zone.dataset.zone;
+        render();
+        host.querySelector(`[data-zone="${state.fitPart}"]`)?.focus();
     }, { signal: off.signal });
 
     // Открытие: сначала — чего не хватает и чем доплатить, потом сундук, лента
@@ -371,6 +430,7 @@ export function mountCases(host, { apiFetch, user }) {
                 const d = { ...(state.draft || mineParts()) };
                 for (const g of (res.prize.part ? [res.prize] : SKIN_PARTS.map(p => ({ pack: res.prize.pack, part: p.id })))) d[g.part] = g.pack;
                 state.draft = d;
+                state.fitPart = res.prize.part || 'cover';
             }
         } catch (err) {
             say(err.message, true);
@@ -378,27 +438,47 @@ export function mountCases(host, { apiFetch, user }) {
         }
         state.busy = '';
         render();
-        if (state.draft) host.querySelector('#cs-fit-h')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (state.draft) host.querySelector('#kc-fit-h')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     render();
     load();
 }
 
+// ── Всплывашка итога ────────────────────────────────────────────────────────
+
+let toastTimer = 0;
+function toast(text, err = false) {
+    let el = document.getElementById('kc-toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'kc-toast';
+        el.className = 'kc-toast';
+        el.setAttribute('role', 'status');
+        document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.toggle('kc-toast-err', err);
+    el.classList.add('kc-toast-on');
+    clearTimeout(toastTimer);
+    // Отказ висит дольше: его причину надо успеть прочитать.
+    toastTimer = setTimeout(() => el.classList.remove('kc-toast-on'), err ? 5000 : 2400);
+}
+
 // ── Окно кейса: вопрос, сундук, лента, приз ─────────────────────────────────
 
 function caseModal() {
-    document.getElementById('cs-modal')?.remove();
+    document.getElementById('kc-modal')?.remove();
     const el = document.createElement('div');
-    el.id = 'cs-modal';
-    el.className = 'cs-modal';
-    el.innerHTML = '<div class="cs-modal-back"></div><div class="cs-modal-win" role="dialog" aria-modal="true"></div>';
+    el.id = 'kc-modal';
+    el.className = 'kc-modal';
+    el.innerHTML = '<div class="kc-modal-back"></div><div class="kc-modal-win" role="dialog" aria-modal="true"></div>';
     document.body.appendChild(el);
-    const win = el.querySelector('.cs-modal-win');
+    const win = el.querySelector('.kc-modal-win');
     let locked = false;     // пока крутится — не закрывается
     let resolveAsk = null;
     const close = () => { el.remove(); resolveAsk?.('close'); };
-    el.querySelector('.cs-modal-back').onclick = () => { if (!locked) close(); };
+    el.querySelector('.kc-modal-back').onclick = () => { if (!locked) close(); };
     const onKey = (e) => { if (e.key === 'Escape' && !locked) { close(); document.removeEventListener('keydown', onKey); } };
     document.addEventListener('keydown', onKey);
 
@@ -406,10 +486,10 @@ function caseModal() {
         close,
         ask({ title, text, buttons }) {
             win.innerHTML = `
-                <div class="cs-ask">
-                    <b class="cs-ask-title">${esc(title)}</b>
+                <div class="kc-ask">
+                    <b class="kc-ask-title">${esc(title)}</b>
                     <p>${esc(text)}</p>
-                    <div class="cs-ask-btns">${buttons.map(([id, label, cls]) => `<button class="btn ${cls}" data-ask="${id}">${esc(label)}</button>`).join('')}</div>
+                    <div class="kc-ask-btns">${buttons.map(([id, label, cls]) => `<button class="btn ${cls}" data-ask="${id}">${esc(label)}</button>`).join('')}</div>
                 </div>`;
             return new Promise((resolve) => {
                 resolveAsk = (v) => { resolveAsk = null; resolve(v); };
@@ -424,33 +504,40 @@ function caseModal() {
         async spin(kind, request) {
             locked = true;
             win.innerHTML = `
-                <div class="cs-stage">
-                    <div class="cs-stage-chest cs-shake">${chestImg(kind)}</div>
-                    <div class="cs-stage-text">Открываю…</div>
+                <div class="kc-stage">
+                    <div class="kc-stage-chest kc-shake">${chestImg(kind)}</div>
+                    <div class="kc-stage-text">Открываю…</div>
                 </div>`;
             let res;
             try {
-                [res] = await Promise.all([request, wait(REDUCED ? 200 : 1100)]);
+                [res] = await Promise.all([request, wait(REDUCED ? 200 : SHAKE_MS)]);
             } catch (err) { locked = false; throw err; }
-            const chest = win.querySelector('.cs-stage-chest');
-            chest.classList.remove('cs-shake');
-            chest.classList.add('cs-burst');
+            const chest = win.querySelector('.kc-stage-chest');
+            chest.classList.remove('kc-shake');
+            chest.classList.add('kc-burst');
             chest.innerHTML = chestImg(kind, true);
-            await wait(REDUCED ? 100 : 550);
+            await wait(REDUCED ? 100 : BURST_MS);
 
             // Лента: случайные вещи вокруг приза, приз — на PRIZE_AT.
             const big = kind === 'big';
-            const pool = big ? res.packs.map(pack => ({ pack })) : allItems(res.packs);
-            const N = 46, PRIZE_AT = 38;
-            const items = Array.from({ length: N }, (_, i) => (i === PRIZE_AT ? res.prize : pool[Math.floor(Math.random() * pool.length)]));
+            // Карточки вокруг приза тянутся с ТЕМИ ЖЕ весами, что и розыгрыш:
+            // редкий мелькает в ленте редко, как ему и положено.
+            const odds = packOdds(res.packs);
+            const fill = () => {
+                let r = Math.random() * 100;
+                const pack = (odds.find(o => (r -= o.pct) < 0) || odds[0]).pack;
+                return big ? { pack } : { pack, part: SKIN_PARTS[Math.floor(Math.random() * SKIN_PARTS.length)].id };
+            };
+            const N = 64, PRIZE_AT = 56;
+            const items = Array.from({ length: N }, (_, i) => (i === PRIZE_AT ? res.prize : fill()));
             win.innerHTML = `
-                <div class="cs-roll">
-                    <div class="cs-roll-win"><div class="cs-strip">${items.map((it, i) => itemCardHtml(it, i === PRIZE_AT ? 'cs-card-prize' : '')).join('')}</div>
-                    <i class="cs-roll-mark"></i></div>
+                <div class="kc-roll">
+                    <div class="kc-roll-win"><div class="kc-strip">${items.map((it, i) => itemCardHtml(it, i === PRIZE_AT ? 'kc-card-prize' : '')).join('')}</div>
+                    <i class="kc-roll-mark"></i></div>
                 </div>`;
-            const strip = win.querySelector('.cs-strip');
+            const strip = win.querySelector('.kc-strip');
             const card = strip.children[PRIZE_AT];
-            const view = win.querySelector('.cs-roll-win').clientWidth;
+            const view = win.querySelector('.kc-roll-win').clientWidth;
             const step = card.offsetWidth + parseFloat(getComputedStyle(strip).columnGap || '0');
             // Встаёт не ровно по центру карточки: «чуть не доехало» — половина
             // удовольствия от ленты.
@@ -458,11 +545,11 @@ function caseModal() {
             const x = -(PRIZE_AT * step + card.offsetWidth / 2 - view / 2 + jitter);
             strip.style.transform = 'translateX(0)';
             strip.getBoundingClientRect();
-            strip.style.transition = `transform ${REDUCED ? 0.6 : 6.2}s cubic-bezier(0.1, 0.62, 0.12, 1)`;
+            strip.style.transition = `transform ${REDUCED ? 0.6 : ROLL_S}s cubic-bezier(0.06, 0.55, 0.06, 1)`;
             strip.style.transform = `translateX(${x}px)`;
             await new Promise(r => strip.addEventListener('transitionend', r, { once: true }));
-            card.classList.add('cs-card-won');
-            await wait(REDUCED ? 100 : 700);
+            card.classList.add('kc-card-won');
+            await wait(REDUCED ? 100 : WON_MS);
 
             locked = false;
             const p = res.prize;
@@ -473,12 +560,13 @@ function caseModal() {
                     : `Весь пак уже был — +${res.xp} опыта`)
                 : 'Новая вещь в коллекции';
             win.innerHTML = `
-                <div class="cs-prize">
-                    <div class="cs-prize-glow"></div>
-                    ${itemCardHtml(p, 'cs-card-big')}
-                    <b class="cs-prize-title">${esc(title)}</b>
-                    <span class="cs-prize-sub${res.dup ? ' cs-prize-dup' : ''}">${esc(dupText)}</span>
-                    <div class="cs-ask-btns">
+                <div class="kc-prize${isRare(p.pack) ? ' kc-prize-rare' : ''}">
+                    <div class="kc-prize-glow"></div>
+                    ${itemCardHtml(p, 'kc-card-big')}
+                    ${isRare(p.pack) ? '<span class="kc-prize-rare-tag">Редкий!</span>' : ''}
+                    <b class="kc-prize-title">${esc(title)}</b>
+                    <span class="kc-prize-sub${res.dup ? ' kc-prize-dup' : ''}">${esc(dupText)}</span>
+                    <div class="kc-ask-btns">
                         <button class="btn btn-sec" data-prize="go">Продолжить</button>
                         <button class="btn btn-pri" data-prize="try">Примерить</button>
                     </div>

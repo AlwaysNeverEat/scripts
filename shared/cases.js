@@ -50,7 +50,7 @@ export const KEYS_MAX = 20;
 // Новый сезон — строка здесь (паки в SKIN_PACKS, картинки — по имени файла).
 // Окна сезонов не должны пересекаться: в один день открыт один сезон.
 export const SEASONS = [
-    { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox'], windows: [[9, 11]] },
+    { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'halloween'], windows: [[9, 11]] },
 ];
 
 const MSK = 3 * 3600_000;
@@ -96,8 +96,28 @@ export const CASES = {
 const PART_IDS = SKIN_PARTS.map(p => p.id);
 // В кейсах — паки ОТКРЫТОГО сезона. Пак попадает в сезон, только когда у
 // него нарисованы ВСЕ части: из кейса не должно выпадать то, чего нельзя надеть.
-export const casePacks = (season) => (season?.packs || []).filter(p => SKIN_PACKS[p]);
-export const allItems = (packs = Object.keys(SKIN_PACKS)) => packs.flatMap(pack => PART_IDS.map(part => ({ pack, part })));
+export const casePacks = (season) => (season?.packs || []).filter(p => SKIN_PACKS[p] && SKIN_PACKS[p].ready !== false);
+
+// Пак по весам (SKIN_PACKS[pack].weight): `rand(n)` — целое [0, n), на сервере
+// crypto.randomInt, поэтому веса целые.
+function pickPack(packs, rand) {
+    const total = packs.reduce((s, p) => s + (SKIN_PACKS[p].weight || 1), 0);
+    let r = rand(total);
+    for (const p of packs) {
+        r -= SKIN_PACKS[p].weight || 1;
+        if (r < 0) return p;
+    }
+    return packs[packs.length - 1];
+}
+
+// Шансы паков сезона в процентах — для карточки кейса. Малый кейс тянет пак
+// с теми же весами, а часть в нём — поровну, поэтому шанс ПАКА один на оба.
+export function packOdds(packs) {
+    const total = packs.reduce((s, p) => s + (SKIN_PACKS[p].weight || 1), 0);
+    return packs.map(p => ({ pack: p, pct: Math.round((SKIN_PACKS[p].weight || 1) / total * 1000) / 10 }));
+}
+const readyPacks = () => Object.keys(SKIN_PACKS).filter(p => SKIN_PACKS[p].ready !== false);
+export const allItems = (packs = readyPacks()) => packs.flatMap(pack => PART_IDS.map(part => ({ pack, part })));
 export const itemKey = ({ pack, part }) => `${pack}:${part}`;
 
 /**
@@ -162,8 +182,7 @@ export function openCase(kind, { balance, owned, rand, season }) {
     if (kind === 'big' && balance.keys < 1) return { error: 'большой кейс открывается ключом', needKey: true };
 
     if (kind === 'small') {
-        const items = allItems(packs);
-        const item = items[rand(items.length)];
+        const item = { pack: pickPack(packs, rand), part: PART_IDS[rand(PART_IDS.length)] };
         const dup = owned.has(itemKey(item));
         return {
             prize: { kind, pack: item.pack, part: item.part },
@@ -172,7 +191,7 @@ export function openCase(kind, { balance, owned, rand, season }) {
             row: { kind: 'open_small', gems: -SMALL_CASE_PRICE, xp: dup ? DUP_XP_SMALL : 0, meta: { ...item, dup } },
         };
     }
-    const pack = packs[rand(packs.length)];
+    const pack = pickPack(packs, rand);
     const grant = PART_IDS.filter(part => !owned.has(itemKey({ pack, part }))).map(part => ({ pack, part }));
     const dup = grant.length < PART_IDS.length;
     return {
