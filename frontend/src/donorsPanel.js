@@ -31,7 +31,7 @@ import { hoursLeftAfter, formatLeft, lifeTone } from '../../shared/serverBalance
 // Плашку факультета в узкой панели не ставим: она съедала бы имя, а значки
 // после ника (галочка, звёздочка) — остаются.
 import { nameSuffixHtml } from './namePrefix.js';
-import { setSupporters } from './nameBadges.js';
+import { setSupporters, gemImgHtml } from './nameBadges.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
 import './donorsPanel.css';
 
@@ -42,7 +42,9 @@ const REFRESH_MS = 10 * 60 * 1000; // пополнения вносят рука
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const STAR = (s = 14) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 14.6 9l6 .6-4.5 4 1.3 5.9L12 16.6 6.6 19.5l1.3-5.9-4.5-4 6-.6z"/></svg>`;
+// Значок панели — тот же камень, что у ников поддержавших (nameBadges.js):
+// звёздочка в заголовке при камнях в строках читалась как два разных знака.
+const GEM = (px) => `<span class="dn-gem" aria-hidden="true">${gemImgHtml(px)}</span>`;
 const CHEVRON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>`;
 
 function loadCollapsed() {
@@ -141,10 +143,10 @@ export function initDonorsPanel({ apiFetch }) {
         const monthSum = state.donors.reduce((s, d) => s + (d.month || 0), 0);
         root.classList.toggle('dn-collapsed', state.collapsed);
         root.innerHTML = state.collapsed
-            ? `<button type="button" class="dn-tab" data-act="toggle" title="Поддержали проект — развернуть${hoursNow() != null ? ` · серверу осталось ${formatLeft(hoursNow())}` : ''}">${STAR(15)}<span class="dn-tab-n">${state.donors.length || ''}</span>${hoursNow() != null ? `<span class="dn-tab-left dn-tone-${lifeTone(hoursNow())}" data-dn-tab-left>${tabLeft(hoursNow())}</span>` : ''}</button>`
+            ? `<button type="button" class="dn-tab" data-act="toggle" title="Поддержали проект — развернуть${hoursNow() != null ? ` · серверу осталось ${formatLeft(hoursNow())}` : ''}">${GEM(20)}<span class="dn-tab-n">${state.donors.length || ''}</span>${hoursNow() != null ? `<span class="dn-tab-left dn-tone-${lifeTone(hoursNow())}" data-dn-tab-left>${tabLeft(hoursNow())}</span>` : ''}</button>`
             : `<div class="dn-box">
                 <div class="dn-head">
-                    <span class="dn-title">${STAR(15)} Поддержали проект</span>
+                    <span class="dn-title">${GEM(20)} Поддержали проект</span>
                     <button type="button" class="dn-fold" data-act="toggle" title="Свернуть" aria-label="Свернуть">${CHEVRON}</button>
                 </div>
                 <div class="dn-sub">Донаты идут на сервер, на котором живёт сайт.</div>
