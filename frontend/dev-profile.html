@@ -63,8 +63,8 @@
     const { initSkins, loadSkins } = await import('./src/skins.js');
     initSkins();
     // Сервер скинов в памяти страницы — те же ответы, что у /api/skins.
-    let mine = new URLSearchParams(location.search).get('skin')
-      ? { parts: { frame: 'cat', cover: 'cat', leads: null, records: 'cat' }, operator: '' } : null;
+    const PACK = new URLSearchParams(location.search).get('skin') === '1' ? 'cat' : new URLSearchParams(location.search).get('skin');
+    let mine = PACK ? { parts: { frame: PACK, cover: PACK, leads: null, records: PACK }, operator: '' } : null;
     const skinFetch = async (path, opts = {}) => {
       if (path === '/api/skins/me' && opts.method === 'PUT') {
         await new Promise(r => setTimeout(r, 250));

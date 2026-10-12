@@ -26,6 +26,7 @@ export const SKIN_EDITOR_LOGINS = ['gtrixoff'];
 
 export const SKIN_PACKS = {
     cat: { label: 'Котик' },
+    fox: { label: 'Лиса' },
 };
 
 export const SKIN_PARTS = [

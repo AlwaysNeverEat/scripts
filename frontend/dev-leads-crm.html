@@ -52,6 +52,8 @@
     import { mergeFeed, normalizeCall, parseLeadCard, parseServices, cleanCalcItems, calcTotal, phone11 } from '../shared/crmLeads.js';
 
     const params = new URLSearchParams(location.search);
+    // ?skin=1 — котик, ?skin=<пак> — этот пак (shared/skins.js).
+    const PACK = params.get('skin') === '1' ? 'cat' : params.get('skin');
     const caseSel = document.getElementById('dev-case');
     if (params.get('case')) caseSel.value = params.get('case');
     const kase = () => caseSel.value;
@@ -142,7 +144,7 @@
       const body = opts.body || {};
       if (kase() === 'auth' && !path.startsWith('/api/crm/login')) { await wait(300); throw fail('crm_auth_required', 'нет сессии CRM — войдите'); }
       if (path === '/api/crm/login') { await wait(500); caseSel.value = 'ok'; return { ok: true }; }
-      if (path === '/api/skins') return { skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: 'cat', cover: 'cat', leads: 'cat', records: 'cat' }, operator: '101' }] : [], canEdit: false, mine: null };
+      if (path === '/api/skins') return { skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: PACK, cover: PACK, leads: PACK, records: PACK }, operator: '101' }] : [], canEdit: false, mine: null };
 
       if (path === '/api/crm/leads/feed') {
         await wait(250);

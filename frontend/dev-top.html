@@ -67,10 +67,11 @@
     }
 
     // ?skin=1 — у второго в списке надета рамка «Котика» (skins.js).
-    if (new URLSearchParams(location.search).get('skin')) {
+    const PACK = new URLSearchParams(location.search).get('skin') === '1' ? 'cat' : new URLSearchParams(location.search).get('skin');
+    if (PACK) {
       const { initSkins, loadSkins } = await import('./src/skins.js');
       initSkins();
-      loadSkins(async () => ({ skins: [{ userId: 'u1', parts: { frame: 'cat' }, operator: '' }], canEdit: false, mine: null }));
+      loadSkins(async () => ({ skins: [{ userId: 'u1', parts: { frame: PACK }, operator: '' }], canEdit: false, mine: null }));
     }
     showTopPage({ apiFetch });
   </script>
