@@ -71,12 +71,14 @@ def with_alpha(sheet):
     return sheet
 
 
-def blobs(alpha):
+def blobs(alpha, join=JOIN, solid=SOLID):
     """Пятна «не прозрачно» по грубой сетке: [(x0, y0, x1, y1), …] в пикселях листа."""
     w, h = alpha.size
     gw, gh = (w + CELL - 1) // CELL, (h + CELL - 1) // CELL
-    small = alpha.point(lambda v: 255 if v > SOLID else 0).resize((gw, gh), Image.BOX)
-    grid = small.point(lambda v: 255 if v > 8 else 0).filter(ImageFilter.MaxFilter(JOIN * 2 + 1))
+    small = alpha.point(lambda v: 255 if v > solid else 0).resize((gw, gh), Image.BOX)
+    grid = small.point(lambda v: 255 if v > 8 else 0)
+    if join:
+        grid = grid.filter(ImageFilter.MaxFilter(join * 2 + 1))
     px = grid.load()
     seen = [[False] * gw for _ in range(gh)]
     out = []
@@ -100,6 +102,18 @@ def blobs(alpha):
             if n > 400:  # меньше — крошки и обрезки, не предмет
                 out.append((x0 * CELL, y0 * CELL, min(w, (x1 + 1) * CELL), min(h, (y1 + 1) * CELL)))
     return out
+
+
+# Попытки найти ровно `want` предметов: сперва с запасом, который собирает
+# предмет из кусочков (хвост отдельно от кота), потом всё строже. GPT ставит
+# предметы как придётся, и бывает, что тыква на рамке почти касается низа
+# баннера — тогда запас сшивает их в один, а без запаса они разделяются.
+def find_items(alpha, want):
+    for join, solid in ((JOIN, SOLID), (1, 100), (0, 160)):
+        found = blobs(alpha, join, solid)
+        if len(found) == want:
+            return found
+    die(f'на листе {len(found)} предметов вместо {want} — раскладка изменилась ({found})')
 
 
 def tight(img):
@@ -206,9 +220,7 @@ def main():
     out = os.path.normpath(os.path.join(HERE, '..', '..', 'frontend', 'src', 'assets', 'skins', pack))
     sheet = with_alpha(Image.open(src))
 
-    found = blobs(sheet.getchannel('A'))
-    if len(found) != 4:
-        die(f'на листе {len(found)} предметов вместо четырёх — раскладка изменилась ({found})')
+    found = find_items(sheet.getchannel('A'), 4)
     items = [tight(sheet.crop(b)) for b in found]
     longcat = max(items, key=lambda i: i.height / i.width)
     banner = max(items, key=lambda i: i.width / i.height)

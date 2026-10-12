@@ -68,9 +68,7 @@ def main():
     if len(sys.argv) != 2:
         cs.die('запуск: cut-cases.py <лист.png>')
     sheet = cs.with_alpha(Image.open(sys.argv[1]))
-    found = cs.blobs(sheet.getchannel('A'))
-    if len(found) != 6:
-        cs.die(f'на листе {len(found)} предметов вместо шести — раскладка изменилась ({found})')
+    found = cs.find_items(sheet.getchannel('A'), 6)
     cover = max(found, key=lambda b: (b[2] - b[0]) / (b[3] - b[1]))
     row = sorted((b for b in found if b is not cover), key=lambda b: b[0])
     if (cover[2] - cover[0]) < 2.5 * (cover[3] - cover[1]) or any(b[1] < cover[3] - 10 for b in row):
