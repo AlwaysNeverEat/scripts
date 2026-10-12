@@ -488,8 +488,48 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         } else {
             html = backHtml() + cardHtml(state.card.data);
         }
+        const keep = snapshotCard();
         cardEl.innerHTML = html;
         bindCard();
+        restoreCard(keep);
+    }
+
+    // Карточка перерисовывается целиком после каждого сохранения — статуса,
+    // источника, имени, — а в это время человек уже пишет комментарий. Без
+    // этого перерисовка выбрасывала фокус из поля (текст переживал её через
+    // draft, каретка и выделение — нет) и сбрасывала прокрутку истории звонков.
+    // Поле узнаётся по id или data-draft — они те же в новой разметке.
+    function fieldKey(el) {
+        if (!el || !cardEl.contains(el) || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return '';
+        if (el.id) return `#${CSS.escape(el.id)}`;
+        if (el.dataset.draft) return `[data-draft="${CSS.escape(el.dataset.draft)}"]`;
+        return '';
+    }
+    function snapshotCard() {
+        const el = document.activeElement;
+        const key = fieldKey(el);
+        const scrolls = [...cardEl.querySelectorAll('.ld-calls, .ld-notes-list')].map(n => n.scrollTop);
+        return {
+            key,
+            start: key && 'selectionStart' in el ? el.selectionStart : null,
+            end: key && 'selectionEnd' in el ? el.selectionEnd : null,
+            dir: key && 'selectionDirection' in el ? el.selectionDirection : undefined,
+            fieldScroll: key ? el.scrollTop : 0,
+            scrolls,
+        };
+    }
+    function restoreCard(k) {
+        cardEl.querySelectorAll('.ld-calls, .ld-notes-list').forEach((n, i) => {
+            if (k.scrolls[i]) n.scrollTop = k.scrolls[i];
+        });
+        if (!k.key) return;
+        const el = cardEl.querySelector(k.key);
+        if (!el || el.disabled) return;
+        el.focus({ preventScroll: true });
+        if (k.start != null && typeof el.setSelectionRange === 'function') {
+            try { el.setSelectionRange(k.start, k.end, k.dir); } catch { /* select не умеет */ }
+        }
+        el.scrollTop = k.fieldScroll;
     }
 
     function backHtml() {

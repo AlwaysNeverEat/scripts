@@ -29,6 +29,12 @@ const ROSETTE = 'M12.0 2.0L13.2 2.9L14.2 3.9L15.5 3.5L17.0 3.3L17.6 4.7L17.9 6.1
 const GEM = new URL('./assets/badges/supporter-gem.webp', import.meta.url).href;
 const GEM_STILL = new URL('./assets/badges/supporter-gem-still.webp', import.meta.url).href;
 
+// Камень отдельно от значка — для заголовка и язычка панели «Поддержали
+// проект» (donorsPanel.js): там он рядом с надписью и ничего не означает сам,
+// поэтому без подсказки и пустой alt.
+export const gemImgHtml = (px) => `<picture class="gem-pic"><source srcset="${GEM_STILL}" media="(prefers-reduced-motion: reduce)">`
+    + `<img src="${GEM}" alt="" width="${px}" height="${px}" decoding="async" draggable="false"></picture>`;
+
 const BADGES = {
     mod: {
         title: 'Модератор',
@@ -36,7 +42,7 @@ const BADGES = {
     },
     supporter: {
         title: 'Поддерживает проект — помогает серверу жить',
-        img: `<picture><source srcset="${GEM_STILL}" media="(prefers-reduced-motion: reduce)"><img src="${GEM}" alt="" width="64" height="64" decoding="async" draggable="false"></picture>`,
+        img: gemImgHtml(64),
     },
 };
 

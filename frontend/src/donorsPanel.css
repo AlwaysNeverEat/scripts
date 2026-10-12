@@ -24,7 +24,8 @@
 }
 .dn-head { display: flex; align-items: center; gap: var(--s-2); }
 .dn-title { flex: 1; display: inline-flex; align-items: center; gap: var(--s-2); font-weight: 700; font-size: 13.5px; }
-.dn-title svg { color: var(--gold); }
+.dn-gem { display: inline-flex; flex: none; width: 20px; height: 20px; }
+.dn-gem picture, .dn-gem img { display: block; width: 100%; height: 100%; }
 .dn-fold {
   border: 0;
   background: transparent;
@@ -111,7 +112,6 @@
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .22);
 }
-.dn-tab svg { color: var(--gold); }
 .dn-tab:hover { background: var(--bg3); }
 .dn-tab-n { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
