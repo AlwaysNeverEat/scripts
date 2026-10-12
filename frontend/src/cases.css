@@ -15,7 +15,7 @@
 
 /* ── Обложка ─────────────────────────────────────────────────────────────── */
 .cs-cover {
-  aspect-ratio: 3.4;
+  aspect-ratio: 1400 / 421;
   border-radius: var(--r-3);
   background: center / cover no-repeat;
   display: flex; align-items: center; justify-content: center;
