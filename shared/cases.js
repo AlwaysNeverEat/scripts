@@ -38,6 +38,10 @@ export const DUP_XP_BIG = 75;
 export const EXCHANGE_MAX = 10_000;
 export const KEYS_MAX = 20;
 
+// Сезон кейсов — название на обложке. Паки и обложка сезонные, и с новым
+// сезоном меняется эта строка вместе с картинкой обложки.
+export const SEASON = { title: 'Осенний кавай' };
+
 export const CASES = {
     small: { label: 'Малый кейс', price: SMALL_CASE_PRICE },
     big: { label: 'Большой кейс', price: KEY_PRICE },

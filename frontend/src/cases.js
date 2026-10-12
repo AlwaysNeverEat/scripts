@@ -16,7 +16,7 @@
 import './crmLeads.css'; // строка звонка в примерочной — настоящая .ld-call
 import './cases.css';
 import { SKIN_PACKS, SKIN_PARTS } from '../../shared/skins.js';
-import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, casePacks, gemsWord } from '../../shared/cases.js';
+import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, SEASON, allItems, casePacks, gemsWord } from '../../shared/cases.js';
 import { skinArt, packHasPart, skinState, saveMySkin, localOperator } from './skins.js';
 import { gemImgHtml } from './nameBadges.js';
 
@@ -239,7 +239,7 @@ export function mountCases(host, { apiFetch, user }) {
         }
         const w = state.wallet;
         host.innerHTML = `
-            ${ART.cover ? `<div class="cs-cover" style="background-image:url('${ART.cover}')"><span>Кейсы</span></div>` : ''}
+            ${ART.cover ? `<div class="cs-cover" style="background-image:url('${ART.cover}')"><span>${esc(SEASON.title)}</span></div>` : ''}
             ${walletHtml(w)}
             <div class="cs-cases">${caseCardHtml('big')}${caseCardHtml('small')}</div>
             <h4 class="cs-h">Магазин гемов</h4>
