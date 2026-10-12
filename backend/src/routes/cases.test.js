@@ -35,11 +35,13 @@ function memStore({ recordsTotal = 0, rublesTotal = 0 } = {}) {
     };
 }
 
-async function serve(t, store, rand = () => 0) {
+const OCT = Date.parse('2026-10-12T09:00:00Z');
+
+async function serve(t, store, rand = () => 0, now = () => OCT) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => { req.user = ME; next(); });
-    app.use('/', createCasesRouter({ store, rand }));
+    app.use('/', createCasesRouter({ store, rand, now }));
     const srv = app.listen(0);
     t.after(() => srv.close());
     const base = `http://127.0.0.1:${srv.address().port}`;
@@ -95,4 +97,17 @@ test('двойной клик не открывает два кейса на о�
     await call('/exchange', { from: 'rubles', gems: 45 });
     const [a, b] = await Promise.all([call('/open', { kind: 'small' }), call('/open', { kind: 'small' })]);
     assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+});
+
+test('вне сезона кейсы закрыты, обмен работает, сезон приезжает с балансом', async (t) => {
+    const store = memStore({ rublesTotal: 100 });
+    const call = await serve(t, store, () => 0, () => Date.parse('2026-12-20T09:00:00Z'));
+    const g = (await call('/')).json;
+    assert.equal(g.season, null);
+    assert.deepEqual(g.next, { id: 'autumn-kawaii', title: 'Осенний кавай', starts: '2027-03-01' });
+    assert.equal((await call('/exchange', { from: 'rubles', gems: 45 })).status, 200);
+    const shut = await call('/open', { kind: 'small' });
+    assert.equal(shut.status, 409);
+    assert.equal(shut.json.error.code, 'season_closed');
+    assert.equal((await call('/')).json.balance.gems, 45);
 });

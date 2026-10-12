@@ -9,14 +9,14 @@ import { Router } from 'express';
 
 import defaultStore from '../cases/store.js';
 import { planExchange, planKeys, openCase, itemKey, CASES, KEY_PRICE, SMALL_CASE_PRICE,
-    RECORDS_PER_GEM, RUBLES_PER_GEM, XP_PER_GEM, DUP_XP_SMALL, DUP_XP_BIG, casePacks } from '../../../shared/cases.js';
+    RECORDS_PER_GEM, RUBLES_PER_GEM, XP_PER_GEM, DUP_XP_SMALL, DUP_XP_BIG, casePacks, activeSeason, nextSeason } from '../../../shared/cases.js';
 
 export const PRICES = {
     key: KEY_PRICE, small: SMALL_CASE_PRICE, recordsPerGem: RECORDS_PER_GEM,
     rublesPerGem: RUBLES_PER_GEM, xpPerGem: XP_PER_GEM, dupXpSmall: DUP_XP_SMALL, dupXpBig: DUP_XP_BIG,
 };
 
-export function createCasesRouter({ store = defaultStore, rand = (n) => randomInt(n) } = {}) {
+export function createCasesRouter({ store = defaultStore, rand = (n) => randomInt(n), now = () => Date.now() } = {}) {
     const router = Router();
     const fail = (res, where, err) => {
         console.error(where, err);
@@ -24,14 +24,21 @@ export function createCasesRouter({ store = defaultStore, rand = (n) => randomIn
     };
     // Отказ по делу — 409 с цифрами: окно по ним предлагает обмен.
     const refuse = (res, plan) => res.status(409).json({
-        error: { code: plan.needKey ? 'need_key' : 'refused', message: plan.error, short: plan.short ?? null },
+        error: { code: plan.needKey ? 'need_key' : plan.closed ? 'season_closed' : 'refused', message: plan.error, short: plan.short ?? null },
     });
 
     router.get('/', async (req, res) => {
         try {
             const r = store.reader(req.user.id);
             const [balance, owned] = await Promise.all([r.balance(), r.owned()]);
-            res.json({ balance, owned, prices: PRICES, packs: casePacks() });
+            // Сезон считает сервер: часы браузера могут врать, а открыть
+            // кейс вне сезона нельзя никак (см. /open).
+            const season = activeSeason(now());
+            res.json({
+                balance, owned, prices: PRICES, packs: casePacks(season),
+                season: season && { id: season.id, title: season.title, ends: season.ends },
+                next: season ? null : nextSeason(now()),
+            });
         } catch (err) { fail(res, 'GET /api/cases', err); }
     });
 
@@ -67,7 +74,7 @@ export function createCasesRouter({ store = defaultStore, rand = (n) => randomIn
         try {
             const out = await store.withWallet(req.user.id, async (w) => {
                 const owned = new Set((await w.owned()).map(itemKey));
-                const plan = openCase(kind, { balance: await w.balance(), owned, rand });
+                const plan = openCase(kind, { balance: await w.balance(), owned, rand, season: activeSeason(now()) });
                 if (plan.error) return { plan };
                 await w.ledger(plan.row);
                 await w.grant(plan.grant, `case_${kind}`);

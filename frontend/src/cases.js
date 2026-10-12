@@ -16,7 +16,7 @@
 import './crmLeads.css'; // строка звонка в примерочной — настоящая .ld-call
 import './cases.css';
 import { SKIN_PACKS, SKIN_PARTS } from '../../shared/skins.js';
-import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, SEASON, allItems, casePacks, gemsWord } from '../../shared/cases.js';
+import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord } from '../../shared/cases.js';
 import { skinArt, packHasPart, skinState, saveMySkin, localOperator } from './skins.js';
 import { gemImgHtml } from './nameBadges.js';
 
@@ -35,6 +35,8 @@ const plural = (n, a, b, c) => {
 };
 const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
+const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const dayLabel = (iso) => { const [, m, d] = String(iso).split('-').map(Number); return `${d} ${MONTHS[m - 1]}`; };
 
 const gem = (px = 18) => `<span class="cs-gem">${gemImgHtml(px)}</span>`;
 const svg = (body, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
@@ -74,6 +76,7 @@ export function mountCases(host, { apiFetch, user }) {
     host._casesOff = off;
     const state = {
         wallet: null, owned: [], status: 'loading', error: '',
+        season: null, next: null, packs: [],   // сезон считает сервер
         draft: null,           // примерочная: { part: pack|null }
         busy: '', note: '', noteErr: false,
     };
@@ -83,6 +86,9 @@ export function mountCases(host, { apiFetch, user }) {
             const data = await apiFetch('/api/cases');
             state.wallet = data.balance;
             state.owned = data.owned || [];
+            state.season = data.season || null;
+            state.next = data.next || null;
+            state.packs = data.packs || [];
             state.status = 'ready';
         } catch (e) {
             state.status = 'error';
@@ -152,7 +158,8 @@ export function mountCases(host, { apiFetch, user }) {
 
     function caseCardHtml(kind) {
         const big = kind === 'big';
-        const packs = casePacks();
+        const packs = state.packs;
+        const shut = !state.season;
         return `
         <div class="cs-case cs-case-${kind}">
             <div class="cs-case-chest">${chestImg(kind)}</div>
@@ -160,8 +167,8 @@ export function mountCases(host, { apiFetch, user }) {
                 <b class="cs-case-title">${big ? 'Большой кейс' : 'Малый кейс'}</b>
                 <span class="cs-case-sub">${big ? 'Пак целиком: рамка, шапка, звонки и записи' : 'Одна вещь из любого пака'}</span>
                 <span class="cs-case-in">${packs.map(p => `<span style="--hue:${SKIN_PACKS[p]?.hue ?? 260}">${esc(packLabel(p))}</span>`).join('')}</span>
-                <button class="btn btn-pri cs-open" data-act="open" data-kind="${kind}" ${state.busy ? 'disabled' : ''}>
-                    Открыть · ${big ? `${keyIcon(16)} 1 ключ` : `${gem(16)} ${SMALL_CASE_PRICE}`}
+                <button class="btn btn-pri cs-open" data-act="open" data-kind="${kind}" ${state.busy || shut ? 'disabled' : ''}>
+                    ${shut ? 'Сезон закрыт' : `Открыть · ${big ? `${keyIcon(16)} 1 ключ` : `${gem(16)} ${SMALL_CASE_PRICE}`}`}
                 </button>
             </div>
         </div>`;
@@ -231,6 +238,17 @@ export function mountCases(host, { apiFetch, user }) {
         </div>`;
     }
 
+    // Обложка сезона и срок: «до 30 ноября» в сезон, «вернётся 1 марта» вне
+    // его. Выпавшее носится круглый год — закрывается только открытие.
+    function seasonHtml() {
+        const s = state.season, n = state.next;
+        const title = s?.title || n?.title || '';
+        const when = s ? `кейсы открыты до ${dayLabel(s.ends)}` : n ? `сезон вернётся ${dayLabel(n.starts)} — выпавшее остаётся с вами` : 'кейсы закрыты';
+        return `
+            ${ART.cover && title ? `<div class="cs-cover${s ? '' : ' cs-cover-off'}" style="background-image:url('${ART.cover}')"><span>${esc(title)}</span></div>` : ''}
+            <div class="cs-season${s ? '' : ' cs-season-off'}">${esc(when)}</div>`;
+    }
+
     function render() {
         if (state.status === 'loading') { host.innerHTML = '<div class="cs-loading">Загружаю кошелёк…</div>'; return; }
         if (state.status === 'error') {
@@ -239,7 +257,7 @@ export function mountCases(host, { apiFetch, user }) {
         }
         const w = state.wallet;
         host.innerHTML = `
-            ${ART.cover ? `<div class="cs-cover" style="background-image:url('${ART.cover}')"><span>${esc(SEASON.title)}</span></div>` : ''}
+            ${seasonHtml()}
             ${walletHtml(w)}
             <div class="cs-cases">${caseCardHtml('big')}${caseCardHtml('small')}</div>
             <h4 class="cs-h">Магазин гемов</h4>
@@ -347,7 +365,7 @@ export function mountCases(host, { apiFetch, user }) {
         render();
         try {
             for (const step of steps) await step();
-            const result = modal.spin(kind, post('/api/cases/open', { kind }));
+            const result = modal.spin(kind, post('/api/cases/open', { kind }).then(r => ({ ...r, packs: state.packs })));
             const res = await result;
             if (res?.tryOn) {
                 const d = { ...(state.draft || mineParts()) };
@@ -422,7 +440,7 @@ function caseModal() {
 
             // Лента: случайные вещи вокруг приза, приз — на PRIZE_AT.
             const big = kind === 'big';
-            const pool = big ? casePacks().map(pack => ({ pack })) : allItems();
+            const pool = big ? res.packs.map(pack => ({ pack })) : allItems(res.packs);
             const N = 46, PRIZE_AT = 38;
             const items = Array.from({ length: N }, (_, i) => (i === PRIZE_AT ? res.prize : pool[Math.floor(Math.random() * pool.length)]));
             win.innerHTML = `

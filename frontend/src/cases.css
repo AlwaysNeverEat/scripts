@@ -243,3 +243,8 @@
   .cs-cases, .cs-fit { grid-template-columns: 1fr; }
   .cs-shop-row { flex-wrap: wrap; }
 }
+
+/* Сезон: срок под обложкой; вне сезона обложка гаснет, кейсы закрыты. */
+.cs-season { margin: calc(-1 * var(--s-2)) 0 var(--s-4); font-size: 12.5px; color: var(--sub); text-align: center; }
+.cs-season-off { color: var(--text); }
+.cs-cover-off { filter: grayscale(.75) brightness(.8); }

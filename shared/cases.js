@@ -38,9 +38,53 @@ export const DUP_XP_BIG = 75;
 export const EXCHANGE_MAX = 10_000;
 export const KEYS_MAX = 20;
 
-// Сезон кейсов — название на обложке. Паки и обложка сезонные, и с новым
-// сезоном меняется эта строка вместе с картинкой обложки.
-export const SEASON = { title: 'Осенний кавай' };
+// ── Сезоны ────────────────────────────────────────────────────────────────────
+// Кейсы СЕЗОННЫЕ: у сезона свои паки и своё название на обложке, и открыть
+// его кейсы можно только в его окна. Окна — месяцы по Москве, включительно;
+// у сезона их может быть несколько («Осенний кавай» возвращается весной).
+// Вне окна кейсы закрыты, а выпавшее остаётся и носится круглый год, гемы
+// тоже не сгорают — сезон ограничивает открытие, а не владение.
+//
+// Новый сезон — строка здесь (паки в SKIN_PACKS, картинки — по имени файла).
+// Окна сезонов не должны пересекаться: в один день открыт один сезон.
+export const SEASONS = [
+    { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox'], windows: [[9, 11], [3, 5]] },
+];
+
+const MSK = 3 * 3600_000;
+const pad = (n) => String(n).padStart(2, '0');
+// Последний день месяца m (1–12) года y.
+const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+
+/**
+ * Какой сезон открыт сейчас (по Москве) и до какого дня включительно.
+ * @returns {{ id, title, packs, ends: 'YYYY-MM-DD' } | null}
+ */
+export function activeSeason(now = Date.now()) {
+    const d = new Date(now + MSK);
+    const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+    for (const s of SEASONS) {
+        for (const [from, to] of s.windows) {
+            if (m >= from && m <= to) {
+                return { id: s.id, title: s.title, packs: s.packs, ends: `${y}-${pad(to)}-${pad(lastDay(y, to))}` };
+            }
+        }
+    }
+    return null;
+}
+
+/** Ближайшее открытие сезона после `now`: { title, starts: 'YYYY-MM-DD' } или null. */
+export function nextSeason(now = Date.now()) {
+    const d = new Date(now + MSK);
+    let y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+    for (let i = 0; i < 12; i++) {
+        m += 1;
+        if (m > 12) { m = 1; y += 1; }
+        const s = SEASONS.find(x => x.windows.some(([from]) => from === m));
+        if (s) return { id: s.id, title: s.title, starts: `${y}-${pad(m)}-01` };
+    }
+    return null;
+}
 
 export const CASES = {
     small: { label: 'Малый кейс', price: SMALL_CASE_PRICE },
@@ -48,10 +92,10 @@ export const CASES = {
 };
 
 const PART_IDS = SKIN_PARTS.map(p => p.id);
-// В кейсах — все паки из SKIN_PACKS. Пак попадает туда, только когда у него
-// нарисованы ВСЕ части: из кейса не должно выпадать то, чего нельзя надеть.
-export const casePacks = () => Object.keys(SKIN_PACKS);
-export const allItems = () => casePacks().flatMap(pack => PART_IDS.map(part => ({ pack, part })));
+// В кейсах — паки ОТКРЫТОГО сезона. Пак попадает в сезон, только когда у
+// него нарисованы ВСЕ части: из кейса не должно выпадать то, чего нельзя надеть.
+export const casePacks = (season) => (season?.packs || []).filter(p => SKIN_PACKS[p]);
+export const allItems = (packs = Object.keys(SKIN_PACKS)) => packs.flatMap(pack => PART_IDS.map(part => ({ pack, part })));
 export const itemKey = ({ pack, part }) => `${pack}:${part}`;
 
 /**
@@ -106,15 +150,17 @@ export function planKeys(balance, count = 1) {
  * за каждую повторившуюся часть: человек открыл один кейс и получил один
  * дубликат-пак, а не три дубликата.
  */
-export function openCase(kind, { balance, owned, rand }) {
+export function openCase(kind, { balance, owned, rand, season }) {
     if (!CASES[kind]) return { error: 'такого кейса нет' };
+    const packs = casePacks(season);
+    if (!packs.length) return { error: 'сезон кейсов закрыт — выпавшее остаётся с вами, а кейсы откроются в следующий сезон', closed: true };
     if (kind === 'small' && balance.gems < SMALL_CASE_PRICE) {
         return { error: `малый кейс стоит ${SMALL_CASE_PRICE} гемов`, short: SMALL_CASE_PRICE - balance.gems };
     }
     if (kind === 'big' && balance.keys < 1) return { error: 'большой кейс открывается ключом', needKey: true };
 
     if (kind === 'small') {
-        const items = allItems();
+        const items = allItems(packs);
         const item = items[rand(items.length)];
         const dup = owned.has(itemKey(item));
         return {
@@ -124,7 +170,6 @@ export function openCase(kind, { balance, owned, rand }) {
             row: { kind: 'open_small', gems: -SMALL_CASE_PRICE, xp: dup ? DUP_XP_SMALL : 0, meta: { ...item, dup } },
         };
     }
-    const packs = casePacks();
     const pack = packs[rand(packs.length)];
     const grant = PART_IDS.filter(part => !owned.has(itemKey({ pack, part }))).map(part => ({ pack, part }));
     const dup = grant.length < PART_IDS.length;
