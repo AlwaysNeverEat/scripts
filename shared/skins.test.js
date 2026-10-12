@@ -10,28 +10,27 @@ test('ставить скин может только логин из списк
     assert.equal(canEditSkin(null), false);
 });
 
-test('пак проверяется, части по умолчанию включены', () => {
-    assert.deepEqual(cleanSkin({ pack: 'cat', parts: { frame: false, junk: true }, operator: '0103' }),
-        { skin: { pack: 'cat', parts: { frame: false, leads: true, records: true }, operator: '103' } });
-    assert.deepEqual(cleanSkin({ pack: null }).skin.pack, null);
-    assert.deepEqual(cleanSkin({}).skin.pack, null);
-    assert.equal(cleanSkin({ pack: 'dragon' }).error, 'такого скина нет');
-    assert.equal(cleanSkin({ pack: '__proto__' }).error, 'такого скина нет');
+test('части собираются из разных паков, стандартный вид — null', () => {
+    assert.deepEqual(cleanSkin({ parts: { frame: 'cat', junk: 'cat' }, operator: '0103' }),
+        { skin: { parts: { frame: 'cat', leads: null, records: null }, operator: '103' } });
+    assert.deepEqual(cleanSkin({}).skin.parts, { frame: null, leads: null, records: null });
+    assert.equal(cleanSkin({ parts: { leads: 'dragon' } }).error, 'такого скина нет');
+    assert.equal(cleanSkin({ parts: { leads: '__proto__' } }).error, 'такого скина нет');
 });
 
-test('снятый и незнакомый скин в список не уходят', () => {
-    assert.equal(publicSkin({ user_id: 'u', pack: null }), null);
-    assert.equal(publicSkin({ user_id: 'u', pack: 'dragon' }), null);
-    assert.deepEqual(publicSkin({ user_id: 'u', pack: 'cat', parts: { leads: false }, operator: '07' }),
-        { userId: 'u', pack: 'cat', parts: { frame: true, leads: false, records: true }, operator: '7' });
+test('ничего не надето — в список не уходит, пропавший пак — стандартный вид', () => {
+    assert.equal(publicSkin({ user_id: 'u', parts: {} }), null);
+    assert.equal(publicSkin({ user_id: 'u', parts: { frame: 'dragon' } }), null);
+    assert.deepEqual(publicSkin({ user_id: 'u', parts: { frame: 'cat', leads: 'dragon' }, operator: '07' }),
+        { userId: 'u', parts: { frame: 'cat', leads: null, records: null }, operator: '7' });
 });
 
 test('лид узнаётся по коду оператора, спорный код — без скина', () => {
-    const a = { userId: 'a', pack: 'cat', parts: { leads: true }, operator: '103' };
-    const b = { userId: 'b', pack: 'cat', parts: { leads: true }, operator: '104' };
+    const a = { userId: 'a', parts: { leads: 'cat' }, operator: '103' };
+    const b = { userId: 'b', parts: { leads: 'cat' }, operator: '104' };
     assert.equal(skinForOperator([a, b], '0103'), a);
     assert.equal(skinForOperator([a, b], ''), null);
     assert.equal(skinForOperator([a, { ...b, operator: '103' }], '103'), null);
-    assert.equal(skinForOperator([{ ...a, parts: { leads: false } }], '103'), null);
+    assert.equal(skinForOperator([{ ...a, parts: { leads: null, frame: 'cat' } }], '103'), null);
     assert.equal(skinOperatorKey('доб. 0042'), '42');
 });

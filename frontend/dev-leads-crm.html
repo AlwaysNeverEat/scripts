@@ -142,7 +142,7 @@
       const body = opts.body || {};
       if (kase() === 'auth' && !path.startsWith('/api/crm/login')) { await wait(300); throw fail('crm_auth_required', 'нет сессии CRM — войдите'); }
       if (path === '/api/crm/login') { await wait(500); caseSel.value = 'ok'; return { ok: true }; }
-      if (path === '/api/skins') return { skins: params.get('skin') ? [{ userId: 'cat-user', pack: 'cat', parts: { frame: true, leads: true, records: true }, operator: '101' }] : [], canEdit: false, mine: null };
+      if (path === '/api/skins') return { skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: 'cat', leads: 'cat', records: 'cat' }, operator: '101' }] : [], canEdit: false, mine: null };
 
       if (path === '/api/crm/leads/feed') {
         await wait(250);

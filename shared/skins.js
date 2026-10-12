@@ -5,10 +5,12 @@
 // списком логинов (SKIN_EDITOR_LOGINS) — смотреть, как оно выглядит, а не
 // раздавать.
 //
-// Скин — это ПАК (одна тема на все три места) и выключатели частей: кто-то
-// захочет котика на записях, но не на аватарке. Хранится одна строка на
-// человека (backend/src/skins/store.js), список приезжает всем одним запросом
-// (`GET /api/skins`), а рисует его frontend/src/skins.js.
+// Скин СОБИРАЕТСЯ ПО ЧАСТЯМ: у каждой части (рамка, баннер, записи) свой
+// пак или стандартный вид. Рамка от котика при обычном баннере — нормальный
+// выбор, а не недоделка, поэтому в базе не «пак + выключатели», а словарь
+// «часть → пак». Хранится одна строка на человека (backend/src/skins/store.js),
+// список приезжает всем одним запросом (`GET /api/skins`), рисует его
+// frontend/src/skins.js.
 //
 // Где скин виден и по чему узнаётся:
 //   • рамка — в профиле, по id человека;
@@ -39,29 +41,38 @@ export function canEditSkin(user) {
 // Тот же ключ, что `operatorKey` в shared/crmLeads.js: «03» и «3» — один код.
 export const skinOperatorKey = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 8);
 
+// { frame: 'cat', leads: null, … } — пак по части; null — стандартный вид.
+// Незнакомые части отбрасываются, пак проверяется по списку.
+function cleanParts(src, strict) {
+    const parts = {};
+    for (const { id } of SKIN_PARTS) {
+        const v = src && typeof src === 'object' ? src[id] : null;
+        if (v == null || v === '') { parts[id] = null; continue; }
+        if (Object.hasOwn(SKIN_PACKS, String(v))) { parts[id] = String(v); continue; }
+        if (strict) return null;
+        parts[id] = null;
+    }
+    return parts;
+}
+
 /**
  * Тело `PUT /api/skins/me` → то, что пишется в базу. Пак не из списка —
- * ошибка, а не «без скина»: молча снять скин из-за опечатки хуже отказа.
- * Незнакомые части отбрасываются, недостающие считаются включёнными.
- * @returns {{ skin?: { pack: string|null, parts: object, operator: string }, error?: string }}
+ * ошибка, а не «стандартный вид»: молча снять часть из-за опечатки хуже отказа.
+ * @returns {{ skin?: { parts: object, operator: string }, error?: string }}
  */
 export function cleanSkin(body) {
     const b = body && typeof body === 'object' ? body : {};
-    const pack = b.pack == null || b.pack === '' ? null : String(b.pack);
-    if (pack && !Object.hasOwn(SKIN_PACKS, pack)) return { error: 'такого скина нет' };
-    const src = b.parts && typeof b.parts === 'object' ? b.parts : {};
-    const parts = {};
-    for (const { id } of SKIN_PARTS) parts[id] = src[id] !== false;
-    return { skin: { pack, parts, operator: skinOperatorKey(b.operator) } };
+    const parts = cleanParts(b.parts, true);
+    if (!parts) return { error: 'такого скина нет' };
+    return { skin: { parts, operator: skinOperatorKey(b.operator) } };
 }
 
-// Строка из базы → то, что уезжает в список. Снятый скин (pack = null) в
-// список не попадает вовсе — смотреть на нём нечего.
+// Строка из базы → то, что уезжает в список. Ничего не надето — в список не
+// попадает вовсе. Пак, которого больше нет, считается стандартным видом.
 export function publicSkin(row) {
-    if (!row?.pack || !Object.hasOwn(SKIN_PACKS, row.pack)) return null;
-    const parts = {};
-    for (const { id } of SKIN_PARTS) parts[id] = row.parts?.[id] !== false;
-    return { userId: row.user_id, pack: row.pack, parts, operator: skinOperatorKey(row.operator) };
+    const parts = cleanParts(row?.parts, false);
+    if (!row?.user_id || !Object.values(parts).some(Boolean)) return null;
+    return { userId: row.user_id, parts, operator: skinOperatorKey(row.operator) };
 }
 
 /**

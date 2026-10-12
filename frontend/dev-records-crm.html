@@ -10,7 +10,8 @@
        ?delay=5000 — CRM «думает» 5 с (по умолчанию 2);
        ?fail=1 — часть записей получает отказ «нет свободного поста»;
        ?skin=1 — у Петровой надет скин «Котик» (skins.js): кот на её капсулах
-                 на один, два, четыре и шесть получасов.
+                 на один, два, четыре и шесть получасов (нужны картинки пака
+                 в src/assets/skins/cat/ — см. design/skins/README.md).
      Все запросы раздела копятся в window.__ops.
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
@@ -214,7 +215,7 @@
       if (u.includes('/api/journal/ops')) return json({ ops: queue.map(o => ({ ...o, mine: o.author === 'Серёга' })) });
       if (u.includes('/api/records/stations')) return json({ stations: {} });
       if (u.includes('/api/crm/login')) return json({ ok: true, linked: true });
-      if (u.includes('/api/skins')) return json({ skins: params.get('skin') ? [{ userId: 'cat-user', pack: 'cat', parts: { frame: true, leads: true, records: true }, operator: '103' }] : [], canEdit: false, mine: null });
+      if (u.includes('/api/skins')) return json({ skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: 'cat', leads: 'cat', records: 'cat' }, operator: '103' }] : [], canEdit: false, mine: null });
       return realFetch(url, init);
     };
 

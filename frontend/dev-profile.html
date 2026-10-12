@@ -8,8 +8,8 @@
      открывается окно настроек с шестерёнки. Данные выдуманные; выход в окне
      настроек ничего не выходит, а пишет в консоль.
      Скины (skins.js): в окне настроек есть раздел «Скин», как у gtrixoff, —
-     выбор сохраняется в память страницы и сразу надевает рамку на аватар;
-     ?skin=1 — открыть уже в скине «Котик».
+     у каждой части свой пак, выбор сохраняется в память страницы и сразу
+     надевает рамку на аватар; ?skin=1 — открыть с рамкой «Котика».
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -64,14 +64,14 @@
     initSkins();
     // Сервер скинов в памяти страницы — те же ответы, что у /api/skins.
     let mine = new URLSearchParams(location.search).get('skin')
-      ? { pack: 'cat', parts: { frame: true, leads: true, records: true }, operator: '' } : null;
+      ? { parts: { frame: 'cat', leads: null, records: 'cat' }, operator: '' } : null;
     const skinFetch = async (path, opts = {}) => {
       if (path === '/api/skins/me' && opts.method === 'PUT') {
         await new Promise(r => setTimeout(r, 250));
         mine = opts.body;
         return { ok: true, mine };
       }
-      if (path === '/api/skins') return { skins: mine?.pack ? [{ userId: 'me', ...mine }] : [], canEdit: true, mine };
+      if (path === '/api/skins') return { skins: mine && Object.values(mine.parts).some(Boolean) ? [{ userId: 'me', ...mine }] : [], canEdit: true, mine };
       console.log('dev: apiFetch', path); return {};
     };
     await loadSkins(skinFetch);

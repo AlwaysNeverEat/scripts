@@ -44,7 +44,10 @@ const STRIP_MAX = 52;
 const state = { skins: [], mine: null, canEdit: false, apiFetch: null, loaded: false };
 const listeners = new Set();
 
-export const skinPacks = () => Object.keys(SKIN_PACKS).filter(id => PACK_ART[id]);
+// Есть ли у пака картинки ЭТОЙ части. Паки рисуются по частям, и пак с одной
+// рамкой — нормальное состояние: на баннер его просто нельзя выбрать.
+const PART_FILES = { frame: ['frame'], leads: ['banner'], records: ['head', 'body', 'feet', 'single'] };
+export const packHasPart = (pack, part) => Boolean(PACK_ART[pack]) && PART_FILES[part].every(f => PACK_ART[pack][f]);
 export const skinState = () => state;
 export function onSkinsChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
@@ -62,8 +65,8 @@ export async function loadSkins(apiFetch) {
 }
 
 /** Надеть/снять свой скин. Отказ сервера уходит наверх — окно его покажет. */
-export async function saveMySkin({ pack, parts, operator }) {
-    const data = await state.apiFetch('/api/skins/me', { method: 'PUT', body: { pack, parts, operator } });
+export async function saveMySkin({ parts, operator }) {
+    const data = await state.apiFetch('/api/skins/me', { method: 'PUT', body: { parts, operator } });
     state.mine = data.mine;
     await loadSkins(state.apiFetch);
 }
@@ -85,31 +88,32 @@ export function noteOperatorCode(code) {
 const VARS = ['--sk-frame', '--sk-hole', '--sk-banner', '--sk-banner-ratio',
     '--sk-head', '--sk-body', '--sk-feet', '--sk-single', '--sk-w', '--sk-single-w', '--sk-head-h', '--sk-feet-h'];
 
-function skinOf(el) {
+// Пак ЭТОЙ части у хозяина элемента — у каждой части свой (shared/skins.js).
+function packOf(el) {
     const part = el.dataset.skinPart;
-    if (part === 'leads') return skinForOperator(state.skins, el.dataset.skinOp);
-    const id = el.dataset.skinUser;
-    const s = id ? state.skins.find(x => x.userId === id) : null;
-    return s?.parts?.[part] ? s : null;
+    const skin = part === 'leads'
+        ? skinForOperator(state.skins, el.dataset.skinOp)
+        : state.skins.find(x => x.userId === el.dataset.skinUser);
+    return skin?.parts?.[part] || null;
 }
 
 const url = (u) => `url("${u}")`;
 
 function paint(el) {
     const part = el.dataset.skinPart;
-    const skin = skinOf(el);
-    const art = skin ? PACK_ART[skin.pack] : null;
+    const pack = packOf(el);
+    const art = pack && packHasPart(pack, part) ? PACK_ART[pack] : null;
     el.classList.remove(...[...el.classList].filter(c => c === 'skinned' || /^skin-(frame|leads|records|one|pack-)/.test(c)));
     for (const v of VARS) el.style.removeProperty(v);
     if (!art) return;
     const m = art.meta || {};
-    if (part === 'frame' && art.frame) {
+    if (part === 'frame') {
         el.style.setProperty('--sk-frame', url(art.frame));
         el.style.setProperty('--sk-hole', m.frame?.hole || 0.65);
-    } else if (part === 'leads' && art.banner) {
+    } else if (part === 'leads') {
         el.style.setProperty('--sk-banner', url(art.banner));
         el.style.setProperty('--sk-banner-ratio', m.banner?.ratio || 4);
-    } else if (part === 'records' && art.head && art.body && art.feet && art.single) {
+    } else if (part === 'records') {
         const slots = Number(el.dataset.skinSlots) || 1;
         const unit = Math.max(m.strip?.head || 1, m.strip?.feet || 1);
         // Капсула на один слот ниже слота на 5px (зазор между записями).
@@ -126,7 +130,7 @@ function paint(el) {
         if (slots === 1) el.classList.add('skin-one');
     } else return;
     // Не «sk»: этот класс на сайте уже занят скелетонами загрузки (style.css).
-    el.classList.add('skinned', `skin-${part}`, `skin-pack-${skin.pack}`);
+    el.classList.add('skinned', `skin-${part}`, `skin-pack-${pack}`);
 }
 
 function paintAll(root = document) {
@@ -159,23 +163,25 @@ const localOperator = (userId) => {
     try { return skinOperatorKey(localStorage.getItem(`zm_leads_operator:${userId || 'anon'}`) || ''); } catch { return ''; }
 };
 
+// По строке на часть: «Стандартный» и паки. Пак, у которого картинок этой
+// части ещё нет, виден, но не нажимается — видно, что он есть и что ждём.
 function pickerBody(userId) {
-    const mine = state.mine || { pack: null, parts: {} };
-    const pack = mine.pack && PACK_ART[mine.pack] ? mine.pack : '';
-    const packs = [['', 'Без скина'], ...skinPacks().map(id => [id, SKIN_PACKS[id].label])];
+    const parts = state.mine?.parts || {};
     const op = localOperator(userId);
-    return `
+    const rows = SKIN_PARTS.map(({ id, label }) => {
+        const cur = parts[id] || '';
+        const opts = [['', 'Стандартный'], ...Object.entries(SKIN_PACKS).map(([p, d]) => [p, d.label])];
+        return `
         <div class="bg-picker-row">
-            <span class="bg-picker-label">Пак</span>
-            <div class="bg-picker-seg" data-seg="skin-pack">${packs.map(([id, label]) => `
-                <button type="button" class="chip${id === pack ? ' active' : ''}" data-skin-pack="${esc(id)}"
-                        aria-pressed="${id === pack}">${esc(label)}</button>`).join('')}</div>
-        </div>
-        <div class="skin-parts${pack ? '' : ' skin-parts-off'}">${SKIN_PARTS.map(({ id, label }) => {
-            const on = mine.parts?.[id] !== false;
-            return `<button type="button" class="chip${on ? ' active' : ''}" data-skin-part-toggle="${id}"
-                        aria-pressed="${on}"${pack ? '' : ' disabled'}>${esc(label)}</button>`;
-        }).join('')}</div>
+            <span class="bg-picker-label">${esc(label)}</span>
+            <div class="bg-picker-seg" data-seg="skin-${id}">${opts.map(([p, name]) => {
+                const ready = !p || packHasPart(p, id);
+                return `<button type="button" class="chip${p === cur ? ' active' : ''}" data-pick-part="${id}" data-skin-pick="${esc(p)}"
+                        aria-pressed="${p === cur}"${ready ? '' : ' disabled title="Картинок ещё нет"'}>${esc(name)}</button>`;
+            }).join('')}</div>
+        </div>`;
+    }).join('');
+    return `${rows}
         <div class="accent-note">
             ${op ? `Лиды узнаются по коду оператора <b>${esc(op)}</b> из вкладки «Лиды».`
                 : 'Баннер лидов появится, когда во вкладке «Лиды» будет введён «Мой код»: по нему узнаются ваши звонки.'}
@@ -205,13 +211,10 @@ export function bindSkinPicker(root, userId) {
         el.classList.toggle('skin-status-err', err);
     };
     box.addEventListener('click', async (e) => {
-        const packBtn = e.target.closest('[data-skin-pack]');
-        const partBtn = e.target.closest('[data-skin-part-toggle]');
-        if ((!packBtn && !partBtn) || busy) return;
-        const cur = state.mine || { pack: null, parts: {} };
-        const next = { pack: cur.pack || null, parts: { ...cur.parts }, operator: localOperator(userId) };
-        if (packBtn) next.pack = packBtn.dataset.skinPack || null;
-        if (partBtn) next.parts[partBtn.dataset.skinPartToggle] = cur.parts?.[partBtn.dataset.skinPartToggle] === false;
+        const btn = e.target.closest('[data-skin-pick]');
+        if (!btn || btn.disabled || busy) return;
+        const next = { parts: { ...(state.mine?.parts || {}) }, operator: localOperator(userId) };
+        next.parts[btn.dataset.pickPart] = btn.dataset.skinPick || null;
         busy = true;
         status('Сохраняю…');
         try {
