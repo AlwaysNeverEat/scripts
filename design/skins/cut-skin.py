@@ -42,6 +42,14 @@ FRAME = 384         # сторона рамки (аватар 96px, рамка �
 BANNER_W = 1400     # баннер карточки лида (карточка до ~1000px)
 
 
+def rs(img, size):
+    """Ресайз на ПРЕДУМНОЖЕННОЙ альфе. У полностью прозрачных пикселей листа
+    GPT оставляет цвет (тёмное свечение вокруг предметов — его видно, если
+    открыть лист без учёта прозрачности), и обычный ресайз протащил бы его в
+    края ореолом."""
+    return img.convert('RGBa').resize(size, Image.LANCZOS).convert('RGBA')
+
+
 def die(msg):
     sys.exit(f'cut-skin: {msg}')
 
@@ -128,18 +136,21 @@ def torso_rows(img, spans):
     if not mid:
         die('у длинного кота нет туловища')
     ref = mid[len(mid) // 2]
-    # Эталон рисунка — строка той же ширины ближе всего к середине кота.
-    cy = min((y for y in range(h) if widths[y] == ref), key=lambda y: abs(y - h // 2))
+    # Рисунок строки сверяется с СОСЕДНЕЙ, а не с серединой кота: GPT любит
+    # тянуть по туловищу мягкий градиент, и с серединой расходятся уже верх и
+    # низ ровного туловища. Соседние строки градиента почти одинаковы, а на
+    # лапках и мордочке строка меняется скачком.
     px = img.load()
-    ref_row = [px[x, cy] for x in range(img.width)]
 
     def same(y):
+        if y == 0:
+            return False
         d = n = 0
         for x in range(0, img.width, 2):
-            a, b = px[x, y], ref_row[x]
+            a, b = px[x, y], px[x, y - 1]
             d += abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2]) + abs(a[3] - b[3])
             n += 1
-        return d / n < 18
+        return d / n < 12
 
     best, start = (0, 0), None
     for y, wd in enumerate(widths + [0]):
@@ -238,11 +249,11 @@ def main():
     side = int(2 * max(hcx, frame.width - hcx, hcy, frame.height - hcy)) + 2
     sq = Image.new('RGBA', (side, side), (0, 0, 0, 0))
     sq.paste(frame, (round(side / 2 - hcx), round(side / 2 - hcy)))
-    save(sq.resize((FRAME, FRAME), Image.LANCZOS), os.path.join(out, 'frame.webp'))
+    save(rs(sq, (FRAME, FRAME)), os.path.join(out, 'frame.webp'))
     meta['frame'] = {'hole': round(hd / side, 4)}
 
     # Кот на одну запись.
-    s = single.resize((round(single.width * SINGLE_H / single.height), SINGLE_H), Image.LANCZOS)
+    s = rs(single, (round(single.width * SINGLE_H / single.height), SINGLE_H))
     save(s, os.path.join(out, 'single.webp'))
     meta['single'] = {'ratio': round(s.width / s.height, 4)}
 
@@ -250,9 +261,9 @@ def main():
     # на капсуле одна, и куски обязаны стоять в створе.
     spans = row_spans(longcat)
     t0, t1, tw = torso_rows(longcat, spans)
-    over = max(4, tw // 6)                 # сколько туловища взять в голову и в лапы
+    over = max(4, tw // 4)                 # сколько туловища взять в голову и в лапы
     k = STRIP_W / longcat.width
-    cat = longcat.resize((STRIP_W, round(longcat.height * k)), Image.LANCZOS)
+    cat = rs(longcat, (STRIP_W, round(longcat.height * k)))
     T0, T1, TW, OV = round(t0 * k), round(t1 * k), round(tw * k), round(over * k)
     head = fade(cat.crop((0, 0, STRIP_W, T0 + OV)), bottom=OV)
     feet = fade(cat.crop((0, T1 - OV, STRIP_W, cat.height)), top=OV)
