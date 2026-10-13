@@ -108,6 +108,8 @@ export function mountCases(host, { apiFetch, user }) {
         }
         render();
     }
+    // Опыт за задание кладёт в кошелёк другая панель (quests.js).
+    window.addEventListener('wallet:changed', () => { if (host.isConnected && !state.busy) load(); }, { signal: off.signal });
 
     const ownedSet = () => new Set(state.owned.map(o => `${o.pack}:${o.part}`));
     const mineParts = () => ({ ...Object.fromEntries(SKIN_PARTS.map(p => [p.id, null])), ...(skinState().mine?.parts || {}) });
@@ -125,7 +127,7 @@ export function mountCases(host, { apiFetch, user }) {
         <div class="kc-wallet">
             <div class="kc-bal kc-bal-gems" title="Гемы — на них открываются кейсы">${gem(30)}<b>${w.gems}</b><span>${gemsWord(w.gems)}</span></div>
             <div class="kc-bal" title="Ключи от большого кейса">${keyIcon(22)}<b>${w.keys}</b><span>${plural(w.keys, 'ключ', 'ключа', 'ключей')}</span></div>
-            <div class="kc-xp" title="Опыт копится от повторов из кейсов: ${XP_PER_GEM} опыта — гем">
+            <div class="kc-xp" title="Опыт — за задания и повторы из кейсов: ${XP_PER_GEM} опыта — гем">
                 <span class="kc-xp-top"><span>Опыт до гема</span><b>${w.xp % XP_PER_GEM} / ${XP_PER_GEM}</b></span>
                 <span class="kc-bar"><i style="width:${pct}%"></i></span>
             </div>
@@ -462,7 +464,8 @@ export function mountCases(host, { apiFetch, user }) {
 // ── Всплывашка итога ────────────────────────────────────────────────────────
 
 let toastTimer = 0;
-function toast(text, err = false) {
+// Экспорт — для заданий (quests.js): итог «Забрать» той же всплывашкой.
+export function toast(text, err = false) {
     let el = document.getElementById('kc-toast');
     if (!el) {
         el = document.createElement('div');

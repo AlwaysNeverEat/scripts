@@ -104,11 +104,24 @@
 .ld-call-ico { color: var(--sub); padding-top: 2px; flex: none; }
 .ld-call--ring .ld-call-ico, .ld-call--talk .ld-call-ico { color: var(--green); }
 .ld-call--miss .ld-call-ico { color: var(--red); }
-.ld-call--ring { animation: ld-ring 1.2s ease-in-out infinite; }
-@keyframes ld-ring {
-  50% { border-color: var(--green); background: color-mix(in oklab, var(--green) 10%, var(--bg2)); }
+/* Звонит — строка дышит зелёным. Зелень — ОТДЕЛЬНЫЙ слой (::before) под
+   текстом, а не анимация background: у строки со скином фон — это картинка
+   (skins.css), и кадр анимации с `background` подменял её сплошным цветом —
+   скин мигал, прыгал и пропадал. Слой красит поверх любого фона, ничего не
+   заменяя. isolation держит слой с z-index: -1 внутри строки. */
+.ld-call--ring { position: relative; isolation: isolate; animation: ld-ring 1.2s ease-in-out infinite; }
+.ld-call--ring::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; pointer-events: none;
+  background: color-mix(in oklab, var(--green) 14%, transparent);
+  opacity: 0; animation: ld-ring-tint 1.2s ease-in-out infinite;
 }
-@media (prefers-reduced-motion: reduce) { .ld-call--ring { animation: none; border-color: var(--green); } }
+@keyframes ld-ring { 50% { border-color: var(--green); } }
+@keyframes ld-ring-tint { 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .ld-call--ring { animation: none; border-color: var(--green); }
+  .ld-call--ring::before { animation: none; }
+}
 .ld-call-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ld-call-top { display: flex; justify-content: space-between; gap: var(--s-2); }
 .ld-call-phone { font-weight: 700; font-variant-numeric: tabular-nums; }

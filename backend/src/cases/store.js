@@ -21,6 +21,9 @@ const BALANCE_SQL = `
 
 function ops(q, userId) {
     return {
+        // Сырой запрос в той же транзакции — для тех, кто кладёт в кошелёк
+        // что-то своё под тем же замком (забранное задание: quests/store.js).
+        query: q,
         async balance() {
             const { rows: [r] } = await q(BALANCE_SQL, [userId]);
             return walletBalance({ recordsTotal: r.records_total, rublesTotal: r.rubles_total, sums: r });

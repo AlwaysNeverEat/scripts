@@ -44,6 +44,7 @@ import {
     FOUL_TEXT, END_TEXT, GROUP_TEXT,
 } from '../../shared/pool.js';
 import { pickShot, LEVELS, NORMAL } from '../../shared/poolBot.js';
+import { reportBotWin } from './questReport.js';
 import clothUrl from './assets/pool-cloth.webp';
 import railUrl from './assets/pool-rail.webp';
 import cueUrl from './assets/pool-cue.webp';
@@ -870,6 +871,7 @@ function showOver(state) {
     stopAll(state);
     const game = state.game;
     const won = game.winner === state.seat;
+    if (won && state.mode === 'bot') reportBotWin(state.ctx, 'pool', state.botLevel, game);
     const opp = state.players[state.seat === 0 ? 1 : 0];
     state.modal.querySelector('#pool-over-title').textContent = won ? 'Победа!' : 'Поражение';
     state.modal.querySelector('#pool-over-sub').textContent =

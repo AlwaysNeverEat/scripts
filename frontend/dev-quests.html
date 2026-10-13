@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!-- Дев-песочница панели «Задания» из профиля — без входа и без базы.
+     Набор и прогресс считаются ТЕМИ ЖЕ правилами, что на сервере
+     (shared/quests.js); журнал партий и рабочие счётчики — в памяти страницы,
+     их двигают кнопки сверху.
+     Открыть: npx vite → /dev-quests.html
+       ?op=1 — оператор (в среднем 40 записей в неделю): недельное бывает и по записям.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: задания</title>
+  <script>
+    try {
+      if (localStorage.getItem('cars_db_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Задания — песочница</h2>
+    <p class="page-sub">Журнал партий в памяти страницы, правила — shared/quests.js. Опыт: <b id="dev-xp">0</b></p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-sec" data-win="0">Партия под задание 1</button>
+    <button class="btn btn-sec" data-win="1">Под задание 2</button>
+    <button class="btn btn-sec" data-win="2">Под задание 3</button>
+    <button class="btn btn-sec" data-half="1">Полпути по всем</button>
+    <button class="btn btn-sec" id="dev-work">+5 к недельному</button>
+    <button class="btn btn-sec" id="dev-day">Следующий день</button>
+  </div>
+  <div class="profile-content">
+    <div class="profile-page">
+      <section class="profile-sec profile-sec-quests">
+        <div class="profile-sec-head"><h3 class="profile-sec-title">Задания</h3><span class="profile-sec-meta">игры каждый день, работа — за неделю</span></div>
+        <div class="profile-sec-body"><div id="profile-quests"></div></div>
+      </section>
+    </div>
+  </div>
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, applyTheme, currentTheme } from './src/theme.js';
+    import { mountQuests } from './src/quests.js';
+    import { pickDaily, pickWeekly, measureDaily, measureWeekly, questText, weeklyNote, GAMES, mskDay, mskWeek, dayStart, weekStart } from '../shared/quests.js';
+
+    initTheme();
+    const params = new URLSearchParams(location.search);
+    const ME = { id: 'me', login: 'borya', display_name: 'Дежурный по станции', avatar: null };
+    let now = Date.now();
+    let log = [];             // [{ game, data, at }]
+    let work = { records: 0, cars: 0 };
+    const claims = new Set();
+    let xp = 0;
+
+    const sets = new Map();
+    const daily = () => {
+      const k = 'd:' + mskDay(now);
+      if (!sets.has(k)) sets.set(k, pickDaily({ userId: ME.id, day: mskDay(now), bests: { troika: 8200, mahjong: 410 } }));
+      return [k, sets.get(k)];
+    };
+    const weekly = () => {
+      const k = 'w:' + mskWeek(now);
+      if (!sets.has(k)) sets.set(k, pickWeekly({ userId: ME.id, week: mskWeek(now), avg: params.get('op') ? { records: 40, cars: 1 } : { records: 0, cars: 3 } }));
+      return [k, sets.get(k)];
+    };
+
+    function snapshot() {
+      const [dk, ds] = daily(), [wk, w] = weekly();
+      const today = log.filter(r => r.at >= dayStart(now));
+      return {
+        day: mskDay(now), resetAt: new Date(dayStart(now) + 86400e3).toISOString(),
+        week: mskWeek(now), weekResetAt: new Date(weekStart(now) + 7 * 86400e3).toISOString(),
+        daily: ds.map(q => ({ slot: q.slot, id: q.id, game: q.game, gameLabel: GAMES[q.game], xp: q.xp, text: questText(q),
+          ...measureDaily(q, today.filter(r => r.game === q.game)), claimed: claims.has(dk + q.slot) })),
+        weekly: { slot: 0, id: w.id, kind: w.kind, xp: w.xp, text: questText(w), note: weeklyNote(w), ...measureWeekly(w, work), claimed: claims.has(wk + 0) },
+        _keys: { daily: dk, weekly: wk },
+      };
+    }
+
+    async function apiFetch(path, { method = 'GET', body } = {}) {
+      await new Promise(r => setTimeout(r, 250));
+      if (path === '/api/quests') { const { _keys, ...s } = snapshot(); return s; }
+      if (path === '/api/quests/claim') {
+        const s = snapshot();
+        const q = body.kind === 'weekly' ? s.weekly : s.daily.find(d => d.slot === body.slot);
+        if (!q?.done || q.claimed) throw new Error(q?.claimed ? 'награда уже забрана' : 'задание ещё не выполнено');
+        claims.add(s._keys[body.kind] + body.slot);
+        xp += q.xp;
+        document.getElementById('dev-xp').textContent = xp;
+        const { _keys, ...fresh } = snapshot();
+        return { ...fresh, gained: q.xp };
+      }
+      throw new Error('dev: неизвестный путь ' + method + ' ' + path);
+    }
+
+    // Партия, которая закрывает задание (или половину его).
+    function partyFor(q, half) {
+      const p = q.params || {};
+      const k = half ? 0.5 : 1;
+      switch (q.id) {
+        case 'wordle-time': return { won: true, guesses: 4, seconds: half ? p.min * 90 : p.min * 40 };
+        case 'mahjong-time': case 'solitaire-time': case 'minesweeper-time': return { won: true, seconds: half ? p.min * 90 : p.min * 50, shuffles: 0 };
+        case 'tetris-score': case 'troika-score': return { score: Math.round(p.score * k), cascade: 3, lines: 5 };
+        case 'tetris-lines': return { score: 1000, lines: Math.round(p.lines * k) };
+        case 'troika-cascade': return { score: 1000, cascade: half ? Math.max(1, p.x - 2) : p.x };
+        case 'roguelike-floor': return { floor: Math.round(p.floor * k), elites: 0 };
+        default: return half ? null : { won: true, vs: 'bot', level: 2, guesses: 3, hints: 0, seconds: 60, shuffles: 0, elites: 1 };
+      }
+    }
+
+    const mount = () => mountQuests(document.getElementById('profile-quests'), { apiFetch, user: ME });
+    mount();
+    document.querySelectorAll('[data-win]').forEach(b => b.onclick = () => {
+      const q = daily()[1][Number(b.dataset.win)];
+      const times = q.id.endsWith('-wins') ? q.params.n : 1;
+      for (let i = 0; i < times; i++) log.push({ game: q.game, data: partyFor(q, false), at: now });
+      mount();
+    });
+    document.querySelector('[data-half]').onclick = () => {
+      for (const q of daily()[1]) { const d = partyFor(q, true); if (d) log.push({ game: q.game, data: d, at: now }); }
+      work[weekly()[1].kind] += Math.ceil(weekly()[1].params.target / 2);
+      mount();
+    };
+    document.getElementById('dev-work').onclick = () => { work[weekly()[1].kind] += 5; mount(); };
+    document.getElementById('dev-day').onclick = () => { now += 86400e3; mount(); };
+    document.getElementById('dev-theme').onclick = () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+  </script>
+</body>
+</html>

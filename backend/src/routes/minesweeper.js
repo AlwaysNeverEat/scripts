@@ -18,7 +18,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Router } from 'express';
-import { newGame, currentGame, play, present } from '../minesweeper/games.js';
+import { newGame, currentGame, getGame, play, present, elapsedSeconds } from '../minesweeper/games.js';
+import { logResult } from '../quests/store.js';
 
 const router = Router();
 
@@ -45,7 +46,12 @@ router.post('/open', (req, res) => {
         ? req.body.flags.map(Number).filter(Number.isInteger)
         : [];
 
+    const before = getGame(req.user.id)?.field.state;
     const { game, step } = play(req.user.id, { index, flags, mode });
+    // Победа — в журнал заданий ровно один раз: ход, сделавший её.
+    if (game.field.state === 'won' && before !== 'won') {
+        logResult(req.user.id, 'minesweeper', { won: true, seconds: elapsedSeconds(game) });
+    }
     res.json({ game: present(game), revealed: step.revealed, hit: step.hit });
 });
 

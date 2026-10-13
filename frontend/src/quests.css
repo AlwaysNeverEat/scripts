@@ -1,0 +1,129 @@
+/* Задания в профиле (quests.js). Префикс qt- — свой: cs- и kc- заняты
+   «Клиентом» и кейсами (сторожит cssPrefixes.test.js). */
+
+.qt-wait { color: var(--sub); font-size: 13px; display: flex; gap: var(--s-2); align-items: center; }
+
+.qt-sub { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); margin-bottom: var(--s-3); }
+.qt-sub > span:first-child { font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+.qt-reset { color: var(--sub); font-size: 12px; }
+
+.qt-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+
+.qt-card {
+  display: flex; flex-direction: column; gap: var(--s-3);
+  padding: var(--s-4); border-radius: var(--r-3);
+  border: 1px solid var(--border); background: var(--bg2);
+  transition: border-color .2s, box-shadow .2s;
+}
+.qt-head { display: flex; align-items: center; gap: var(--s-3); }
+.qt-icon { width: 44px; height: 44px; border-radius: var(--r-2); flex: none; }
+.qt-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qt-game { color: var(--sub); font-size: 12px; }
+.qt-xp { font-size: 12px; font-weight: 700; color: var(--accent); }
+.qt-text { margin: 0; font-size: 14px; line-height: 1.4; font-weight: 600; text-wrap: pretty; flex: 1; }
+
+.qt-progress { display: flex; flex-direction: column; gap: var(--s-1); }
+.qt-bar { height: 8px; border-radius: var(--r-round); background: var(--bg3); overflow: hidden; }
+.qt-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), oklch(0.8 0.15 300)); transition: width .4s; }
+.qt-bar-done i { background: var(--green); }
+.qt-label { color: var(--sub); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.qt-foot { display: flex; min-height: 34px; align-items: center; }
+.qt-foot .btn { display: inline-flex; align-items: center; gap: var(--s-1); }
+.qt-claim { width: 100%; justify-content: center; }
+.qt-got { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--green); font-size: 13px; font-weight: 600; }
+
+/* Выполнено, не забрано — карточка зовёт; забрано — гаснет и не мешает. */
+.qt-done:not(.qt-claimed) {
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent), 0 6px 24px -10px var(--accent);
+}
+
+/* Недельное — шире и наряднее: тысяча опыта против двадцати пяти. */
+.qt-week {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-4); align-items: center;
+  margin-top: var(--s-3); padding: var(--s-4); border-radius: var(--r-3);
+  border: 1px solid color-mix(in oklab, oklch(0.8 0.14 85) 35%, var(--border));
+  background: radial-gradient(120% 140% at 0% 0%, oklch(0.8 0.14 85 / .14), transparent 60%), var(--bg2);
+  transition: border-color .2s, box-shadow .2s;
+}
+.qt-week-ico {
+  width: 56px; height: 56px; border-radius: var(--r-3); display: flex; align-items: center; justify-content: center;
+  color: oklch(0.82 0.14 85); background: oklch(0.8 0.14 85 / .14);
+}
+.qt-week-body { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.qt-week-top { display: flex; justify-content: space-between; gap: var(--s-3); align-items: baseline; flex-wrap: wrap; }
+.qt-week-text { font-size: 16px; }
+.qt-xp-big { font-size: 14px; color: oklch(0.82 0.14 85); }
+.qt-note { color: var(--sub); font-size: 12px; text-wrap: pretty; }
+.qt-week-with-foot { grid-template-columns: auto minmax(0, 1fr) auto; }
+.qt-week-foot { min-width: 200px; justify-content: flex-end; }
+
+@media (max-width: 900px) {
+  .qt-grid { grid-template-columns: 1fr; }
+  .qt-week, .qt-week-with-foot { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--s-3); }
+  .qt-week-ico { width: 40px; height: 40px; }
+  .qt-week-ico svg { width: 22px; height: 22px; }
+  .qt-week-foot { grid-column: 1 / -1; min-width: 0; }
+}
+
+:root[data-theme="light"] .qt-week-ico,
+:root[data-theme="light"] .qt-xp-big { color: oklch(0.52 0.13 70); }
+
+/* ── Картинки (design/quests/README.md) ─────────────────────────────────── */
+.qt-xp { display: inline-flex; align-items: center; gap: 3px; }
+.qt-xp-ico { flex: none; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .35)); }
+.qt-claim .qt-xp-ico { margin: 0 2px 0 4px; }
+
+/* Печать на забранном: карточка гаснет, печать — нет (она и есть итог). */
+.qt-card, .qt-week { position: relative; }
+.qt-stamp {
+  position: absolute; top: -10px; right: -8px; width: 76px; height: auto;
+  rotate: 14deg; pointer-events: none; z-index: 2;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / .4));
+}
+/* Шлёп — только в миг забора: панель перерисовывается раз в минуту, и
+   печать, хлопающая заново на каждом тике, выглядела бы поломкой. */
+.qt-stamp-new { animation: qt-stamp .35s cubic-bezier(.3, 1.6, .5, 1) both; }
+/* У таблички overflow: hidden (фон по скруглению) — печать внутри угла. */
+.qt-stamp-week { width: 104px; top: var(--s-3); right: var(--s-4); }
+.qt-claimed > :not(.qt-stamp) { opacity: .6; }
+@keyframes qt-stamp { from { scale: 1.8; opacity: 0; } to { scale: 1; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qt-stamp-new { animation: none; } }
+
+/* Недельное с картинкой — табличка: сцена фоном, текст слева поверх
+   затемнения. Затемнение ТЁМНОЕ в обеих темах, и текст на нём светлый:
+   картинка сама тёмно-закатная, и светлая подложка в светлой теме просто
+   выцветила бы её. */
+.qt-week-art {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 200px; padding: var(--s-5);
+  border-color: oklch(0.8 0.14 85 / .45);
+  background:
+    linear-gradient(90deg, oklch(0.16 0.03 265 / .94) 0%, oklch(0.16 0.03 265 / .82) 38%, oklch(0.16 0.03 265 / .25) 62%, transparent 78%),
+    var(--qt-art) right center / cover no-repeat,
+    oklch(0.2 0.03 265);
+  color: #fff;
+  overflow: hidden;
+}
+.qt-week-art.qt-week-with-foot { grid-template-columns: minmax(0, 1fr); }
+.qt-week-art .qt-week-body { max-width: 56%; }
+.qt-week-art .qt-game, .qt-week-art .qt-note, .qt-week-art .qt-label { color: rgb(255 255 255 / .74); }
+.qt-week-art .qt-xp-big { color: oklch(0.86 0.15 85); }
+.qt-week-art .qt-week-top { justify-content: flex-start; }
+.qt-week-art .qt-week-foot { justify-content: flex-start; min-width: 0; max-width: 56%; }
+.qt-week-art .qt-week-foot .btn { min-width: 220px; }
+.qt-week-art .qt-bar { background: rgb(255 255 255 / .16); }
+.qt-week-art .qt-got { color: oklch(0.82 0.17 148); }
+.qt-week-art.qt-done:not(.qt-claimed) { box-shadow: 0 0 0 1px oklch(0.8 0.14 85 / .5), 0 10px 32px -12px oklch(0.8 0.14 85); }
+
+@media (max-width: 900px) {
+  .qt-week-art { min-height: 0; padding: var(--s-4); }
+  .qt-week-art { background:
+      linear-gradient(90deg, oklch(0.16 0.03 265 / .92) 0%, oklch(0.16 0.03 265 / .78) 55%, oklch(0.16 0.03 265 / .35) 100%),
+      var(--qt-art) 80% center / cover no-repeat, oklch(0.2 0.03 265); }
+  .qt-week-art .qt-week-body, .qt-week-art .qt-week-foot { max-width: none; }
+  .qt-week-art .qt-week-foot .btn { width: 100%; }
+}
+/* На картинке приглушённый вдвое текст тонет в сцене — гасим слабее. */
+.qt-week-art.qt-claimed > :not(.qt-stamp) { opacity: .85; }

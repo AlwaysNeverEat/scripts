@@ -11,6 +11,7 @@
 // а «сыграл вничью» в таблице из двух чисел показать негде.
 
 import { query } from '../db/client.js';
+import { logDuelWins } from '../quests/store.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
 
 export const TOP_LIMIT = 10;
@@ -93,4 +94,6 @@ export async function addResult(loserId, winnerIds) {
               played_at = now()`,
         [loserId, winners],
     );
+    // Победа над живым соперником — в журнал заданий (shared/quests.js).
+    await logDuelWins('durak', winners);
 }

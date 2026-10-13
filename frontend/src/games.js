@@ -43,26 +43,38 @@ const MODAL_ID = 'games-modal';
 // Порядок — как игры появлялись в проекте: тот, кто их видел раньше, найдёт
 // привычную на привычном месте, а новая приезжает в конец, а не в середину.
 const GAMES = [
-    { name: 'Вордле',     icon: iconWordle,      open: () => import('./wordle.js').then(m => m.openWordle) },
-    { name: 'Контекстно', icon: iconKontekst,    open: () => import('./kontekst.js').then(m => m.openKontekst) },
-    { name: 'Сапёр',      icon: iconMinesweeper, open: () => import('./minesweeper.js').then(m => m.openMinesweeper) },
-    { name: 'Тетрис',     icon: iconTetris,      open: () => import('./tetris.js').then(m => m.openTetris) },
-    { name: 'Тройка',     icon: iconTroika,      open: () => import('./troika.js').then(m => m.openTroika) },
-    { name: 'Пасьянс',    icon: iconSolitaire,   open: () => import('./solitaire.js').then(m => m.openSolitaire) },
-    { name: 'Бильярд',    icon: iconPool,        open: () => import('./pool.js').then(m => m.openPool) },
-    { name: 'Дурак',      icon: iconDurak,       open: () => import('./durak.js').then(m => m.openDurak) },
-    { name: 'Рогалик',    icon: iconRoguelike,   open: () => import('./roguelike.js').then(m => m.openRoguelike) },
-    { name: 'Морской бой', icon: iconBattleship, open: () => import('./battleship.js').then(m => m.openBattleship) },
-    { name: 'Маджонг',    icon: iconMahjong,     open: () => import('./mahjong.js').then(m => m.openMahjong) },
-    { name: 'Шашки',      icon: iconCheckers,    open: () => import('./checkers.js').then(m => m.openCheckers) },
+    { id: 'wordle', name: 'Вордле',     icon: iconWordle,      open: () => import('./wordle.js').then(m => m.openWordle) },
+    { id: 'kontekst', name: 'Контекстно', icon: iconKontekst,    open: () => import('./kontekst.js').then(m => m.openKontekst) },
+    { id: 'minesweeper', name: 'Сапёр',      icon: iconMinesweeper, open: () => import('./minesweeper.js').then(m => m.openMinesweeper) },
+    { id: 'tetris', name: 'Тетрис',     icon: iconTetris,      open: () => import('./tetris.js').then(m => m.openTetris) },
+    { id: 'troika', name: 'Тройка',     icon: iconTroika,      open: () => import('./troika.js').then(m => m.openTroika) },
+    { id: 'solitaire', name: 'Пасьянс',    icon: iconSolitaire,   open: () => import('./solitaire.js').then(m => m.openSolitaire) },
+    { id: 'pool', name: 'Бильярд',    icon: iconPool,        open: () => import('./pool.js').then(m => m.openPool) },
+    { id: 'durak', name: 'Дурак',      icon: iconDurak,       open: () => import('./durak.js').then(m => m.openDurak) },
+    { id: 'roguelike', name: 'Рогалик',    icon: iconRoguelike,   open: () => import('./roguelike.js').then(m => m.openRoguelike) },
+    { id: 'battleship', name: 'Морской бой', icon: iconBattleship, open: () => import('./battleship.js').then(m => m.openBattleship) },
+    { id: 'mahjong', name: 'Маджонг',    icon: iconMahjong,     open: () => import('./mahjong.js').then(m => m.openMahjong) },
+    { id: 'checkers', name: 'Шашки',      icon: iconCheckers,    open: () => import('./checkers.js').then(m => m.openCheckers) },
     // Чужая игра в wasm, и иконки у неё пока нет — плитка идёт знаками (см.
     // ветку с blank ниже). Чанк у неё тяжелее всех остальных вместе взятых,
     // поэтому грузиться по клику ей важнее, чем кому-либо.
-    { name: 'DOOM',       blank: [crosshairIcon(26), skullIcon(26), blastIcon(26), boltIcon(26)],
+    { id: 'doom', name: 'DOOM',       blank: [crosshairIcon(26), skullIcon(26), blastIcon(26), boltIcon(26)],
       open: () => import('./doom.js').then(m => m.openDoom) },
 ];
 
 let openModal = null;   // одно окно за раз
+
+// Иконки по id игры — для заданий в профиле (quests.js): задание «собрать
+// маджонг» узнаётся по картинке быстрее, чем по слову.
+export const GAME_ICONS = Object.fromEntries(GAMES.filter(g => g.icon).map(g => [g.id, g.icon]));
+
+/** Открыть игру сразу, мимо меню (кнопка «Играть» у задания). */
+export async function openGameById(id, ctx) {
+    const g = GAMES.find(x => x.id === id);
+    if (!g) return;
+    const openGame = await g.open();
+    openGame(ctx);
+}
 
 /** Открыть меню игр. ctx: { apiFetch, user } — уходит в игру как есть. */
 export function openGames(ctx) {

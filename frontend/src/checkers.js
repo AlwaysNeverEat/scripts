@@ -57,6 +57,7 @@ import {
     END_TEXT, MOVE_ERROR_TEXT, COLOR_WHOM,
 } from '../../shared/checkers.js';
 import { pickMove, LEVELS, CLUB } from '../../shared/checkersBot.js';
+import { reportBotWin } from './questReport.js';
 import { crownIcon, drawIcon, surrenderIcon, turnIcon } from './icons.js';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
 import { profileRowAttrs, bindProfileRows } from './topProfile.js';
@@ -1006,6 +1007,7 @@ function showOver(state) {
     const pos = state.pos;
     const draw = pos?.winner == null;
     const won = !draw && pos.winner === state.color;
+    if (won && state.mode === 'bot') reportBotWin(state.ctx, 'checkers', state.botLevel, state.game);
     state.modal.querySelector('#ck-over-title').textContent = draw ? 'Ничья' : (won ? 'Победа' : 'Поражение');
     // Причина словами: «сдался» и «не дождались хода» — совсем не то же самое,
     // что честно съеденные шашки, и в итоге это должно быть видно.

@@ -18,6 +18,7 @@
 import { Router } from 'express';
 import { isPlausibleRun } from '../../../shared/mahjong.js';
 import { leaderboard, saveRun } from '../mahjong/scores.js';
+import { logResult } from '../quests/store.js';
 
 const router = Router();
 
@@ -56,6 +57,8 @@ router.post('/score', async (req, res) => {
     }
 
     try {
+        // Партия — в журнал заданий: мини-топу нужен рекорд, заданию — сегодняшняя.
+        logResult(req.user.id, 'mahjong', { won: true, seconds: run.seconds, shuffles: run.shuffles });
         const saved = await saveRun(req.user.id, run);
         const board = await leaderboard(req.user.id);
         res.json({ ok: true, ...saved, ...board });
