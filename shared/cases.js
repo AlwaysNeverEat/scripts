@@ -24,7 +24,7 @@
 // показывает ленту, которая на нём останавливается.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { SKIN_PACKS, SKIN_PARTS } from './skins.js';
+import { SKIN_PACKS, SKIN_PARTS, TIERS, tierOf } from './skins.js';
 
 export const RECORDS_PER_GEM = 10;
 export const RUBLES_PER_GEM = 1;
@@ -50,7 +50,7 @@ export const KEYS_MAX = 20;
 // Новый сезон — строка здесь (паки в SKIN_PACKS, картинки — по имени файла).
 // Окна сезонов не должны пересекаться: в один день открыт один сезон.
 export const SEASONS = [
-    { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'halloween'], windows: [[9, 11]] },
+    { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'raccoon', 'bunny', 'halloween', 'matiz'], windows: [[9, 11]] },
 ];
 
 const MSK = 3 * 3600_000;
@@ -115,6 +115,32 @@ function pickPack(packs, rand) {
 export function packOdds(packs) {
     const total = packs.reduce((s, p) => s + (SKIN_PACKS[p].weight || 1), 0);
     return packs.map(p => ({ pack: p, pct: Math.round((SKIN_PACKS[p].weight || 1) / total * 1000) / 10 }));
+}
+/**
+ * Шансы по РЕДКОСТИ — то, что показывает окно «Шансы выпадения»: обычный,
+ * редкий и легендарный дроп, а внутри — паки. Доля редкости считается из весов, а не
+ * суммой округлённых процентов паков: 45,5 + 45,5 даёт 91, а честно — 90,9.
+ * part — шанс ОДНОЙ конкретной части в малом кейсе (часть в паке — поровну).
+ * Шанс части легендарки в малом кейсе — доли процента, поэтому точность
+ * два знака там, где число меньше единицы: «0,3%» и «0,29%» для того, кто
+ * копит на Матиз, — разные новости.
+ * @returns {Array<{ tier: string, pct: number, packs: Array<{ pack, pct, part }> }>}
+ */
+export function rarityOdds(packs) {
+    const w = (p) => SKIN_PACKS[p].weight || 1;
+    const total = packs.reduce((s, p) => s + w(p), 0);
+    const pct = (x) => {
+        const v = x / total * 100;
+        return v < 1 ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10;
+    };
+    return TIERS.map(tier => {
+        const group = packs.filter(p => tierOf(p) === tier);
+        return {
+            tier,
+            pct: pct(group.reduce((s, p) => s + w(p), 0)),
+            packs: group.map(p => ({ pack: p, pct: pct(w(p)), part: pct(w(p) / PART_IDS.length) })),
+        };
+    }).filter(g => g.packs.length);
 }
 const readyPacks = () => Object.keys(SKIN_PACKS).filter(p => SKIN_PACKS[p].ready !== false);
 export const allItems = (packs = readyPacks()) => packs.flatMap(pack => PART_IDS.map(part => ({ pack, part })));

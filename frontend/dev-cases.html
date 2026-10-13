@@ -9,7 +9,9 @@
        ?rich=1 — сразу 600 гемов и два ключа (крутить, не обменивая);
        ?editor=1 — как у gtrixoff: в примерочной открыто всё;
        ?poor=1 — 57 гемов, 8 записей, рублей нет: окно «нечем доплатить»;
-       ?off=1 — 20 декабря: сезон закрыт, кейсы не открываются.
+       ?off=1 — 20 декабря: сезон закрыт, кейсы не открываются;
+       ?legend=<пак> — этот пак легендарный (вес 1): золото, пока у Матиза нет картинок;
+       ?force=<пак> — кейс выдаёт именно его (посмотреть экран приза).
      В прод-сборку не попадает: vite собирает только index.html. -->
 <html lang="ru">
 <head>
@@ -46,7 +48,7 @@
     import { initSkins, loadSkins } from './src/skins.js';
     import { mountCases } from './src/cases.js';
     import { walletBalance, planExchange, planKeys, openCase, itemKey, activeSeason, nextSeason, casePacks } from '../shared/cases.js';
-    import { cleanSkin, publicSkin } from '../shared/skins.js';
+    import { cleanSkin, publicSkin, SKIN_PACKS } from '../shared/skins.js';
 
     initTheme();
     initSegmented();
@@ -54,6 +56,7 @@
     // Как на сайте (main.js): перетекающий текст и свои селекты включены.
     (await import('./src/textMorph.js')).initTextMorph();
     const params = new URLSearchParams(location.search);
+    if (params.get('legend') && SKIN_PACKS[params.get('legend')]) Object.assign(SKIN_PACKS[params.get('legend')], { tier: 'legendary', weight: 1 });
     const ME = { id: 'me', login: params.get('editor') ? 'gtrixoff' : 'borya', display_name: 'Дежурный по станции', avatar: null };
 
     const NOW = () => (params.get('off') ? Date.parse('2026-12-20T09:00:00Z') : Date.now());
@@ -91,7 +94,8 @@
         return { balance: balance() };
       }
       if (path === '/api/cases/open') {
-        const p = openCase(body.kind, { balance: balance(), owned: new Set(owned.map(itemKey)), rand: (n) => Math.floor(Math.random() * n), season: activeSeason(NOW()) });
+        const season = params.get('force') ? { ...activeSeason(NOW()), packs: [params.get('force')] } : activeSeason(NOW());
+        const p = openCase(body.kind, { balance: balance(), owned: new Set(owned.map(itemKey)), rand: (n) => Math.floor(Math.random() * n), season });
         if (p.error) fail(p.error, p.needKey ? 'need_key' : p.closed ? 'season_closed' : 'refused', p.short);
         ledger.push(p.row);
         for (const g of p.grant) owned.push(g);

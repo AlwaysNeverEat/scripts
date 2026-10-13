@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, gemsWord, activeSeason, nextSeason, packOdds, casePacks } from './cases.js';
+import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, gemsWord, activeSeason, nextSeason, packOdds, casePacks, rarityOdds } from './cases.js';
 import { SKIN_PACKS } from './skins.js';
 
 const season = { packs: ['cat', 'fox'] };
@@ -71,7 +71,7 @@ test('склонение гемов', () => {
 test('сезон: «Осенний кавай» только осенью, возвращается следующей осенью', () => {
     const at = (iso) => Date.parse(iso);
     assert.deepEqual(activeSeason(at('2026-10-12T09:00:00Z')),
-        { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'halloween'], ends: '2026-11-30' });
+        { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'raccoon', 'bunny', 'halloween', 'matiz'], ends: '2026-11-30' });
     assert.equal(activeSeason(at('2026-09-01T09:00:00Z')).ends, '2026-11-30');
     assert.equal(activeSeason(at('2027-04-01T09:00:00Z')), null);
     // 30 ноября 23:00 UTC — это уже 1 декабря по Москве
@@ -90,13 +90,35 @@ test('вне сезона кейс не открывается, а пак из �
 test('паки тянутся по весам, редкий — реже, шансы видны числом', () => {
     const at = (r) => openCase('big', { balance: bal({ keys: 1 }), owned: new Set(), rand: () => r, season: { packs: ['cat', 'fox'] } }).prize.pack;
     assert.equal(at(0), 'cat');
-    assert.equal(at(9), 'cat');
-    assert.equal(at(10), 'fox');
-    assert.equal(at(19), 'fox');
+    assert.equal(at(19), 'cat');
+    assert.equal(at(20), 'fox');
+    assert.equal(at(39), 'fox');
     assert.deepEqual(packOdds(['cat', 'fox']), [{ pack: 'cat', pct: 50 }, { pack: 'fox', pct: 50 }]);
-    // Хэллоуин с весом 2 при двух паках по 10 — около 9%.
+    // Хэллоуин с весом 6 при двух паках по 20 — около 13%.
     const odds = packOdds(['cat', 'fox', 'halloween']);
-    assert.equal(odds.find(o => o.pack === 'halloween').pct, 9.1);
+    assert.equal(odds.find(o => o.pack === 'halloween').pct, 13);
+});
+
+test('шансы по редкости: три ступени, доля из весов, а не сумма округлённого', () => {
+    const autumn = ['cat', 'fox', 'raccoon', 'bunny', 'halloween', 'matiz'];
+    const [common, rare, legend] = rarityOdds(autumn);
+    assert.deepEqual([common.tier, rare.tier, legend.tier], ['common', 'rare', 'legendary']);
+    // 80 + 6 + 1 = 87.
+    assert.equal(common.pct, 92);
+    assert.equal(rare.pct, 6.9);
+    assert.equal(legend.pct, 1.1);
+    assert.deepEqual(common.packs.map(p => p.pack), ['cat', 'fox', 'raccoon', 'bunny']);
+    // Часть в малом кейсе — четверть шанса пака; меньше процента — два знака.
+    assert.equal(rare.packs[0].part, 1.7);
+    assert.equal(legend.packs[0].part, 0.29);
+    // Ступени без паков не показываются вовсе.
+    assert.deepEqual(rarityOdds(['cat', 'fox']).map(g => g.tier), ['common']);
+});
+
+test('легендарка в двадцать раз реже обычного пака и в шесть — редкого', () => {
+    assert.equal(SKIN_PACKS.cat.weight / SKIN_PACKS.matiz.weight, 20);
+    assert.equal(SKIN_PACKS.halloween.weight / SKIN_PACKS.matiz.weight, 6);
+    for (const p of Object.values(SKIN_PACKS)) assert.ok(Number.isInteger(p.weight), 'веса целые — на сервере crypto.randomInt');
 });
 
 test('пак без нарезанных картинок (ready: false) в кейсы не попадает', () => {
