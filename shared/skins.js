@@ -34,6 +34,7 @@ export const SKIN_EDITOR_LOGINS = ['gtrixoff'];
 export const SKIN_PACKS = {
     cat: { label: 'Котик', hue: 350, weight: 10 },
     fox: { label: 'Лиса', hue: 45, weight: 10 },
+    raccoon: { label: 'Енотик', hue: 225, weight: 10 },
     halloween: { label: 'Хэллоуин', hue: 285, weight: 2, rare: true },
 };
 

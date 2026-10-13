@@ -71,7 +71,7 @@ test('склонение гемов', () => {
 test('сезон: «Осенний кавай» только осенью, возвращается следующей осенью', () => {
     const at = (iso) => Date.parse(iso);
     assert.deepEqual(activeSeason(at('2026-10-12T09:00:00Z')),
-        { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'halloween'], ends: '2026-11-30' });
+        { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'raccoon', 'halloween'], ends: '2026-11-30' });
     assert.equal(activeSeason(at('2026-09-01T09:00:00Z')).ends, '2026-11-30');
     assert.equal(activeSeason(at('2027-04-01T09:00:00Z')), null);
     // 30 ноября 23:00 UTC — это уже 1 декабря по Москве

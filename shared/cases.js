@@ -50,7 +50,7 @@ export const KEYS_MAX = 20;
 // Новый сезон — строка здесь (паки в SKIN_PACKS, картинки — по имени файла).
 // Окна сезонов не должны пересекаться: в один день открыт один сезон.
 export const SEASONS = [
-    { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'halloween'], windows: [[9, 11]] },
+    { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'raccoon', 'halloween'], windows: [[9, 11]] },
 ];
 
 const MSK = 3 * 3600_000;
