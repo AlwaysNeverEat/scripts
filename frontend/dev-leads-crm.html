@@ -130,7 +130,9 @@
 
     document.getElementById('dev-ring').onclick = () => {
       const phone = '7921' + String(Math.floor(1e6 + Math.random() * 9e6));
-      const call = { id: ++cid, created: stamp(0), status: 'ringing', phone, operator: '78126034487', direction: 'in' };
+      // Со скином звонит оператор 101 — тот, на ком скин: так видно, как звонящая
+      // строка мигает поверх картинки скина.
+      const call = { id: ++cid, created: stamp(0), status: 'ringing', phone, operator: params.get('skin') ? '101' : '78126034487', direction: 'in' };
       ACTIVE.unshift(call);
       setTimeout(() => { call.status = 'answered'; }, 6000);
       setTimeout(() => {
