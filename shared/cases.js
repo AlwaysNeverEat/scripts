@@ -31,8 +31,8 @@ export const RUBLES_PER_GEM = 1;
 export const XP_PER_GEM = 100;
 export const KEY_PRICE = 175;
 export const SMALL_CASE_PRICE = 45;
-export const DUP_XP_SMALL = 25;
-export const DUP_XP_BIG = 75;
+export const DUP_XP_SMALL = 2500;
+export const DUP_XP_BIG = 7500;
 // Потолок одного обмена и одной покупки ключей — защита от лишнего нуля в
 // запросе, а не от богатства.
 export const EXCHANGE_MAX = 10_000;
