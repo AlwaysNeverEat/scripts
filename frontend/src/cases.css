@@ -383,3 +383,65 @@
 .kc-odds-rare .kc-odds-head b { color: oklch(0.78 0.16 300); }
 .kc-odds-rare .kc-odds-bar i { background: linear-gradient(90deg, oklch(0.62 0.2 300), oklch(0.7 0.18 40)); }
 :root[data-theme="light"] .kc-odds-rare .kc-odds-head b { color: oklch(0.5 0.18 300); }
+
+/* ── Легендарка ──────────────────────────────────────────────────────────────
+   Третья ступень — ЗОЛОТО, и оно не спорит с фиолетом редкого: два цвета —
+   две ступени, их различают с первого взгляда, даже когда лента летит.
+   На призе — свои лучи, золотая метка и искры: легендарка выпадает примерно
+   раз в девяносто больших кейсов, и этот экран обязан быть праздником. */
+.kc-card-legendary {
+  border-bottom-color: oklch(0.84 0.16 85);
+  box-shadow: 0 0 0 1px oklch(0.84 0.16 85 / .9), 0 0 22px oklch(0.8 0.17 80 / .7);
+  animation: kc-legend 1.2s ease-in-out infinite alternate;
+}
+@keyframes kc-legend {
+  to { box-shadow: 0 0 0 2px oklch(0.92 0.14 95 / .95), 0 0 34px oklch(0.85 0.18 85 / .9); }
+}
+.kc-card-legendary .kc-card-tag {
+  background: linear-gradient(90deg, oklch(0.78 0.16 70), oklch(0.9 0.15 95));
+  color: oklch(0.25 0.05 70);
+}
+.kc-tile-legendary:not(.kc-tile-lock) { box-shadow: 0 0 14px oklch(0.82 0.17 85 / .55); }
+.kc-tile-legendary.kc-tile-on { box-shadow: 0 0 0 2px var(--accent), 0 0 14px oklch(0.82 0.17 85 / .55); }
+
+.kc-odds-legendary { border-color: oklch(0.82 0.16 85 / .6); box-shadow: 0 0 20px -6px oklch(0.82 0.17 85 / .7); }
+.kc-odds-legendary .kc-odds-head b { color: oklch(0.86 0.15 90); }
+.kc-odds-legendary .kc-odds-bar i { background: linear-gradient(90deg, oklch(0.78 0.16 70), oklch(0.92 0.14 95)); }
+:root[data-theme="light"] .kc-odds-legendary .kc-odds-head b { color: oklch(0.55 0.13 75); }
+
+.kc-prize-legendary .kc-prize-glow {
+  background: repeating-conic-gradient(from 0deg, oklch(0.88 0.16 90 / .34) 0deg 8deg, transparent 8deg 20deg);
+  animation-duration: 8s;
+}
+.kc-prize-legendary .kc-prize-rare-tag {
+  background: linear-gradient(90deg, oklch(0.78 0.16 70), oklch(0.92 0.15 95), oklch(0.78 0.16 70));
+  background-size: 200% 100%;
+  color: oklch(0.25 0.05 70);
+  animation: kc-pop .5s .15s cubic-bezier(.2, 1.4, .4, 1) both, kc-shine 1.6s linear infinite;
+}
+@keyframes kc-shine { to { background-position: -200% 0; } }
+.kc-prize-sparks { position: absolute; top: 120px; left: 50%; width: 0; height: 0; pointer-events: none; }
+.kc-prize-sparks i {
+  position: absolute; width: 8px; height: 8px; margin: -4px; border-radius: var(--r-circle);
+  background: oklch(0.92 0.15 95); box-shadow: 0 0 10px oklch(0.88 0.17 85);
+  animation: kc-spark 1.4s cubic-bezier(.15, .7, .3, 1) both;
+}
+@keyframes kc-spark {
+  from { transform: rotate(var(--a)) translateY(0) scale(.4); opacity: 1; }
+  to { transform: rotate(var(--a)) translateY(-190px) scale(1); opacity: 0; }
+}
+.kc-prize-sparks i:nth-child(1) { --a: 0deg; animation-delay: 0.00s; }
+.kc-prize-sparks i:nth-child(2) { --a: 26deg; animation-delay: 0.12s; }
+.kc-prize-sparks i:nth-child(3) { --a: 51deg; animation-delay: 0.24s; }
+.kc-prize-sparks i:nth-child(4) { --a: 77deg; animation-delay: 0.00s; }
+.kc-prize-sparks i:nth-child(5) { --a: 103deg; animation-delay: 0.12s; }
+.kc-prize-sparks i:nth-child(6) { --a: 129deg; animation-delay: 0.24s; }
+.kc-prize-sparks i:nth-child(7) { --a: 154deg; animation-delay: 0.00s; }
+.kc-prize-sparks i:nth-child(8) { --a: 180deg; animation-delay: 0.12s; }
+.kc-prize-sparks i:nth-child(9) { --a: 206deg; animation-delay: 0.24s; }
+.kc-prize-sparks i:nth-child(10) { --a: 231deg; animation-delay: 0.00s; }
+.kc-prize-sparks i:nth-child(11) { --a: 257deg; animation-delay: 0.12s; }
+.kc-prize-sparks i:nth-child(12) { --a: 283deg; animation-delay: 0.24s; }
+.kc-prize-sparks i:nth-child(13) { --a: 309deg; animation-delay: 0.00s; }
+.kc-prize-sparks i:nth-child(14) { --a: 334deg; animation-delay: 0.12s; }
+@media (prefers-reduced-motion: reduce) { .kc-card-legendary, .kc-prize-sparks i { animation: none; } .kc-prize-sparks { display: none; } }

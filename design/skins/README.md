@@ -271,3 +271,70 @@ leaf accents).
 Что проверить до нарезки: уши длинного зайца целиком в листе, туловище
 однотонное (ни пятен, ни хвостика на нём), кольцо рамки замкнуто под ушами,
 фон прозрачный.
+
+## Матиз курьера — легендарка
+
+Пак `matiz` уже описан в `SKIN_PACKS` (`tier: 'legendary'`, вес 1) и стоит с
+`ready: false`: в кейсы он попадёт, как только лист нарежется и флаг снимут.
+Раскладка та же — резак узнаёт предметы по форме, а не по смыслу: длинный
+Матиз — самый высокий, баннер — самый широкий, руль — с дырой.
+
+Три ловушки, все в промпте:
+
+- **длинный Матиз — вид СВЕРХУ**, и туловище машины (крыша) обязано быть
+  однотонным, с параллельными бортами: швы дверей, люк или полосы на крыше
+  повторялись бы на каждой плитке, и запись на три часа стала бы
+  электричкой. Капот — «голова», багажник с коробом — «лапы»;
+- **руль — только ОБОД.** Спицы и центр руля легли бы поверх аватарки: резак
+  ищет пустую середину, и со спицами её просто нет;
+- **логотипов нет нигде.** Жёлтый термокороб и Матиз читаются без надписей,
+  а логотип GPT либо откажется рисовать, либо напишет кривыми буквами.
+
+```text
+Create ONE image, 1536×1024 (landscape), PNG with a fully TRANSPARENT background.
+It is a sticker sheet for a LEGENDARY website skin pack called "Courier Matiz":
+a tiny yellow Daewoo-Matiz-style city car of a food-delivery courier. Draw exactly
+FOUR separate objects, each surrounded by at least 60 px of empty transparent
+space, nothing touching another object or the canvas edge. NO text, NO letters,
+NO numbers, NO logos, NO license plates text, NO watermark anywhere. Every object
+FULLY OPAQUE with clean edges — no soft glow fading into the background.
+
+Style: cute kawaii sticker style, chunky rounded shapes, clean thick dark
+outlines, soft flat shading, big round headlights like friendly eyes. The car is
+bright lemon-yellow; the courier's insulated delivery box is a slightly darker
+warm yellow, plain, with no logo. Palette accents: night blue, warm headlight
+glow colors drawn INSIDE the objects only.
+
+1) LEFT EDGE, full height of the canvas — "LONG MATIZ LIMOUSINE", seen strictly
+   FROM ABOVE (top-down view), pointing UP, like the "longcat" meme but a car:
+   at the top the short rounded hood with two headlights and the windshield;
+   then a VERY LONG STRAIGHT ROOF with perfectly parallel sides — PLAIN UNIFORM
+   YELLOW, no door seams, no windows, no stripes, no roof racks, no shading
+   changes along its length, so any horizontal slice of it looks identical;
+   at the very bottom the rear window, the little trunk and the yellow
+   delivery box sitting on the back. Object about 170 px wide and about 940 px
+   tall.
+
+2) TOP RIGHT — wide BANNER, about 1150×290 px, a fully filled rectangle (opaque,
+   square corners). A rainy city night: wet asphalt with reflections of street
+   lights, the cute yellow Matiz with the delivery box on its roof rack drives
+   fast toward the viewer on the RIGHT third, headlights on, little speed
+   lines. The LEFT two thirds stay calm and dark (night sky over blurred city
+   lights) because text will be placed over it.
+
+3) BOTTOM CENTER — round AVATAR FRAME, about 520×520 px: the RIM of a car
+   steering wheel ONLY — a closed ring, NO spokes, NO hub, NO horn in the
+   middle; a little pine-tree air freshener hangs from the top of the rim, two
+   small hands in courier gloves hold the rim at "ten and two", and a tiny
+   yellow delivery box sits at the bottom of the rim. The CENTER is a
+   perfectly EMPTY TRANSPARENT CIRCLE (a profile photo goes there); the rim is
+   thin, about 10–12% of the frame diameter, and closed all the way around.
+
+4) BOTTOM RIGHT — the same tiny yellow Matiz in a three-quarter front view,
+   smiling headlights, the delivery box on the roof rack, a small scooter-style
+   exhaust puff (whole object visible), fits in a square of about 320×320 px.
+```
+
+Что проверить до нарезки: у длинного Матиза крыша однотонная и борта
+параллельны, у руля нет спиц, букв и логотипов нет нигде, фон прозрачный.
+После нарезки — снять `ready: false` у `matiz` в `shared/skins.js`.

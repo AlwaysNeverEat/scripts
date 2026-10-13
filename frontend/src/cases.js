@@ -15,7 +15,7 @@
 
 import './crmLeads.css'; // строка звонка в примерочной — настоящая .ld-call
 import './cases.css';
-import { SKIN_PACKS, SKIN_PARTS } from '../../shared/skins.js';
+import { SKIN_PACKS, SKIN_PARTS, tierOf } from '../../shared/skins.js';
 import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord, packOdds, rarityOdds } from '../../shared/cases.js';
 import { skinArt, packHasPart, skinState, saveMySkin, localOperator } from './skins.js';
 import { gemImgHtml } from './nameBadges.js';
@@ -65,15 +65,21 @@ function thumbHtml({ pack, part }) {
     const fit = part === 'frame' || part === 'records' ? 'contain' : 'cover';
     return url ? `<span class="kc-thumb kc-thumb-${fit}" style="background-image:url('${url}')"></span>` : '<span class="kc-thumb"></span>';
 }
-// Редкий пак подсвечен и в ленте, и на призе: выпадает он редко, и мимо
-// него глазом лента проехать не должна.
-const isRare = (pack) => Boolean(SKIN_PACKS[pack]?.rare);
+// Редкий и легендарный пак подсвечены и в ленте, и на призе: выпадают они
+// редко, и мимо них глазом лента проехать не должна. Ступень — tierOf из
+// shared/skins.js, класс и подпись — отсюда, одним местом.
+const TIER = {
+    rare: { cls: 'rare', tag: 'редкий', prize: 'Редкий!', group: 'Редкий дроп' },
+    legendary: { cls: 'legendary', tag: 'легендарный', prize: 'Легендарный!', group: 'Легендарный дроп' },
+};
+const tierInfo = (pack) => TIER[tierOf(pack)] || null;
 function itemCardHtml(item, cls = '') {
     const hue = SKIN_PACKS[item.pack]?.hue ?? 260;
+    const t = tierInfo(item.pack);
     return `
-        <div class="kc-card ${cls}${isRare(item.pack) ? ' kc-card-rare' : ''}" style="--hue:${hue}">
+        <div class="kc-card ${cls}${t ? ` kc-card-${t.cls}` : ''}" style="--hue:${hue}">
             ${thumbHtml(item.part ? item : { pack: item.pack, part: 'cover' })}
-            ${isRare(item.pack) ? '<em class="kc-card-tag">редкий</em>' : ''}
+            ${t ? `<em class="kc-card-tag">${t.tag}</em>` : ''}
             <span class="kc-card-name">${esc(packLabel(item.pack))}</span>
             <span class="kc-card-part">${esc(item.part ? PART_LABEL[item.part] : 'пак целиком')}</span>
         </div>`;
@@ -227,7 +233,7 @@ export function mountCases(host, { apiFetch, user }) {
         const packs = Object.keys(SKIN_PACKS).filter(p => packHasPart(p, part));
         const tile = (pack, inner, name) => {
             const locked = Boolean(pack) && !can.has(pack);
-            const cls = ['kc-tile', pack === cur ? 'kc-tile-on' : '', locked ? 'kc-tile-lock' : '', pack && isRare(pack) ? 'kc-tile-rare' : ''].join(' ');
+            const cls = ['kc-tile', pack === cur ? 'kc-tile-on' : '', locked ? 'kc-tile-lock' : '', pack && tierInfo(pack) ? `kc-tile-${tierInfo(pack).cls}` : ''].join(' ');
             return `
             <button type="button" class="${cls}" ${locked ? 'data-locked="1" aria-disabled="true"' : `data-fit-part="${part}" data-fit-pack="${esc(pack)}"`}
                     style="--hue:${SKIN_PACKS[pack]?.hue ?? 260}" aria-pressed="${pack === cur}"
@@ -496,8 +502,8 @@ function oddsHtml(packs) {
         <div class="kc-odds">
             <div class="kc-odds-legend"><span></span><span>большой кейс,<br>пак целиком</span><span>малый кейс,<br>одна часть</span></div>
             ${groups.map(g => `
-            <div class="kc-odds-group${g.rare ? ' kc-odds-rare' : ''}">
-                <div class="kc-odds-head"><span>${g.rare ? 'Редкий дроп' : 'Обычный дроп'}</span><b>${pct(g.pct)}</b></div>
+            <div class="kc-odds-group${TIER[g.tier] ? ` kc-odds-${TIER[g.tier].cls}` : ''}">
+                <div class="kc-odds-head"><span>${TIER[g.tier]?.group || 'Обычный дроп'}</span><b>${pct(g.pct)}</b></div>
                 <span class="kc-odds-bar"><i style="width:${Math.max(2, g.pct)}%"></i></span>
                 ${g.packs.map(p => `
                 <div class="kc-odds-row" style="--hue:${SKIN_PACKS[p.pack]?.hue ?? 260}">
@@ -610,10 +616,11 @@ function caseModal() {
                     : `Весь пак уже был — +${res.xp} опыта`)
                 : 'Новая вещь в коллекции';
             win.innerHTML = `
-                <div class="kc-prize${isRare(p.pack) ? ' kc-prize-rare' : ''}">
+                <div class="kc-prize${tierInfo(p.pack) ? ` kc-prize-${tierInfo(p.pack).cls}` : ''}">
                     <div class="kc-prize-glow"></div>
+                    ${tierOf(p.pack) === 'legendary' ? '<div class="kc-prize-sparks">' + '<i></i>'.repeat(14) + '</div>' : ''}
                     ${itemCardHtml(p, 'kc-card-big')}
-                    ${isRare(p.pack) ? '<span class="kc-prize-rare-tag">Редкий!</span>' : ''}
+                    ${tierInfo(p.pack) ? `<span class="kc-prize-rare-tag">${tierInfo(p.pack).prize}</span>` : ''}
                     <b class="kc-prize-title">${esc(title)}</b>
                     <span class="kc-prize-sub${res.dup ? ' kc-prize-dup' : ''}">${esc(dupText)}</span>
                     <div class="kc-ask-btns">

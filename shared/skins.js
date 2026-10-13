@@ -26,18 +26,28 @@ export const SKIN_EDITOR_LOGINS = ['gtrixoff'];
 
 // hue — тон пака в ленте кейса и в инвентаре (полоска «редкости», как в CS).
 // weight — вес пака в розыгрыше кейса: шанс пака = его вес / сумма весов
-// паков сезона (shared/cases.js). rare — редкий: в ленте и на призе он
-// подсвечен, и шанс его на карточке кейса виден числом.
+// паков сезона (shared/cases.js). Веса ЦЕЛЫЕ (на сервере crypto.randomInt),
+// поэтому обычные стоят по 20, а не по 1: только так у легендарки остаётся
+// место быть в двадцать раз реже обычного, а не в десять.
+// tier — ступень редкости: обычный (по умолчанию), 'rare' и 'legendary'. В
+// ленте, на призе, в примерочной и в окне шансов ступень подсвечена своим
+// цветом (фиолетовый и золото), а в шансах у каждой своя группа.
 // ready: false — пак описан, но картинки ещё не нарезаны: в кейсы он не
 // попадает, пока не появятся все части (из кейса не должно выпадать то, чего
 // нельзя надеть).
 export const SKIN_PACKS = {
-    cat: { label: 'Котик', hue: 350, weight: 10 },
-    fox: { label: 'Лиса', hue: 45, weight: 10 },
-    raccoon: { label: 'Енотик', hue: 225, weight: 10 },
-    bunny: { label: 'Зайчик', hue: 15, weight: 10 },
-    halloween: { label: 'Хэллоуин', hue: 285, weight: 2, rare: true },
+    cat: { label: 'Котик', hue: 350, weight: 20 },
+    fox: { label: 'Лиса', hue: 45, weight: 20 },
+    raccoon: { label: 'Енотик', hue: 225, weight: 20 },
+    bunny: { label: 'Зайчик', hue: 15, weight: 20 },
+    halloween: { label: 'Хэллоуин', hue: 285, weight: 6, tier: 'rare' },
+    // Легендарка: «тот самый» жёлтый Матиз курьера с термокоробом. Вес 1 на
+    // сезон из четырёх обычных и редкого — около 1,1% за большой кейс.
+    matiz: { label: 'Матиз курьера', hue: 95, weight: 1, tier: 'legendary', ready: false },
 };
+
+export const TIERS = ['common', 'rare', 'legendary'];
+export const tierOf = (pack) => SKIN_PACKS[pack]?.tier || 'common';
 
 export const SKIN_PARTS = [
     { id: 'frame', label: 'Рамка аватара' },
