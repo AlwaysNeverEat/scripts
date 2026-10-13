@@ -17,6 +17,14 @@ import { GAME_ICONS, openGameById } from './games.js';
 import { toast } from './cases.js';
 import { plural } from '../../shared/quests.js';
 
+// Картинки — по имени файла (design/quests/README.md): week-cars, week-records,
+// xp, stamp. Нет файла — остаётся вёрстка, как было до картинок.
+const ART = {};
+for (const [path, url] of Object.entries(import.meta.glob('./assets/quests/*.{webp,png}', { eager: true, query: '?url', import: 'default' }))) {
+    ART[path.match(/([^/]+)\.\w+$/)[1]] = url;
+}
+const xpIcon = (px) => ART.xp ? `<img class="qt-xp-ico" src="${ART.xp}" alt="" width="${px}" height="${px}" draggable="false">` : '';
+
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -41,7 +49,7 @@ export function mountQuests(host, { apiFetch, user }) {
     host._questsOff?.abort();
     const off = new AbortController();
     host._questsOff = off;
-    const state = { data: null, status: 'loading', error: '', busy: '' };
+    const state = { data: null, status: 'loading', error: '', busy: '', fresh: '' };
 
     async function load() {
         try {
@@ -58,10 +66,16 @@ export function mountQuests(host, { apiFetch, user }) {
         if (q.done) {
             const busy = state.busy === `${kind}:${q.slot}`;
             return `<button class="btn btn-pri qt-claim" data-claim="${kind}" data-slot="${q.slot}" ${busy ? 'disabled' : ''}>
-                ${busy ? 'Забираю…' : `Забрать ${q.xp} опыта`}</button>`;
+                ${busy ? 'Забираю…' : `Забрать ${q.xp}${xpIcon(18)}опыта`}</button>`;
         }
         if (kind === 'daily') return `<button class="btn btn-sec qt-play" data-play="${esc(q.game)}">${playIcon(14)}Играть</button>`;
         return '';
+    }
+
+    function stampHtml(q, kind, cls = '') {
+        if (!q.claimed || !ART.stamp) return '';
+        const isNew = state.fresh === `${kind}:${q.slot}`;
+        return `<img class="qt-stamp ${cls}${isNew ? ' qt-stamp-new' : ''}" src="${ART.stamp}" alt="" draggable="false">`;
     }
 
     function barHtml(q) {
@@ -77,11 +91,12 @@ export function mountQuests(host, { apiFetch, user }) {
         const icon = GAME_ICONS[q.game];
         return `
         <div class="qt-card${q.done ? ' qt-done' : ''}${q.claimed ? ' qt-claimed' : ''}">
+            ${stampHtml(q, 'daily')}
             <div class="qt-head">
                 ${icon ? `<img class="qt-icon" src="${icon}" alt="" width="44" height="44" draggable="false">` : ''}
                 <div class="qt-head-text">
                     <span class="qt-game">${esc(q.gameLabel)}</span>
-                    <span class="qt-xp">+${q.xp} опыта</span>
+                    <span class="qt-xp">${xpIcon(16)}+${q.xp} опыта</span>
                 </div>
             </div>
             <p class="qt-text">${esc(q.text)}</p>
@@ -94,13 +109,19 @@ export function mountQuests(host, { apiFetch, user }) {
         // Кнопка у недельного бывает только «Забрать»: «Играть» тут некуда.
         // Пустая колонка под неё отъедала бы ширину у полосы прогресса.
         const foot = buttonHtml(q, 'weekly');
+        // С картинкой карточка — табличка: сцена фоном, справа машина или
+        // стойка записи, текст слева поверх затемнения. Значок слева тогда
+        // не нужен — он повторял бы то, что нарисовано.
+        const art = ART[`week-${q.kind}`];
         return `
-        <div class="qt-week${foot ? ' qt-week-with-foot' : ''}${q.done ? ' qt-done' : ''}${q.claimed ? ' qt-claimed' : ''}">
-            <div class="qt-week-ico">${q.kind === 'cars' ? carIcon(30) : calIcon(30)}</div>
+        <div class="qt-week${foot ? ' qt-week-with-foot' : ''}${art ? ' qt-week-art' : ''}${q.done ? ' qt-done' : ''}${q.claimed ? ' qt-claimed' : ''}"
+             ${art ? `style="--qt-art: url('${art}')"` : ''}>
+            ${art ? '' : `<div class="qt-week-ico">${q.kind === 'cars' ? carIcon(30) : calIcon(30)}</div>`}
+            ${stampHtml(q, 'weekly', 'qt-stamp-week')}
             <div class="qt-week-body">
                 <div class="qt-week-top">
                     <span class="qt-game">Задание недели · сменится через ${esc(leftLabel(d.weekResetAt))}</span>
-                    <span class="qt-xp qt-xp-big">+${q.xp} опыта</span>
+                    <span class="qt-xp qt-xp-big">${xpIcon(20)}+${q.xp} опыта</span>
                 </div>
                 <p class="qt-text qt-week-text">${esc(q.text)}</p>
                 <span class="qt-note">${esc(q.note)}</span>
@@ -138,6 +159,8 @@ export function mountQuests(host, { apiFetch, user }) {
         try {
             const res = await apiFetch('/api/quests/claim', { method: 'POST', body: { kind, slot } });
             state.data = res;
+            state.fresh = `${kind}:${slot}`;
+            setTimeout(() => { if (state.fresh === `${kind}:${slot}`) state.fresh = ''; }, 1000);
             toast(`+${res.gained} опыта — уже в кошельке`);
             window.dispatchEvent(new CustomEvent('wallet:changed'));
         } catch (err) {

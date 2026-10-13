@@ -38,7 +38,6 @@
   border-color: color-mix(in oklab, var(--accent) 60%, var(--border));
   box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent), 0 6px 24px -10px var(--accent);
 }
-.qt-claimed { opacity: .62; }
 
 /* Недельное — шире и наряднее: тысяча опыта против двадцати пяти. */
 .qt-week {
@@ -70,3 +69,61 @@
 
 :root[data-theme="light"] .qt-week-ico,
 :root[data-theme="light"] .qt-xp-big { color: oklch(0.52 0.13 70); }
+
+/* ── Картинки (design/quests/README.md) ─────────────────────────────────── */
+.qt-xp { display: inline-flex; align-items: center; gap: 3px; }
+.qt-xp-ico { flex: none; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .35)); }
+.qt-claim .qt-xp-ico { margin: 0 2px 0 4px; }
+
+/* Печать на забранном: карточка гаснет, печать — нет (она и есть итог). */
+.qt-card, .qt-week { position: relative; }
+.qt-stamp {
+  position: absolute; top: -10px; right: -8px; width: 76px; height: auto;
+  rotate: 14deg; pointer-events: none; z-index: 2;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / .4));
+}
+/* Шлёп — только в миг забора: панель перерисовывается раз в минуту, и
+   печать, хлопающая заново на каждом тике, выглядела бы поломкой. */
+.qt-stamp-new { animation: qt-stamp .35s cubic-bezier(.3, 1.6, .5, 1) both; }
+/* У таблички overflow: hidden (фон по скруглению) — печать внутри угла. */
+.qt-stamp-week { width: 104px; top: var(--s-3); right: var(--s-4); }
+.qt-claimed > :not(.qt-stamp) { opacity: .6; }
+@keyframes qt-stamp { from { scale: 1.8; opacity: 0; } to { scale: 1; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qt-stamp-new { animation: none; } }
+
+/* Недельное с картинкой — табличка: сцена фоном, текст слева поверх
+   затемнения. Затемнение ТЁМНОЕ в обеих темах, и текст на нём светлый:
+   картинка сама тёмно-закатная, и светлая подложка в светлой теме просто
+   выцветила бы её. */
+.qt-week-art {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 200px; padding: var(--s-5);
+  border-color: oklch(0.8 0.14 85 / .45);
+  background:
+    linear-gradient(90deg, oklch(0.16 0.03 265 / .94) 0%, oklch(0.16 0.03 265 / .82) 38%, oklch(0.16 0.03 265 / .25) 62%, transparent 78%),
+    var(--qt-art) right center / cover no-repeat,
+    oklch(0.2 0.03 265);
+  color: #fff;
+  overflow: hidden;
+}
+.qt-week-art.qt-week-with-foot { grid-template-columns: minmax(0, 1fr); }
+.qt-week-art .qt-week-body { max-width: 56%; }
+.qt-week-art .qt-game, .qt-week-art .qt-note, .qt-week-art .qt-label { color: rgb(255 255 255 / .74); }
+.qt-week-art .qt-xp-big { color: oklch(0.86 0.15 85); }
+.qt-week-art .qt-week-top { justify-content: flex-start; }
+.qt-week-art .qt-week-foot { justify-content: flex-start; min-width: 0; max-width: 56%; }
+.qt-week-art .qt-week-foot .btn { min-width: 220px; }
+.qt-week-art .qt-bar { background: rgb(255 255 255 / .16); }
+.qt-week-art .qt-got { color: oklch(0.82 0.17 148); }
+.qt-week-art.qt-done:not(.qt-claimed) { box-shadow: 0 0 0 1px oklch(0.8 0.14 85 / .5), 0 10px 32px -12px oklch(0.8 0.14 85); }
+
+@media (max-width: 900px) {
+  .qt-week-art { min-height: 0; padding: var(--s-4); }
+  .qt-week-art { background:
+      linear-gradient(90deg, oklch(0.16 0.03 265 / .92) 0%, oklch(0.16 0.03 265 / .78) 55%, oklch(0.16 0.03 265 / .35) 100%),
+      var(--qt-art) 80% center / cover no-repeat, oklch(0.2 0.03 265); }
+  .qt-week-art .qt-week-body, .qt-week-art .qt-week-foot { max-width: none; }
+  .qt-week-art .qt-week-foot .btn { width: 100%; }
+}
+/* На картинке приглушённый вдвое текст тонет в сцене — гасим слабее. */
+.qt-week-art.qt-claimed > :not(.qt-stamp) { opacity: .85; }

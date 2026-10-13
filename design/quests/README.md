@@ -1,6 +1,6 @@
 # Задания — картинки панели
 
-Панель «Задания» в профиле (`frontend/src/quests.js`) будет подхватывать
+Панель «Задания» в профиле (`frontend/src/quests.js`) подхватывает
 картинки **по имени файла** из `frontend/src/assets/quests/`, как кейсы и
 скины. Нет файла — остаётся вёрстка, механика от картинок не зависит.
 
@@ -11,11 +11,25 @@
 | `xp.webp` | значок опыта — у «+25 опыта», на кнопке «Забрать» |
 | `stamp.webp` | печать «выполнено» — ложится на забранную карточку вместо строки «Получено» |
 
-Лист один на всё — ради дневного лимита GPT. Режется тем же поиском предметов,
-что скины и кейсы (`design/skins/cut-skin.py`): два широких сверху вниз, потом
-нижний ряд слева направо.
+Листов в итоге два: `sheet-icons.png` (первый заход — из него взяты значок и
+печать) и `sheet-banners.png` (второй заход, только баннеры: в первом слева
+была плоская пустая панель со швом посередине). Режет `cut-quests.py`:
+
+```bash
+python3 design/quests/cut-quests.py
+```
+
+Оба листа GPT отдал НЕПРОЗРАЧНЫМИ — клетка «прозрачного фона» нарисована прямо
+в RGB, — поэтому общий резак скинов (он ищет предметы по альфе) не подошёл:
+баннеры вырезаются как прямоугольники по строкам и столбцам без клетки, а
+значок с печатью — заливкой фона от краёв.
+
+На сайте баннер — ФОН недельной карточки (`--qt-art`), текст слева поверх
+тёмного градиента; затемнение тёмное в обеих темах, картинка сама закатная.
 
 ## Промпт для листа (ChatGPT / GPT-image)
+
+Первый заход (значок и печать отсюда; баннеры этого промпта вышли плоскими):
 
 Просить по-английски — раскладку модель держит точнее.
 
@@ -63,3 +77,35 @@ background around the small objects — every object has clean, fully opaque edg
 справа, левая часть спокойная и тёмная (на ней будет текст задания и полоса
 прогресса); нигде нет букв и цифр — GPT любит дописать «XP» на значок и
 «DONE» на печать, такой лист лучше перегенерировать, чем стирать.
+
+Второй заход — только баннеры, одной сценой во всю ширину:
+
+```text
+Create ONE image, 1536×1024 (landscape), PNG with a fully TRANSPARENT background.
+Draw exactly TWO wide banners stacked vertically, each about 1450×380 px, fully
+opaque rectangles with square corners, at least 50 px of empty transparent space
+around each. NO text, NO letters, NO numbers, NO logos, NO watermark.
+
+Style: stylized, vibrant game-art illustration (like a premium mobile game
+loading screen) — bold shapes, clean outlines, painterly lighting, NOT
+photorealistic. Palette: twilight blue and violet with warm amber/gold light.
+Medium brightness — it must read well on a dark website, not be a dark blob.
+
+IMPORTANT composition for both: ONE continuous scene across the FULL width — no
+flat empty panel, no visible seam. The main subject sits in the RIGHT third. The
+left two thirds is the SAME scene continuing: softer, slightly out of focus, with
+gentle light falloff and low detail, so text placed there stays readable — but
+it is still part of the picture (walls, depth, light rays, floor reflections).
+
+1) TOP banner — a cozy, stylish car-service bay at golden-hour dusk: a gorgeous
+   glossy sporty car in a bright candy color (cherry red or electric blue) with
+   strong reflections, raised on a lift in the right third; warm work lamps,
+   oil canisters, a tool cart, an open garage door with a sunset city behind.
+   The car fully visible, not cropped.
+
+2) BOTTOM banner — the same car service's reception in the same style and
+   palette: in the right third a desk with an open appointment book full of
+   check marks (no writing), a wall calendar with ticked days, a headset, a
+   steaming coffee mug, car keys on a hook; through the glass behind — the same
+   shiny car in the bay.
+```

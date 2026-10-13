@@ -959,6 +959,7 @@ DOM до последней фазы висит старая картинка �
 | Журнал партий, ходы в словах, наборы, забор опыта | `backend/src/quests/store.js`, миграция `047_quests.sql` |
 | Ручки: набор с прогрессом, забрать, отчёт о боте | `backend/src/routes/quests.js` (`/api/quests`, + тест) |
 | Панель в профиле | `frontend/src/quests.js`, `quests.css` (префикс `qt-`) |
+| Картинки: табличка недельного, значок опыта, печать | `design/quests/README.md` → `assets/quests/` (по имени файла) |
 | Победа над ботом из окна игры | `frontend/src/questReport.js` (зовут `showOver` бильярда, дурака, морского боя и шашек) |
 | Песочница | `frontend/dev-quests.html` (`?op=1` — оператор, недельное бывает и по записям) |
 
