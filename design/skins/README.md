@@ -207,3 +207,61 @@ leaf accents).
 на хвосте), кольцо рамки замкнуто и середина пустая, фон ПРАВДА прозрачный —
 у листов заданий GPT рисовал клетку прямо в картинке, и резак скинов (он ищет
 предметы по альфе) на таком листе ничего не найдёт.
+
+## Зайчик — обычный пак
+
+Раскладка та же, резак тот же; зайцы тоже есть на обложке «Осеннего кавая».
+Ловушки у зайца две, и обе в промпте: длинные уши (у рамки они выше кольца и
+не должны его разрывать, у длинного зайца — не уходить за край листа) и
+пушистый хвостик-помпон, который хочется посадить на туловище — тогда плитка
+туловища повторяет его через каждые полкапсулы. Поэтому хвостик — только у
+сидящего зайца, а у длинного — внизу, у лап.
+
+```text
+Create ONE image, 1536×1024 (landscape), PNG with a fully TRANSPARENT background.
+It is a sticker sheet for a website skin pack called "Cute Bunny". Draw exactly
+FOUR separate objects, each surrounded by at least 60 px of empty transparent
+space, nothing touching another object or the canvas edge, no text, no labels,
+no watermark, no drop shadows on the background. Every object FULLY OPAQUE with
+clean edges — no soft glow fading into the background.
+
+Same character in all four: a cute kawaii chibi bunny — soft cream-white fur
+with light warm-beige patches, long upright ears with pink insides, big shiny
+dark eyes, tiny pink nose, rosy cheeks, clean thick dark-brown outlines, soft
+flat shading, sticker style, cozy autumn palette (cream, beige, warm orange
+leaf accents).
+
+1) LEFT EDGE, full height of the canvas — "LONG BUNNY": the bunny seen from
+   the front, standing upright like the "longcat" meme, extremely long body.
+   From top to bottom: head with the long ears fully inside the canvas (front
+   paws holding a small carrot right under the chin), then a VERY LONG
+   STRAIGHT TORSO with perfectly parallel vertical sides, then hind legs with
+   big soft feet and a round fluffy pom-pom tail peeking out at the very
+   bottom. The torso must be PLAIN UNIFORM CREAM FUR — no patches, no belly
+   spot, no tail on it, no shading changes along its length — so any
+   horizontal slice of it looks identical. Object about 170 px wide and about
+   940 px tall, ears included.
+
+2) TOP RIGHT — wide BANNER, about 1150×290 px, a fully filled rectangle (opaque,
+   square corners). A cozy autumn meadow at golden hour: the bunny sits on the
+   RIGHT third among fallen maple leaves, next to a small pumpkin and a couple
+   of carrots, ears up. The LEFT two thirds stay calm and simple (soft
+   warm-to-cream gradient, at most a couple of tiny falling leaves) because
+   text will be placed over it.
+
+3) BOTTOM CENTER — round AVATAR FRAME, about 520×520 px: a closed circular ring
+   woven from autumn twigs, small maple leaves and a few tiny carrots; the
+   bunny's head and long ears peek over the top of the ring (the ears stand up
+   ABOVE the ring and do not break it), two little paws hold the bottom. The
+   CENTER is a perfectly EMPTY TRANSPARENT CIRCLE (a profile photo goes there);
+   the ring band is thin, about 10–12% of the frame diameter, and the ring is
+   closed all the way around.
+
+4) BOTTOM RIGHT — the same bunny sitting compactly as a round ball of fluff,
+   hugging a carrot, pom-pom tail visible (whole body visible), fits in a
+   square of about 320×320 px.
+```
+
+Что проверить до нарезки: уши длинного зайца целиком в листе, туловище
+однотонное (ни пятен, ни хвостика на нём), кольцо рамки замкнуто под ушами,
+фон прозрачный.
