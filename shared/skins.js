@@ -43,7 +43,7 @@ export const SKIN_PACKS = {
     halloween: { label: 'Хэллоуин', hue: 285, weight: 6, tier: 'rare' },
     // Легендарка: «тот самый» жёлтый Матиз курьера с термокоробом. Вес 1 на
     // сезон из четырёх обычных и редкого — около 1,1% за большой кейс.
-    matiz: { label: 'Матиз курьера', hue: 95, weight: 1, tier: 'legendary', ready: false },
+    matiz: { label: 'Матиз курьера', hue: 95, weight: 1, tier: 'legendary' },
 };
 
 export const TIERS = ['common', 'rare', 'legendary'];

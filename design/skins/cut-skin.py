@@ -34,6 +34,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SOLID = 40          # прозрачно ли здесь (край сглажен, ноль не годится)
 CELL = 4            # поиск пятен — по сетке 4×4: лист 1.5 Мпикс, питон не спешит
 JOIN = 3            # клеток: на таком расстоянии кусочки — один предмет (хвост отдельно от кота)
+# Насколько соседние строки туловища могут различаться (средняя разница каналов).
+# 12 — мультяшный кот с гладкой заливкой. У реалистичного листа (короб Матиза
+# с фактурой ткани) соседние строки рябят сильнее, и ровного туловища с таким
+# допуском не найти — для него резак запускают с --rough.
+ROW_TOL = 12
 
 # Размеры на выходе — с запасом под плотность пикселей 2×.
 STRIP_W = 112       # ширина полосы длинного кота (на капсуле ~44px)
@@ -164,7 +169,7 @@ def torso_rows(img, spans):
             a, b = px[x, y], px[x, y - 1]
             d += abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2]) + abs(a[3] - b[3])
             n += 1
-        return d / n < 12
+        return d / n < ROW_TOL
 
     best, start = (0, 0), None
     for y, wd in enumerate(widths + [0]):
@@ -214,9 +219,13 @@ def save(img, path):
 
 
 def main():
-    if len(sys.argv) != 3:
-        die('запуск: cut-skin.py <лист.png> <пак>')
-    src, pack = sys.argv[1], sys.argv[2]
+    global ROW_TOL
+    args = [a for a in sys.argv[1:] if a != '--rough']
+    if '--rough' in sys.argv:
+        ROW_TOL = 30
+    if len(args) != 2:
+        die('запуск: cut-skin.py <лист.png> <пак> [--rough]')
+    src, pack = args
     out = os.path.normpath(os.path.join(HERE, '..', '..', 'frontend', 'src', 'assets', 'skins', pack))
     sheet = with_alpha(Image.open(src))
 
