@@ -116,6 +116,26 @@ export function packOdds(packs) {
     const total = packs.reduce((s, p) => s + (SKIN_PACKS[p].weight || 1), 0);
     return packs.map(p => ({ pack: p, pct: Math.round((SKIN_PACKS[p].weight || 1) / total * 1000) / 10 }));
 }
+/**
+ * Шансы по РЕДКОСТИ — то, что показывает окно «Шансы выпадения»: обычный
+ * дроп и редкий, а внутри — паки. Доля редкости считается из весов, а не
+ * суммой округлённых процентов паков: 45,5 + 45,5 даёт 91, а честно — 90,9.
+ * part — шанс ОДНОЙ конкретной части в малом кейсе (часть в паке — поровну).
+ * @returns {Array<{ rare: boolean, pct: number, packs: Array<{ pack, pct, part }> }>}
+ */
+export function rarityOdds(packs) {
+    const w = (p) => SKIN_PACKS[p].weight || 1;
+    const total = packs.reduce((s, p) => s + w(p), 0);
+    const pct = (x) => Math.round(x / total * 1000) / 10;
+    return [false, true].map(rare => {
+        const group = packs.filter(p => Boolean(SKIN_PACKS[p].rare) === rare);
+        return {
+            rare,
+            pct: pct(group.reduce((s, p) => s + w(p), 0)),
+            packs: group.map(p => ({ pack: p, pct: pct(w(p)), part: Math.round(w(p) / total / PART_IDS.length * 1000) / 10 })),
+        };
+    }).filter(g => g.packs.length);
+}
 const readyPacks = () => Object.keys(SKIN_PACKS).filter(p => SKIN_PACKS[p].ready !== false);
 export const allItems = (packs = readyPacks()) => packs.flatMap(pack => PART_IDS.map(part => ({ pack, part })));
 export const itemKey = ({ pack, part }) => `${pack}:${part}`;

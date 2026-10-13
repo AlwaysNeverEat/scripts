@@ -73,12 +73,6 @@
 .kc-case-body { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; }
 .kc-case-title { font-size: 16px; }
 .kc-case-sub { font-size: 12px; color: var(--sub); }
-.kc-case-in { display: flex; flex-wrap: wrap; gap: var(--s-1); }
-.kc-case-in span {
-  font-size: 11px; padding: 0 var(--s-2); border-radius: var(--r-1);
-  background: oklch(0.7 0.14 var(--hue) / .2); color: oklch(0.82 0.12 var(--hue));
-}
-:root[data-theme="light"] .kc-case-in span { color: oklch(0.45 0.14 var(--hue)); }
 .kc-open { align-self: flex-start; margin-top: var(--s-1); display: inline-flex; align-items: center; gap: var(--s-1); }
 
 /* ── Магазин ─────────────────────────────────────────────────────────────── */
@@ -327,15 +321,9 @@
 .kc-cover-off { filter: grayscale(.75) brightness(.8); }
 
 /* ── Редкий пак ──────────────────────────────────────────────────────────────
-   Подсвечен везде, где появляется: на карточке кейса (шанс), в ленте и на
+   Подсвечен везде, где появляется: в окне шансов, в ленте и на
    призе. Свечение переливается — лента проезжает быстро, и статичная рамка
    на скорости не читается. */
-.kc-in-rare { box-shadow: 0 0 0 1px oklch(0.75 0.17 var(--hue) / .7); }
-.kc-card-name em {
-  margin-left: var(--s-1); padding: 0 var(--s-1); border-radius: var(--r-1);
-  font-style: normal; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
-  background: oklch(0.7 0.18 var(--hue)); color: #fff; vertical-align: 1px;
-}
 .kc-card-rare {
   border-bottom-color: oklch(0.78 0.2 var(--hue));
   box-shadow: 0 0 0 1px oklch(0.72 0.18 var(--hue) / .8), 0 0 18px oklch(0.7 0.2 var(--hue) / .55);
@@ -355,3 +343,43 @@
   animation: kc-pop .5s .15s cubic-bezier(.2, 1.4, .4, 1) both;
 }
 @media (prefers-reduced-motion: reduce) { .kc-card-rare, .kc-prize-rare-tag { animation: none; } }
+
+/* ── Метка «редкий» на карточке предмета ─────────────────────────────────────
+   Лежит в углу картинки, а не строкой после имени: карточка в ленте шириной
+   140px, и «Хэллоуин» + «РЕДКИЙ» в одну строку вылезали за её край. */
+.kc-card { position: relative; }
+.kc-card-tag {
+  position: absolute; top: calc(var(--s-2) + 4px); right: calc(var(--s-2) + 4px);
+  padding: 1px var(--s-1); border-radius: var(--r-1);
+  font-style: normal; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  background: oklch(0.6 0.2 var(--hue)); color: #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / .35);
+}
+.kc-card-big .kc-card-tag { font-size: 11px; padding: 2px var(--s-2); }
+.kc-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Шансы выпадения ─────────────────────────────────────────────────────────
+   Кнопкой под кейсами, а не плашками на карточках: проценты паков на каждой
+   карточке повторялись дважды и с тремя паками уже переносились в две строки,
+   а с двадцатью стали бы стеной. */
+.kc-odds-btn {
+  display: flex; align-items: center; gap: var(--s-1); margin: var(--s-3) auto 0;
+  padding: var(--s-1) var(--s-3); border: 0; border-radius: var(--r-round);
+  background: none; color: var(--sub); font: inherit; font-size: 13px; cursor: pointer;
+}
+.kc-odds-btn:hover { color: var(--text); background: var(--bg3); }
+.kc-odds { display: flex; flex-direction: column; gap: var(--s-3); text-align: left; }
+.kc-odds-legend, .kc-odds-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px 96px; gap: var(--s-2); align-items: center; }
+.kc-odds-legend { font-size: 11px; color: var(--sub); line-height: 1.25; padding: 0 calc(var(--s-3) + 1px); }
+.kc-odds-legend span:not(:first-child), .kc-odds-row span:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.kc-odds-group { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-3); border-radius: var(--r-3); background: var(--bg2); border: 1px solid var(--border); }
+.kc-odds-head { display: flex; justify-content: space-between; font-weight: 700; }
+.kc-odds-bar { height: 6px; border-radius: var(--r-round); background: var(--bg3); overflow: hidden; }
+.kc-odds-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.kc-odds-row { font-size: 13px; }
+.kc-odds-pack { display: flex; align-items: center; gap: var(--s-2); }
+.kc-odds-pack::before { content: ''; width: 8px; height: 8px; border-radius: var(--r-circle); background: oklch(0.72 0.16 var(--hue)); flex: none; }
+.kc-odds-rare { border-color: oklch(0.7 0.18 300 / .55); box-shadow: 0 0 18px -6px oklch(0.7 0.2 300 / .6); }
+.kc-odds-rare .kc-odds-head b { color: oklch(0.78 0.16 300); }
+.kc-odds-rare .kc-odds-bar i { background: linear-gradient(90deg, oklch(0.62 0.2 300), oklch(0.7 0.18 40)); }
+:root[data-theme="light"] .kc-odds-rare .kc-odds-head b { color: oklch(0.5 0.18 300); }

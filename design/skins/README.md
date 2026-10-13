@@ -144,3 +144,63 @@ a little toxic green for magic glow. Spooky and special — this is the rare pac
 4) BOTTOM RIGHT — a small cute ghost peeking out of a carved jack-o'-lantern
    (whole object visible), fits in a square of about 320×320 px.
 ```
+
+## Енотик — обычный пак
+
+Раскладка та же, что у котика и лисы, резак тот же. Енот уже есть на обложке
+«Осеннего кавая» — пак ложится в осенний сезон как обычный (вес 10, как
+котик и лиса). Пока листа нет, пака в `SKIN_PACKS` нет вовсе.
+
+У енота одна ловушка: полосатый хвост и маска так и просят полосок по всему
+телу, а туловище длинного енота обязано быть однотонным — полоски по длине
+дают шов на каждой плитке. Поэтому в промпте полоски только на хвосте, а хвост
+внизу.
+
+```text
+Create ONE image, 1536×1024 (landscape), PNG with a fully TRANSPARENT background.
+It is a sticker sheet for a website skin pack called "Cute Raccoon". Draw exactly
+FOUR separate objects, each surrounded by at least 60 px of empty transparent
+space, nothing touching another object or the canvas edge, no text, no labels,
+no watermark, no drop shadows on the background. Every object FULLY OPAQUE with
+clean edges — no soft glow fading into the background.
+
+Same character in all four: a cute kawaii chibi raccoon — soft grey fur, a dark
+"bandit mask" around big shiny eyes, white muzzle and white eyebrow marks, small
+round ears with light insides, pink nose, rosy cheeks, clean thick dark outlines,
+soft flat shading, sticker style, cozy autumn palette (grey, cream, warm orange
+leaf accents).
+
+1) LEFT EDGE, full height of the canvas — "LONG RACCOON": the raccoon seen from
+   the front, standing upright like the "longcat" meme, extremely long body.
+   From top to bottom: head with ears and the mask (front paws holding a tiny
+   acorn right under the chin), then a VERY LONG STRAIGHT TORSO with perfectly
+   parallel vertical sides, then hind legs with little dark paws and the
+   striped ringed tail curling at the bottom. The torso must be PLAIN UNIFORM
+   GREY FUR — no stripes, no rings, no belly patch, no shading changes along
+   its length — so any horizontal slice of it looks identical. Stripes exist
+   ONLY on the tail. Object about 170 px wide and about 940 px tall.
+
+2) TOP RIGHT — wide BANNER, about 1150×290 px, a fully filled rectangle (opaque,
+   square corners). Cozy autumn forest at golden hour: the raccoon peeks out of
+   a hollow tree log on the RIGHT third, surrounded by a few fallen maple
+   leaves, acorns and a small mushroom. The LEFT two thirds stay calm and simple
+   (soft warm-to-grey gradient, at most a couple of tiny falling leaves)
+   because text will be placed over it.
+
+3) BOTTOM CENTER — round AVATAR FRAME, about 520×520 px: a closed circular ring
+   woven from autumn twigs and small maple leaves in orange and red; the
+   raccoon's ears and masked eyes peek over the top of the ring, two little dark
+   paws hold the bottom, and the striped tail curls around one side. The CENTER
+   is a perfectly EMPTY TRANSPARENT CIRCLE (a profile photo goes there); the
+   ring band is thin, about 10–12% of the frame diameter, and the ring is closed
+   all the way around.
+
+4) BOTTOM RIGHT — the same raccoon sitting compactly, hugging its fluffy striped
+   tail and holding an acorn (whole body visible), fits in a square of about
+   320×320 px.
+```
+
+Что проверить до нарезки: туловище длинного енота однотонное (полоски только
+на хвосте), кольцо рамки замкнуто и середина пустая, фон ПРАВДА прозрачный —
+у листов заданий GPT рисовал клетку прямо в картинке, и резак скинов (он ищет
+предметы по альфе) на таком листе ничего не найдёт.

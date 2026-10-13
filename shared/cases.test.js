@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, gemsWord, activeSeason, nextSeason, packOdds, casePacks } from './cases.js';
+import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, gemsWord, activeSeason, nextSeason, packOdds, casePacks, rarityOdds } from './cases.js';
 import { SKIN_PACKS } from './skins.js';
 
 const season = { packs: ['cat', 'fox'] };
@@ -97,6 +97,18 @@ test('паки тянутся по весам, редкий — реже, шан
     // Хэллоуин с весом 2 при двух паках по 10 — около 9%.
     const odds = packOdds(['cat', 'fox', 'halloween']);
     assert.equal(odds.find(o => o.pack === 'halloween').pct, 9.1);
+});
+
+test('шансы по редкости: доля из весов, а не сумма округлённого', () => {
+    const [common, rare] = rarityOdds(['cat', 'fox', 'halloween']);
+    assert.equal(common.rare, false);
+    assert.equal(common.pct, 90.9);
+    assert.equal(rare.pct, 9.1);
+    assert.deepEqual(common.packs.map(p => p.pack), ['cat', 'fox']);
+    // Часть в малом кейсе — четверть шанса пака.
+    assert.equal(rare.packs[0].part, 2.3);
+    // Без редких паков группа редких не показывается вовсе.
+    assert.deepEqual(rarityOdds(['cat', 'fox']).map(g => g.rare), [false]);
 });
 
 test('пак без нарезанных картинок (ready: false) в кейсы не попадает', () => {

@@ -16,7 +16,7 @@
 import './crmLeads.css'; // строка звонка в примерочной — настоящая .ld-call
 import './cases.css';
 import { SKIN_PACKS, SKIN_PARTS } from '../../shared/skins.js';
-import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord, packOdds } from '../../shared/cases.js';
+import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gemsWord, packOdds, rarityOdds } from '../../shared/cases.js';
 import { skinArt, packHasPart, skinState, saveMySkin, localOperator } from './skins.js';
 import { gemImgHtml } from './nameBadges.js';
 
@@ -73,7 +73,8 @@ function itemCardHtml(item, cls = '') {
     return `
         <div class="kc-card ${cls}${isRare(item.pack) ? ' kc-card-rare' : ''}" style="--hue:${hue}">
             ${thumbHtml(item.part ? item : { pack: item.pack, part: 'cover' })}
-            <span class="kc-card-name">${esc(packLabel(item.pack))}${isRare(item.pack) ? '<em>редкий</em>' : ''}</span>
+            ${isRare(item.pack) ? '<em class="kc-card-tag">редкий</em>' : ''}
+            <span class="kc-card-name">${esc(packLabel(item.pack))}</span>
             <span class="kc-card-part">${esc(item.part ? PART_LABEL[item.part] : 'пак целиком')}</span>
         </div>`;
 }
@@ -179,8 +180,6 @@ export function mountCases(host, { apiFetch, user }) {
             <div class="kc-case-body">
                 <b class="kc-case-title">${big ? 'Большой кейс' : 'Малый кейс'}</b>
                 <span class="kc-case-sub">${big ? 'Пак целиком: рамка, шапка, звонки и записи' : 'Одна вещь из любого пака'}</span>
-                <span class="kc-case-in" title="Шанс пака — и в большом кейсе, и в малом">${packOdds(packs).map(({ pack, pct }) =>
-                    `<span class="${isRare(pack) ? 'kc-in-rare' : ''}" style="--hue:${SKIN_PACKS[pack]?.hue ?? 260}">${esc(packLabel(pack))} · ${String(pct).replace('.', ',')}%</span>`).join('')}</span>
                 <button class="btn btn-pri kc-open" data-act="open" data-kind="${kind}" ${state.busy || shut ? 'disabled' : ''}>
                     ${shut ? 'Сезон закрыт' : `Открыть · ${big ? `${keyIcon(16)} 1 ключ` : `${gem(16)} ${SMALL_CASE_PRICE}`}`}
                 </button>
@@ -301,6 +300,7 @@ export function mountCases(host, { apiFetch, user }) {
             ${seasonHtml()}
             ${walletHtml(w)}
             <div class="kc-cases">${caseCardHtml('big')}${caseCardHtml('small')}</div>
+            ${state.packs.length ? `<button class="kc-odds-btn" data-act="odds">${svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/>', 15)}Шансы выпадения</button>` : ''}
             <h4 class="kc-h">Магазин гемов</h4>
             ${shopHtml(w)}
             <h4 class="kc-h" id="kc-fit-h">Примерочная <span>так вас увидят другие</span></h4>
@@ -363,6 +363,7 @@ export function mountCases(host, { apiFetch, user }) {
             render();
         }
         if (act === 'open') openFlow(btn.dataset.kind);
+        if (act === 'odds') caseModal().ask({ title: 'Шансы выпадения', html: oddsHtml(state.packs), buttons: [['close', 'Понятно', 'btn-sec']] });
         if (act === 'fit-reset') { state.draft = null; render(); }
         if (act === 'wear') {
             state.busy = 'wear';
@@ -484,6 +485,30 @@ export function toast(text, err = false) {
 
 // ── Окно кейса: вопрос, сундук, лента, приз ─────────────────────────────────
 
+// Окно «Шансы выпадения»: сперва редкость (обычный или редкий дроп — то, что
+// спрашивают первым), внутри неё паки. Шансы паков одинаковы в обоих кейсах:
+// большой отдаёт пак целиком, малый тянет пак с теми же весами и в нём одну
+// часть поровну — отсюда вторая колонка.
+function oddsHtml(packs) {
+    const pct = (n) => `${String(n).replace('.', ',')}%`;
+    const groups = rarityOdds(packs);
+    return `
+        <div class="kc-odds">
+            <div class="kc-odds-legend"><span></span><span>большой кейс,<br>пак целиком</span><span>малый кейс,<br>одна часть</span></div>
+            ${groups.map(g => `
+            <div class="kc-odds-group${g.rare ? ' kc-odds-rare' : ''}">
+                <div class="kc-odds-head"><span>${g.rare ? 'Редкий дроп' : 'Обычный дроп'}</span><b>${pct(g.pct)}</b></div>
+                <span class="kc-odds-bar"><i style="width:${Math.max(2, g.pct)}%"></i></span>
+                ${g.packs.map(p => `
+                <div class="kc-odds-row" style="--hue:${SKIN_PACKS[p.pack]?.hue ?? 260}">
+                    <span class="kc-odds-pack">${esc(packLabel(p.pack))}</span>
+                    <span title="Большой кейс — пак целиком">${pct(p.pct)}</span>
+                    <span title="Малый кейс — одна конкретная часть пака">${pct(p.part)}</span>
+                </div>`).join('')}
+            </div>`).join('')}
+        </div>`;
+}
+
 function caseModal() {
     document.getElementById('kc-modal')?.remove();
     const el = document.createElement('div');
@@ -504,7 +529,8 @@ function caseModal() {
         // facts — цифры в гемах отдельной строкой ячеек («стоит / у вас / не хватает»):
         // одним абзацем они рвались переносами посреди «10 записей», и считать
         // приходилось, перечитывая предложение. text — строка или абзацы.
-        ask({ title, text, facts, buttons }) {
+        // html — готовая разметка (окно шансов); text — абзацы, экранируются.
+        ask({ title, text, facts, html = '', buttons }) {
             const paras = [].concat(text || []);
             win.innerHTML = `
                 <div class="kc-ask">
@@ -512,6 +538,7 @@ function caseModal() {
                     ${facts ? `<div class="kc-ask-facts">${facts.map(([label, value, bad]) => `
                         <div class="kc-ask-fact${bad ? ' kc-ask-fact-bad' : ''}"><b>${gem(20)}${esc(value)}</b><span>${esc(label)}</span></div>`).join('')}</div>` : ''}
                     ${paras.map(t => `<p>${esc(t)}</p>`).join('')}
+                    ${html}
                     <div class="kc-ask-btns">${buttons.map(([id, label, cls]) => `<button class="btn ${cls}" data-ask="${id}">${esc(label)}</button>`).join('')}</div>
                 </div>`;
             return new Promise((resolve) => {
