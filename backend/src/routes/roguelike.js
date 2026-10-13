@@ -18,6 +18,7 @@
 import { Router } from 'express';
 import { isPlausibleRun } from '../../../shared/roguelike.js';
 import { leaderboard, saveRun } from '../roguelike/scores.js';
+import { logResult } from '../quests/store.js';
 
 const router = Router();
 
@@ -68,6 +69,8 @@ router.post('/run', async (req, res) => {
     }
 
     try {
+        // Партия — в журнал заданий: мини-топу нужен рекорд, заданию — сегодняшняя.
+        logResult(req.user.id, 'roguelike', { loops: run.loops, floor: run.floor, elites, bosses, seconds: run.seconds });
         const saved = await saveRun(req.user.id, { ...run, elites, bosses, mutations });
         const board = await leaderboard(req.user.id);
         res.json({ ok: true, ...saved, ...board });

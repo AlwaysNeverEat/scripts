@@ -1,0 +1,72 @@
+/* Задания в профиле (quests.js). Префикс qt- — свой: cs- и kc- заняты
+   «Клиентом» и кейсами (сторожит cssPrefixes.test.js). */
+
+.qt-wait { color: var(--sub); font-size: 13px; display: flex; gap: var(--s-2); align-items: center; }
+
+.qt-sub { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); margin-bottom: var(--s-3); }
+.qt-sub > span:first-child { font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+.qt-reset { color: var(--sub); font-size: 12px; }
+
+.qt-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+
+.qt-card {
+  display: flex; flex-direction: column; gap: var(--s-3);
+  padding: var(--s-4); border-radius: var(--r-3);
+  border: 1px solid var(--border); background: var(--bg2);
+  transition: border-color .2s, box-shadow .2s;
+}
+.qt-head { display: flex; align-items: center; gap: var(--s-3); }
+.qt-icon { width: 44px; height: 44px; border-radius: var(--r-2); flex: none; }
+.qt-head-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qt-game { color: var(--sub); font-size: 12px; }
+.qt-xp { font-size: 12px; font-weight: 700; color: var(--accent); }
+.qt-text { margin: 0; font-size: 14px; line-height: 1.4; font-weight: 600; text-wrap: pretty; flex: 1; }
+
+.qt-progress { display: flex; flex-direction: column; gap: var(--s-1); }
+.qt-bar { height: 8px; border-radius: var(--r-round); background: var(--bg3); overflow: hidden; }
+.qt-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), oklch(0.8 0.15 300)); transition: width .4s; }
+.qt-bar-done i { background: var(--green); }
+.qt-label { color: var(--sub); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.qt-foot { display: flex; min-height: 34px; align-items: center; }
+.qt-foot .btn { display: inline-flex; align-items: center; gap: var(--s-1); }
+.qt-claim { width: 100%; justify-content: center; }
+.qt-got { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--green); font-size: 13px; font-weight: 600; }
+
+/* Выполнено, не забрано — карточка зовёт; забрано — гаснет и не мешает. */
+.qt-done:not(.qt-claimed) {
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 25%, transparent), 0 6px 24px -10px var(--accent);
+}
+.qt-claimed { opacity: .62; }
+
+/* Недельное — шире и наряднее: тысяча опыта против двадцати пяти. */
+.qt-week {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-4); align-items: center;
+  margin-top: var(--s-3); padding: var(--s-4); border-radius: var(--r-3);
+  border: 1px solid color-mix(in oklab, oklch(0.8 0.14 85) 35%, var(--border));
+  background: radial-gradient(120% 140% at 0% 0%, oklch(0.8 0.14 85 / .14), transparent 60%), var(--bg2);
+  transition: border-color .2s, box-shadow .2s;
+}
+.qt-week-ico {
+  width: 56px; height: 56px; border-radius: var(--r-3); display: flex; align-items: center; justify-content: center;
+  color: oklch(0.82 0.14 85); background: oklch(0.8 0.14 85 / .14);
+}
+.qt-week-body { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.qt-week-top { display: flex; justify-content: space-between; gap: var(--s-3); align-items: baseline; flex-wrap: wrap; }
+.qt-week-text { font-size: 16px; }
+.qt-xp-big { font-size: 14px; color: oklch(0.82 0.14 85); }
+.qt-note { color: var(--sub); font-size: 12px; text-wrap: pretty; }
+.qt-week-with-foot { grid-template-columns: auto minmax(0, 1fr) auto; }
+.qt-week-foot { min-width: 200px; justify-content: flex-end; }
+
+@media (max-width: 900px) {
+  .qt-grid { grid-template-columns: 1fr; }
+  .qt-week, .qt-week-with-foot { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--s-3); }
+  .qt-week-ico { width: 40px; height: 40px; }
+  .qt-week-ico svg { width: 22px; height: 22px; }
+  .qt-week-foot { grid-column: 1 / -1; min-width: 0; }
+}
+
+:root[data-theme="light"] .qt-week-ico,
+:root[data-theme="light"] .qt-xp-big { color: oklch(0.52 0.13 70); }

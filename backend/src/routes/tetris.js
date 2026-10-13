@@ -18,6 +18,7 @@
 import { Router } from 'express';
 import { isPlausibleRun, levelFor } from '../../../shared/tetris.js';
 import { leaderboard, saveRun } from '../tetris/scores.js';
+import { logResult } from '../quests/store.js';
 
 const router = Router();
 
@@ -60,6 +61,8 @@ router.post('/score', async (req, res) => {
         // Уровень не берём из тела запроса: он ОДНОЗНАЧНО считается по линиям
         // (см. levelFor), и отдельное поле в запросе — просто ещё одно место,
         // где данные могут разъехаться.
+        // Партия — в журнал заданий: мини-топу нужен рекорд, заданию — сегодняшняя.
+        logResult(req.user.id, 'tetris', { score: run.score, lines: run.lines, seconds: run.seconds });
         const saved = await saveRun(req.user.id, { ...run, level: levelFor(run.lines) });
         const board = await leaderboard(req.user.id);
         res.json({ ok: true, ...saved, ...board });

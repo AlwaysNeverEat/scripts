@@ -8,6 +8,7 @@
 // проигравшего, и записывать её двумя отдельными запросами было бы гонкой.
 
 import { query } from '../db/client.js';
+import { logDuelWins } from '../quests/store.js';
 import { FACULTY_JOIN, FACULTY_COLUMNS, facultyBadge } from '../faculty/store.js';
 
 export const TOP_LIMIT = 10;
@@ -87,4 +88,6 @@ export async function addResult(winnerId, loserId) {
               played_at = now()`,
         [winnerId, loserId],
     );
+    // Победа над живым соперником — в журнал заданий (shared/quests.js).
+    await logDuelWins('pool', [winnerId]);
 }

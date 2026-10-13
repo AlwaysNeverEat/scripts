@@ -42,6 +42,7 @@ import {
     SUITS, MODES, MIN_SEATS, MAX_SEATS, PODKIDNOY, END_TEXT,
 } from '../../shared/durak.js';
 import { pickMove, LEVELS, NORMAL } from '../../shared/durakBot.js';
+import { reportBotWin } from './questReport.js';
 import deckSheet from './assets/cards-8bit.png';
 import cardBack from './assets/card-back.png';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
@@ -1308,6 +1309,10 @@ function showOver(state) {
     stopAll(state);
     const view = state.view;
     const loser = view?.loser;
+    // «Не остался дураком» — победа и за столом на четверых; ничья — нет.
+    if (state.mode === 'bot' && loser != null && loser !== -1 && loser !== state.seat) {
+        reportBotWin(state.ctx, 'durak', state.botLevel, state.game);
+    }
     const title = loser === -1 || loser == null ? 'Ничья'
         : loser === state.seat ? 'Вы дурак'
         : `Дурак — ${state.players[loser]?.name || 'соперник'}`;

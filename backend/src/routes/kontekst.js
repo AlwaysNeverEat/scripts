@@ -19,6 +19,7 @@ import { Router } from 'express';
 import { normalizeWord, isWordShape } from '../../../shared/kontekst.js';
 import { resolveWord, rankOf, closestWords, hintWord, ANSWERS, VOCAB_SIZE, ANSWERS_COUNT, READY } from '../kontekst/tables.js';
 import { mskDay, nextMidnightMsk, pickForUser } from '../daily.js';
+import { noteWordGuess, noteWordHint, noteWordGiveUp } from '../quests/store.js';
 
 const router = Router();
 
@@ -68,6 +69,7 @@ router.post('/guess', (req, res) => {
     const day = mskDay();
     const answer = answerFor(req.user.id, day);
     const rank = rankOf(answer, word);
+    noteWordGuess(req.user.id, 'kontekst', day, { win: rank === 1 });
     res.json({ ok: true, day, word, rank, win: rank === 1 });
 });
 
@@ -94,6 +96,7 @@ router.post('/hint', (req, res) => {
     // стоит близко к чему угодно и не говорит ни о чём.
     const hint = hintWord(answer, Math.max(2, Math.floor(to / 2)), to);
     if (!hint) return res.json({ ok: false });
+    noteWordHint(req.user.id, 'kontekst', day);
     res.json({ ok: true, ...hint });
 });
 
@@ -102,6 +105,8 @@ router.post('/hint', (req, res) => {
 router.post('/giveup', (req, res) => {
     const day = mskDay();
     const answer = answerFor(req.user.id, day);
+    // Сдался — день закрыт: угаданное потом, по подсмотренному, не победа.
+    noteWordGiveUp(req.user.id, 'kontekst', day);
     res.json({ day, answer, closest: closestWords(answer, REVEAL_CLOSEST) });
 });
 

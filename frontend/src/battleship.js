@@ -43,6 +43,7 @@ import {
     resign as resignRules, FLEET_ERROR_TEXT, SHIP_NAMES, END_TEXT,
 } from '../../shared/battleship.js';
 import { pickShot, pickFleet, LEVELS, NORMAL } from '../../shared/battleshipBot.js';
+import { reportBotWin } from './questReport.js';
 import {
     splashIcon, blastIcon, wreckIcon, turnIcon,
     crosshairIcon, anchorIcon, shuffleIcon,
@@ -1095,6 +1096,7 @@ function showOver(state) {
     render(state);
     const view = state.view;
     const won = view?.winner === view?.seat;
+    if (won && state.mode === 'bot') reportBotWin(state.ctx, 'battleship', state.botLevel, state.game);
     const box = state.modal.querySelector('#bs-over');
     state.modal.querySelector('#bs-over-title').textContent = won ? 'Победа' : 'Поражение';
     // Причина словами: «сдался» и «не дождались хода» — это совсем не то же

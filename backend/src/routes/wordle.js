@@ -20,6 +20,7 @@ import { Router } from 'express';
 import { markGuess, isWin, normalizeWord, isWordShape, WORD_LENGTH, MAX_TRIES } from '../../../shared/wordle.js';
 import { answerFor, isKnownWord, ANSWERS_COUNT } from '../wordle/words.js';
 import { mskDay, nextMidnightMsk } from '../daily.js';
+import { noteWordGuess } from '../quests/store.js';
 
 const router = Router();
 
@@ -51,6 +52,10 @@ router.post('/guess', (req, res) => {
     const answer = answerFor(req.user.id, day);
     const marks = markGuess(answer, guess);
     const win = isWin(marks);
+
+    // Для заданий ходы считает сервер сам (word_days), а не берёт номер
+    // попытки у браузера: «за 4 попытки» — это уже не только его дело.
+    noteWordGuess(req.user.id, 'wordle', day, { win, maxTries: MAX_TRIES });
 
     const attempt = Number(req.body?.attempt) || 0;
     const over = win || attempt >= MAX_TRIES;

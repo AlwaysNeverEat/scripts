@@ -22,6 +22,7 @@ const SRC = path.dirname(fileURLToPath(import.meta.url));
 const OWNERS = {
     'cs-': 'clientSearch.css',
     'kc-': 'cases.css',
+    'qt-': 'quests.css',
 };
 
 function cssFiles(dir) {
