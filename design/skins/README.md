@@ -274,67 +274,82 @@ leaf accents).
 
 ## Матиз курьера — легендарка
 
-Пак `matiz` уже описан в `SKIN_PACKS` (`tier: 'legendary'`, вес 1) и стоит с
-`ready: false`: в кейсы он попадёт, как только лист нарежется и флаг снимут.
-Раскладка та же — резак узнаёт предметы по форме, а не по смыслу: длинный
-Матиз — самый высокий, баннер — самый широкий, руль — с дырой.
+Пак `matiz` описан в `SKIN_PACKS` (`tier: 'legendary'`, вес 1) и стоит с
+`ready: false`: в кейсы попадёт, как только лист нарежется и флаг снимут.
 
-Три ловушки, все в промпте:
+Первый заход провалился, и по вине промпта: мультяшный стиль и запрет
+логотипов дали «какую-то жёлтую машинку», а длинный Матиз ВИДОМ СВЕРХУ
+читался как автобус — сверху у любой жёлтой машины одна и та же крыша. Этот
+пак держится на узнаваемости, поэтому второй промпт — реализм, настоящий
+Daewoo Matiz первого поколения и брендированный короб «Яндекс Еды».
 
-- **длинный Матиз — вид СВЕРХУ**, и туловище машины (крыша) обязано быть
-  однотонным, с параллельными бортами: швы дверей, люк или полосы на крыше
-  повторялись бы на каждой плитке, и запись на три часа стала бы
-  электричкой. Капот — «голова», багажник с коробом — «лапы»;
-- **руль — только ОБОД.** Спицы и центр руля легли бы поверх аватарки: резак
-  ищет пустую середину, и со спицами её просто нет;
-- **логотипов нет нигде.** Жёлтый термокороб и Матиз читаются без надписей,
-  а логотип GPT либо откажется рисовать, либо напишет кривыми буквами.
+Раскладка частей поменялась под узнаваемость:
+
+- **записи** — Матиз СПЕРЕДИ внизу (это «лапы»), а на крыше у него башня
+  термокоробов: верхний короб с логотипом — «голова», ровная жёлтая стенка
+  короба — «туловище». На длинной записи растёт короб, а не машина, и Матиз
+  узнаётся на любой длине. Логотип только на верхнем коробе — туловище обязано
+  быть однотонным, иначе плитка повторяла бы надпись через каждые полкапсулы;
+- **рамка** — КОЛЕСО Матиза (шина с диском), а не руль: у руля спицы ложатся
+  поверх аватарки, а у колеса середина — это и есть дыра диска;
+- шапка и машина на одну запись — Матиз с коробом, как есть.
+
+Если GPT откажется рисовать чужой логотип или напишет его кривыми буквами —
+переспросить тем же промптом; надпись на коробе тут половина шутки.
 
 ```text
-Create ONE image, 1536×1024 (landscape), PNG with a fully TRANSPARENT background.
-It is a sticker sheet for a LEGENDARY website skin pack called "Courier Matiz":
-a tiny yellow Daewoo-Matiz-style city car of a food-delivery courier. Draw exactly
-FOUR separate objects, each surrounded by at least 60 px of empty transparent
-space, nothing touching another object or the canvas edge. NO text, NO letters,
-NO numbers, NO logos, NO license plates text, NO watermark anywhere. Every object
-FULLY OPAQUE with clean edges — no soft glow fading into the background.
+Create ONE image, 1536×1024 (landscape), PNG with a fully TRANSPARENT background
+(real alpha transparency, NOT a drawn checkerboard). It is an asset sheet for a
+LEGENDARY skin pack of an internal company website: "Yandex Eda courier on a
+Daewoo Matiz". Draw exactly FOUR separate objects, each surrounded by at least
+60 px of empty transparent space, nothing touching another object or the canvas
+edge. No watermark. Every object FULLY OPAQUE with clean edges — no soft glow
+fading into the background.
 
-Style: cute kawaii sticker style, chunky rounded shapes, clean thick dark
-outlines, soft flat shading, big round headlights like friendly eyes. The car is
-bright lemon-yellow; the courier's insulated delivery box is a slightly darker
-warm yellow, plain, with no logo. Palette accents: night blue, warm headlight
-glow colors drawn INSIDE the objects only.
+Style: REALISTIC, high-detail semi-photoreal digital painting / 3D render, real
+proportions, real materials (car paint reflections, rubber, insulated fabric).
+NOT cartoon, NOT chibi, NOT kawaii, no faces on the car.
 
-1) LEFT EDGE, full height of the canvas — "LONG MATIZ LIMOUSINE", seen strictly
-   FROM ABOVE (top-down view), pointing UP, like the "longcat" meme but a car:
-   at the top the short rounded hood with two headlights and the windshield;
-   then a VERY LONG STRAIGHT ROOF with perfectly parallel sides — PLAIN UNIFORM
-   YELLOW, no door seams, no windows, no stripes, no roof racks, no shading
-   changes along its length, so any horizontal slice of it looks identical;
-   at the very bottom the rear window, the little trunk and the yellow
-   delivery box sitting on the back. Object about 170 px wide and about 940 px
-   tall.
+The car: a real first-generation Daewoo Matiz (1998–2008): tiny 5-door city
+hatchback, tall rounded "bubble" body, big round-oval headlights, small grille
+with the Daewoo badge, black plastic bumpers, steel wheels. Color: faded
+silver-grey or white, a little worn — a typical courier's car.
+The delivery box: the bright Yandex Eda yellow (#FCE000) insulated courier box
+with the black "Яндекс Еда" wordmark printed on it, exactly like the real
+Yandex Eda courier backpacks.
+
+1) LEFT EDGE, full height of the canvas — "TOWER OF ORDERS": a very tall stack
+   made of ONE extremely tall Yandex Eda insulated box standing on the roof rack
+   of the Matiz. From top to bottom: the top of the box with its handle and the
+   "Яндекс Еда" wordmark; then a VERY LONG STRAIGHT plain yellow box wall with
+   perfectly parallel vertical sides — PLAIN UNIFORM YELLOW FABRIC, no text, no
+   seams, no straps, no shading changes along its length, so any horizontal
+   slice of it looks identical; then at the very bottom the Matiz seen strictly
+   FROM THE FRONT (headlights, grille, bumper, wheels), carrying the box on its
+   roof. The car is exactly as wide as the box or slightly wider. Object about
+   180 px wide and about 940 px tall.
 
 2) TOP RIGHT — wide BANNER, about 1150×290 px, a fully filled rectangle (opaque,
-   square corners). A rainy city night: wet asphalt with reflections of street
-   lights, the cute yellow Matiz with the delivery box on its roof rack drives
-   fast toward the viewer on the RIGHT third, headlights on, little speed
-   lines. The LEFT two thirds stay calm and dark (night sky over blurred city
-   lights) because text will be placed over it.
+   square corners). A rainy Russian city at night: wet asphalt reflecting
+   street lights and shop signs, the Matiz with a Yandex Eda box on the roof
+   rack drives toward the viewer on the RIGHT third, headlights on, a courier
+   in a yellow Yandex Eda jacket at the wheel. The LEFT two thirds stay calm and
+   dark (blurred night city lights) because text will be placed over it.
 
-3) BOTTOM CENTER — round AVATAR FRAME, about 520×520 px: the RIM of a car
-   steering wheel ONLY — a closed ring, NO spokes, NO hub, NO horn in the
-   middle; a little pine-tree air freshener hangs from the top of the rim, two
-   small hands in courier gloves hold the rim at "ten and two", and a tiny
-   yellow delivery box sits at the bottom of the rim. The CENTER is a
-   perfectly EMPTY TRANSPARENT CIRCLE (a profile photo goes there); the rim is
-   thin, about 10–12% of the frame diameter, and closed all the way around.
+3) BOTTOM CENTER — round AVATAR FRAME, about 520×520 px: a Matiz WHEEL seen
+   straight from the side — a black tire with visible tread and a thin steel
+   rim ring, with a small Yandex Eda yellow sticker on the tire sidewall. The
+   whole CENTER of the wheel (where the hub and disc would be) is a perfectly
+   EMPTY TRANSPARENT CIRCLE — no hub, no bolts, no spokes; a profile photo goes
+   there. The tire band is about 12–14% of the frame diameter and closed all
+   the way around.
 
-4) BOTTOM RIGHT — the same tiny yellow Matiz in a three-quarter front view,
-   smiling headlights, the delivery box on the roof rack, a small scooter-style
-   exhaust puff (whole object visible), fits in a square of about 320×320 px.
+4) BOTTOM RIGHT — the same Matiz in a three-quarter front view with a Yandex Eda
+   box strapped to the roof rack (whole car visible), fits in a square of about
+   340×340 px.
 ```
 
-Что проверить до нарезки: у длинного Матиза крыша однотонная и борта
-параллельны, у руля нет спиц, букв и логотипов нет нигде, фон прозрачный.
-После нарезки — снять `ready: false` у `matiz` в `shared/skins.js`.
+Что проверить до нарезки: Матиз узнаётся (круглые фары, «пузатый» кузов), на
+верхнем коробе и на баннере есть «Яндекс Еда», туловище башни однотонное без
+надписей и швов, у колеса пустая середина без ступицы, фон по-настоящему
+прозрачный. После нарезки — снять `ready: false` у `matiz` в `shared/skins.js`.
