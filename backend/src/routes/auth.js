@@ -12,6 +12,7 @@ import {
   findActivePendingByLogin, createRegistrationRequest,
 } from '../auth/registrationRequests.js';
 import { notifyNewRegistrationRequest } from '../bot/notifyRegistration.js';
+import { releaseOperator } from '../skins/store.js';
 
 const router = Router();
 
@@ -118,6 +119,10 @@ router.post('/logout', async (req, res) => {
     const token = parseBearerToken(req.headers['authorization']);
     const session = await verifySessionToken(token);
     if (session) {
+      // Вышел — встал из-за телефона: код оператора освобождается, и звонки
+      // под ним до прихода сменщика не уходят в его скин. Побочное дело:
+      // упавшее освобождение выход не роняет.
+      await releaseOperator(session.user.id).catch(err => console.error('releaseOperator', err));
       const closed = await destroyAllUserSessions(session.user.id);
       return res.json({ ok: true, everywhere: true, closedSessions: closed });
     }

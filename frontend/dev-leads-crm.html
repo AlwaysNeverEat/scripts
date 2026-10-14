@@ -141,12 +141,24 @@
       }, 16000);
     };
 
+    // Код 101 занят хозяином кота с начала времён.
+    const CLAIMS = [{ code: '101', userId: 'cat-user', at: 0 }];
+
     async function stubFetch(path, opts = {}) {
       const method = opts.method || 'GET';
       const body = opts.body || {};
       if (kase() === 'auth' && !path.startsWith('/api/crm/login')) { await wait(300); throw fail('crm_auth_required', 'нет сессии CRM — войдите'); }
       if (path === '/api/crm/login') { await wait(500); caseSel.value = 'ok'; return { ok: true }; }
-      if (path === '/api/skins') return { skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: PACK, cover: PACK, leads: PACK, records: PACK }, operator: '101' }] : [], canEdit: false, mine: null };
+      if (path === '/api/skins') return { skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: PACK, cover: PACK, leads: PACK, records: PACK }, operator: '101' }] : [], claims: CLAIMS, canEdit: false, mine: null };
+      // Сел под код: звонки с этой минуты — «мои» (у песочницы скина нет), то
+      // есть новые звонки на 101 уже без кота, а старые остаются в нём. Время
+      // песочницы — местное, выданное за московское, как и у звонков.
+      if (path === '/api/skins/me/operator') {
+        const last = CLAIMS.filter(c => c.code === body.operator).at(-1);
+        if (!body.operator || last?.userId === 'me') return { ok: true, changed: false };
+        CLAIMS.push({ code: body.operator, userId: 'me', at: Date.now() - new Date().getTimezoneOffset() * 60000 - 3 * 3600000 });
+        return { ok: true, changed: true };
+      }
 
       if (path === '/api/crm/leads/feed') {
         await wait(250);

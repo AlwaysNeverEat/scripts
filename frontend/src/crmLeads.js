@@ -27,7 +27,7 @@ import './crmLeads.css';
 import { noteOperatorCode } from './skins.js';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
 import { setPickedLead } from './leadPick.js';
-import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime } from '../../shared/crmLeads.js';
+import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime, mskWall } from '../../shared/crmLeads.js';
 
 const FEED_POLL_MS = 5000;
 
@@ -169,7 +169,8 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             else localStorage.removeItem(operatorStoreKey());
         } catch { /* приватный режим — код живёт до перезагрузки */ }
         if (!state.operator && state.filter === 'mine') state.filter = 'all';
-        // Код нужен и скину: по нему другие узнают звонки хозяина скина.
+        // Код нужен и скину: звонки под ним с этой минуты — твои, а стёртый
+        // код освобождает место (skins.js).
         noteOperatorCode(state.operator);
             }
 
@@ -221,11 +222,17 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         });
     }
 
-    // Скин звонка — по коду оператора, который его принял: чей звонок, того и
-    // скин (skins.js). Звонок без оператора — без скина.
+    // Скин звонка — того, кто сидел под кодом оператора В МОМЕНТ ЗВОНКА
+    // (skins.js): на одном коде работают сменами, и вчерашний звонок сменщика
+    // — его, даже когда код сегодня занят тобой. Время CRM — московская стена,
+    // а занятия кода — настоящее время, отсюда mskWall наоборот.
+    // Звонок без оператора — без скина.
     const skinAttrs = (c) => {
         const op = operatorKey(c.operator);
-        return op ? ` data-skin-part="leads" data-skin-op="${esc(op)}"` : '';
+        if (!op) return '';
+        const t = callTime(c);
+        const at = t ? ` data-skin-at="${t - mskWall(0)}"` : '';
+        return ` data-skin-part="leads" data-skin-op="${esc(op)}"${at}`;
     };
 
     function feedRowHtml(c) {
@@ -1019,6 +1026,9 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         activate() {
             active = true;
             loadOperator();
+            // Открыл «Лиды» — сел под свой код: звонки с этой минуты твои.
+            // Пустого кода не шлём — открыть вкладку не значит встать с места.
+            if (state.operator) noteOperatorCode(state.operator);
                         if (state.feedStatus !== 'auth') loadFeed();
             schedule();
         },

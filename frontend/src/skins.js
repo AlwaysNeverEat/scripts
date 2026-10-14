@@ -7,6 +7,7 @@
 //   data-skin-part="frame|cover|leads|records"
 //   data-skin-user="<id человека>"       — рамка, шапка профиля, записи
 //   data-skin-op="<код оператора>"       — звонок в ленте лидов
+//   data-skin-at="<мс>"                  — лиды: когда был звонок (чья смена)
 //   data-skin-slots="<N>"                — записи: сколько получасов в капсуле
 // Красит их этот модуль — сразу при появлении в документе (наблюдатель за
 // разметкой, как у переключателей и перетекающего текста) и заново, когда
@@ -41,7 +42,7 @@ for (const [path, meta] of Object.entries(METAS)) {
 const SLOT_H = 44;
 const STRIP_MAX = 52;
 
-const state = { skins: [], mine: null, canEdit: false, apiFetch: null, loaded: false };
+const state = { skins: [], claims: [], mine: null, canEdit: false, apiFetch: null, loaded: false };
 const listeners = new Set();
 
 // Есть ли у пака картинки ЭТОЙ части. Паки рисуются по частям, и пак с одной
@@ -56,6 +57,7 @@ export async function loadSkins(apiFetch) {
     try {
         const data = await apiFetch('/api/skins');
         state.skins = Array.isArray(data.skins) ? data.skins : [];
+        state.claims = Array.isArray(data.claims) ? data.claims : [];
         state.canEdit = Boolean(data.canEdit);
         state.mine = data.mine || null;
         state.loaded = true;
@@ -77,16 +79,22 @@ export const localOperator = (userId) => {
     try { return skinOperatorKey(localStorage.getItem(`zm_leads_operator:${userId || 'anon'}`) || ''); } catch { return ''; }
 };
 
-// Код оператора живёт во вкладке «Лиды» (на устройстве); серверу он нужен,
-// чтобы ДРУГИЕ узнали звонки хозяина скина. Шлём, только если скин надет и
-// код правда поменялся — вкладка зовёт это на каждое сохранение кода.
+// Код оператора — место за телефоном, на одном коде работают сменами.
+// Вкладка «Лиды» зовёт это при каждом открытии и смене кода: человек САДИТСЯ
+// под код, и звонки с этого момента — его (без скина — значит без скина, а не
+// в скине сменщика). Зовут все, а не только носящие скин. Повтор сервер не
+// пишет, и список перечитываем, только если хозяин правда сменился.
+// Код набирают по цифре, и каждое нажатие — сохранение: без паузы «101»
+// успел бы занять «1» и «10», то есть чужие коды. Уходит только последний.
+let claimTimer = 0;
 export function noteOperatorCode(code) {
-    const k = skinOperatorKey(code);
-    if (!state.mine || state.mine.operator === k || !state.apiFetch) return;
-    state.mine = { ...state.mine, operator: k };
-    state.apiFetch('/api/skins/me/operator', { method: 'PUT', body: { operator: k } })
-        .then(() => loadSkins(state.apiFetch))
-        .catch(() => { /* не дошло — уйдёт со следующей сменой кода или скина */ });
+    clearTimeout(claimTimer);
+    claimTimer = setTimeout(() => {
+        if (!state.apiFetch) return;
+        state.apiFetch('/api/skins/me/operator', { method: 'PUT', body: { operator: skinOperatorKey(code) } })
+            .then((r) => { if (r?.changed) return loadSkins(state.apiFetch); })
+            .catch(() => { /* не дошло — уйдёт со следующим открытием «Лидов» */ });
+    }, 1200);
 }
 
 // Пометка аватарки: рамка скина — у ЛЮБОЙ аватарки человека, а не только в
@@ -106,7 +114,7 @@ function packOf(el) {
     if (el.dataset.skinPack !== undefined) return el.dataset.skinPack || null;
     const part = el.dataset.skinPart;
     const skin = part === 'leads'
-        ? skinForOperator(state.skins, el.dataset.skinOp)
+        ? skinForOperator(state.skins, state.claims, el.dataset.skinOp, Number(el.dataset.skinAt) || 0)
         : state.skins.find(x => x.userId === el.dataset.skinUser);
     return skin?.parts?.[part] || null;
 }

@@ -98,13 +98,30 @@ export function publicSkin(row) {
     return { userId: row.user_id, parts, operator: skinOperatorKey(row.operator) };
 }
 
-/**
- * Кто «хозяин» звонка по коду оператора. Один код у двоих — не угадываем
- * (лучше без скина, чем чужой), а без кода скина у лидов нет.
- */
-export function skinForOperator(skins, code) {
+// Чьё время на коде: claims — строки operator_claims ({ code, userId, at }),
+// at — мс настоящего времени. Хозяин звонка — последний, кто занял код ДО
+// звонка; userId: null — код освобождён (вышел из аккаунта). Звонок раньше
+// всех известных строк — ничей: угадывать, кто сидел тогда, не из чего.
+// Без времени звонка — хозяин сейчас.
+export function operatorAt(claims, code, at) {
     const k = skinOperatorKey(code);
     if (!k) return null;
-    const hits = (skins || []).filter(s => s.parts?.leads && s.operator === k);
-    return hits.length === 1 ? hits[0] : null;
+    let best = null;
+    for (const c of claims || []) {
+        if (c.code !== k || (at && c.at > at)) continue;
+        if (!best || c.at > best.at) best = c;
+    }
+    return best?.userId || null;
 }
+
+/**
+ * Скин звонка: скин лидов того, кто сидел под кодом в момент звонка. Код —
+ * место за телефоном, а не человек (на одном коде работают сменами), поэтому
+ * сам код в скине не хранится: сменщик без скина иначе получал чужой.
+ */
+export function skinForOperator(skins, claims, code, at) {
+    const owner = operatorAt(claims, code, at);
+    if (!owner) return null;
+    return (skins || []).find(s => s.userId === owner && s.parts?.leads) || null;
+}
+

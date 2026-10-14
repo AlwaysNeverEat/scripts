@@ -11,15 +11,28 @@ const USER = { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', login: 'borya' };
 
 function fakeDb() {
     const rows = new Map();
+    // operator_claims в памяти — те же три запроса, что у store.js. Сам SQL
+    // проверялся на живом Postgres; тут — что роутер зовёт их как надо.
+    const claims = [];
+    const last = (code) => claims.filter(c => c.code === code).at(-1);
     return async (sql, p) => {
+        if (sql.includes('FROM operator_claims c')) {
+            return { rows: claims.map(c => ({ code: c.code, user_id: c.userId, at: new Date(c.at) })) };
+        }
+        if (sql.includes('INSERT INTO operator_claims') && sql.includes('NULL::uuid')) {
+            const codes = [...new Set(claims.map(c => c.code))].filter(k => k !== p[1] && last(k).userId === p[0]);
+            for (const code of codes) claims.push({ code, userId: null, at: Date.now() });
+            return { rows: [], rowCount: codes.length };
+        }
+        if (sql.includes('INSERT INTO operator_claims')) {
+            if (last(p[1])?.userId === p[0]) return { rows: [], rowCount: 0 };
+            claims.push({ code: p[1], userId: p[0], at: Date.now() });
+            return { rows: [], rowCount: 1 };
+        }
         if (sql.trim() === 'SELECT user_id, parts, operator FROM user_skins') return { rows: [...rows.values()] };
         if (sql.startsWith('SELECT') && sql.includes('WHERE user_id = $1')) return { rows: rows.has(p[0]) ? [rows.get(p[0])] : [] };
         if (sql.startsWith('INSERT INTO user_skins')) {
             rows.set(p[0], { user_id: p[0], parts: JSON.parse(p[1]), operator: p[2] });
-            return { rows: [] };
-        }
-        if (sql.startsWith('UPDATE user_skins')) {
-            if (rows.has(p[0])) rows.get(p[0]).operator = p[1];
             return { rows: [] };
         }
         throw new Error('fakeDb: незнакомый запрос ' + sql);
@@ -63,12 +76,25 @@ test('надеть можно только своё, редактор — что
     assert.equal(own.json.mine.parts.frame, 'cat');
 });
 
-test('незнакомый пак — отказ, снятый скин пропадает из списка, код живёт', async (t) => {
+test('незнакомый пак — отказ, снятый скин пропадает из списка', async (t) => {
     const call = await serve(t);
     assert.equal((await call('/me', { method: 'PUT', editor: true, body: { parts: { leads: 'dragon' } } })).status, 400);
-    await call('/me', { method: 'PUT', editor: true, body: { parts: { leads: 'cat' }, operator: '5' } });
-    await call('/me/operator', { method: 'PUT', editor: true, body: { operator: '012' } });
-    assert.equal((await call('/')).json.skins[0].operator, '12');
-    await call('/me', { method: 'PUT', editor: true, body: { parts: {}, operator: '12' } });
+    await call('/me', { method: 'PUT', editor: true, body: { parts: { leads: 'cat' } } });
+    assert.equal((await call('/')).json.skins.length, 1);
+    await call('/me', { method: 'PUT', editor: true, body: { parts: {} } });
     assert.deepEqual((await call('/')).json.skins, []);
+});
+
+test('код оператора занимают: сменщик без скина забирает код себе', async (t) => {
+    const call = await serve(t);
+    await call('/me', { method: 'PUT', editor: true, body: { parts: { leads: 'cat' } } });
+    assert.equal((await call('/me/operator', { method: 'PUT', editor: true, body: { operator: '0101' } })).json.changed, true);
+    assert.equal((await call('/me/operator', { method: 'PUT', editor: true, body: { operator: '101' } })).json.changed, false, 'повтор не пишется');
+    // Сменщик без строки скина вовсе — раньше его код никуда не записывался.
+    assert.equal((await call('/me/operator', { method: 'PUT', body: { operator: '101' } })).json.changed, true);
+    const { claims } = (await call('/')).json;
+    assert.deepEqual(claims.map(c => [c.code, c.userId]), [['101', EDITOR.id], ['101', USER.id]]);
+    // Пересел на другой код — прежний освобождается.
+    await call('/me/operator', { method: 'PUT', body: { operator: '105' } });
+    assert.deepEqual((await call('/')).json.claims.slice(-2).map(c => [c.code, c.userId]), [['101', null], ['105', USER.id]]);
 });
