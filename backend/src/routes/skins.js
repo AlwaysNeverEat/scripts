@@ -21,8 +21,9 @@ export function createSkinsRouter({ db, ownedOf = (id) => walletReader(id).owned
     };
     router.get('/', async (req, res) => {
         try {
-            const [skins, mine] = await Promise.all([store.listSkins(opts), store.mySkin(req.user.id, opts)]);
-            res.json({ skins, canEdit: canEditSkin(req.user), mine });
+            const [skins, mine, claims] = await Promise.all([
+                store.listSkins(opts), store.mySkin(req.user.id, opts), store.listClaims(opts)]);
+            res.json({ skins, claims, canEdit: canEditSkin(req.user), mine });
         } catch (err) { fail(res, 'GET /api/skins', err); }
     });
 
@@ -42,10 +43,13 @@ export function createSkinsRouter({ db, ownedOf = (id) => walletReader(id).owned
         } catch (err) { fail(res, 'PUT /api/skins/me', err); }
     });
 
+    // Сел под код во вкладке «Лиды» (её открытие и смена кода). Зовут ВСЕ, а
+    // не только носящие скин: сменщик без скина тоже должен занять код, иначе
+    // его звонки достанутся тому, у кого скин есть.
     router.put('/me/operator', async (req, res) => {
         try {
-            await store.saveOperator(req.user.id, skinOperatorKey(req.body?.operator), opts);
-            res.json({ ok: true });
+            const changed = await store.claimOperator(req.user.id, skinOperatorKey(req.body?.operator), opts);
+            res.json({ ok: true, changed });
         } catch (err) { fail(res, 'PUT /api/skins/me/operator', err); }
     });
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, gemsWord, activeSeason, nextSeason, packOdds, casePacks, rarityOdds } from './cases.js';
+import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, DUP_XP_SMALL, DUP_XP_BIG, gemsWord, activeSeason, nextSeason, packOdds, casePacks, rarityOdds } from './cases.js';
 import { SKIN_PACKS } from './skins.js';
 
 const season = { packs: ['cat', 'fox'] };
@@ -31,7 +31,7 @@ test('ключ стоит 175 гемов и говорит, сколько не 
     assert.equal(planKeys(bal({ gems: 100 })).short, 75);
 });
 
-test('малый кейс: 45 гемов, дубликат — 25 опыта и без выдачи', () => {
+test('малый кейс: 45 гемов, дубликат — DUP_XP_SMALL опыта и без выдачи', () => {
     const items = allItems();
     const first = items[0];
     const r = openCase('small', { balance: bal({ gems: 45 }), owned: new Set(), rand: seq(0), season });
@@ -40,11 +40,11 @@ test('малый кейс: 45 гемов, дубликат — 25 опыта и 
     assert.equal(r.row.xp, 0);
     const d = openCase('small', { balance: bal({ gems: 45 }), owned: new Set([itemKey(first)]), rand: seq(0), season });
     assert.deepEqual(d.grant, []);
-    assert.equal(d.row.xp, 25);
+    assert.equal(d.row.xp, DUP_XP_SMALL);
     assert.equal(openCase('small', { balance: bal({ gems: 44 }), owned: new Set(), rand: seq(0), season }).short, 1);
 });
 
-test('большой кейс: пак целиком, за повтор — 75 опыта ОДИН раз', () => {
+test('большой кейс: пак целиком, за повтор — DUP_XP_BIG опыта ОДИН раз', () => {
     const none = openCase('big', { balance: bal({ keys: 1 }), owned: new Set(), rand: seq(0), season });
     assert.equal(none.grant.length, 4);
     assert.equal(none.row.xp, 0);
@@ -54,12 +54,12 @@ test('большой кейс: пак целиком, за повтор — 75 �
     const three = new Set(['frame', 'cover', 'leads'].map(part => itemKey({ pack, part })));
     const part = openCase('big', { balance: bal({ keys: 1 }), owned: three, rand: seq(0), season });
     assert.deepEqual(part.grant, [{ pack, part: 'records' }]);
-    assert.equal(part.row.xp, 75);
+    assert.equal(part.row.xp, DUP_XP_BIG);
 
     const all = new Set(['frame', 'cover', 'leads', 'records'].map(p => itemKey({ pack, part: p })));
     const full = openCase('big', { balance: bal({ keys: 1 }), owned: all, rand: seq(0), season });
     assert.deepEqual(full.grant, []);
-    assert.equal(full.row.xp, 75);
+    assert.equal(full.row.xp, DUP_XP_BIG);
 
     assert.equal(openCase('big', { balance: bal({ gems: 999 }), owned: new Set(), rand: seq(0), season }).needKey, true);
 });

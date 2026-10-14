@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 
 import { createCasesRouter } from './cases.js';
-import { walletBalance } from '../../../shared/cases.js';
+import { walletBalance, DUP_XP_SMALL, XP_PER_GEM } from '../../../shared/cases.js';
 
 const ME = { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' };
 
@@ -84,11 +84,12 @@ test('малый кейс: нехватка говорит сколько, ду�
     for (let i = 0; i < 4; i++) await call('/open', { kind: 'small' });   // одна и та же часть (rand → 0)
     const b = (await call('/')).json.balance;
     assert.equal(b.gems, 45);
-    assert.equal(b.xp, 75);
+    assert.equal(b.xp, 3 * DUP_XP_SMALL);
     assert.equal(store.items.length, 1);
-    assert.equal((await call('/exchange', { from: 'xp', gems: 1 })).status, 409);
-    await call('/open', { kind: 'small' });
-    assert.equal((await call('/exchange', { from: 'xp', gems: 1 })).json.balance.gems, 1);
+    // Опыт меняется ровно на столько гемов, на сколько его хватает.
+    const can = Math.floor(3 * DUP_XP_SMALL / XP_PER_GEM);
+    assert.equal((await call('/exchange', { from: 'xp', gems: can + 1 })).status, 409);
+    assert.equal((await call('/exchange', { from: 'xp', gems: can })).json.balance.gems, 45 + can);
 });
 
 test('двойной клик не открывает два кейса на одни гемы', async (t) => {
