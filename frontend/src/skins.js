@@ -83,18 +83,13 @@ export const localOperator = (userId) => {
 // Вкладка «Лиды» зовёт это при каждом открытии и смене кода: человек САДИТСЯ
 // под код, и звонки с этого момента — его (без скина — значит без скина, а не
 // в скине сменщика). Зовут все, а не только носящие скин. Повтор сервер не
-// пишет, и список перечитываем, только если хозяин правда сменился.
-// Код набирают по цифре, и каждое нажатие — сохранение: без паузы «101»
-// успел бы занять «1» и «10», то есть чужие коды. Уходит только последний.
-let claimTimer = 0;
+// пишет, и список перечитываем, только если хозяин правда сменился. Код
+// уходит сюда кнопкой «Применить», а не на каждую цифру (crmLeads.js).
 export function noteOperatorCode(code) {
-    clearTimeout(claimTimer);
-    claimTimer = setTimeout(() => {
-        if (!state.apiFetch) return;
-        state.apiFetch('/api/skins/me/operator', { method: 'PUT', body: { operator: skinOperatorKey(code) } })
-            .then((r) => { if (r?.changed) return loadSkins(state.apiFetch); })
-            .catch(() => { /* не дошло — уйдёт со следующим открытием «Лидов» */ });
-    }, 1200);
+    if (!state.apiFetch) return;
+    state.apiFetch('/api/skins/me/operator', { method: 'PUT', body: { operator: skinOperatorKey(code) } })
+        .then((r) => { if (r?.changed) return loadSkins(state.apiFetch); })
+        .catch(() => { /* не дошло — уйдёт со следующим открытием «Лидов» */ });
 }
 
 // Пометка аватарки: рамка скина — у ЛЮБОЙ аватарки человека, а не только в

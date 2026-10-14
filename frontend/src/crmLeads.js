@@ -156,6 +156,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         editingComment: null,
         authNote: '',
         operator: '',          // свой код оператора — его звонки помечены «мой»
+        opDraft: null,         // набранный, но ещё не применённый код (null — не правят)
     };
 
     const operatorStoreKey = () => `${OPERATOR_KEY}:${getUserId() || 'anon'}`;
@@ -321,10 +322,11 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             <div class="ld-feed-head">
                 <div class="ld-feed-top">
                     <div class="ld-feed-title">Звонки <span class="ld-muted">${state.calls.length || ''}</span></div>
-                    <label class="ld-op" title="Ваш внутренний номер в телефонии: звонки на него будут помечены «мой». Помнится на этом компьютере.">
+                    <form class="ld-op" id="ld-op-form" title="Ваш внутренний номер в телефонии: звонки на него будут помечены «мой», а в ленте — в вашем скине. Помнится на этом компьютере.">
                         <span>Мой код</span>
-                        <input id="ld-op" class="ld-in" inputmode="numeric" maxlength="6" placeholder="101" value="${esc(state.operator)}" autocomplete="off">
-                    </label>
+                        <input id="ld-op" class="ld-in" inputmode="numeric" maxlength="6" placeholder="101" value="${esc(state.opDraft ?? state.operator)}" autocomplete="off">
+                        <button type="submit" class="btn btn-pri ld-op-apply"${opDirty() ? '' : ' hidden'}>Применить</button>
+                    </form>
                 </div>
                 <div class="ld-chips" role="tablist">
                     ${[['all', 'Все', state.calls.length], ...(state.operator ? [['mine', 'Мои', mineCount]] : []), ['live', 'Сейчас', live], ['missed', 'Пропущенные', missed]].map(([id, t, n]) =>
@@ -360,16 +362,34 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         });
         const q = feedEl.querySelector('#ld-q');
         q.oninput = () => { state.query = q.value; renderFeed({ resetScroll: true }); };
+        // Код применяется КНОПКОЙ (или Enter), а не на каждую цифру: с ним
+        // занимается место за телефоном (скин звонков, skins.js), и пока
+        // человек печатает «101», занимать «1» и «10» нельзя. Набранное, но не
+        // применённое живёт в opDraft — опрос ленты его не стирает.
         const op = feedEl.querySelector('#ld-op');
+        const apply = feedEl.querySelector('.ld-op-apply');
         op.oninput = () => {
             const digits = op.value.replace(/\D/g, '').slice(0, 6);
             if (digits !== op.value) op.value = digits;
-            saveOperator(digits);
+            state.opDraft = digits;
+            apply.hidden = !opDirty();
+        };
+        op.onkeydown = (e) => {
+            if (e.key !== 'Escape') return;
+            state.opDraft = null;
+            op.value = state.operator;
+            apply.hidden = true;
+        };
+        feedEl.querySelector('#ld-op-form').onsubmit = (e) => {
+            e.preventDefault();
+            if (opDirty()) saveOperator(state.opDraft);
+            state.opDraft = null;
+            op.blur();
+            // Шапка пересоберётся со своими чипами («Мои») и без кнопки.
             renderFeed();
         };
-        // Ушёл из поля — шапка пересоберётся со своими чипами («Мои»).
-        op.onchange = () => { op.blur(); renderFeed(); };
     }
+    const opDirty = () => state.opDraft != null && operatorKey(state.opDraft) !== state.operator;
 
     // ── Вход в CRM ───────────────────────────────────────────────────────────
 
