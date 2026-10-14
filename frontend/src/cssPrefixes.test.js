@@ -23,6 +23,7 @@ const OWNERS = {
     'cs-': 'clientSearch.css',
     'kc-': 'cases.css',
     'qt-': 'quests.css',
+    'tr-': 'trades.css',
 };
 
 function cssFiles(dir) {

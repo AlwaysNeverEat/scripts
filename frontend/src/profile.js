@@ -15,7 +15,7 @@ import { openAssignCarsModal } from './assignCars.js';
 import { activityFeedHtml, attachActivityFeed } from './activityFeed.js';
 import { openProfileSettings } from './profileSettings.js';
 import { profileHeroHtml, profileSectionHtml } from './profileLayout.js';
-import { mountCases } from './cases.js';
+import { mountSkinsHub } from './skinsHub.js';
 import { mountQuests } from './quests.js';
 import { facultySectionHtml, openFacultyTest } from './faculty.js';
 import { namePrefixHtml, nameSuffixHtml } from './namePrefix.js';
@@ -118,9 +118,9 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
 
                 ${profileSectionHtml({
                     title: 'Скины',
-                    meta: 'кейсы, гемы и примерочная',
+                    meta: 'кейсы, обмен и маркет',
                     cls: 'profile-sec-cases',
-                    body: '<div id="profile-cases"></div>',
+                    body: '<div id="profile-skins"></div>',
                 })}
 
                 ${profileSectionHtml({
@@ -145,9 +145,9 @@ export async function initProfilePage({ apiFetch, user, onUserChanged, onLogout 
             </div>
         `;
         bind();
-        // Кейсы, магазин гемов и примерочная живут своей жизнью (cases.js):
-        // кошелёк грузится отдельно и страницу профиля не держит.
-        mountCases(document.getElementById('profile-cases'), { apiFetch, user });
+        // Скины — вкладки «Кейсы», «Обмен», «Маркет» (skinsHub.js): свёрнуты,
+        // пока не нажали, и грузятся отдельно, страницу профиля не держат.
+        mountSkinsHub(document.getElementById('profile-skins'), { apiFetch, user });
         // Задания — так же отдельно (quests.js): опыт за них падает в тот же кошелёк.
         mountQuests(document.getElementById('profile-quests'), { apiFetch, user });
         // Клик по клетке ленты — окно с записями этого дня (см. activityFeed.js).

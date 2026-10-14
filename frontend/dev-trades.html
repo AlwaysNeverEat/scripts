@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<!-- Дев-песочница панели «Скины» целиком: вкладки «Кейсы», «Обмен», «Маркет» —
+     без входа и без базы. Открыть: npx vite → /dev-trades.html
+
+     Кошелёк, вещи, предложения и лоты живут в памяти страницы и проверяются
+     ТЕМИ ЖЕ правилами, что на сервере (shared/trades.js, shared/cases.js).
+     Кроме вас есть ещё двое — Ерлан и Борис, у обоих вещи и гемы.
+       кнопка «Ерлан предлагает» — входящее предложение (бейдж на «Обмене»);
+       кнопка «Ерлан принял» — ваше первое висящее предложение принимается.
+     В прод-сборку не попадает: vite собирает только index.html. -->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>dev: обмен и маркет</title>
+  <script>
+    try {
+      if (localStorage.getItem('cars_db_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    } catch {}
+  </script>
+</head>
+<body>
+  <div class="page-head">
+    <h2 class="page-title">Скины: кейсы, обмен, маркет — песочница</h2>
+    <p class="page-sub">Всё в памяти страницы, правила — shared/trades.js.</p>
+  </div>
+  <div class="page-body" style="display:flex; gap:8px; flex-wrap:wrap">
+    <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-sec" id="dev-incoming">Ерлан предлагает</button>
+    <button class="btn btn-sec" id="dev-accept">Ерлан принял</button>
+  </div>
+  <div class="profile-content">
+    <div class="profile-page">
+      <section class="profile-sec profile-sec-cases">
+        <div class="profile-sec-head"><h3 class="profile-sec-title">Скины</h3><span class="profile-sec-meta">кейсы, обмен и маркет</span></div>
+        <div class="profile-sec-body"><div id="profile-skins"></div></div>
+      </section>
+    </div>
+  </div>
+  <script type="module">
+    import './src/style.css';
+    import { initTheme, applyTheme, currentTheme } from './src/theme.js';
+    import { initSegmented } from './src/segmented.js';
+    import { initSkins, loadSkins } from './src/skins.js';
+    import { mountSkinsHub } from './src/skinsHub.js';
+    import { walletBalance, planExchange, planKeys, openCase, itemKey, activeSeason, nextSeason, casePacks } from '../shared/cases.js';
+    import { cleanSkin, publicSkin } from '../shared/skins.js';
+    import { cleanOffer, tradeBlocker, cleanListing, buyBlocker } from '../shared/trades.js';
+
+    initTheme();
+    initSegmented();
+    initSkins();
+    (await import('./src/textMorph.js')).initTextMorph();
+
+    const ME = { id: 'me', login: 'borya', display_name: 'Дежурный по станции', avatar: null };
+    const PEOPLE = { me: 'Дежурный по станции', erlan: 'Ерлан', boris: 'Борис' };
+    const items = [
+      ['me', 'cat', 'frame'], ['me', 'cat', 'cover'], ['me', 'fox', 'records'], ['me', 'halloween', 'leads'],
+      ['erlan', 'matiz', 'frame'], ['erlan', 'raccoon', 'cover'], ['erlan', 'bunny', 'records'], ['erlan', 'cat', 'frame'],
+      ['boris', 'fox', 'frame'], ['boris', 'halloween', 'cover'],
+    ].map(([user, pack, part]) => ({ user, pack, part }));
+    const ledger = [{ user: 'me', gems: 400 }, { user: 'erlan', gems: 700 }, { user: 'boris', gems: 90 }];
+    const offers = [];
+    const listings = [{ id: 1, seller: 'boris', pack: 'fox', part: 'frame', price: 120, status: 'active' },
+      { id: 2, seller: 'erlan', pack: 'raccoon', part: 'cover', price: 300, status: 'active' }];
+    let skin = null;
+
+    const owned = (u) => items.filter(i => i.user === u).map(({ pack, part }) => ({ pack, part }));
+    const keys = (u) => new Set(owned(u).map(itemKey));
+    const gemsOf = (u) => ledger.filter(r => r.user === u).reduce((s, r) => s + (r.gems || 0), 0);
+    const meBalance = () => {
+      const sums = {};
+      for (const r of ledger.filter(x => x.user === 'me')) for (const k of ['gems', 'records', 'rubles', 'xp', 'keys']) sums[k] = (sums[k] || 0) + (r[k] || 0);
+      return walletBalance({ recordsTotal: 137, rublesTotal: 300, sums });
+    };
+    const person = (id) => ({ id, name: PEOPLE[id], avatar: null });
+    const fail = (message) => { throw new Error(message); };
+    const move = (from, to, it) => {
+      items.find(i => i.user === from && i.pack === it.pack && i.part === it.part).user = to;
+      for (const l of listings) if (l.seller === from && l.pack === it.pack && l.part === it.part && l.status === 'active') l.status = 'gone';
+    };
+    const offerOut = (o) => ({ ...o, fromUser: person(o.from), toUser: person(o.to) });
+    const snapshot = () => ({ gems: gemsOf('me'), owned: owned('me'), offers: offers.filter(o => o.from === 'me' || o.to === 'me').slice().reverse().map(offerOut) });
+    const market = () => ({ listings: listings.filter(l => l.status === 'active').slice().reverse().map(l => ({ ...l, sellerUser: person(l.seller) })), sales: listings.filter(l => l.status === 'sold'), gems: gemsOf('me'), owned: owned('me') });
+    function accept(o) {
+      const b = tradeBlocker(o, { fromOwned: keys(o.from), toOwned: keys(o.to), fromGems: gemsOf(o.from), toGems: gemsOf(o.to) });
+      if (b) { Object.assign(o, { status: 'failed', reason: b, closedAt: new Date().toISOString() }); fail(`обмен не прошёл: ${b}`); }
+      for (const it of o.give) move(o.from, o.to, it);
+      for (const it of o.want) move(o.to, o.from, it);
+      const g = o.giveGems - o.wantGems;
+      if (g) ledger.push({ user: o.from, gems: -g }, { user: o.to, gems: g });
+      Object.assign(o, { status: 'accepted', closedAt: new Date().toISOString() });
+    }
+
+    async function apiFetch(path, { method = 'GET', body } = {}) {
+      await new Promise(r => setTimeout(r, 200));
+      const m = path.match(/^\/api\/trades\/(offers|market)\/(\d+)\/(\w+)$/);
+      if (path === '/api/trades') return snapshot();
+      if (path.startsWith('/api/trades/people?')) {
+        const q = new URLSearchParams(path.split('?')[1]).get('q').toLowerCase();
+        return { people: ['erlan', 'boris'].filter(id => PEOPLE[id].toLowerCase().includes(q)).map(id => ({ ...person(id), items: owned(id).length })) };
+      }
+      if (path.startsWith('/api/trades/people/')) { const id = path.split('/').pop(); return { person: { ...person(id), items: owned(id) } }; }
+      if (path === '/api/trades/offers') {
+        const { offer, error } = cleanOffer(body, 'me');
+        if (error) fail(error);
+        const b = tradeBlocker(offer, { fromOwned: keys('me'), toOwned: keys(offer.to), fromGems: gemsOf('me'), toGems: Infinity });
+        if (b) fail(b);
+        offers.push({ ...offer, id: offers.length + 1, from: 'me', status: 'pending', createdAt: new Date().toISOString() });
+        return snapshot();
+      }
+      if (m?.[1] === 'offers') {
+        const o = offers.find(x => x.id === Number(m[2]));
+        if (o.status !== 'pending') fail('предложение уже закрыто');
+        if (m[3] === 'accept') accept(o);
+        else Object.assign(o, { status: m[3] === 'decline' ? 'declined' : 'cancelled', closedAt: new Date().toISOString() });
+        return snapshot();
+      }
+      if (path === '/api/trades/market' && method === 'GET') return market();
+      if (path === '/api/trades/market') {
+        const { listing, error } = cleanListing(body);
+        if (error) fail(error);
+        if (!keys('me').has(itemKey(listing))) fail('этой вещи у вас нет');
+        for (const l of listings) if (l.seller === 'me' && itemKey(l) === itemKey(listing) && l.status === 'active') l.status = 'cancelled';
+        listings.push({ ...listing, id: listings.length + 1, seller: 'me', status: 'active' });
+        return market();
+      }
+      if (m?.[1] === 'market') {
+        const l = listings.find(x => x.id === Number(m[2]));
+        if (m[3] === 'cancel') { l.status = 'cancelled'; return market(); }
+        const b = buyBlocker(l, { buyerId: 'me', sellerOwned: keys(l.seller), buyerOwned: keys('me'), buyerGems: gemsOf('me') });
+        if (b) fail(b);
+        move(l.seller, 'me', l);
+        ledger.push({ user: 'me', gems: -l.price }, { user: l.seller, gems: l.price });
+        Object.assign(l, { status: 'sold', buyer: 'me', closedAt: new Date().toISOString() });
+        return market();
+      }
+      // Кейсы — тем же кошельком, что у обменника.
+      if (path === '/api/cases') {
+        const season = activeSeason(Date.now());
+        return { balance: meBalance(), owned: owned('me'), packs: casePacks(season),
+          season: season && { id: season.id, title: season.title, ends: season.ends }, next: season ? null : nextSeason(Date.now()) };
+      }
+      if (path === '/api/cases/exchange') { const p = planExchange(meBalance(), body.from, body.gems); if (p.error) fail(p.error); ledger.push({ user: 'me', ...p.row }); return { balance: meBalance() }; }
+      if (path === '/api/cases/key') { const p = planKeys(meBalance(), 1); if (p.error) fail(p.error); ledger.push({ user: 'me', ...p.row }); return { balance: meBalance() }; }
+      if (path === '/api/cases/open') {
+        const p = openCase(body.kind, { balance: meBalance(), owned: keys('me'), rand: (n) => Math.floor(Math.random() * n), season: activeSeason(Date.now()) });
+        if (p.error) fail(p.error);
+        ledger.push({ user: 'me', ...p.row });
+        for (const g of p.grant) items.push({ user: 'me', ...g });
+        return { prize: p.prize, grant: p.grant, dup: p.dup, xp: p.row.xp, balance: meBalance(), owned: owned('me') };
+      }
+      if (path === '/api/skins' && method === 'GET') {
+        const pub = skin ? publicSkin({ user_id: 'me', ...skin }) : null;
+        return { skins: pub ? [pub] : [], canEdit: false, mine: skin };
+      }
+      if (path === '/api/skins/me') { const { skin: s, error } = cleanSkin(body); if (error) fail(error); skin = s; return { ok: true, mine: s }; }
+      throw new Error('dev: неизвестный путь ' + method + ' ' + path);
+    }
+
+    await loadSkins(apiFetch);
+    const mount = () => mountSkinsHub(document.getElementById('profile-skins'), { apiFetch, user: ME });
+    mount();
+    document.getElementById('dev-theme').onclick = () => applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+    document.getElementById('dev-incoming').onclick = () => {
+      offers.push({ id: offers.length + 1, from: 'erlan', to: 'me', give: [{ pack: 'matiz', part: 'frame' }], giveGems: 0,
+        want: [{ pack: 'cat', part: 'cover' }], wantGems: 0, note: 'Матиз за котика, по-братски', status: 'pending', createdAt: new Date().toISOString() });
+      mount();
+    };
+    document.getElementById('dev-accept').onclick = () => {
+      const o = offers.find(x => x.from === 'me' && x.status === 'pending');
+      if (!o) return console.warn('висящих ваших предложений нет');
+      try { accept(o); } catch (e) { console.warn(e.message); }
+      mount();
+    };
+  </script>
+</body>
+</html>

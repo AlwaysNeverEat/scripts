@@ -18,6 +18,7 @@ import donorsRouter from './routes/donors.js';
 import skinsRouter from './routes/skins.js';
 import casesRouter from './routes/cases.js';
 import questsRouter from './routes/quests.js';
+import tradesRouter from './routes/trades.js';
 // Панель Битрикса («Лиды») отложена — см. docs/BITRIX.md. Модули
 // backend/src/bitrix/ и оба роутера на месте, выключена только проводка.
 // import bitrixRouter from './routes/bitrix.js';
@@ -113,6 +114,8 @@ app.use('/api/skins', requireSession, skinsRouter);
 app.use('/api/cases', requireSession, casesRouter);
 // Задания: три дневных по играм и недельное по работе (shared/quests.js).
 app.use('/api/quests', requireSession, questsRouter);
+// Обменник и маркет скинов (shared/trades.js).
+app.use('/api/trades', requireSession, tradesRouter);
 app.use('/api/crm', requireSession, crmRouter);
 // Панель Битрикса: карточка лида во время звонка (docs/BITRIX.md). ОТЛОЖЕНА
 // целиком — ручки не подняты, чтобы сайт не хранил чужие сессии портала ради

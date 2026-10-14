@@ -19,7 +19,9 @@ const BALANCE_SQL = `
       COALESCE(sum(keys), 0)::int AS keys
     FROM wallet_ledger WHERE user_id = $1`;
 
-function ops(q, userId) {
+// Экспорт — для обменника (trades/store.js): там под одной транзакцией два
+// кошелька сразу.
+export function ops(q, userId) {
     return {
         // Сырой запрос в той же транзакции — для тех, кто кладёт в кошелёк
         // что-то своё под тем же замком (забранное задание: quests/store.js).
@@ -55,11 +57,15 @@ function ops(q, userId) {
 // Только читать — без транзакции.
 export const reader = (userId) => ops(query, userId);
 
+// Тот же замок берёт обменник — на ОБА кошелька, в порядке id
+// (trades/store.js): иначе обмен и открытие кейса прочли бы один баланс.
+export const WALLET_LOCK = `SELECT pg_advisory_xact_lock(hashtext('wallet:' || $1))`;
+
 export async function withWallet(userId, fn) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        await client.query(`SELECT pg_advisory_xact_lock(hashtext('wallet:' || $1))`, [userId]);
+        await client.query(WALLET_LOCK, [userId]);
         const out = await fn(ops((t, p) => client.query(t, p), userId));
         await client.query('COMMIT');
         return out;

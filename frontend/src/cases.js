@@ -45,7 +45,8 @@ const WON_MS = 1300;     // карточка приза мигает, прежд
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const dayLabel = (iso) => { const [, m, d] = String(iso).split('-').map(Number); return `${d} ${MONTHS[m - 1]}`; };
 
-const gem = (px = 18) => `<span class="kc-gem">${gemImgHtml(px)}</span>`;
+// gem и thumbHtml — и для обменника (trades.js): та же вещь рисуется одинаково.
+export const gem = (px = 18) => `<span class="kc-gem">${gemImgHtml(px)}</span>`;
 const svg = (body, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 const keyIcon = (px = 18) => ART.key
     ? `<img class="kc-key-img" src="${ART.key}" alt="" width="${px}" height="${px}" draggable="false">`
@@ -59,7 +60,7 @@ const chestImg = (kind, open = false) => {
 
 // Картинка вещи: рамка — рамкой, шапка и звонки — картинкой шапки, записи —
 // котом целиком. Пак целиком (большой кейс) — шапкой пака.
-function thumbHtml({ pack, part }) {
+export function thumbHtml({ pack, part }) {
     const art = skinArt[pack] || {};
     const url = part === 'frame' ? art.frame : part === 'records' ? art.single : art.banner;
     const fit = part === 'frame' || part === 'records' ? 'contain' : 'cover';
