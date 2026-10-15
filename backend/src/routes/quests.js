@@ -45,12 +45,21 @@ export function createQuestsRouter({ store = defaultStore, now = () => Date.now(
         let quests = await store.getSet(userId, period);
         if (!quests) {
             const ws = weekStart(t);
-            const past = await store.workCounts(userId, ws - WEEKLY_HISTORY_WEEKS * WEEK, ws);
+            const from = ws - WEEKLY_HISTORY_WEEKS * WEEK;
+            const weekAgo = (n) => store.workDays(userId, ws - n * WEEK, ws - (n - 1) * WEEK);
+            const [past, days, two, four] = await Promise.all([
+                store.workCounts(userId, from, ws), store.workDays(userId, from, ws), weekAgo(2), weekAgo(4),
+            ]);
             const avg = {
                 records: (Number(past?.records) || 0) / WEEKLY_HISTORY_WEEKS,
                 cars: (Number(past?.cars) || 0) / WEEKLY_HISTORY_WEEKS,
             };
-            quests = await store.saveSet(userId, period, [pickWeekly({ userId, week: mskWeek(t), avg })]);
+            // Сколько смен ждём на этой неделе — столько, сколько было две недели
+            // назад: график 2/2 повторяется ровно через две недели, а у пятидневки
+            // все недели одинаковые. Две недели назад был в отпуске — четыре
+            // назад той же чётности, нет и её — среднее.
+            const expected = two || four || Math.round(days / WEEKLY_HISTORY_WEEKS);
+            quests = await store.saveSet(userId, period, [pickWeekly({ userId, week: mskWeek(t), avg, shifts: { days, expected } })]);
         }
         return { period, quests };
     }

@@ -109,6 +109,26 @@ test('недельное: записи только тем, кто записы�
     assert.deepEqual([...kinds].sort(), ['cars', 'records']);
 });
 
+test('недельное по сменам: при 2/2 цель не прыгает за графиком', () => {
+    // 10 записей за смену (140 за 14 смен): в четырёхсменную 46, в трёхсменную 35 —
+    // «на 15% больше обычного» в обе. От недели было бы 35 × 1.15 = 41 всегда:
+    // в трёхсменную это на треть больше обычного за смену.
+    const at = (expected) => {
+        for (let w = 0; w < 30; w++) {
+            const q = pickWeekly({ userId: 'op', week: `w${w}`, avg: { records: 35, cars: 0 }, shifts: { days: 14, expected } });
+            if (q.kind === 'records') return q;
+        }
+    };
+    assert.equal(at(4).params.target, 46);
+    assert.equal(at(3).params.target, 35);
+    assert.equal(at(3).params.perShift, 10);
+    assert.equal(weeklyNote(at(3)), 'обычно у вас 10 записей за смену, на этой неделе 3 смены — цель на 15% больше');
+    // Машины: пол остаётся.
+    const cars = pickWeekly({ userId: 'u', week: 'w1', avg: { records: 0, cars: 2 }, shifts: { days: 8, expected: 3 } });
+    assert.equal(cars.params.target, WEEKLY_CARS_MIN);
+    assert.match(weeklyNote(cars), /цель не меньше 10/);
+});
+
 test('недельное: мера и подписи', () => {
     const q = { kind: 'records', params: { target: 46, avg: 40 } };
     assert.deepEqual(measureWeekly(q, { records: 23 }), { done: false, frac: 0.5, label: '23 / 46' });

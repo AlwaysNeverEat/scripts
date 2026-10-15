@@ -11,7 +11,7 @@ import { DAILY_XP, WEEKLY_XP, BOT_REPORTS_PER_DAY, mskDay } from '../../../share
 const ME = { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' };
 const NOW = Date.parse('2026-10-13T09:00:00Z');
 
-function memStore({ past = { records: 0, cars: 0 }, week = { records: 0, cars: 0 }, bests = {} } = {}) {
+function memStore({ past = { records: 0, cars: 0 }, week = { records: 0, cars: 0 }, bests = {}, days = () => 0 } = {}) {
     const sets = new Map();
     const log = [];
     const claims = [];
@@ -25,6 +25,8 @@ function memStore({ past = { records: 0, cars: 0 }, week = { records: 0, cars: 0
         async results(_u, from, to) { return log.filter(r => r.at >= from && r.at < to); },
         // «Прошлые недели» и «эта неделя» различаются по началу отрезка.
         async workCounts(_u, from, to) { return to - from > 8 * 86400_000 ? past : week; },
+        // days(from, to) — рабочие дни на отрезке; по умолчанию истории смен нет.
+        async workDays(_u, from, to) { return days(from, to); },
         async claims() { return claims.map(c => ({ ...c })); },
         claim(_u, { period, slot, xp }) {
             const run = chain.then(() => {
@@ -141,4 +143,23 @@ test('отчёт о партии с ботом: принимается побе�
     assert.equal((await api('/report', { game: 'doom', won: true, level: 'hard' })).status, 400);
     for (let i = 1; i < BOT_REPORTS_PER_DAY; i++) await api('/report', { game: 'pool', won: true, level: 'easy' });
     assert.equal((await api('/report', { game: 'pool', won: true, level: 'easy' })).body.ok, false);
+});
+
+test('недельное по сменам: 2/2 — цель на столько смен, сколько было две недели назад', async (t) => {
+    // Четыре прошлые недели (от ближней): 3, 4, 3, 4 смены (14 дней) и 140 записей — 10 за
+    // смену. Две недели назад было 4 смены — цель 4 × 10 × 1.15 = 46.
+    const WEEK = 7 * 86400_000;
+    let api, w;
+    for (let i = 0; i < 20 && w?.kind !== 'records'; i++) {
+        const now = NOW + i * 14 * 86400_000;
+        const store = memStore({
+            past: { records: 140, cars: 0 },
+            days: (from, to) => (to - from > 8 * 86400_000 ? 14 : [3, 4, 3, 4][Math.floor((now - to) / WEEK)] ?? 0),
+        });
+        api = await serve(t, store, () => now);
+        w = (await api('/')).body.weekly;
+    }
+    assert.equal(w.kind, 'records');
+    assert.equal(w.label, '0 / 46');
+    assert.match(w.note, /10 записей за смену, на этой неделе 4 смены/);
 });

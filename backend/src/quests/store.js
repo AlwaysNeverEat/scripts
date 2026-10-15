@@ -128,6 +128,22 @@ export const store = {
         );
         return r;
     },
+    // Рабочие дни (МСК) — дни, в которых человек что-то сделал: запись (и
+    // незасчитанная — мастера, мусорный номер — тоже: он был на смене) или
+    // машина в базу. По ним недельное считается от смены, см. pickWeekly.
+    async workDays(userId, from, to) {
+        const { rows: [r] } = await query(
+            `SELECT count(DISTINCT d)::int AS days FROM (
+                 SELECT (created_at AT TIME ZONE 'Europe/Moscow')::date AS d FROM record_credits
+                  WHERE user_id = $1 AND created_at >= $2 AND created_at < $3
+                 UNION ALL
+                 SELECT (created_at AT TIME ZONE 'Europe/Moscow')::date FROM car_events
+                  WHERE user_id = $1 AND type = 'added' AND created_at >= $2 AND created_at < $3
+             ) x`,
+            [userId, ts(from), ts(to)],
+        );
+        return Number(r?.days) || 0;
+    },
     async claims(userId, periods) {
         const { rows } = await query(
             `SELECT period, slot FROM quest_claims WHERE user_id = $1 AND period = ANY($2::text[])`,
