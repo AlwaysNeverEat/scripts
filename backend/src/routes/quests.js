@@ -15,7 +15,7 @@ import { Router } from 'express';
 import defaultStore from '../quests/store.js';
 import {
     pickDaily, pickWeekly, measureDaily, measureWeekly, questText, weeklyNote, cleanBotReport,
-    GAMES, BEST_KEYS, BOT_REPORTS_PER_DAY, WEEKLY_HISTORY_WEEKS,
+    GAMES, BEST_KEYS, BOT_REPORTS_PER_DAY, WEEKLY_HISTORY_WEEKS, DAILY_XP, WEEKLY_XP,
     mskDay, mskWeek, dayStart, weekStart,
 } from '../../../shared/quests.js';
 
@@ -70,13 +70,15 @@ export function createQuestsRouter({ store = defaultStore, now = () => Date.now(
             day: mskDay(t), resetAt: new Date(ds + DAY).toISOString(),
             week: mskWeek(t), weekResetAt: new Date(ws + WEEK).toISOString(),
             daily: daily.quests.map(q => ({
-                slot: q.slot, id: q.id, game: q.game, gameLabel: GAMES[q.game], xp: q.xp,
+                // Награда — НЫНЕШНЯЯ, а не замороженная в наборе: заморозка
+                // держит пороги, а поднятая награда достаётся и уже выданному.
+                slot: q.slot, id: q.id, game: q.game, gameLabel: GAMES[q.game], xp: DAILY_XP,
                 text: questText(q),
                 ...measureDaily(q, results.filter(r => r.game === q.game)),
                 claimed: claimed(daily.period, q.slot),
             })),
             weekly: weekly.quests.map(q => ({
-                slot: q.slot, id: q.id, kind: q.kind, xp: q.xp,
+                slot: q.slot, id: q.id, kind: q.kind, xp: WEEKLY_XP,
                 text: questText(q), note: weeklyNote(q),
                 ...measureWeekly(q, counts),
                 claimed: claimed(weekly.period, q.slot),
