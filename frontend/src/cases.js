@@ -20,10 +20,23 @@ import { KEY_PRICE, SMALL_CASE_PRICE, RECORDS_PER_GEM, XP_PER_GEM, allItems, gem
 import { skinArt, packHasPart, skinState, saveMySkin, localOperator } from './skins.js';
 import { gemImgHtml } from './nameBadges.js';
 
-const ART = {};
-for (const [path, url] of Object.entries(import.meta.glob('./assets/cases/*.{webp,png}', { eager: true, query: '?url', import: 'default' }))) {
-    ART[path.match(/([^/]+)\.\w+$/)[1]] = url;
+// Картинки сезона лежат в assets/cases/<id сезона>/ и перекрывают общие из
+// assets/cases/: нарисовали зиме только обложку — сундуки остаются прежние.
+const ART_ALL = {};
+for (const [path, url] of Object.entries(import.meta.glob('./assets/cases/**/*.{webp,png}', { eager: true, query: '?url', import: 'default' }))) {
+    const [, dir, name] = path.match(/assets\/cases\/(?:([^/]+)\/)?([^/]+)\.\w+$/);
+    (ART_ALL[dir || ''] ||= {})[name] = url;
 }
+const ART = { ...ART_ALL[''] };
+function useSeasonArt(id) {
+    for (const k of Object.keys(ART)) delete ART[k];
+    Object.assign(ART, ART_ALL[''], ART_ALL[id] || {});
+}
+// Переключатель сезона у SKIN_EDITOR_LOGINS — на устройстве: это проверка
+// картинок и паков, а не настройка аккаунта. Сервер слушает его только у них.
+const SEASON_KEY = 'zm_case_season';
+const readForced = () => { try { return localStorage.getItem(SEASON_KEY) || ''; } catch { return ''; } };
+const writeForced = (id) => { try { id ? localStorage.setItem(SEASON_KEY, id) : localStorage.removeItem(SEASON_KEY); } catch { /* приватное окно */ } };
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -62,7 +75,7 @@ const chestImg = (kind, open = false) => {
 // котом целиком. Пак целиком (большой кейс) — шапкой пака.
 export function thumbHtml({ pack, part }) {
     const art = skinArt[pack] || {};
-    const url = part === 'frame' ? art.frame : part === 'records' ? art.single : art.banner;
+    const url = part === 'frame' ? art.frame : part === 'records' ? art.single : part === 'leads' && art.leads ? art.leads : art.banner;
     const fit = part === 'frame' || part === 'records' ? 'contain' : 'cover';
     return url ? `<span class="kc-thumb kc-thumb-${fit}" style="background-image:url('${url}')"></span>` : '<span class="kc-thumb"></span>';
 }
@@ -96,6 +109,7 @@ export function mountCases(host, { apiFetch, user }) {
     const state = {
         wallet: null, owned: [], status: 'loading', error: '',
         season: null, next: null, packs: [],   // сезон считает сервер
+        seasons: null, forced: readForced(),   // переключатель — только редактору
         fitPart: 'frame',      // какая часть открыта в примерочной
         draft: null,           // примерочная: { part: pack|null }
         busy: '',
@@ -103,12 +117,14 @@ export function mountCases(host, { apiFetch, user }) {
 
     async function load() {
         try {
-            const data = await apiFetch('/api/cases');
+            const data = await apiFetch(`/api/cases${state.forced ? `?season=${encodeURIComponent(state.forced)}` : ''}`);
             state.wallet = data.balance;
             state.owned = data.owned || [];
             state.season = data.season || null;
             state.next = data.next || null;
             state.packs = data.packs || [];
+            state.seasons = data.seasons || null;
+            useSeasonArt(state.season?.id || state.next?.id || '');
             state.status = 'ready';
         } catch (e) {
             state.status = 'error';
@@ -291,9 +307,24 @@ export function mountCases(host, { apiFetch, user }) {
         const s = state.season, n = state.next;
         const title = s?.title || n?.title || '';
         const when = s ? `кейсы открыты до ${dayLabel(s.ends)}` : n ? `сезон вернётся ${dayLabel(n.starts)} — выпавшее остаётся с вами` : 'кейсы закрыты';
+        // Зимняя обложка пишет название сама — второе поверх не кладём.
+        const label = s ? s.titleOnCover !== false : true;
         return `
-            ${ART.cover && title ? `<div class="kc-cover${s ? '' : ' kc-cover-off'}" style="background-image:url('${ART.cover}')"><span>${esc(title)}</span></div>` : ''}
+            ${seasonPickHtml()}
+            ${ART.cover && title ? `<div class="kc-cover${s ? '' : ' kc-cover-off'}" style="background-image:url('${ART.cover}')">${label ? `<span>${esc(title)}</span>` : ''}</div>` : ''}
             <div class="kc-season${s ? '' : ' kc-season-off'}">${esc(when)}</div>`;
+    }
+
+    // Сезон для проверки: «По календарю» или любой из SEASONS. Видят его
+    // только SKIN_EDITOR_LOGINS (сервер присылает список только им).
+    function seasonPickHtml() {
+        if (!state.seasons) return '';
+        const opt = (id, label) => `<button class="kc-sp-btn${state.forced === id ? ' active' : ''}" data-act="season" data-season="${esc(id)}">${esc(label)}</button>`;
+        return `
+            <div class="kc-sp" title="Видно только вам: проверка сезонов">
+                <span>Сезон (тест):</span>
+                ${opt('', 'По календарю')}${state.seasons.map(x => opt(x.id, x.title)).join('')}
+            </div>`;
     }
 
     function render() {
@@ -357,6 +388,7 @@ export function mountCases(host, { apiFetch, user }) {
         }
         const act = btn.dataset.act;
         if (act === 'reload') { state.status = 'loading'; render(); load(); }
+        if (act === 'season' && !state.busy) { state.forced = btn.dataset.season || ''; writeForced(state.forced); load(); }
         if (act === 'exchange') {
             const input = host.querySelector(`[data-amount="${btn.dataset.from}"]`);
             exchange(btn.dataset.from, Math.floor(Number(input?.value) || 0));
@@ -448,7 +480,7 @@ export function mountCases(host, { apiFetch, user }) {
         render();
         try {
             for (const step of steps) await step();
-            const result = modal.spin(kind, post('/api/cases/open', { kind }).then(r => ({ ...r, packs: state.packs })));
+            const result = modal.spin(kind, post('/api/cases/open', { kind, season: state.forced || undefined }).then(r => ({ ...r, packs: state.packs })));
             const res = await result;
             if (res?.tryOn) {
                 const d = { ...(state.draft || mineParts()) };

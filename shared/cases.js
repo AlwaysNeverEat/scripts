@@ -47,32 +47,61 @@ export const KEYS_MAX = 20;
 // Вне окна кейсы закрыты, а выпавшее остаётся и носится круглый год, гемы
 // тоже не сгорают — сезон ограничивает открытие, а не владение.
 //
-// Новый сезон — строка здесь (паки в SKIN_PACKS, картинки — по имени файла).
-// Окна сезонов не должны пересекаться: в один день открыт один сезон.
+// Новый сезон — строка здесь (паки в SKIN_PACKS, картинки — по имени файла в
+// assets/cases/<id сезона>/, а без своих — общие из assets/cases/).
+// Окна сезонов не должны пересекаться: в один день открыт один сезон. Окно
+// может переходить через Новый год: [12, 2] — декабрь, январь и февраль.
+//
+// titleOnCover: false — название уже НАРИСОВАНО на обложке (зима: надпись
+// пишет сама картинка), и класть поверх него второе вёрсткой незачем.
 export const SEASONS = [
     { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'raccoon', 'bunny', 'halloween', 'matiz'], windows: [[9, 11]] },
+    {
+        id: 'winter-cold', title: 'Холодрыжество', titleOnCover: false,
+        packs: ['snowman', 'santa', 'deer', 'owl', 'grinch', 'subzero', 'potter', 'lichking'],
+        windows: [[12, 2]],
+    },
 ];
 
 const MSK = 3 * 3600_000;
 const pad = (n) => String(n).padStart(2, '0');
 // Последний день месяца m (1–12) года y.
 const lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+const inWindow = (m, [from, to]) => (from <= to ? m >= from && m <= to : m >= from || m <= to);
+
+// Сезон наружу: без окон, но с последним днём ТЕКУЩЕГО окна (у зимы в декабре
+// это февраль следующего года).
+function seasonView(s, [from, to], y, m) {
+    const endY = from > to && m >= from ? y + 1 : y;
+    return { id: s.id, title: s.title, titleOnCover: s.titleOnCover !== false, packs: s.packs, ends: `${endY}-${pad(to)}-${pad(lastDay(endY, to))}` };
+}
 
 /**
  * Какой сезон открыт сейчас (по Москве) и до какого дня включительно.
- * @returns {{ id, title, packs, ends: 'YYYY-MM-DD' } | null}
+ * @returns {{ id, title, titleOnCover, packs, ends: 'YYYY-MM-DD' } | null}
  */
 export function activeSeason(now = Date.now()) {
     const d = new Date(now + MSK);
     const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
     for (const s of SEASONS) {
-        for (const [from, to] of s.windows) {
-            if (m >= from && m <= to) {
-                return { id: s.id, title: s.title, packs: s.packs, ends: `${y}-${pad(to)}-${pad(lastDay(y, to))}` };
-            }
-        }
+        for (const w of s.windows) if (inWindow(m, w)) return seasonView(s, w, y, m);
     }
     return null;
+}
+
+/**
+ * Сезон по id, как будто он открыт сейчас, — для проверки паков и картинок
+ * (переключатель у SKIN_EDITOR_LOGINS).
+ */
+export function seasonById(id, now = Date.now()) {
+    const s = SEASONS.find(x => x.id === id);
+    if (!s) return null;
+    const d = new Date(now + MSK);
+    const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+    const w = s.windows.find(x => inWindow(m, x)) || s.windows[0];
+    // Не в своём окне — срок того окна, как если бы оно уже началось: для
+    // проверки важно, ЧТО в кейсах, а не точная дата под ними.
+    return seasonView(s, w, y, inWindow(m, w) ? m : w[0]);
 }
 
 /** Ближайшее открытие сезона после `now`: { title, starts: 'YYYY-MM-DD' } или null. */

@@ -37,10 +37,10 @@ function memStore({ recordsTotal = 0, rublesTotal = 0 } = {}) {
 
 const OCT = Date.parse('2026-10-12T09:00:00Z');
 
-async function serve(t, store, rand = () => 0, now = () => OCT) {
+async function serve(t, store, rand = () => 0, now = () => OCT, user = ME) {
     const app = express();
     app.use(express.json());
-    app.use((req, _res, next) => { req.user = ME; next(); });
+    app.use((req, _res, next) => { req.user = user; next(); });
     app.use('/', createCasesRouter({ store, rand, now }));
     const srv = app.listen(0);
     t.after(() => srv.close());
@@ -102,7 +102,7 @@ test('двойной клик не открывает два кейса на о�
 
 test('вне сезона кейсы закрыты, обмен работает, сезон приезжает с балансом', async (t) => {
     const store = memStore({ rublesTotal: 100 });
-    const call = await serve(t, store, () => 0, () => Date.parse('2026-12-20T09:00:00Z'));
+    const call = await serve(t, store, () => 0, () => Date.parse('2027-04-20T09:00:00Z'));
     const g = (await call('/')).json;
     assert.equal(g.season, null);
     assert.deepEqual(g.next, { id: 'autumn-kawaii', title: 'Осенний кавай', starts: '2027-09-01' });
@@ -111,4 +111,25 @@ test('вне сезона кейсы закрыты, обмен работает
     assert.equal(shut.status, 409);
     assert.equal(shut.json.error.code, 'season_closed');
     assert.equal((await call('/')).json.balance.gems, 45);
+});
+
+test('сезон на пробу: редактору — любой из SEASONS, остальным параметр ничего не даёт', async (t) => {
+    const store = memStore({ rublesTotal: 100 });
+    const plain = await serve(t, store);
+    const p = (await plain('/?season=winter-cold')).json;
+    assert.equal(p.season.id, 'autumn-kawaii');
+    assert.equal(p.seasons, undefined);
+
+    const editor = await serve(t, store, () => 0, () => OCT, { ...ME, login: 'gtrixoff' });
+    const e = (await editor('/?season=winter-cold')).json;
+    assert.equal(e.season.id, 'winter-cold');
+    assert.equal(e.season.titleOnCover, false);
+    assert.equal(e.forced, true);
+    assert.ok(e.seasons.some(s => s.id === 'winter-cold'));
+    // В кейсах — только нарисованные паки зимы, и выпадает зимнее.
+    assert.ok(e.packs.includes('snowman') && !e.packs.includes('cat'));
+    await editor('/exchange', { from: 'rubles', gems: 45 });
+    const won = await editor('/open', { kind: 'small', season: 'winter-cold' });
+    assert.ok(e.packs.includes(won.json.prize.pack));
+    assert.equal((await editor('/?season=nope')).json.season.id, 'autumn-kawaii');
 });

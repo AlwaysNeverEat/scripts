@@ -445,3 +445,16 @@
 .kc-prize-sparks i:nth-child(13) { --a: 309deg; animation-delay: 0.00s; }
 .kc-prize-sparks i:nth-child(14) { --a: 334deg; animation-delay: 0.12s; }
 @media (prefers-reduced-motion: reduce) { .kc-card-legendary, .kc-prize-sparks i { animation: none; } .kc-prize-sparks { display: none; } }
+
+/* ── Сезон для проверки (только SKIN_EDITOR_LOGINS) ─────────────────────── */
+.kc-sp {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2);
+  margin-bottom: var(--s-3);
+  font-size: 12.5px; color: var(--sub);
+}
+.kc-sp-btn {
+  padding: var(--s-1) var(--s-3);
+  border: 1px dashed var(--border); border-radius: var(--r-round);
+  background: none; color: var(--text); font: inherit; cursor: pointer;
+}
+.kc-sp-btn.active { border-style: solid; border-color: var(--accent); color: var(--accent); }

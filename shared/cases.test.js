@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, DUP_XP_SMALL, DUP_XP_BIG, gemsWord, activeSeason, nextSeason, packOdds, casePacks, rarityOdds } from './cases.js';
+import { walletBalance, planExchange, planKeys, openCase, allItems, itemKey, KEY_PRICE, DUP_XP_SMALL, DUP_XP_BIG, gemsWord, activeSeason, nextSeason, seasonById, packOdds, casePacks, rarityOdds } from './cases.js';
 import { SKIN_PACKS } from './skins.js';
 
 const season = { packs: ['cat', 'fox'] };
@@ -71,13 +71,32 @@ test('склонение гемов', () => {
 test('сезон: «Осенний кавай» только осенью, возвращается следующей осенью', () => {
     const at = (iso) => Date.parse(iso);
     assert.deepEqual(activeSeason(at('2026-10-12T09:00:00Z')),
-        { id: 'autumn-kawaii', title: 'Осенний кавай', packs: ['cat', 'fox', 'raccoon', 'bunny', 'halloween', 'matiz'], ends: '2026-11-30' });
+        { id: 'autumn-kawaii', title: 'Осенний кавай', titleOnCover: true, packs: ['cat', 'fox', 'raccoon', 'bunny', 'halloween', 'matiz'], ends: '2026-11-30' });
     assert.equal(activeSeason(at('2026-09-01T09:00:00Z')).ends, '2026-11-30');
     assert.equal(activeSeason(at('2027-04-01T09:00:00Z')), null);
-    // 30 ноября 23:00 UTC — это уже 1 декабря по Москве
-    assert.equal(activeSeason(at('2026-11-30T23:00:00Z')), null);
+    // 30 ноября 23:00 UTC — это уже 1 декабря по Москве: зима
+    assert.equal(activeSeason(at('2026-11-30T23:00:00Z')).id, 'winter-cold');
     assert.equal(activeSeason(at('2027-07-10T09:00:00Z')), null);
     assert.deepEqual(nextSeason(at('2026-12-15T09:00:00Z')), { id: 'autumn-kawaii', title: 'Осенний кавай', starts: '2027-09-01' });
+});
+
+test('сезон: «Холодрыжество» — через Новый год, с декабря по февраль', () => {
+    const at = (iso) => Date.parse(iso);
+    const dec = activeSeason(at('2026-12-15T09:00:00Z'));
+    assert.equal(dec.id, 'winter-cold');
+    assert.equal(dec.ends, '2027-02-28');
+    assert.equal(dec.titleOnCover, false);
+    assert.equal(activeSeason(at('2027-01-10T09:00:00Z')).ends, '2027-02-28');
+    assert.equal(activeSeason(at('2028-02-29T09:00:00Z')).ends, '2028-02-29');
+    // 28 февраля 21:00 UTC — уже 1 марта по Москве
+    assert.equal(activeSeason(at('2027-02-28T21:00:00Z')), null);
+    assert.deepEqual(nextSeason(at('2026-10-15T09:00:00Z')), { id: 'winter-cold', title: 'Холодрыжество', starts: '2026-12-01' });
+    // На пробу — в октябре, со сроком своего окна.
+    assert.equal(seasonById('winter-cold', at('2026-10-15T09:00:00Z')).ends, '2027-02-28');
+    assert.equal(seasonById('nope'), null);
+    // В кейсы попадают только нарисованные паки.
+    assert.ok(casePacks(dec).includes('snowman'));
+    assert.ok(!casePacks(dec).includes('lichking') || SKIN_PACKS.lichking.ready !== false);
 });
 
 test('вне сезона кейс не открывается, а пак из чужого сезона не выпадает', () => {

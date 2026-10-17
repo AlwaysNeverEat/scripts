@@ -5,7 +5,9 @@
 # «не прозрачно» и узнаются ПО ФОРМЕ, а не по месту:
 #   • самый вытянутый ввысь — длинный кот (капсулы записей);
 #   • самый вытянутый вширь — баннер карточки лида;
-#   • из двух оставшихся тот, у кого в середине дыра, — рамка аватара;
+#   • из двух оставшихся тот, у кого в середине дыра, — рамка аватара (с --hat
+#     рамки-кольца нет: внизу по центру лежит ШАПКА, она садится на макушку;
+#     с --band там ОБОДОК с рожками, дуга обнимает аватар);
 #   • последний — кот на одну запись.
 # Не сходится (пятен не четыре, у рамки нет дыры) — скрипт падает со словами,
 # а не кладёт на сайт пустоту.
@@ -45,6 +47,7 @@ STRIP_W = 112       # ширина полосы длинного кота (на 
 SINGLE_H = 128      # высота кота на одну запись (капсула ~39px)
 FRAME = 384         # сторона рамки (аватар 96px, рамка шире него)
 BANNER_W = 1400     # баннер карточки лида (карточка до ~1000px)
+LEADS_H = 160       # своя полоса строки звонка (--leads): строка ~56px, запас под 2× и больше
 
 
 def rs(img, size):
@@ -113,6 +116,58 @@ def blobs(alpha, join=JOIN, solid=SOLID):
 # предмет из кусочков (хвост отдельно от кота), потом всё строже. GPT ставит
 # предметы как придётся, и бывает, что тыква на рамке почти касается низа
 # баннера — тогда запас сшивает их в один, а без запаса они разделяются.
+def carve_bands(sheet, gap=2 * CELL + 2):
+    """Отрезать сплошные полосы (шапку, полосу лидов) от того, что к ним
+    прилипло. На тесном листе в шесть предметов GPT дотягивает соседей до
+    края полосы вплотную (поднятый меч Лича упёрся в полосу лидов), и пятна
+    склеиваются при любом допуске. Полоса узнаётся по строкам, где сплошной
+    непрозрачный отрезок шире половины листа; под и над такими строками
+    прорезается зазор шире двух клеток поиска (иначе пятна по сетке CELL
+    остаются соседями) — сосед теряет десяток пикселей, а не весь лист."""
+    a = sheet.getchannel('A')
+    w, h = a.size
+    px = a.load()
+
+    def solid_run(y):
+        """Строка полосы: самый длинный сплошной отрезок шире половины листа,
+        расширенный влево и вправо через МЕЛКИЕ разрывы (до 8px): у края
+        полосы сглаженные пиксели рвут отрезок, а соседний предмет (меч слева)
+        отделён настоящим промежутком — на нём расширение и встаёт."""
+        run, best = 0, (0, -1)
+        for x in range(w):
+            run = run + 1 if px[x, y] > SOLID else 0
+            if run > best[1] - best[0] + 1:
+                best = (x - run + 1, x)
+        if best[1] - best[0] + 1 <= w // 2:
+            return None
+        x0, x1 = best
+
+        def grow(x, step):
+            gap = 0
+            while 0 <= x + step < w and gap <= 8:
+                x += step
+                gap = 0 if px[x, y] > SOLID else gap + 1
+            return x - step * gap
+        return grow(x0, -1), grow(x1, 1)
+    runs = [solid_run(y) for y in range(h)]
+    # Зазор — только в ширину самой полосы: меч слева тянется на весь лист
+    # в высоту, и строка целиком разрубила бы его на куски.
+    for y in range(h):
+        r = runs[y]
+        if not r:
+            continue
+        x0, x1 = r
+        if y + 1 >= h or not runs[y + 1]:
+            for yy in range(y + 1, min(h, y + 1 + gap)):
+                for x in range(x0, x1 + 1):
+                    px[x, yy] = 0
+        if y == 0 or not runs[y - 1]:
+            for yy in range(max(0, y - gap), y):
+                for x in range(x0, x1 + 1):
+                    px[x, yy] = 0
+    sheet.putalpha(a)
+
+
 def find_items(alpha, want):
     for join, solid in ((JOIN, SOLID), (1, 100), (0, 160)):
         found = blobs(alpha, join, solid)
@@ -218,40 +273,14 @@ def save(img, path):
     print(f'{os.path.relpath(path)} — {img.width}×{img.height}, {os.path.getsize(path) // 1024} КБ')
 
 
-def main():
-    global ROW_TOL
-    args = [a for a in sys.argv[1:] if a != '--rough']
-    if '--rough' in sys.argv:
-        ROW_TOL = 30
-    if len(args) != 2:
-        die('запуск: cut-skin.py <лист.png> <пак> [--rough]')
-    src, pack = args
-    out = os.path.normpath(os.path.join(HERE, '..', '..', 'frontend', 'src', 'assets', 'skins', pack))
-    sheet = with_alpha(Image.open(src))
+def save_ring(frame, out, meta, fx=None):
+    """Рамка: середина дыры — в центр квадрата, размер дыры — в meta (по нему
+    CSS растягивает рамку так, чтобы дыра легла ровно на аватар).
 
-    found = find_items(sheet.getchannel('A'), 4)
-    items = [tight(sheet.crop(b)) for b in found]
-    longcat = max(items, key=lambda i: i.height / i.width)
-    banner = max(items, key=lambda i: i.width / i.height)
-    rest = [i for i in items if i is not longcat and i is not banner]
-    if len(rest) != 2 or longcat.height < longcat.width * 2.5 or banner.width < banner.height * 2.5:
-        die('не узнать длинного кота и баннер по форме — раскладка изменилась')
-    holed = [i for i in rest if has_hole(i)]
-    if len(holed) != 1:
-        die('у рамки аватара нет пустой середины (или пустая середина у обоих)')
-    frame = holed[0]
-    single = rest[0] if rest[1] is frame else rest[1]
-
-    os.makedirs(out, exist_ok=True)
-    meta = {}
-
-    # Баннер — непрозрачный прямоугольник: ужать по ширине.
-    b = banner.convert('RGB').resize((BANNER_W, round(banner.height * BANNER_W / banner.width)), Image.LANCZOS)
-    save(b, os.path.join(out, 'banner.webp'))
-    meta['banner'] = {'ratio': round(b.width / b.height, 4)}
-
-    # Рамка: середина дыры — в центр квадрата, размер дыры — в meta (по нему
-    # CSS растягивает рамку так, чтобы дыра легла ровно на аватар).
+    fx — та же рамка во втором состоянии. Дыры у неё может и не быть (лёд
+    затягивает фото), поэтому совмещается она по ВНЕШНЕМУ краю: обе картинки
+    обрезаны впритык (tight), и вторая растягивается до размеров первой и
+    кладётся в квадрат тем же сдвигом."""
     a = frame.getchannel('A')
     cx, cy = frame.width // 2, frame.height // 2
     hole = Image.new('L', frame.size, 0)
@@ -272,6 +301,147 @@ def main():
     sq.paste(frame, (round(side / 2 - hcx), round(side / 2 - hcy)))
     save(rs(sq, (FRAME, FRAME)), os.path.join(out, 'frame.webp'))
     meta['frame'] = {'hole': round(hd / side, 4)}
+    if fx is not None:
+        sq2 = Image.new('RGBA', (side, side), (0, 0, 0, 0))
+        sq2.paste(rs(fx, frame.size), (round(side / 2 - hcx), round(side / 2 - hcy)))
+        save(rs(sq2, (FRAME, FRAME)), os.path.join(out, 'frame-fx.webp'))
+        meta['frame']['fx'] = True
+
+
+# Шапка в долях диаметра аватара: ОПУШКА шириной чуть меньше аватара, а низом
+# заходит на него больше чем на треть — сидит на макушке, а не парит над головой.
+HAT_W = 0.92
+HAT_OVERLAP = 0.38
+
+
+def save_hat(hat, out, meta):
+    """Рамка-шапка (--hat): кольца нет, аватар не обводится, а «надевает»
+    шапку. CSS про это не знает — квадрат строится так же, с аватаром в
+    центре, и `hole` в meta — это доля аватара в квадрате, как у кольца."""
+    # Меряем по ОПУШКЕ (нижней пятой шапки), а не по всей картинке: кончик с
+    # помпоном свисает вбок, и по рамке картинки шапка садилась бы набекрень
+    # мимо головы. Опушка — по центру аватара и шириной HAT_W.
+    a = hat.getchannel('A').load()
+    xs = [x for y in range(hat.height * 4 // 5, hat.height) for x in range(hat.width) if a[x, y] > 128]
+    bx0, bx1 = min(xs), max(xs)
+    D = 1000
+    k = HAT_W * D / (bx1 - bx0)
+    w, h = round(hat.width * k), round(hat.height * k)
+    off = ((bx0 + bx1) / 2 - hat.width / 2) * k     # насколько середина опушки правее середины картинки
+    rise = D / 2 - HAT_OVERLAP * D + h          # от центра аватара до верха шапки
+    reach = w / 2 + abs(off)                     # от центра аватара до дальнего бока шапки
+    side = int(2 * max(D / 2, reach, rise)) + 2
+    sq = Image.new('RGBA', (side, side), (0, 0, 0, 0))
+    c = side / 2
+    sq.paste(rs(hat, (w, h)), (round(c - w / 2 - off), round(c - rise)))
+    save(rs(sq, (FRAME, FRAME)), os.path.join(out, 'frame.webp'))
+    meta['frame'] = {'hole': round(D / side, 4), 'hat': True}
+
+
+# Ободок (рожки оленя): дуга сама нарисована по кругу головы, и кончики её
+# расходятся ровно на ширину этой головы. Поэтому ширина аватара — расстояние
+# между кончиками (с волоском запаса), а по высоте внутренний край дуги ложится
+# на макушку с нахлёстом BAND_OVERLAP: так ободок обнимает аватар, а не висит
+# над ним, как висел бы, если сажать его по-шапочному — низом на треть.
+BAND_W = 1.02
+BAND_OVERLAP = 0.04
+
+
+def save_band(band, out, meta):
+    """Рамка-ободок (--band): как шапка, но мерится по кончикам и по
+    внутреннему краю дуги посередине."""
+    a = band.getchannel('A').load()
+    xs = [x for y in range(band.height * 9 // 10, band.height) for x in range(band.width) if a[x, y] > 128]
+    bx0, bx1 = min(xs), max(xs)
+    mid = (bx0 + bx1) // 2
+    # Внутренний край дуги: от низа по середине вверх до первого рисунка.
+    seat = next((y for y in range(band.height - 1, -1, -1) if a[mid, y] > 128), None)
+    if seat is None or seat > band.height * 0.9:
+        die('у ободка не видно дуги посередине — внизу по центру сплошной рисунок')
+    D = 1000
+    k = D * BAND_W / (bx1 - bx0)
+    w, h = round(band.width * k), round(band.height * k)
+    off = ((bx0 + bx1) / 2 - band.width / 2) * k
+    seat_y = -D / 2 + BAND_OVERLAP * D           # где внутренний край дуги, от центра аватара
+    top = seat_y - seat * k                      # верх картинки, от центра аватара
+    reach = max(w / 2 + abs(off), -top, top + h)
+    side = int(2 * max(D / 2, reach)) + 2
+    sq = Image.new('RGBA', (side, side), (0, 0, 0, 0))
+    c = side / 2
+    sq.paste(rs(band, (w, h)), (round(c - w / 2 - off), round(c + top)))
+    save(rs(sq, (FRAME, FRAME)), os.path.join(out, 'frame.webp'))
+    meta['frame'] = {'hole': round(D / side, 4), 'hat': True}
+
+
+def main():
+    global ROW_TOL
+    args = [a for a in sys.argv[1:] if a not in ('--rough', '--hat', '--band', '--fx', '--leads')]
+    if '--rough' in sys.argv:
+        ROW_TOL = 30
+    band_mode = '--band' in sys.argv
+    hat_mode = '--hat' in sys.argv or band_mode
+    fx_mode = '--fx' in sys.argv
+    leads_mode = '--leads' in sys.argv
+    if len(args) != 2:
+        die('запуск: cut-skin.py <лист.png> <пак> [--rough] [--hat | --band] [--fx] [--leads]')
+    src, pack = args
+    out = os.path.normpath(os.path.join(HERE, '..', '..', 'frontend', 'src', 'assets', 'skins', pack))
+    sheet = with_alpha(Image.open(src))
+
+    if leads_mode:
+        carve_bands(sheet)
+    found = find_items(sheet.getchannel('A'), 4 + fx_mode + leads_mode)
+    items = [tight(sheet.crop(b)) for b in found]
+    left_of = {id(i): b[0] for i, b in zip(items, found)}
+    longcat = max(items, key=lambda i: i.height / i.width)
+    # --leads: у пака своя полоса для строки звонка — она ПЛОЩЕ шапки профиля.
+    # Иначе звонок рисуется той же шапкой, и на лидах видно ровно то же, что в
+    # профиле (у легендарки это выглядит дёшево).
+    wide = sorted(items, key=lambda i: i.width / i.height, reverse=True)
+    leads = wide[0] if leads_mode else None
+    banner = wide[1] if leads_mode else wide[0]
+    rest = [i for i in items if i is not longcat and i is not banner and i is not leads]
+    # --fx: внизу ТРИ предмета слева направо — рамка, та же рамка во втором
+    # состоянии (лёд у Саб-Зиро) и кот на одну запись. Второе состояние сайт
+    # проявляет поверх первого (skins.css, «Второе состояние рамки»).
+    fx = None
+    if fx_mode:
+        if len(rest) != 3:
+            die('с --fx внизу должно быть три предмета: рамка, рамка во втором состоянии, кот')
+        rest.sort(key=lambda i: left_of[id(i)])
+        fx = rest.pop(1)
+    if len(rest) != 2 or longcat.height < longcat.width * 2.5 or banner.width < banner.height * 2.5:
+        die('не узнать длинного кота и баннер по форме — раскладка изменилась')
+    if hat_mode:
+        # Вместо кольца — шапка: на листе она внизу ПО ЦЕНТРУ, кот — справа.
+        frame = min(rest, key=lambda i: left_of[id(i)])
+    else:
+        holed = [i for i in rest if has_hole(i)]
+        if len(holed) != 1:
+            die('у рамки аватара нет пустой середины (или пустая середина у обоих)')
+        frame = holed[0]
+    single = rest[0] if rest[1] is frame else rest[1]
+
+    os.makedirs(out, exist_ok=True)
+    meta = {}
+
+    # Баннер — непрозрачный прямоугольник: ужать по ширине.
+    b = banner.convert('RGB').resize((BANNER_W, round(banner.height * BANNER_W / banner.width)), Image.LANCZOS)
+    save(b, os.path.join(out, 'banner.webp'))
+    meta['banner'] = {'ratio': round(b.width / b.height, 4)}
+    if leads is not None:
+        if leads.width < leads.height * 4:
+            die('полоса для лидов не плоская — раскладка изменилась')
+        ld = leads.convert('RGB').resize((round(leads.width * LEADS_H / leads.height), LEADS_H), Image.LANCZOS)
+        save(ld, os.path.join(out, 'leads.webp'))
+        meta['leads'] = {'ratio': round(ld.width / ld.height, 4)}
+
+    if band_mode:
+        save_band(frame, out, meta)
+    elif hat_mode:
+        save_hat(frame, out, meta)
+    else:
+        save_ring(frame, out, meta, fx)
 
     # Кот на одну запись.
     s = rs(single, (round(single.width * SINGLE_H / single.height), SINGLE_H))

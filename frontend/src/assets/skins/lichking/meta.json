@@ -1,0 +1,20 @@
+{
+  "banner": {
+    "ratio": 4.0816
+  },
+  "leads": {
+    "ratio": 7.6813
+  },
+  "frame": {
+    "hole": 0.4506,
+    "fx": true
+  },
+  "single": {
+    "ratio": 0.9609
+  },
+  "strip": {
+    "head": 2.0,
+    "body": 0.1339,
+    "feet": 0.8839
+  }
+}

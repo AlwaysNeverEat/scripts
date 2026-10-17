@@ -20,7 +20,7 @@
 // design/skins/cut-skin.py, он же пишет meta.json с размерами.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { skinForOperator, skinOperatorKey } from '../../shared/skins.js';
+import { skinForOperator, skinOperatorKey, tierOf, SKIN_PACKS } from '../../shared/skins.js';
 import './skins.css';
 
 const FILES = import.meta.glob('./assets/skins/*/*.{webp,png}', { eager: true, query: '?url', import: 'default' });
@@ -100,7 +100,7 @@ export const avatarSkinAttrs = (userId) => (userId
 // ── Покраска ─────────────────────────────────────────────────────────────────
 
 const VARS = ['--sk-frame', '--sk-hole', '--sk-banner', '--sk-banner-ratio',
-    '--sk-head', '--sk-body', '--sk-feet', '--sk-single', '--sk-w', '--sk-single-w', '--sk-head-h', '--sk-feet-h'];
+    '--sk-head', '--sk-body', '--sk-feet', '--sk-single', '--sk-w', '--sk-single-w', '--sk-head-h', '--sk-feet-h', '--sk-hue', '--sk-frame-fx'];
 
 // Пак ЭТОЙ части у хозяина элемента — у каждой части свой (shared/skins.js).
 // `data-skin-pack` задаёт пак прямо на элементе — так примерочная показывает
@@ -120,16 +120,24 @@ function paint(el) {
     const part = el.dataset.skinPart;
     const pack = packOf(el);
     const art = pack && packHasPart(pack, part) ? PACK_ART[pack] : null;
-    el.classList.remove(...[...el.classList].filter(c => c === 'skinned' || /^skin-(frame|cover|leads|records|one|pack-)/.test(c)));
+    el.classList.remove(...[...el.classList].filter(c => c === 'skinned' || /^skin-(frame|cover|leads|records|one|pack-|tier-|fx)/.test(c)));
     for (const v of VARS) el.style.removeProperty(v);
     if (!art) return;
     const m = art.meta || {};
     if (part === 'frame') {
         el.style.setProperty('--sk-frame', url(art.frame));
         el.style.setProperty('--sk-hole', m.frame?.hole || 0.65);
+        // Второе состояние рамки (лёд Саб-Зиро) — проявляется поверх первой.
+        if (art['frame-fx']) {
+            el.style.setProperty('--sk-frame-fx', url(art['frame-fx']));
+            el.classList.add('skin-fx');
+        }
     } else if (part === 'cover' || part === 'leads') {
-        el.style.setProperty('--sk-banner', url(art.banner));
-        el.style.setProperty('--sk-banner-ratio', m.banner?.ratio || 4);
+        // Своя полоса для звонка (leads.webp) — у паков, где она нарисована:
+        // иначе строка ленты повторяет шапку профиля один в один.
+        const own = part === 'leads' && art.leads;
+        el.style.setProperty('--sk-banner', url(own ? art.leads : art.banner));
+        el.style.setProperty('--sk-banner-ratio', (own ? m.leads?.ratio : m.banner?.ratio) || 4);
     } else if (part === 'records') {
         const slots = Number(el.dataset.skinSlots) || 1;
         // Капсула на один слот ниже слота на 5px (зазор между записями).
@@ -151,6 +159,13 @@ function paint(el) {
     } else return;
     // Не «sk»: этот класс на сайте уже занят скелетонами загрузки (style.css).
     el.classList.add('skinned', `skin-${part}`, `skin-pack-${pack}`);
+    // Редкий и легендарный ОЖИВАЮТ (skins.css, «Ступени»): по ступени, а не по
+    // паку — так анимацию получает любой новый редкий без строчки кода.
+    const tier = tierOf(pack);
+    if (tier !== 'common') {
+        el.classList.add(`skin-tier-${tier}`);
+        el.style.setProperty('--sk-hue', SKIN_PACKS[pack]?.hue ?? 280);
+    }
 }
 
 export function paintAll(root = document) {

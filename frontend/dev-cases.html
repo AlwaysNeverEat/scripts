@@ -47,7 +47,7 @@
     import { initSegmented } from './src/segmented.js';
     import { initSkins, loadSkins } from './src/skins.js';
     import { mountCases } from './src/cases.js';
-    import { walletBalance, planExchange, planKeys, openCase, itemKey, activeSeason, nextSeason, casePacks } from '../shared/cases.js';
+    import { walletBalance, planExchange, planKeys, openCase, itemKey, activeSeason, nextSeason, casePacks, seasonById, SEASONS } from '../shared/cases.js';
     import { cleanSkin, publicSkin, SKIN_PACKS } from '../shared/skins.js';
 
     initTheme();
@@ -76,10 +76,13 @@
 
     async function apiFetch(path, { method = 'GET', body } = {}) {
       await new Promise(r => setTimeout(r, 200));
-      if (path === '/api/cases') {
-        const season = activeSeason(NOW());
+      // Сезон на пробу — как на сервере: только редактору (?editor=1).
+      const seasonOf = (id) => (params.get('editor') && id && seasonById(id, NOW())) || activeSeason(NOW());
+      if (path.split('?')[0] === '/api/cases') {
+        const season = seasonOf(new URLSearchParams(path.split('?')[1] || '').get('season'));
         return { balance: balance(), owned: [...owned], packs: casePacks(season),
-          season: season && { id: season.id, title: season.title, ends: season.ends }, next: season ? null : nextSeason(NOW()) };
+          season: season && { id: season.id, title: season.title, titleOnCover: season.titleOnCover, ends: season.ends }, next: season ? null : nextSeason(NOW()),
+          ...(params.get('editor') && { seasons: SEASONS.map(x => ({ id: x.id, title: x.title })) }) };
       }
       if (path === '/api/cases/exchange') {
         const p = planExchange(balance(), body.from, body.gems);
@@ -94,7 +97,8 @@
         return { balance: balance() };
       }
       if (path === '/api/cases/open') {
-        const season = params.get('force') ? { ...activeSeason(NOW()), packs: [params.get('force')] } : activeSeason(NOW());
+        const base = seasonOf(body.season);
+        const season = params.get('force') ? { ...base, packs: [params.get('force')] } : base;
         const p = openCase(body.kind, { balance: balance(), owned: new Set(owned.map(itemKey)), rand: (n) => Math.floor(Math.random() * n), season });
         if (p.error) fail(p.error, p.needKey ? 'need_key' : p.closed ? 'season_closed' : 'refused', p.short);
         ledger.push(p.row);

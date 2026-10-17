@@ -9,7 +9,8 @@ import { Router } from 'express';
 
 import defaultStore from '../cases/store.js';
 import { planExchange, planKeys, openCase, itemKey, CASES, KEY_PRICE, SMALL_CASE_PRICE,
-    RECORDS_PER_GEM, RUBLES_PER_GEM, XP_PER_GEM, DUP_XP_SMALL, DUP_XP_BIG, casePacks, activeSeason, nextSeason } from '../../../shared/cases.js';
+    RECORDS_PER_GEM, RUBLES_PER_GEM, XP_PER_GEM, DUP_XP_SMALL, DUP_XP_BIG, casePacks, activeSeason, nextSeason, seasonById, SEASONS } from '../../../shared/cases.js';
+import { canEditSkin } from '../../../shared/skins.js';
 
 export const PRICES = {
     key: KEY_PRICE, small: SMALL_CASE_PRICE, recordsPerGem: RECORDS_PER_GEM,
@@ -27,17 +28,31 @@ export function createCasesRouter({ store = defaultStore, rand = (n) => randomIn
         error: { code: plan.needKey ? 'need_key' : plan.closed ? 'season_closed' : 'refused', message: plan.error, short: plan.short ?? null },
     });
 
+    // Сезон запроса. Обычно — по календарю, но SKIN_EDITOR_LOGINS могут
+    // попросить любой (`season` в запросе): так паки и картинки зимы
+    // проверяются в октябре, не дожидаясь декабря. Всем остальным параметр
+    // ничего не даёт — спрятанный переключатель не запрет.
+    const seasonOf = (req, wanted) => {
+        const id = String(wanted || '');
+        if (id && id !== 'auto' && canEditSkin(req.user)) {
+            const forced = seasonById(id, now());
+            if (forced) return { season: forced, forced: true };
+        }
+        return { season: activeSeason(now()), forced: false };
+    };
+
     router.get('/', async (req, res) => {
         try {
             const r = store.reader(req.user.id);
             const [balance, owned] = await Promise.all([r.balance(), r.owned()]);
             // Сезон считает сервер: часы браузера могут врать, а открыть
             // кейс вне сезона нельзя никак (см. /open).
-            const season = activeSeason(now());
+            const { season, forced } = seasonOf(req, req.query.season);
             res.json({
                 balance, owned, prices: PRICES, packs: casePacks(season),
-                season: season && { id: season.id, title: season.title, ends: season.ends },
+                season: season && { id: season.id, title: season.title, titleOnCover: season.titleOnCover, ends: season.ends },
                 next: season ? null : nextSeason(now()),
+                ...(canEditSkin(req.user) && { seasons: SEASONS.map(s => ({ id: s.id, title: s.title })), forced }),
             });
         } catch (err) { fail(res, 'GET /api/cases', err); }
     });
@@ -74,7 +89,7 @@ export function createCasesRouter({ store = defaultStore, rand = (n) => randomIn
         try {
             const out = await store.withWallet(req.user.id, async (w) => {
                 const owned = new Set((await w.owned()).map(itemKey));
-                const plan = openCase(kind, { balance: await w.balance(), owned, rand, season: activeSeason(now()) });
+                const plan = openCase(kind, { balance: await w.balance(), owned, rand, season: seasonOf(req, req.body?.season).season });
                 if (plan.error) return { plan };
                 await w.ledger(plan.row);
                 await w.grant(plan.grant, `case_${kind}`);

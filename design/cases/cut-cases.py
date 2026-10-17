@@ -65,8 +65,11 @@ def pair(closed, opened):
 
 
 def main():
-    if len(sys.argv) != 2:
-        cs.die('запуск: cut-cases.py <лист.png>')
+    # Второй аргумент — id сезона из SEASONS (shared/cases.js): картинки
+    # ложатся в assets/cases/<сезон>/ и перекрывают общие только у него.
+    if len(sys.argv) not in (2, 3):
+        cs.die('запуск: cut-cases.py <лист.png> [id сезона]')
+    out = os.path.join(OUT, sys.argv[2]) if len(sys.argv) == 3 else OUT
     sheet = cs.with_alpha(Image.open(sys.argv[1]))
     found = cs.find_items(sheet.getchannel('A'), 6)
     cover = max(found, key=lambda b: (b[2] - b[0]) / (b[3] - b[1]))
@@ -75,14 +78,14 @@ def main():
         cs.die('обложка не сверху или не широкая — раскладка изменилась')
     key, sm, sm_open, big, big_open = (cs.tight(sheet.crop(b)) for b in row)
 
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(out, exist_ok=True)
     c = cs.tight(sheet.crop(cover)).convert('RGB')
-    cs.save(c.resize((COVER_W, round(c.height * COVER_W / c.width)), Image.LANCZOS), os.path.join(OUT, 'cover.webp'))
-    cs.save(fit(key, KEY), os.path.join(OUT, 'key.webp'))
+    cs.save(c.resize((COVER_W, round(c.height * COVER_W / c.width)), Image.LANCZOS), os.path.join(out, 'cover.webp'))
+    cs.save(fit(key, KEY), os.path.join(out, 'key.webp'))
     for name, im in zip(('chest-small', 'chest-small-open'), pair(sm, sm_open)):
-        cs.save(im, os.path.join(OUT, f'{name}.webp'))
+        cs.save(im, os.path.join(out, f'{name}.webp'))
     for name, im in zip(('chest-big', 'chest-big-open'), pair(big, big_open)):
-        cs.save(im, os.path.join(OUT, f'{name}.webp'))
+        cs.save(im, os.path.join(out, f'{name}.webp'))
 
 
 if __name__ == '__main__':

@@ -44,6 +44,16 @@ export const SKIN_PACKS = {
     // Легендарка: «тот самый» жёлтый Матиз курьера с термокоробом. Вес 1 на
     // сезон из четырёх обычных и редкого — около 1,1% за большой кейс.
     matiz: { label: 'Матиз курьера', hue: 95, weight: 1, tier: 'legendary' },
+    // Зима, «Холодрыжество» (SEASONS в shared/cases.js): картинок ещё нет.
+    // Легендарок три по весу 1 — каждая около 1% за большой кейс, как Матиз.
+    snowman: { label: 'Снеговик', hue: 200, weight: 20 },
+    santa: { label: 'Санта', hue: 0, weight: 20 },
+    deer: { label: 'Олень', hue: 25, weight: 20 },
+    owl: { label: 'Сова', hue: 210, weight: 20 },
+    grinch: { label: 'Гринч', hue: 110, weight: 6, tier: 'rare' },
+    subzero: { label: 'Саб-Зиро', hue: 190, weight: 6, tier: 'rare' },
+    potter: { label: 'Гарри Поттер', hue: 40, weight: 1, tier: 'legendary', ready: false },
+    lichking: { label: 'Король-лич', hue: 195, weight: 1, tier: 'legendary' },
 };
 
 export const TIERS = ['common', 'rare', 'legendary'];

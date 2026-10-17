@@ -102,3 +102,72 @@
   background: var(--sk-single) center / contain no-repeat;
 }
 
+
+/* ── Ступени: редкий и легендарный оживают ────────────────────────────────────
+   Обычный скин статичен, редкий — дышит. Рамка вспыхивает и светится цветом
+   пака (у Гринча это читается как мигание гирлянды), легендарка — золотом;
+   по шапке профиля раз в несколько секунд проходит блик. На капсулах записей
+   и строках лидов анимации нет нарочно: их на экране десятки, и мигающая
+   доска мешала бы работать. Кто попросил меньше движения — видит статику.
+   Анимируется только фильтр и положение блика: ни раскладки, ни размеров. */
+@keyframes sk-tier-pulse {
+  0%, 100% { filter: drop-shadow(0 0 1px oklch(0.75 0.15 var(--sk-hue) / .35)) brightness(1) saturate(1); }
+  50% { filter: drop-shadow(0 0 7px oklch(0.78 0.18 var(--sk-hue) / .85)) brightness(1.14) saturate(1.25); }
+}
+@keyframes sk-tier-gold {
+  0%, 100% { filter: drop-shadow(0 0 2px oklch(0.85 0.15 85 / .45)) brightness(1); }
+  50% { filter: drop-shadow(0 0 9px oklch(0.88 0.17 85 / .95)) brightness(1.12); }
+}
+@keyframes sk-tier-shine {
+  0%, 70% { background-position: 160% 0, center; }
+  100% { background-position: -60% 0, center; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .skin-frame.skin-tier-rare::after { animation: sk-tier-pulse 2.6s ease-in-out infinite; will-change: filter; }
+  .skin-frame.skin-tier-legendary::after { animation: sk-tier-gold 3.2s ease-in-out infinite; will-change: filter; }
+  .profile-hero .profile-cover.skin-cover.skinned.skin-tier-rare,
+  .profile-hero .profile-cover.skin-cover.skinned.skin-tier-legendary,
+  .skin-cover.skinned.skin-tier-rare,
+  .skin-cover.skinned.skin-tier-legendary {
+    background:
+      linear-gradient(105deg, transparent 42%, rgb(255 255 255 / .28) 50%, transparent 58%) 160% 0 / 250% 100% no-repeat,
+      var(--sk-banner) center / cover no-repeat;
+    animation: sk-tier-shine 6s ease-in-out infinite;
+  }
+  .profile-hero .profile-cover.skin-cover.skinned.skin-tier-legendary,
+  .skin-cover.skinned.skin-tier-legendary {
+    background:
+      linear-gradient(105deg, transparent 40%, oklch(0.92 0.12 85 / .45) 50%, transparent 60%) 160% 0 / 250% 100% no-repeat,
+      var(--sk-banner) center / cover no-repeat;
+  }
+}
+
+/* ── Второе состояние рамки ───────────────────────────────────────────────────
+   У пака может быть frame-fx — та же рамка в другом состоянии (у Саб-Зиро —
+   лёд, затягивающий фото). Она лежит поверх рамки и раз в цикл проявляется:
+   нарастает, держится и тает. Пик — не полная непрозрачность: лёд должен
+   быть ПОВЕРХ фото, а не вместо него, и полупрозрачность берём отсюда, а не
+   из картинки — GPT честной полупрозрачности не рисует. Без движения
+   (reduced motion) второго состояния не видно вовсе: застывший лёд поверх
+   лица хуже, чем никакого. */
+.skin-frame.skin-fx::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(97% / var(--sk-hole));
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  background: var(--sk-frame-fx) center / contain no-repeat;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+}
+@keyframes sk-fx-show {
+  0%, 35% { opacity: 0; }
+  55%, 80% { opacity: .85; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .skin-frame.skin-fx::before { animation: sk-fx-show 7s ease-in-out infinite; }
+}

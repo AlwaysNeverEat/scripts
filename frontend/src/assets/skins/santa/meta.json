@@ -1,0 +1,17 @@
+{
+  "banner": {
+    "ratio": 3.139
+  },
+  "frame": {
+    "hole": 0.5767,
+    "hat": true
+  },
+  "single": {
+    "ratio": 0.8125
+  },
+  "strip": {
+    "head": 1.4196,
+    "body": 0.2679,
+    "feet": 1.0536
+  }
+}
