@@ -23,13 +23,16 @@ export const LEAD_FILL_TTL_MS = 30 * 60 * 1000;
 // Заглушка услуги после имени — так имя записи пишут руками («Иван двс»).
 export const SERVICE_STUB = 'двс';
 
-let picked = null; // { name, phone, at }
+let picked = null; // { name, phone, phones, at }
 
-// «Лиды» сообщают, какая карточка открыта; null — никакая.
+// «Лиды» сообщают, какая карточка открыта; null — никакая. `phone` — номер
+// для окна записи, `phones` — ВСЕ номера лида (звонок и карточка CRM): по ним
+// ищутся привязанные машины (leadCars.js), у дублей лидов номера расходятся.
 export function setPickedLead(lead, now = Date.now()) {
     const phone = String(lead?.phone || '').replace(/\D/g, '');
     const name = String(lead?.name || '').replace(/\s+/g, ' ').trim();
-    picked = lead && (phone || name) ? { name, phone, at: now } : null;
+    const phones = [...new Set([phone, ...(lead?.phones || [])].map(p => String(p || '').replace(/\D/g, '')).filter(Boolean))];
+    picked = lead && (phone || name) ? { name, phone, phones, at: now } : null;
 }
 
 // Работа с лидом в другой вкладке (привязали машину в калькуляторе) — то же

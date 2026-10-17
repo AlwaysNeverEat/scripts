@@ -27,8 +27,8 @@ import './crmLeads.css';
 import { noteOperatorCode } from './skins.js';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
 import { setPickedLead } from './leadPick.js';
-import { cachedLeadCars, loadLeadCars, unbindLeadCar, carLine, LEAD_CARS_EVENT } from './leadCars.js';
-import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime, mskWall, phone11 } from '../../shared/crmLeads.js';
+import { cachedLeadCars, loadLeadCars, unbindLeadCar, carLine, leadKey, LEAD_CARS_EVENT } from './leadCars.js';
+import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime, mskWall } from '../../shared/crmLeads.js';
 
 const FEED_POLL_MS = 5000;
 
@@ -503,6 +503,13 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         const keyPhone = /^\d+$/.test(state.card.phone || '') ? state.card.phone : '';
         return c?.phone || state.selected?.phone || keyPhone;
     }
+    // Все номера лида: из карточки CRM и с какого звонили. У дублей лидов
+    // они расходятся, и машины клиента ищутся по любому (leadCars.js).
+    function leadPhonesRaw() {
+        const c = state.card.status === 'ready' ? state.card.data.client : null;
+        const keyPhone = /^\d+$/.test(state.card.phone || '') ? state.card.phone : '';
+        return [c?.phone, state.selected?.phone, keyPhone].filter(Boolean);
+    }
 
     function publishPick() {
         const st = state.card.status;
@@ -511,34 +518,36 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         setPickedLead({
             name: c?.fio || state.selected?.name || state.draft?.name || '',
             phone: leadPhoneRaw(),
+            phones: leadPhonesRaw(),
         });
         askCars();
     }
 
     // ── Машины клиента (наши привязки, leadCars.js) ──────────────────────────
-    // Спрашиваются заново, когда карточка открылась на ДРУГОМ номере (машину
+    // Спрашиваются заново, когда карточка открылась на ДРУГИХ номерах (машину
     // клиенту могла привязать соседняя смена), но не на каждой перерисовке.
     // Ответ ложится в общий кэш, и окно записи берёт оттуда «Kia Rio» в
     // комментарий. Упавший запрос сам не повторяется — кнопкой «ещё раз».
     let carsAskedFor = '';
-    const carsPhone = () => (['ready', 'none'].includes(state.card.status) ? phone11(leadPhoneRaw()) : '');
+    // Ключ машин открытого лида — его номера одной строкой (leadKey).
+    const carsKey = () => (['ready', 'none'].includes(state.card.status) ? leadKey(leadPhonesRaw()) : '');
 
     function askCars(force = false) {
-        const phone = carsPhone();
+        const phone = carsKey();
         if (!phone || (!force && phone === carsAskedFor)) return;
         carsAskedFor = phone;
         delete state.errors.cars;
         loadLeadCars(apiFetch, phone)
-            .catch(e => { state.errors.cars = e.message || 'не удалось узнать машины'; if (carsPhone() === phone) renderCard(); });
+            .catch(e => { state.errors.cars = e.message || 'не удалось узнать машины'; if (carsKey() === phone) renderCard(); });
     }
     // Привязали в калькуляторе или отвязали здесь — перерисовать, если это
     // машины открытого клиента.
-    window.addEventListener(LEAD_CARS_EVENT, (e) => { if (e.detail?.phone && e.detail.phone === carsPhone()) renderCard(); });
+    window.addEventListener(LEAD_CARS_EVENT, (e) => { if (e.detail?.key && e.detail.key === carsKey()) renderCard(); });
 
     // Список ссылками: клик открывает машину в калькуляторе (/car/:id), и её
     // тут же можно считать. Привязывают там же — окошком на странице машины.
     function carsHtml() {
-        const phone = carsPhone();
+        const phone = carsKey();
         if (!phone) return '';
         const cars = cachedLeadCars(phone);
         let body;
@@ -887,7 +896,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         delete state.errors['car-unbind'];
         renderCard();
         try {
-            await unbindLeadCar(apiFetch, carsPhone(), carId);
+            await unbindLeadCar(apiFetch, leadPhonesRaw(), carId);
         } catch (e) {
             state.errors['car-unbind'] = e.message || 'не получилось отвязать';
         } finally {

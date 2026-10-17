@@ -3463,7 +3463,7 @@ async function handleAction(btn, ev) {
         // Машины, привязанные к лиду (leadCars.js), — в комментарий кратко,
         // как его и пишут руками: «Kia Rio». Кэш к этому моменту уже наполнила
         // карточка лида; не наполнила — комментарий пустой, как раньше.
-        const carsNote = lead ? leadComment(cachedLeadCars(lead.phone)) : '';
+        const carsNote = lead ? leadComment(cachedLeadCars(lead.phones?.length ? lead.phones : lead.phone)) : '';
         state.modal = {
             kind: 'create',
             addressId: addr.id,

@@ -16,7 +16,7 @@
 
 import './leadCarDock.css';
 import { pickedLead, carShort, touchPickedLead } from './leadPick.js';
-import { cachedLeadCars, loadLeadCars, bindLeadCar, unbindLeadCar, carLine, LEAD_CARS_EVENT } from './leadCars.js';
+import { cachedLeadCars, loadLeadCars, bindLeadCar, unbindLeadCar, carLine, leadKey, LEAD_CARS_EVENT } from './leadCars.js';
 import { phone11 } from '../../shared/crmLeads.js';
 import { formatRuPhone } from '../../shared/crmRecords.js';
 
@@ -34,25 +34,26 @@ export function mountLeadCarDock({ apiFetch }) {
     let shown = false;    // страница машины на экране
     let busy = false;
     let error = '';
-    const dismissed = new Set(); // «телефон:машина», закрытые крестиком
-    const loading = new Set();   // телефоны, чьи машины уже спрашиваем
+    const dismissed = new Set(); // «номера:машина», закрытые крестиком
+    const loading = new Set();   // лиды (ключ номеров), чьи машины уже спрашиваем
 
-    // Лид без телефона привязать не к чему: клиент у нас — это номер.
+    // Лид без телефона привязать не к чему: клиент у нас — это номер. key —
+    // все номера лида (звонок и карточка CRM): привязка пишется на каждый.
     const lead = () => {
         const l = pickedLead();
-        const phone = phone11(l?.phone);
-        return phone ? { ...l, phone } : null;
+        const key = leadKey([l?.phone, ...(l?.phones || [])]);
+        return key ? { ...l, phone: phone11(l.phone) || key.split(',')[0], key } : null;
     };
 
     function render() {
         const l = shown && car ? lead() : null;
-        if (!l || dismissed.has(`${l.phone}:${car.id}`)) { el.classList.add('hidden'); return; }
-        const cars = cachedLeadCars(l.phone);
-        if (!cars && !loading.has(l.phone)) {
-            loading.add(l.phone);
-            loadLeadCars(apiFetch, l.phone)
+        if (!l || dismissed.has(`${l.key}:${car.id}`)) { el.classList.add('hidden'); return; }
+        const cars = cachedLeadCars(l.key);
+        if (!cars && !loading.has(l.key)) {
+            loading.add(l.key);
+            loadLeadCars(apiFetch, l.key)
                 .catch(e => { error = e.message || 'не удалось узнать машины лида'; })
-                .finally(() => { loading.delete(l.phone); render(); });
+                .finally(() => { loading.delete(l.key); render(); });
         }
         const bound = cars?.some(c => c.id === car.id);
         const others = (cars || []).filter(c => c.id !== car.id);
@@ -86,7 +87,7 @@ export function mountLeadCarDock({ apiFetch }) {
         if (!l || busy) return;
         busy = true; error = ''; render();
         try {
-            await fn(l.phone);
+            await fn(l.key);
             touchPickedLead();
         } catch (e) {
             error = e.message || 'не получилось — попробуйте ещё раз';
@@ -98,7 +99,7 @@ export function mountLeadCarDock({ apiFetch }) {
         const act = e.target.closest('[data-act]')?.dataset.act;
         if (act === 'close') {
             const l = lead();
-            if (l && car) dismissed.add(`${l.phone}:${car.id}`);
+            if (l && car) dismissed.add(`${l.key}:${car.id}`);
             render();
         }
         if (act === 'bind') run(phone => bindLeadCar(apiFetch, phone, car.id));

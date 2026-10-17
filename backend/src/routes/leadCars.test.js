@@ -21,16 +21,17 @@ function fakeDb() {
     let tick = 0;
     return async (sql, p) => {
         if (sql.includes('FROM client_cars cc JOIN cars')) {
-            return { rows: rows.filter(r => r.phone === p[0]).sort((a, b) => b.at - a.at).map(r => ({ ...CARS[r.carId], added_at: new Date(r.at) })) };
+            const best = new Map(); // DISTINCT ON (car): самая свежая строка
+            for (const r of rows) if (p[0].includes(r.phone) && !(best.get(r.carId)?.at > r.at)) best.set(r.carId, r);
+            return { rows: [...best.values()].sort((a, b) => b.at - a.at).map(r => ({ ...CARS[r.carId], added_at: new Date(r.at) })) };
         }
         if (sql.includes('INSERT INTO client_cars')) {
             if (!CARS[p[1]]) throw Object.assign(new Error('fk'), { code: '23503' });
-            if (!rows.some(r => r.phone === p[0] && r.carId === p[1])) rows.push({ phone: p[0], carId: p[1], at: ++tick });
+            for (const phone of p[0]) if (!rows.some(r => r.phone === phone && r.carId === p[1])) rows.push({ phone, carId: p[1], at: ++tick });
             return { rows: [] };
         }
         if (sql.includes('DELETE FROM client_cars')) {
-            const i = rows.findIndex(r => r.phone === p[0] && r.carId === p[1]);
-            if (i >= 0) rows.splice(i, 1);
+            for (let i = rows.length - 1; i >= 0; i--) if (p[0].includes(rows[i].phone) && rows[i].carId === p[1]) rows.splice(i, 1);
             return { rows: [] };
         }
         throw new Error('fakeDb: незнакомый запрос ' + sql);
@@ -76,4 +77,18 @@ test('плохой телефон и машина — 400, удалённая м
     const gone = await call('/', { method: 'POST', body: { phone: '79312047101', carId: GONE } });
     assert.equal(gone.status, 404);
     assert.equal(gone.json.error.code, 'not_found');
+});
+
+test('дубль лида: машина видна по любому из номеров, отвязка снимает со всех', async (t) => {
+    const call = await serve(t);
+    // Привязали в лиде, где звонок с одного номера, а в карточке CRM — другой.
+    await call('/', { method: 'POST', body: { phones: ['79119157910', '79210038218'], carId: RIO } });
+    // Дубль знает только один из них — машина на месте.
+    assert.deepEqual((await call('/?phones=79210038218')).json.cars.map(c => c.id), [RIO]);
+    assert.deepEqual((await call('/?phone=79119157910')).json.cars.map(c => c.id), [RIO]);
+    // Оба номера сразу — машина одна, а не две копии.
+    assert.equal((await call('/?phones=79119157910,79210038218')).json.cars.length, 1);
+
+    await call(`/?phones=79119157910,79210038218&carId=${RIO}`, { method: 'DELETE' });
+    assert.deepEqual((await call('/?phones=79210038218')).json.cars, []);
 });
