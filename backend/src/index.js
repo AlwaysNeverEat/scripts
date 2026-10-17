@@ -19,6 +19,7 @@ import skinsRouter from './routes/skins.js';
 import casesRouter from './routes/cases.js';
 import questsRouter from './routes/quests.js';
 import tradesRouter from './routes/trades.js';
+import leadCarsRouter from './routes/leadCars.js';
 // Панель Битрикса («Лиды») отложена — см. docs/BITRIX.md. Модули
 // backend/src/bitrix/ и оба роутера на месте, выключена только проводка.
 // import bitrixRouter from './routes/bitrix.js';
@@ -101,6 +102,8 @@ app.use('/api/users', requireSession, usersRouter);
 // роутера: без личности проверять роль нечем.
 app.use('/api/admin', requireSession, adminRouter);
 app.use('/api/crm/leads', requireSession, crmLeadsRouter);
+// Машины клиента по телефону лида — привязки наши, не CRM (routes/leadCars.js).
+app.use('/api/lead-cars', requireSession, leadCarsRouter);
 app.use('/api/crm/chats', requireSession, crmChatsRouter);
 // Пасты «Чатов» живут в нашей базе, а не в CRM: сессия CRM им не нужна.
 app.use('/api/chat/pastes', requireSession, chatPastesRouter);

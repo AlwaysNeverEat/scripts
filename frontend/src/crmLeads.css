@@ -305,6 +305,10 @@ summary.ld-h { cursor: pointer; }
 .ld-phone-row { flex-direction: row; align-items: center; gap: var(--s-1); }
 .ld-phone-row .ld-phone { font-size: 16px; }
 .ld-notes-list { max-height: 280px; overflow-y: auto; }
+/* Машины клиента — наши привязки (leadCars.js): ссылка в калькулятор и крестик отвязки. */
+.ld-cars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.ld-car { display: flex; align-items: center; gap: var(--s-2); font-size: 13.5px; }
+.ld-car-link { flex: 1; min-width: 0; }
 .ld-field { display: flex; flex-direction: column; gap: var(--s-1); font-size: 12px; color: var(--sub); min-width: 0; position: relative; }
 .ld-in {
   border: 1px solid var(--border);

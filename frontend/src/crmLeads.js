@@ -27,7 +27,8 @@ import './crmLeads.css';
 import { noteOperatorCode } from './skins.js';
 import { formatPhoneInput, phoneComplete, phoneDigits, formatPlateInput } from '../../shared/crmClients.js';
 import { setPickedLead } from './leadPick.js';
-import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime, mskWall } from '../../shared/crmLeads.js';
+import { cachedLeadCars, loadLeadCars, unbindLeadCar, carLine, LEAD_CARS_EVENT } from './leadCars.js';
+import { LEAD_STATUSES, isLive, isMine, sortFeed, operatorKey, callTime, mskWall, phone11 } from '../../shared/crmLeads.js';
 
 const FEED_POLL_MS = 5000;
 
@@ -497,15 +498,69 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
     // (leadPick.js): имя и телефон подставятся туда сами. Имя — из CRM, если
     // карточка приехала, иначе из строки звонка или из набранного для нового
     // клиента; телефон — клиента или звонка («client:ID» из «Чатов» — не номер).
+    function leadPhoneRaw() {
+        const c = state.card.status === 'ready' ? state.card.data.client : null;
+        const keyPhone = /^\d+$/.test(state.card.phone || '') ? state.card.phone : '';
+        return c?.phone || state.selected?.phone || keyPhone;
+    }
+
     function publishPick() {
         const st = state.card.status;
-        if (st === 'idle') return setPickedLead(null);
+        if (st === 'idle') { carsAskedFor = ''; return setPickedLead(null); }
         const c = st === 'ready' ? state.card.data.client : null;
-        const keyPhone = /^\d+$/.test(state.card.phone || '') ? state.card.phone : '';
         setPickedLead({
             name: c?.fio || state.selected?.name || state.draft?.name || '',
-            phone: c?.phone || state.selected?.phone || keyPhone,
+            phone: leadPhoneRaw(),
         });
+        askCars();
+    }
+
+    // ── Машины клиента (наши привязки, leadCars.js) ──────────────────────────
+    // Спрашиваются заново, когда карточка открылась на ДРУГОМ номере (машину
+    // клиенту могла привязать соседняя смена), но не на каждой перерисовке.
+    // Ответ ложится в общий кэш, и окно записи берёт оттуда «Kia Rio» в
+    // комментарий. Упавший запрос сам не повторяется — кнопкой «ещё раз».
+    let carsAskedFor = '';
+    const carsPhone = () => (['ready', 'none'].includes(state.card.status) ? phone11(leadPhoneRaw()) : '');
+
+    function askCars(force = false) {
+        const phone = carsPhone();
+        if (!phone || (!force && phone === carsAskedFor)) return;
+        carsAskedFor = phone;
+        delete state.errors.cars;
+        loadLeadCars(apiFetch, phone)
+            .catch(e => { state.errors.cars = e.message || 'не удалось узнать машины'; if (carsPhone() === phone) renderCard(); });
+    }
+    // Привязали в калькуляторе или отвязали здесь — перерисовать, если это
+    // машины открытого клиента.
+    window.addEventListener(LEAD_CARS_EVENT, (e) => { if (e.detail?.phone && e.detail.phone === carsPhone()) renderCard(); });
+
+    // Список ссылками: клик открывает машину в калькуляторе (/car/:id), и её
+    // тут же можно считать. Привязывают там же — окошком на странице машины.
+    function carsHtml() {
+        const phone = carsPhone();
+        if (!phone) return '';
+        const cars = cachedLeadCars(phone);
+        let body;
+        if (state.errors.cars) {
+            body = `<div class="ld-err">${esc(state.errors.cars)}</div><button type="button" class="btn btn-sec" data-act="cars-retry">${ICON.refresh(13)} Ещё раз</button>`;
+        } else if (!cars) {
+            body = '<span class="sk sk-line"></span>';
+        } else if (!cars.length) {
+            body = '<div class="ld-muted">Не привязаны. Найдите машину клиента в калькуляторе — там появится окошко «Привязать».</div>';
+        } else {
+            body = `<ul class="ld-cars">${cars.map(c => `
+                <li class="ld-car">
+                    <a href="/car/${esc(c.id)}" class="ld-link ld-car-link" title="Открыть в калькуляторе">${esc(carLine(c))}</a>
+                    <button type="button" class="ld-icon-btn" data-act="car-unbind" data-id="${esc(c.id)}" title="Отвязать от клиента"${busyAttr('car-' + c.id)}>${state.busy.has('car-' + c.id) ? '<span class="ld-spin" aria-hidden="true"></span>' : ICON.x(14)}</button>
+                </li>`).join('')}</ul>`;
+        }
+        return `
+        <div class="ld-block ld-cars-block">
+            <div class="ld-h">Машины клиента</div>
+            ${body}
+            ${errHtml('car-unbind')}
+        </div>`;
     }
 
     function renderCard() {
@@ -601,7 +656,8 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
             </div>
             ${errHtml('create')}
             <button type="button" class="btn btn-pri" data-act="create"${busyAttr('create')}>${btnLabel('create', `${ICON.plus(14)} Создать карточку`, 'Создаю…')}</button>
-        </div>`;
+        </div>
+        ${carsHtml()}`;
     }
 
     // Карточка — в раскладке карточки лида Битрикса, к которой привыкли руки:
@@ -639,6 +695,7 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         <div class="ld-cols">
             <div class="ld-col">
                 ${aboutHtml(D)}
+                ${carsHtml()}
                 ${notesHtml(D)}
                 ${omniHtml(D)}
             </div>
@@ -821,6 +878,24 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
 
     // ── Карточка: действия ───────────────────────────────────────────────────
 
+    // Отвязка — сразу, без «точно?», как статус: ошиблись — машина
+    // привязывается обратно одним кликом в калькуляторе.
+    async function unbindCar(carId) {
+        const key = 'car-' + carId;
+        if (state.busy.has(key)) return;
+        state.busy.add(key);
+        delete state.errors['car-unbind'];
+        renderCard();
+        try {
+            await unbindLeadCar(apiFetch, carsPhone(), carId);
+        } catch (e) {
+            state.errors['car-unbind'] = e.message || 'не получилось отвязать';
+        } finally {
+            state.busy.delete(key);
+            renderCard();
+        }
+    }
+
     function bindCard() {
         const on = (sel, fn) => cardEl.querySelectorAll(sel).forEach(el => { el.onclick = (e) => fn(el, e); });
 
@@ -869,6 +944,8 @@ export function initCrmLeads({ apiFetch, getUserId = () => '' }) {
         const source = cardEl.querySelector('[data-act="source"]');
         if (source) source.onchange = () => saveSource(source.value);
         on('[data-act="copy-phone"]', () => copyPhone());
+        on('[data-act="cars-retry"]', () => { askCars(true); renderCard(); });
+        on('[data-act="car-unbind"]', (b) => unbindCar(b.dataset.id));
 
         on('[data-act="name-edit"]', () => { state.editingName = true; state.draft.name = state.card.data.client.fio; renderCard(); });
         on('[data-act="name-cancel"]', () => { state.editingName = false; renderCard(); });

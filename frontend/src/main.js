@@ -16,6 +16,7 @@ import { initNameBadges } from './nameBadges.js';
 import { initTagSearch } from './tagSearch.js';
 import { initClientSearch } from './clientSearch.js';
 import { initCrmLeads } from './crmLeads.js';
+import { mountLeadCarDock } from './leadCarDock.js';
 import { initCrmChats } from './crmChats.js';
 import { initChatPulse } from './chatPulse.js';
 import { initStockSearch } from './stockSearch.js';
@@ -367,12 +368,15 @@ function restoreScroll(route) {
 //   /top          — рейтинг пользователей
 
 let renderedCarId = null;  // машина, уже отрисованная на #page-calc
+// Окошко «привязать машину к открытому лиду» — только на странице машины.
+const leadCarDock = mountLeadCarDock({ apiFetch });
 let profileKey = null;     // 'self' или id чужого профиля на #page-profile
 
 async function renderRoute() {
     const route = currentPath();
     if (currentRoute && currentRoute !== route) scrollByRoute.set(currentRoute, window.scrollY);
     currentRoute = route;
+    if (!/^\/car\//.test(route)) leadCarDock.hide();
 
     const tab = tabOfPath(route);
     // Вкладка «Профиль» всегда ведёт к своему профилю: чужой (/user/:id)
@@ -470,6 +474,7 @@ async function renderRoute() {
         // Та же машина, что и была — не пересобираем: выбранные агрегаты,
         // раскрытые блоки и заметки остаются на месте.
         if (renderedCarId !== carMatch[1]) await loadCarPage(carMatch[1]);
+        if (renderedCarId === carMatch[1]) leadCarDock.show();
     } else {
         showPage(pageSearch);
         // Запрос и выдача не чистятся при уходе — возвращаемся к тому же экрану,
@@ -484,6 +489,7 @@ async function loadCarPage(carId) {
     try {
         const record = await apiFetch('/api/cars/' + carId);
         renderedCarId = carId;
+        leadCarDock.show(record);
         initCarPage(record, {
             apiFetch,
             user: currentUser,
@@ -491,6 +497,7 @@ async function loadCarPage(carId) {
         });
     } catch (e) {
         renderedCarId = null; // следующий заход попробует ещё раз
+        leadCarDock.hide();
         document.getElementById('car-head').innerHTML =
             `<div class="search-empty">Не удалось загрузить машину: ${esc(e.message)}</div>`;
         document.getElementById('calc-main').innerHTML = '';

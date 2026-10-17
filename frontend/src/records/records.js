@@ -35,7 +35,8 @@ import { initSegmented } from '../segmented.js';
 import { initSelects } from '../select.js';
 import { openDateFor } from '../datepicker.js';
 import { settledSince, unitsOf, unitStatus, describeUnit, unseenFailures, canRetry } from './opQueue.js';
-import { pickedLead, leadFill } from '../leadPick.js';
+import { pickedLead, leadFill, leadComment } from '../leadPick.js';
+import { cachedLeadCars } from '../leadCars.js';
 import { avatarSkinAttrs } from '../skins.js';
 
 let root = null; // узел раздела; задаётся в startRecords()
@@ -2100,7 +2101,7 @@ function modalCreate(m) {
     <div class="rc-create">
         ${nameHistoryHtml()}
         <div class="rc-create-form">
-            ${m.fromLead ? `<div class="rc-from-lead">${icons.user(13)}<span>Имя и телефон — из открытого лида${m.fromLead.name ? ` <b>${esc(m.fromLead.name)}</b>` : ''}${m.fromLead.phone ? ` · ${esc(m.fromLead.phone)}` : ''}</span>
+            ${m.fromLead ? `<div class="rc-from-lead">${icons.user(13)}<span>${m.fromLead.cars ? 'Имя, телефон и машина' : 'Имя и телефон'} — из открытого лида${m.fromLead.name ? ` <b>${esc(m.fromLead.name)}</b>` : ''}${m.fromLead.phone ? ` · ${esc(m.fromLead.phone)}` : ''}</span>
                 <button type="button" class="btn btn-sec rc-mini-btn" data-action="clear-lead-fill">Очистить</button></div>` : ''}
             <div class="rc-field-row">
                 <label class="edit-field rc-grow"><span>Имя клиента</span>
@@ -3457,15 +3458,20 @@ async function handleAction(btn, ev) {
         // берутся из него (leadPick.js): звонок обычно и кончается записью, и
         // перепечатывать их из соседней вкладки незачем. Откуда взялись поля,
         // окно пишет плашкой — с кнопкой «Очистить» для чужого клиента.
-        const fill = leadFill(pickedLead());
+        const lead = pickedLead();
+        const fill = leadFill(lead);
+        // Машины, привязанные к лиду (leadCars.js), — в комментарий кратко,
+        // как его и пишут руками: «Kia Rio». Кэш к этому моменту уже наполнила
+        // карточка лида; не наполнила — комментарий пустой, как раньше.
+        const carsNote = lead ? leadComment(cachedLeadCars(lead.phone)) : '';
         state.modal = {
             kind: 'create',
             addressId: addr.id,
             date: state.date,
             time: btn.dataset.time || null,
             durationMinutes: 30,
-            name: fill?.name || '', phone: fill?.phone || '', carNumber: '', comment: '', byMaster: false, sms: true,
-            fromLead: fill ? { name: fill.leadName, phone: fill.phone } : null,
+            name: fill?.name || '', phone: fill?.phone || '', carNumber: '', comment: carsNote, byMaster: false, sms: true,
+            fromLead: fill ? { name: fill.leadName, phone: fill.phone, cars: carsNote } : null,
         };
         return render();
     }
@@ -3474,6 +3480,9 @@ async function handleAction(btn, ev) {
         if (state.modal?.kind === 'create') {
             state.modal.name = '';
             state.modal.phone = '';
+            // Комментарий стираем, только если в нём всё ещё машина лида:
+            // дописанное человеком — его работа, а не наша подстановка.
+            if (state.modal.fromLead?.cars && state.modal.comment === state.modal.fromLead.cars) state.modal.comment = '';
             state.modal.fromLead = null;
         }
         render();

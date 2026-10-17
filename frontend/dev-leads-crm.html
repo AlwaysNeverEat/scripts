@@ -41,6 +41,8 @@
     </select>
     <button class="btn btn-sec" id="dev-ring">Новый входящий</button>
     <button class="btn btn-sec" id="dev-theme">Сменить тему</button>
+    <button class="btn btn-sec" id="dev-calc">Калькулятор: Kia Rio</button>
+    <button class="btn btn-sec" id="dev-calc2">Калькулятор: Solaris</button>
   </div>
   <div class="page-body leads-body" style="max-width:1400px">
     <div id="leads-body"></div>
@@ -144,9 +146,26 @@
     // Код 101 занят хозяином кота с начала времён.
     const CLAIMS = [{ code: '101', userId: 'cat-user', at: 0 }];
 
+    // Машины клиента (/api/lead-cars) — в памяти; окошко калькулятора —
+    // кнопками «Калькулятор: …» над лентой (страницы машины тут нет).
+    const DEV_CARS = {
+      'aaaaaaaa-0000-0000-0000-000000000001': { id: 'aaaaaaaa-0000-0000-0000-000000000001', brand: 'Kia', model: 'Rio', generation: 'III', yearFrom: 2011, yearTo: 2017, engineVolume: 1.6, fuel: 'petrol' },
+      'aaaaaaaa-0000-0000-0000-000000000002': { id: 'aaaaaaaa-0000-0000-0000-000000000002', brand: 'Hyundai', model: 'Solaris', generation: 'II', yearFrom: 2017, yearTo: null, engineVolume: 1.6, fuel: 'petrol' },
+    };
+    const BINDS = []; // { phone, carId }
+    const leadCars = (phone) => BINDS.filter(b => b.phone === phone).reverse().map(b => DEV_CARS[b.carId]);
+
     async function stubFetch(path, opts = {}) {
       const method = opts.method || 'GET';
       const body = opts.body || {};
+      if (path.startsWith('/api/lead-cars')) {
+        await wait(250);
+        const q = new URLSearchParams(path.split('?')[1] || '');
+        const phone = phone11(q.get('phone') || body.phone);
+        if (method === 'POST' && !BINDS.some(b => b.phone === phone && b.carId === body.carId)) BINDS.push({ phone, carId: body.carId });
+        if (method === 'DELETE') { const i = BINDS.findIndex(b => b.phone === phone && b.carId === q.get('carId')); if (i >= 0) BINDS.splice(i, 1); }
+        return { cars: leadCars(phone) };
+      }
       if (kase() === 'auth' && !path.startsWith('/api/crm/login')) { await wait(300); throw fail('crm_auth_required', 'нет сессии CRM — войдите'); }
       if (path === '/api/crm/login') { await wait(500); caseSel.value = 'ok'; return { ok: true }; }
       if (path === '/api/skins') return { skins: params.get('skin') ? [{ userId: 'cat-user', parts: { frame: PACK, cover: PACK, leads: PACK, records: PACK }, operator: '101' }] : [], claims: CLAIMS, canEdit: false, mine: null };
@@ -236,6 +255,11 @@
     initSkins();
     loadSkins(stubFetch);
     const leads = initCrmLeads({ apiFetch: stubFetch });
+    const { mountLeadCarDock } = await import('./src/leadCarDock.js');
+    const dock = mountLeadCarDock({ apiFetch: stubFetch });
+    const raw = (c) => ({ id: c.id, brand: c.brand, model: c.model });
+    document.getElementById('dev-calc').onclick = () => dock.show(raw(DEV_CARS['aaaaaaaa-0000-0000-0000-000000000001']));
+    document.getElementById('dev-calc2').onclick = () => dock.show(raw(DEV_CARS['aaaaaaaa-0000-0000-0000-000000000002']));
     leads.activate();
     caseSel.onchange = () => leads.activate();
 

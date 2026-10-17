@@ -29,3 +29,15 @@ test('закрытая карточка — подставлять нечего'
     assert.equal(pickedLead(2), null);
     assert.equal(leadFill(null), null);
 });
+
+test('комментарий записи из машин лида — марка и модель, без повторов', async () => {
+    const { leadComment, carShort } = await import('./leadPick.js');
+    assert.equal(carShort({ brand: 'Kia', model: 'Rio', generation: 'III' }), 'Kia Rio');
+    assert.equal(leadComment([
+        { brand: 'Kia', model: 'Rio', generation: 'IV' },
+        { brand: 'Hyundai', model: 'Solaris' },
+        { brand: 'Kia', model: 'Rio', generation: 'III' },
+    ]), 'Kia Rio, Hyundai Solaris');
+    assert.equal(leadComment([]), '');
+    assert.equal(leadComment(null), '');
+});

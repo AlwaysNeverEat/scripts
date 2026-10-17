@@ -32,6 +32,12 @@ export function setPickedLead(lead, now = Date.now()) {
     picked = lead && (phone || name) ? { name, phone, at: now } : null;
 }
 
+// Работа с лидом в другой вкладке (привязали машину в калькуляторе) — то же
+// касание карточки: срок выбора отсчитывается заново.
+export function touchPickedLead(now = Date.now()) {
+    if (picked && now - picked.at <= LEAD_FILL_TTL_MS) picked.at = now;
+}
+
 export function pickedLead(now = Date.now()) {
     if (!picked || now - picked.at > LEAD_FILL_TTL_MS) return null;
     return picked;
@@ -44,4 +50,19 @@ export function leadFill(lead) {
     if (!lead) return null;
     const name = [lead.name, SERVICE_STUB].filter(Boolean).join(' ');
     return { name, phone: lead.phone ? formatRuPhone(lead.phone) : '', leadName: lead.name || '' };
+}
+
+// ── Машины лида (привязки — leadCars.js, /api/lead-cars) ─────────────────────
+
+// «Kia Rio» — так машину пишут в комментарии записи: кратко, марка и модель,
+// без поколения и мотора (их видно, открыв машину из карточки лида).
+export function carShort(car) {
+    return [car?.brand, car?.model].map(s => String(s || '').trim()).filter(Boolean).join(' ');
+}
+
+// Комментарий новой записи из привязанных машин. Две одинаковые модели
+// (две Kia Rio разных поколений) пишутся один раз — в комментарии они
+// неотличимы, а повтор читался бы как опечатка.
+export function leadComment(cars) {
+    return [...new Set((cars || []).map(carShort).filter(Boolean))].join(', ');
 }
