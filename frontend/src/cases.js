@@ -142,6 +142,14 @@ export function mountCases(host, { apiFetch, user }) {
         const have = ownedSet();
         return Object.keys(SKIN_PACKS).filter(p => packHasPart(p, part) && (skinState().canEdit || have.has(`${p}:${part}`)));
     };
+    // Что показать в примерочной: надеваемое и под замком — только то, что
+    // СЕЙЧАС выпадает из кейсов (паки открытого сезона). Замок на паке
+    // следующего сезона — это анонс раньше времени: зиму увидели в октябре.
+    const shownPacks = (part) => {
+        const can = new Set(wearable(part));
+        const now = new Set(state.packs);
+        return Object.keys(SKIN_PACKS).filter(p => packHasPart(p, part) && (can.has(p) || now.has(p)));
+    };
 
     // ── Разметка ─────────────────────────────────────────────────────────────
 
@@ -221,7 +229,8 @@ export function mountCases(host, { apiFetch, user }) {
         const changed = SKIN_PARTS.some(p => (draft[p.id] || null) !== (mine[p.id] || null));
         const part = state.fitPart;
         const have = state.owned.length;
-        const total = allItems().length;
+        // «Из скольких» — то же, что видно: выпавшее плюс то, что выпадает сейчас.
+        const total = new Set([...state.owned, ...allItems(state.packs)].map(i => `${i.pack}:${i.part}`)).size;
         const op = localOperator(user?.id);
         return `
         <div class="kc-fit">
@@ -247,7 +256,7 @@ export function mountCases(host, { apiFetch, user }) {
     // замком и не нажимается: видно, что ещё есть и за чем крутить кейсы.
     function tilesHtml(part, cur, worn) {
         const can = new Set(wearable(part));
-        const packs = Object.keys(SKIN_PACKS).filter(p => packHasPart(p, part));
+        const packs = shownPacks(part);
         const tile = (pack, inner, name) => {
             const locked = Boolean(pack) && !can.has(pack);
             const cls = ['kc-tile', pack === cur ? 'kc-tile-on' : '', locked ? 'kc-tile-lock' : '', pack && tierInfo(pack) ? `kc-tile-${tierInfo(pack).cls}` : ''].join(' ');
