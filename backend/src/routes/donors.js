@@ -73,4 +73,7 @@ export function createDonorsRouter({ db, now = () => Date.now(), serverBalance =
     return router;
 }
 
-export default createDonorsRouter();
+// Один счёт на процесс: его же показывает прощальная страница (routes/farewell.js),
+// и второй экземпляр ходил бы в Рег.облако вдвое чаще.
+export const sharedServerBalance = createServerBalance();
+export default createDonorsRouter({ serverBalance: sharedServerBalance });
