@@ -1,0 +1,70 @@
+/* Прощальная страница (farewell.js). Своя и самодостаточная: стили приложения
+   (style.css) сюда не грузятся — их тянет main.js. */
+html.fw-mode body > *:not(#farewell) { display: none !important; }
+html.fw-mode, html.fw-mode body {
+  margin: 0;
+  min-height: 100%;
+  background: #0d0d10;
+  color: #e8e6e3;
+  font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+#farewell {
+  box-sizing: border-box;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 48px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  #farewell { grid-template-columns: 1fr; padding-top: 24px; }
+}
+
+.fw-card { background: #16161b; border: 1px solid #26262d; border-radius: 16px; overflow: hidden; }
+.fw-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  object-position: center 30%;
+  filter: grayscale(1) contrast(1.05);
+}
+.fw-body { padding: 32px; }
+.fw-title { margin: 0 0 16px; font-size: 32px; font-weight: 700; letter-spacing: -.01em; }
+.fw-body p { margin: 0 0 16px; color: #cfccc8; }
+.fw-sign { margin-top: 24px; color: #8a8790; font-size: 14px; }
+
+.fw-f { display: flex; align-items: center; gap: 16px; margin-top: 32px; padding-top: 24px; border-top: 1px solid #26262d; }
+.fw-f-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  border: 1px solid #3a3a44;
+  background: #1f1f26;
+  color: #fff;
+  font: 700 30px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s, border-color .15s;
+}
+.fw-f-btn:hover { background: #2a2a33; border-color: #55555f; }
+.fw-f-btn:focus-visible { outline: 2px solid #8a8790; outline-offset: 2px; }
+.fw-f-hit { animation: fw-press .25s ease-out; }
+@keyframes fw-press { 0% { transform: scale(.88); } 100% { transform: scale(1); } }
+.fw-f-count { color: #8a8790; }
+.fw-f-count b { color: #e8e6e3; font-size: 20px; }
+
+.fw-side { padding: 24px; }
+.fw-side h2 { margin: 0 0 12px; font-size: 17px; font-weight: 600; }
+.fw-server { margin-bottom: 16px; color: #8a8790; font-size: 14px; }
+.fw-server b { color: #e8e6e3; }
+.fw-donors { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fw-donors li { display: flex; align-items: center; gap: 12px; }
+.fw-donors img, .fw-donors i { width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; }
+.fw-donors i { display: grid; place-items: center; background: #26262d; font-style: normal; font-weight: 600; font-size: 14px; }
+.fw-muted { color: #8a8790; font-size: 14px; }
+
+@media (prefers-reduced-motion: reduce) { .fw-f-hit { animation: none; } }

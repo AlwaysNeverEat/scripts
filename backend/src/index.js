@@ -14,7 +14,8 @@ import crmLeadsRouter from './routes/crmLeads.js';
 // «Чаты» — «Открытые линии» новой CRM (MAX, Telegram, ВК).
 import crmChatsRouter from './routes/crmChats.js';
 import chatPastesRouter from './routes/chatPastes.js';
-import donorsRouter from './routes/donors.js';
+import donorsRouter, { sharedServerBalance } from './routes/donors.js';
+import { createFarewellRouter } from './routes/farewell.js';
 import skinsRouter from './routes/skins.js';
 import casesRouter from './routes/cases.js';
 import questsRouter from './routes/quests.js';
@@ -94,6 +95,8 @@ app.use('/api', (req, res, next) => {
 // проверяют токен где нужно). Всё остальное под /api — только с валидной
 // сессией: x-api-key выше — грубый гейт, requireSession — личность пользователя.
 app.use('/api/auth', authRouter);
+// Прощальная страница — без входа: сотрудники подписали отказ от сайта.
+app.use('/api/farewell', createFarewellRouter({ serverBalance: sharedServerBalance }));
 app.use('/api/cars', requireSession, carsRouter);
 app.use('/api/profile', requireSession, profileRouter);
 app.use('/api/top', requireSession, topRouter);
